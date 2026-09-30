@@ -63,18 +63,18 @@ def kernel_progress(rows):
                    and not note(r, "-O2") and not note(r, "-Os"))
         return r["cyc_per_sym"] if r else None
 
-    fig, ax = plt.subplots(figsize=(WIDTH, 3.6))
+    fig, ax = plt.subplots(figsize=(WIDTH, 2.7))
     for sps, col, marker, ls in ((4, BLUE, "o", "-"), (2, RED, "s", "--")):
         pts = [(i, cost(k, sps)) for i, k in enumerate(steps) if cost(k, sps)]
         dots(ax, [p[0] for p in pts], [p[1] for p in pts], col,
              f"{sps} samples/symbol", marker=marker, linestyle=ls)
-        ax.annotate(f"{pts[-1][1]:.1f}", pts[-1], xytext=(5, 5), textcoords="offset points",
-                    fontsize=8)
+        ax.annotate(f"{pts[-1][1]:.1f}", pts[-1], xytext=(0, -6), textcoords="offset points",
+                    ha="center", va="top", fontsize=8)
     budget(ax, 16, 0.1, "16-cycle budget")
     ax.set_yscale("log")
     ax.set_yticks([10, 100, 1000], ["10", "100", "1000"])
     ax.minorticks_off()
-    ax.set_ylim(5, 1500)
+    ax.set_ylim(3, 1500)
     ax.set_xticks(range(len(steps)), ["v0\nConvolution", "v1\nShift LUT", "v2\nWindow LUT",
                                     "v3\nPIO interleave", "v4\nAssembly", "v5\nPipelined"])
     ax.set_xlim(-0.25, 5.25)
@@ -96,7 +96,7 @@ def stream_load(rows):
     ]
     cases = [(n, latest(rows, lambda r, p=p: p(r) and clean(r))) for n, p in cases]
     cases = [(n, r) for n, r in cases if r][::-1]
-    fig, ax = plt.subplots(figsize=(WIDTH, 3.2))
+    fig, ax = plt.subplots(figsize=(WIDTH, 2.6))
     for y, (n, r) in enumerate(cases):
         busy = [c["busy"] * 100 for c in r["core"]]
         if len(busy) == 1:
@@ -127,7 +127,7 @@ def dvbs2_progress(rows):
     bch = [r["cyc_bch"] / 1e3 for r in recs]
     ldpc = [r["cyc_ldpc"] / 1e3 for r in recs]
     rest = [f - b - l for f, b, l in zip(frame, bch, ldpc)]
-    fig, ax = plt.subplots(figsize=(WIDTH, 3.6))
+    fig, ax = plt.subplots(figsize=(WIDTH, 2.7))
     dots(ax, x, frame, INK, "Frame total")
     for v, col, lab, marker, ls in ((ldpc, BLUE, "LDPC", "^", "-."),
                                     (rest, GREEN, "Other framing", "D", ":"),
@@ -139,7 +139,7 @@ def dvbs2_progress(rows):
         ax.annotate(f"{f:.0f}k", (i, f), xytext=(0, -12 if below else 9), textcoords="offset points",
                     ha="center", va="top" if below else "bottom", fontsize=8)
     budget(ax, limit, 1.45, "One-core budget at 8 Msym/s")
-    ax.set_ylim(0, 880)
+    ax.set_ylim(0, 960)
     ax.set_xticks(x, [f"v{i + 1}" for i in x])
     ax.set_xlim(-0.2, len(recs) - 0.8)
     title(fig, "DVB-S2 encoder")
@@ -162,7 +162,7 @@ def full_tx(rows):
              for n, r in cases if r][::-1]
     if not cases:
         return
-    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 3.2), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 2.5), sharey=True)
     for ax, head, col, busy in ((axes[0], "Shaper, core 0", BLUE, lambda r: r["core"][0]["busy"]),
                                  (axes[1], "Encoder, core 1", RED, lambda r: r["s2_busy"])):
         for y, (_, r) in enumerate(cases):

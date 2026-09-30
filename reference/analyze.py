@@ -99,7 +99,7 @@ def main():
 
 
 def plot_sweep(sweep):
-    fig, ax = plt.subplots(1, 2, figsize=(WIDTH, 3.4))
+    fig, ax = plt.subplots(1, 2, figsize=(WIDTH, 2.7))
     for sps, col, marker, ls in ((4, BLUE, "o", "-"), (2, RED, "s", "--")):
         r = [x for x in sweep if x["sps"] == sps and x["kaiser_beta"] == 0]
         L = [x["L"] for x in r]

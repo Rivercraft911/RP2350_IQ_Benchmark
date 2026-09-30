@@ -117,7 +117,7 @@ def main():
         note="typical curves; magnitude-only filter; image = max PSD beyond f_s - B; rms = I-axis rms "
              "relative to the LUT's no-clip full scale", cases=res, corner_sensitivity=sens), indent=1))
 
-    fig, axes = plt.subplots(len(CASES), 1, figsize=(WIDTH, 6.6), sharex=True, sharey=True)
+    fig, axes = plt.subplots(len(CASES), 1, figsize=(WIDTH, 4.4), sharex=True, sharey=True)
     for ax, (name, N, L, tune, eq, _), r, (fw, db) in zip(axes, CASES, res, spectra):
         f = np.linspace(-72e6, 72e6, 4000)
         ax.plot(fw / 1e6, db, color=BLUE, lw=0.6, label="Output spectrum")

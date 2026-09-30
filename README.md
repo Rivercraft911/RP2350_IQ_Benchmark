@@ -1,8 +1,8 @@
 # RP2350 I/Q waveform benchmark
 
-Can an RP2350 replace the FPGA that generates a DVB-S2 QPSK waveform for a TI AFE7071 transmitter?
+Can an RP2350 through the power of PIO replace the FPGA that generates a DVB-S2 QPSK waveform for a TI AFE7071 transmitter?
 
-**Digital result: yes, with margin, on the benchmark board.** A Pimoroni Pico Plus 2 (RP2350B
+**Digital result: yes! With margin, on the benchmark board.** A Pimoroni Pico Plus 2 (RP2350B
 rev A2, 128 MHz, stock voltage) runs a complete DVB-S2 transmitter baseband:
 - core 1 encodes: BB scrambling, BCH, LDPC, QPSK, PLHEADER, pilots, PL scrambling;
 - core 0 pulse-shapes (RRC α = 0.20, 4 samples/symbol) and streams through DMA and PIO onto the
@@ -15,8 +15,8 @@ no errors.
 
 ![Transmitter load per core](results/plots/progress_full_tx.png)
 
-None of this shows RF performance: spectrum and EVM after the AFE, clock jitter, LO leakage, PA
-behaviour and link closure are untested. The AFE7071, its clocks and the LO are not built.
+Of course, none of this shows RF performance: spectrum and EVM after the AFE, clock jitter, LO leakage, PA
+behaviour and so much more. This is purely the waveform generation.
 
 ## Measured (Pico Plus 2, 128 MHz, SDK 2.2.0, GCC 14.2)
 
@@ -45,7 +45,7 @@ Correctness chain:
   0.52 LSB.
 - Stream checks capture the actual output pins with a PIO state machine running in sync with the
   output SM.
-- No real receiver has decoded this output yet.
+- No real receiver has decoded this output yet.... Coming soon to a repo near you!
 
 ## Optimization log
 
@@ -82,31 +82,21 @@ DVB-S2 encoder, normal 2/3 + pilots (k cycles/frame; one core at 8 Msym/s = 533 
 Compiler flags: `lut_pair` at -O2 / -Os / -O3 measures 6.98 / 7.66 / 6.98 cycles/symbol (N = 2)
 and 13.17 / 13.24 / 13.17 (N = 4). Flags are not the lever; data movement and register pressure are.
 
-## Findings that change the plan
+## Why 4 samples per symbol
 
-1. **Use 4 samples/symbol at the AFE7071; 2 is a fallback that needs hardware data.** The AFE7071
-   has no interpolation, so its bus rate is its DAC rate, and the DAC images are filtered only by
-   its on-chip 4th-order low-pass. Modelled images:
-   - 2 sps, widest filter: −19 dBc;
-   - 2 sps, tune-4 filter + digital pre-EQ in the LUT: −45 dBc, but ±4 dB for a ±10 % filter
-     corner error;
-   - 4 sps: −49 dBc.
+The shaper sends the DAC 4 I/Q samples for every QPSK symbol, so at 8 Msym/s the AFE7071's DAC
+runs at 32 MS/s (64 M bus words/s, I and Q interleaved). A DAC's output also carries copies of the
+signal, called images, around every multiple of its sample rate. The AFE7071 has no interpolator,
+only a gentle on-chip low-pass, so the sample rate decides how far out those copies land and how
+much of them the filter removes:
+- 4 samples/symbol: first image at 27 MHz, modelled at −49 dBc with the widest filter setting.
+- 2 samples/symbol: first image at 11 MHz, −19 dBc. It reaches −45 dBc only with the tune-4 filter
+  and a matching pre-equaliser, and moves ±4 dB for a ±10 % filter-corner error.
 
-   The E200 accepts "2 sps" because its AD9363 interpolates internally (`docs/derivations.md` §2).
+The E200 can take "2 samples/symbol" because its AD9363 interpolates to a much higher DAC rate
+internally. Details are in `docs/derivations.md` §2.
 
-   ![Modelled output spectra at 2 and 4 samples per symbol](results/plots/why_4_samples_per_symbol.png)
-2. **Shaper load scales with the DAC rate, not the symbol rate:** about 2.6–2.7 cycles per complex
-   sample. Low SATS symbol rates use the narrow filter (tune 8) with N = 8
-   (`docs/sats-self-contained.md`).
-3. **Do the FEC on the RP2350, then one SPI lane is enough.** The host (CM5 or CM4) sends
-   information bits, ≤ 10.3 Mb/s for PigeonVision, instead of 16 Mb/s of coded symbols, and never
-   needs to be real-time. The RP2350 owns the symbol clock and stuffs TS null packets when starved.
-   The interface is specified in `docs/pv-spi-spec.md`, and `host/cm5/pv_spi_tx.py` is the
-   reference sender.
-4. **On this chip, "cache" means SRAM bank placement.** There is no data cache on SRAM; keep
-   instruction fetch and CPU tables off the banks the DMA reads.
-5. RP2350 USB (≤ 9.7 Mb/s) and the hardware SPI slave (≤ 12.5 Mb/s) are too slow for coded
-   symbols at 8 Msym/s; a PIO receiver is not.
+![Modelled output spectra at 2 and 4 samples per symbol](results/plots/why_4_samples_per_symbol.png)
 
 ## Estimates, not measured
 
