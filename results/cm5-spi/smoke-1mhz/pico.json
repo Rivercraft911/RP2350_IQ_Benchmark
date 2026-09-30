@@ -1,6 +1,6 @@
 {
   "cmd": "stream",
-  "git": "91a576fcec-dirty",
+  "git": "c60b6ce322-dirty",
   "clk_hz": 128000000,
   "kernel": "lut_asm_p",
   "layout": 1,
@@ -28,7 +28,7 @@
       "id": 0,
       "blocks": 62499,
       "busy": 0.7204,
-      "max_block_cyc": 12813,
+      "max_block_cyc": 12889,
       "min_lead": 4,
       "input_waits": 1
     }
@@ -36,11 +36,11 @@
   "s2_code": "normal 2/3",
   "s2_index": 5,
   "s2_frames": 1926,
-  "s2_busy": 0.7443,
+  "s2_busy": 0.7461,
   "s2_min_ahead_words": 2496,
   "pv": {
     "selftest": 0,
-    "msgs_ok": 0,
+    "msgs_ok": 200,
     "nop": 0,
     "bad_hdr": 0,
     "bad_crc": 0,
@@ -49,19 +49,24 @@
     "short": 0,
     "long": 0,
     "overflows": 0,
-    "ts_packets": 0,
-    "null_packets": 55014,
+    "ts_packets": 1400,
+    "null_packets": 53614,
     "bbframes": 1926,
-    "crc_chain": 0,
+    "crc_chain": 1728271467,
     "bb_crc": [
       3150626490,
       34699943,
       3362718514,
       777195171
     ],
-    "bb_cyc_per_frame": 20593,
+    "bb_cyc_per_frame": 21271,
     "first_bad_at": -1,
-    "first_bad_info": 0
+    "first_bad_info": 0,
+    "ready_pin": 22,
+    "ready_function": 5,
+    "ready_output": 1,
+    "ready_latch": 1,
+    "ready_input": 1
   },
   "cap_words": 0,
   "cap_crc": 0

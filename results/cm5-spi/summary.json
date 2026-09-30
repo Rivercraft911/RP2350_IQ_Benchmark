@@ -1,24 +1,7 @@
 {
-  "ready": {
-    "resistor_ohms_user_reported": 6800,
-    "pico_pins": {
-      "ready_pin": 22,
-      "ready_function": 5,
-      "ready_output": 1,
-      "ready_latch": 1,
-      "ready_input": 1
-    },
-    "cm5_samples": 696,
-    "high_samples": 497,
-    "first_high_s": 0.624,
-    "last_high_s": 5.614,
-    "initial_level": 0,
-    "final_level": 0,
-    "pico_accepted": 0
-  },
   "pattern_runs": [
     {
-      "directory": "smoke-1mhz-6k8",
+      "directory": "smoke-1mhz",
       "requested_sck_hz": 1000000,
       "sender_exit": 0,
       "messages_sent": 200,
@@ -110,54 +93,6 @@
       "errors": []
     }
   ],
-  "legacy_live_30s": {
-    "requested_sck_hz": 20000000,
-    "stream_target_mbps": 9,
-    "measured_transport_mbps_health_interval": 8.997231248468074,
-    "rate_interval_seconds": 24.239403654,
-    "messages_sent": 25786,
-    "messages_accepted": 25786,
-    "payload_bytes": 33933248,
-    "sender_crc_chain": "0x2bfacbfd",
-    "pico_crc_chain": "0x2bfacbfd",
-    "transport_errors": [],
-    "camera_width": 2064,
-    "camera_height": 1552,
-    "camera_target_fps": 30,
-    "cameras": [
-      {
-        "camera": "A",
-        "encoded_frames": 823,
-        "encoded_span_seconds": 29.733997,
-        "encoded_fps": 27.645122853816122,
-        "drops_by_reason": {
-          "camera_frame_error": 8,
-          "capture_queue_full": 70
-        }
-      },
-      {
-        "camera": "B",
-        "encoded_frames": 829,
-        "encoded_span_seconds": 29.80068,
-        "encoded_fps": 27.784600888301878,
-        "drops_by_reason": {
-          "camera_frame_error": 8,
-          "capture_queue_full": 66
-        }
-      }
-    ],
-    "max_temperature_c": 55.1,
-    "throttled_bits_observed": [
-      0
-    ],
-    "limitations": [
-      "30-second camera run; not a long-duration or RF qualification",
-      "No analogue RF hardware connected",
-      "Requested SPI clock not verified with a scope",
-      "Camera frames were dropped before encoding; transport acceptance does not recover them"
-    ],
-    "capture_build_note": "Older build/flight/pv-capture silently ignored cached allocator and encoder thread settings. Use current-* runs for the rebuilt pipeline."
-  },
   "live_runs": [
     {
       "label": "camera-only-control-90s",

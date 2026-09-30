@@ -30,6 +30,7 @@ behaviour and link closure are untested. The AFE7071, its clocks and the LO are 
 | input link limit (1 lane, on-chip loopback) | 21.3 and 32 MHz SCK clean; 16 MHz flagged as short of the 16 Mb/s coded need |
 | streaming at 150 MHz, PIO limit (2 clocks/word = 75 MW/s) | 9.375 Msym/s, clean |
 | **PigeonVision TX (`pvtx`)**: TS over PV-SPI v1 → DVB-S2 normal 2/3 + pilots, 8 Msym/s, on-chip emulated master at 21 MHz, 60 s | 58 866 messages (981/s), 0 errors; BBFRAMEs match the gr-dtv-checked reference; encoder 79.8 %, shaper 72.1 %; capture exact |
+| **`pvtx` from a real CM5**: two IMX900 cameras, 9 Mb/s TS, PV-SPI at 20 MHz, 210 s | 179 818 messages, CRC chains equal, 0 errors, 0 underruns. The Python sender costs the CM5 about 1.5 fps per camera (28.4 vs 30.0) (`results/cm5-spi`) |
 
 Correctness chain:
 - The firmware encoder is bit-exact against the Python DVB-S2 reference (`reference/dvbs2/`) for
@@ -102,8 +103,6 @@ and 13.17 / 13.24 / 13.17 (N = 4). Flags are not the lever; data movement and re
 
 - Parallel-bus setup/hold margin ≈ 5.7 ns at 64 MW/s against 1 ns required, from RP2350 QMI pad
   data rather than a PIO figure (`hardware/devboard/README.md`).
-- The external SPI master is asynchronous. Plan on about 20 MHz until a real CM5/CM4 link is
-  measured.
 
 ## Resources (current firmware)
 
@@ -112,9 +111,9 @@ and 13.17 / 13.24 / 13.17 (N = 4). Flags are not the lever; data movement and re
 | SRAM0–3 (256 KB) | 28.7 KB .data (hot code) + 217 KB .bss (DMA ring 128 KB, input rings 2 × 32 KB, idle block) |
 | SRAM4–7 (256 KB) | 261.8 KB: shaper tables 64 KB, capture 64 KB, DVB-S2 buffers and tables. **Full**: trim the capture buffer or table sizes before adding features |
 | SRAM8 | 1.2 KB hot kernels (plus core-1 stack) |
-| PIO | PIO0: output SM, capture SM (verification). PIO1: link receiver, host emulator (test) |
-| DMA | 2 output, 1 capture, 2 link |
-| GPIO | 0–16 AFE bus (D0–13, IQ_FLAG, spare, CLK_IO); 17–22 input link |
+| PIO | PIO0: output SM, capture SM (verification). PIO1: 4-lane link (test). PIO2: PV-SPI receiver, CS watcher, emulator (test) |
+| DMA | 2 output, 1 capture, 1 PV-SPI (+2 for the emulator) or 2 link |
+| GPIO | 0–16 AFE bus (D0–13, IQ_FLAG, spare, CLK_IO); 17–22 PV-SPI or 4-lane link |
 
 ## Reproduce
 
@@ -137,15 +136,16 @@ make plots
 reference/   iqlut.py (shaper model), analyze.py, gen_coeffs.py, gen_dvbs2_codes.py, dvbs2/ (DVB-S2 reference)
 firmware/    Pico SDK project: iqgen.c / iqasm.S (shaper), dvbs2.c (encoder), iqout.c (PIO/DMA), link.c
 host/        iqbench.py (board driver + verification), native tests, plot_progress.py
-results/     optimization-log.jsonl, reference analysis, plots
-docs/        derivations, SATS feasibility, SPI protocol, board/RP2350/host-link research, sources/
-hardware/    dev-board requirements draft and gates
+host/cm5/    PV-SPI reference sender and the CM5 camera-run harness
+results/     optimization-log.jsonl, reference analysis, plots, cm5-spi/ (real CM5 runs)
+docs/        pv-spi-spec.md, derivations.md, host-link.md, rp2350-notes.md, sats-self-contained.md,
+             sources/SOURCES.md (all references)
+hardware/    dev-board requirements, AFE7071 and clocking notes, gates
 ```
 
 ## Next steps
 
-1. SPI message receiver (PIO + CRC + queue) and BBFRAME builder from TS packets or file segments,
-   with dummy PLFRAMEs when the queue is empty. Then a real CM5/Pi 5 master at 20 MHz.
+1. CM5 sender in C inside the capture process, to win back the camera frame rate.
 2. Logic analyzer on GPIO0–16 at 64 MW/s: setup/hold, skew, CLK_IO duty.
 3. Decode the captured baseband with gr-dvbs2rx, which exercises the receiver chain.
 4. AFE7071 breakout with a frequency-locked DACCLK and an LO: spectrum, images, QMC calibration.

@@ -20,12 +20,10 @@ The longer SPI attempt sent 179,818 messages, 1,258,721 TS packets and 236,639,5
 - `runs.csv`: one row per camera/run, including actual duration and failures.
 - Each run: raw Pico/CM5 reports, configuration, source/binary hashes, `telemetry.csv`, `frames.csv`, and `comparison.json`.
 - `firmware/`: exact flashed UF2, SHA-256, base revision and source patch. The only firmware change adds READY-pin readback.
-- `summary.json`: READY checks, earlier pattern tests and current comparisons.
+- `summary.json`: pattern tests (`smoke-1mhz`, `pattern-*`) and the camera-run comparisons.
 - `current-cached-t3-priority-600s/decoded-segments.json`: offline decode counts for the thermal-stop recordings. Video files stay outside Git.
 
 `frames.csv` retains capture timestamps and dropped-frame records. `telemetry.csv` contains cumulative counts and per-interval encoder time. A zero drop counter does not imply 30 fps: the SPI runs have occasional 66 ms delivery intervals. `failures` includes intentional thermal termination and shortened duration, separately from raw transport counters.
-
-`live-30s-6k8` used an older capture executable that ignored cached-buffer/thread settings. Use the `current-*` runs for the rebuilt pipeline. Earlier READY diagnostics include unsuccessful runs before the user replaced the mistakenly fitted 4.7 Ω resistor with 6.8 kΩ. No claim about latent hardware damage is made.
 
 ## Reproduce
 

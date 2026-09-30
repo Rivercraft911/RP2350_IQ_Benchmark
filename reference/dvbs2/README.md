@@ -166,29 +166,12 @@ All 21 tables together hold 6447 entries, 25.8 KB as (r, c) pairs.
 and 168 bits for short frames (t = 12). A 256-entry byte table takes 6 / 5 / 4 KiB (short: 5.25 KiB, 6 KiB
 word-padded). Slicing-by-4 takes 4× that.
 
-**Cycle estimates (analytical, not measured).** Assumptions:
-- zero-wait SRAM and single-cycle ALU operations;
-- LDPC: about 8 cycles per rotated word XOR (about 100 per table entry), about 100 per input group, about 3
-  per accumulation word, and about 1 per parity bit for the transpose;
-- BCH: about 33 cycles per byte with a 6-word remainder (about 28 with 5 words);
-- symbol assembly: about 25 cycles to unzip 32 FEC bits into I/Q halves, about 4 per output word to
-  re-align after the header and pilots, and about 7 per word for mask-based PL scrambling.
-
-| Mode, pilots | LDPC | BCH (byte table) | I/Q unzip + alignment + PL scrambling | Total | Per symbol |
-|---|---|---|---|---|---|
-| normal 1/2 | ~93 k | ~133 k | ~75 k | ~300 k | ~9 cycles |
-| normal 2/3 | ~86 k | ~151 k | ~75 k | ~310 k | ~9 cycles |
-| normal 3/4 | ~87 k | ~200 k | ~75 k | ~360 k | ~11 cycles |
-| short 1/2 | ~21 k | ~29 k | ~19 k | ~70 k | ~8 cycles |
-
-Slicing-by-4 would cut BCH to roughly 18 cycles per byte. The PL scrambling sequence, pilot positions and
-PLHEADER are the same in every frame of a given format and n. They can be precomputed as per-word swap and
-flip masks, about 12.5 KB for normal frames with pilots. These estimates are the claim that DWT cycle counts
-on the RP2350 must confirm or replace.
+Measured firmware cost (normal 2/3 with pilots): 353 k cycles per frame, BCH 110 k, LDPC 127 k,
+framing 116 k. The optimization steps are in the top-level README.
 
 ## Gaps
 
-- No dummy PLFRAME (5.5.1). A continuous transmitter needs one when the data source underruns.
+- No dummy PLFRAME (5.5.1). The firmware keeps the stream continuous with TS null packets instead.
 - No 8PSK/APSK or bit interleaver (5.3.3), ISSY, null-packet deletion, multiple streams, ACM or DVB-S2X.
 - Pulse shaping (5.6) is the job of `reference/iqlut.py`. Here roll-off is only the MATYPE RO field.
 

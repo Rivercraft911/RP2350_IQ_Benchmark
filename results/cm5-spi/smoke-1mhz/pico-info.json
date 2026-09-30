@@ -1,7 +1,7 @@
 {
   "cmd": "info",
-  "git": "91a576fcec-dirty",
-  "built": "Sep 29 2026 23:47:45",
+  "git": "c60b6ce322-dirty",
+  "built": "Sep 30 2026 01:10:16",
   "clk_hz": 128000000,
   "board": "pimoroni_pico_plus2_rp2350",
   "pin_d0": 0,
@@ -9,6 +9,7 @@
   "block_words": 4096,
   "n_blocks": 8,
   "in_words": 8192,
+  "pin_ready": 22,
   "seed": 305441741,
   "kernels": [
     "conv:0:0",
