@@ -1,0 +1,8 @@
+{"camera_id":"A","complete":true,"first_pts_us":333084,"index":1,"last_pts_us":60634451,"path":"A-000001.mkv","schema_version":1}
+{"camera_id":"B","complete":true,"first_pts_us":601798,"index":1,"last_pts_us":60636545,"path":"B-000001.mkv","schema_version":1}
+{"camera_id":"B","complete":true,"first_pts_us":60669874,"index":2,"last_pts_us":121071320,"path":"B-000002.mkv","schema_version":1}
+{"camera_id":"A","complete":true,"first_pts_us":60667785,"index":2,"last_pts_us":121069186,"path":"A-000002.mkv","schema_version":1}
+{"camera_id":"A","complete":true,"first_pts_us":121102535,"index":3,"last_pts_us":181570389,"path":"A-000003.mkv","schema_version":1}
+{"camera_id":"B","complete":true,"first_pts_us":121104655,"index":3,"last_pts_us":181605883,"path":"B-000003.mkv","schema_version":1}
+{"camera_id":"A","complete":true,"first_pts_us":181603719,"index":4,"last_pts_us":210404198,"path":"A-000004.mkv","schema_version":1}
+{"camera_id":"B","complete":true,"first_pts_us":181639215,"index":4,"last_pts_us":210473067,"path":"B-000004.mkv","schema_version":1}

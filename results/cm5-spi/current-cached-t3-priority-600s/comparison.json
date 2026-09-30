@@ -1,0 +1,64 @@
+{
+  "label": "current-cached-t3-priority-600s",
+  "requested_duration_s": 600.0,
+  "observed_session_duration_s": 210.938521989,
+  "observed_capture_duration_s": 210.031023613,
+  "capture_signal": 15,
+  "termination_reason": "temperature reached 80 C; stopping test",
+  "allocator": "dma_heap_cached",
+  "encoder_threads": 3,
+  "width": 2064,
+  "height": 1552,
+  "measured_transport_mbps": 8.996617908912276,
+  "messages": 179818,
+  "payload_bytes": 236639548,
+  "sequence_wraps": 2,
+  "sender_crc_chain": "0x465758f0",
+  "pico_crc_chain": "0x465758f0",
+  "failures": [
+    "process/session failure",
+    "capture shorter than requested duration",
+    "sender did not complete normally"
+  ],
+  "pico_underruns": 0,
+  "cameras": [
+    {
+      "camera": "A",
+      "encoded_frames_total": 5975,
+      "steady_encoded_fps": 28.422292421929615,
+      "steady_h264_payload_mbps": 3.789753350847288,
+      "steady_delivered_fps": 28.422292421929615,
+      "delivered_interval_median_ms": 33.335,
+      "delivered_interval_max_ms": 66.69,
+      "delivered_intervals_over_50ms": 316,
+      "all_drops": {
+        "camera_frame_error": 1
+      },
+      "steady_drops": {},
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 30.89621966740301
+    },
+    {
+      "camera": "B",
+      "encoded_frames_total": 5975,
+      "steady_encoded_fps": 28.413081368695043,
+      "steady_h264_payload_mbps": 3.787602220312708,
+      "steady_delivered_fps": 28.413081368695043,
+      "delivered_interval_median_ms": 33.335,
+      "delivered_interval_max_ms": 66.707,
+      "delivered_intervals_over_50ms": 318,
+      "all_drops": {
+        "camera_frame_error": 1
+      },
+      "steady_drops": {},
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 30.8345711866847
+    }
+  ],
+  "max_temperature_c": 80.4,
+  "mean_cpu_busy_percent_after_10s": 81.2425303366301,
+  "throttled_bits_observed": [
+    0
+  ],
+  "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+}

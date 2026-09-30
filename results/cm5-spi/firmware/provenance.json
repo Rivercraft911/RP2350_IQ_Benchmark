@@ -1,0 +1,7 @@
+{
+  "sha256": "35dc2c72161638f79ac5feb781227ca3e3de6dfcb5dd38a7a4aa66c451538899",
+  "base_commit": "c60b6ce322cfa891de68842b15cc1848a04543ae",
+  "changes": "source.patch adds READY pin readback; waveform and PV-SPI protocol unchanged",
+  "reported_revision": "c60b6ce322-dirty",
+  "flashed_and_verified": true
+}

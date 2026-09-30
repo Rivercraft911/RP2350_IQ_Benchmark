@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "<stdin>", line 114, in <module>
+  File "<stdin>", line 80, in main
+RuntimeError: SPI sender ended during capture

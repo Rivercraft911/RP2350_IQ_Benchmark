@@ -362,6 +362,11 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
     iqout_stop();
     if (c1 || s2 >= 0) multicore_fifo_pop_blocking();
     const uint32_t link_words = link_total, t_run = time_us_32() - tl;
+    // Sample READY before pvspi_stop() deliberately drives it low.
+    const bool ready_output = pv >= 0 && gpio_get_dir(PIN_IN_READY) == GPIO_OUT;
+    const bool ready_latch = pv >= 0 && gpio_get_out_level(PIN_IN_READY);
+    const bool ready_input = pv >= 0 && gpio_get(PIN_IN_READY);
+    const uint ready_function = pv >= 0 ? gpio_get_function(PIN_IN_READY) : 0;
     if (lanes) link_stop();
     if (pv >= 0) pvspi_stop();
 
@@ -398,7 +403,8 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
                "\"bad_sync\":%lu,\"lost\":%lu,\"short\":%lu,\"long\":%lu,\"overflows\":%lu,"
                "\"ts_packets\":%lu,\"null_packets\":%lu,\"bbframes\":%lu,\"crc_chain\":%lu,"
                "\"bb_crc\":[%lu,%lu,%lu,%lu],\"bb_cyc_per_frame\":%lu,\"first_bad_at\":%ld,"
-               "\"first_bad_info\":%lu}", pv, (unsigned long)pv_stats.ok,
+               "\"first_bad_info\":%lu,\"ready_pin\":%u,\"ready_function\":%u,"
+               "\"ready_output\":%u,\"ready_latch\":%u,\"ready_input\":%u}", pv, (unsigned long)pv_stats.ok,
                (unsigned long)pv_stats.nop, (unsigned long)pv_stats.bad_hdr,
                (unsigned long)pv_stats.bad_crc, (unsigned long)pv_stats.bad_sync,
                (unsigned long)pv_stats.lost, (unsigned long)pvspi.short_msgs,
@@ -408,7 +414,8 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
                (unsigned long)enc.bb_crc[0], (unsigned long)enc.bb_crc[1],
                (unsigned long)enc.bb_crc[2], (unsigned long)enc.bb_crc[3],
                (unsigned long)(enc.bb_cyc / (enc.frames ? enc.frames : 1)),
-               (long)pv_stats.first_bad_at, (unsigned long)pv_stats.first_bad_info);
+               (long)pv_stats.first_bad_at, (unsigned long)pv_stats.first_bad_info,
+               PIN_IN_READY, ready_function, ready_output, ready_latch, ready_input);
     const uint32_t skip = 8, n = cap > (int)skip ? (uint32_t)cap - skip : 0;
     printf(",\"cap_words\":%lu,\"cap_crc\":%lu}\n", (unsigned long)n,
            (unsigned long)crc32_update(0, cap_buf + skip, n * 4));
@@ -455,9 +462,9 @@ static void cmd_snifftest(void) {
 static void cmd_info(void) {
     printf("@{\"cmd\":\"info\",\"git\":\"%s\",\"built\":\"%s %s\",\"clk_hz\":%lu,\"board\":\"%s\","
            "\"pin_d0\":%d,\"pin_clkio\":%d,\"block_words\":%d,\"n_blocks\":%d,\"in_words\":%d,"
-           "\"seed\":%lu,\"kernels\":[",
+           "\"pin_ready\":%d,\"seed\":%lu,\"kernels\":[",
            GIT_REV, __DATE__, __TIME__, (unsigned long)clock_get_hz(clk_sys), PICO_BOARD,
-           PIN_D0, PIN_CLKIO, BLOCK_WORDS, N_BLOCKS, IN_WORDS, (unsigned long)SEED);
+           PIN_D0, PIN_CLKIO, BLOCK_WORDS, N_BLOCKS, IN_WORDS, PIN_IN_READY, (unsigned long)SEED);
     for (int i = 0; i < IQ_N_KERNELS; i++)
         printf("%s\"%s:%d:%d\"", i ? "," : "", IQ_KERNELS[i].name, IQ_KERNELS[i].sps, IQ_KERNELS[i].L);
     printf("]}\n");

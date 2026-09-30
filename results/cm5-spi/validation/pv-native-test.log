@@ -1,0 +1,7 @@
+ok  pattern messages == pv_spi_tx.py
+ok  30 good accepted
+ok  bad CRC / header / sync counted
+ok  sequence gap = 2 lost
+ok  BBFRAMEs 1-4 == ts_bbframes()
+ok  BBFRAME 5 with null stuffing == reference
+ok  TS packet count

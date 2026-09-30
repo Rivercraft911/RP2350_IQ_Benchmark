@@ -1,0 +1,59 @@
+-- The CXX compiler identification is GNU 14.2.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Found PkgConfig: /usr/bin/pkg-config (found version "1.8.1")
+-- Checking for module 'libcamera>=0.5.2'
+--   Found libcamera, version 0.5.2
+-- Checking for modules 'libavcodec>=61;libavformat>=61;libavutil>=59'
+--   Found libavcodec, version 61.19.101
+--   Found libavformat, version 61.7.103
+--   Found libavutil, version 59.39.100
+-- Found nlohmann_json: /usr/share/cmake/nlohmann_json/nlohmann_jsonConfig.cmake (found suitable version "3.11.3", minimum required is "3.10")
+-- Configuring done (0.6s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/pigeon/pigeonvision/build/spi-camera-check
+[ 11%] Building CXX object CMakeFiles/pv-core-test.dir/tests/core_test.cpp.o
+[ 11%] Building CXX object CMakeFiles/pv-framos-test.dir/tests/framos_test.cpp.o
+[ 17%] Linking CXX executable pv-framos-test
+[ 17%] Built target pv-framos-test
+[ 23%] Building CXX object CMakeFiles/pv-dma-heap-test.dir/tests/dma_heap_test.cpp.o
+[ 29%] Linking CXX executable pv-core-test
+[ 29%] Built target pv-core-test
+[ 35%] Building CXX object CMakeFiles/pv-capture.dir/src/main.cpp.o
+[ 41%] Linking CXX executable pv-dma-heap-test
+[ 41%] Built target pv-dma-heap-test
+[ 47%] Building CXX object CMakeFiles/pv-encoder-input-test.dir/tests/encoder_input_test.cpp.o
+[ 52%] Linking CXX executable pv-encoder-input-test
+[ 52%] Built target pv-encoder-input-test
+[ 58%] Building CXX object CMakeFiles/pv-colour-test.dir/tests/colour_test.cpp.o
+[ 64%] Building CXX object CMakeFiles/pv-capture.dir/src/config.cpp.o
+[ 70%] Linking CXX executable pv-colour-test
+[ 70%] Built target pv-colour-test
+[ 76%] Building CXX object CMakeFiles/pv-capture.dir/src/log.cpp.o
+[ 82%] Building CXX object CMakeFiles/pv-capture.dir/src/outputs.cpp.o
+[ 88%] Building CXX object CMakeFiles/pv-capture.dir/src/camera.cpp.o
+[ 94%] Building CXX object CMakeFiles/pv-capture.dir/src/dma_heap.cpp.o
+[100%] Linking CXX executable pv-capture
+[100%] Built target pv-capture
+Internal ctest changing into directory: /home/pigeon/pigeonvision/build/spi-camera-check
+Test project /home/pigeon/pigeonvision/build/spi-camera-check
+    Start 1: pv-core
+1/5 Test #1: pv-core ..........................   Passed    0.01 sec
+    Start 2: pv-framos
+2/5 Test #2: pv-framos ........................   Passed    0.00 sec
+    Start 3: pv-dma-heap
+3/5 Test #3: pv-dma-heap ......................   Passed    0.04 sec
+    Start 4: pv-encoder-input
+4/5 Test #4: pv-encoder-input .................   Passed    0.00 sec
+    Start 5: pv-colour
+5/5 Test #5: pv-colour ........................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   0.06 sec

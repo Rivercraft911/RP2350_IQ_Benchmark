@@ -1,0 +1,7 @@
+{
+  "started_utc": "2026-09-30T08:47:08.683550+00:00",
+  "pico_command": "pvtx 2 80000 0 0 20",
+  "remote_command": "python3 - --label current-cached-60s --seconds 60 --allocator dma_heap_cached --threads 2",
+  "scope": "wired digital link; real dual cameras; no RF",
+  "host_git": "c60b6ce-dirty"
+}

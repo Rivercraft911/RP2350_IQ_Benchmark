@@ -30,9 +30,11 @@ are the CM5 IO Board 40-pin header (RP1 SPI0).
 | RUN (reset, optional) | CM5 → Pico | RUN (pin 30), open-drain low = reset | e.g. GPIO24 (pin 18) |
 | GND | | pins 23, 28 | pins 20, 25 |
 
-- Put a 4.7 kΩ pull-up on CS_N and a 10 kΩ pull-down on READY. The bench RP2350 is rev A2,
-  where erratum E9 makes a floating input unreliable, and a pull-down keeps READY low while the
-  Pico is off or resetting.
+- Put a 4.7 kΩ pull-up to Pico 3.3 V on CS_N and a 4.7–6.8 kΩ pull-down to GND on READY.
+  These resistors connect to the rails, not in series with the signal wires. The READY
+  pull-down also meets the ≤8.2 kΩ recommendation for A2 erratum E9 when that pad is an input
+  with its output disabled; E9 does not apply while READY is actively driven.
+  See the [board notes](board-pico-plus-2.md).
 - Power the Pico before the CM5 drives the SPI pins, so the RP2350 is not back-fed through them.
 - Keep jumpers short (≤ 15 cm at 20 MHz), with a ground wire next to SCK.
 
@@ -140,3 +142,5 @@ start the sender. At the end the RP2350 reports:
 - Runtime configuration (MODCOD, symbol rate, frequency, RF enable) over SPI. v1 is configured
   over USB.
 - Final carrier pinout and connector; the pins above are the Pico Plus 2 bench wiring.
+
+Bench data and chart-ready CSVs: [CM5 camera runs](../results/cm5-spi/README.md).

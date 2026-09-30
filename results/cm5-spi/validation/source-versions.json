@@ -1,0 +1,6 @@
+{
+  "pigeonvision_commit": "d73b703f04343b19f70e76d893333908c14bf430",
+  "pico_base_commit": "c60b6ce322cfa891de68842b15cc1848a04543ae",
+  "pico_changes": "../firmware/source.patch",
+  "validation_note": "Python tests run on an archive of the PigeonVision commit, excluding unrelated working-tree viewer edits. Capture source and binary hashes are recorded per run."
+}
