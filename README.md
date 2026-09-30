@@ -49,8 +49,11 @@ verification). `make plots` regenerates the figures.
 2. **Load scales with the DAC rate, not the symbol rate**, at about 2.4–2.8 cycles per complex
    sample. Low SATS symbol rates need the narrow filter (tune 8) and N = 8–32 to keep images down
    (`docs/sats-self-contained.md` §1).
-3. **Memory placement matters more than compiler flags.** The RP2350 has no data cache on SRAM;
-   the SRAM banks are the shared resource. Keep instruction fetch off the banks the DMA reads.
+3. **Memory placement and data movement matter more than compiler flags.** The RP2350 has no data
+   cache on SRAM; the SRAM banks are the shared resource. Keep instruction fetch off the banks the
+   DMA reads. `lut_pair` at -O2 / -Os / -O3 measures 6.98 / 7.66 / 6.98 cycles/symbol at N = 2 and
+   13.17 / 13.24 / 13.17 at N = 4. Hand scheduling gives 10.80 (`-DIQ_KERNEL_OPT=` selects the
+   flag for A/B runs).
 4. Input: RP2350 USB (≤ 9.7 Mb/s) and the hardware SPI slave (≤ 12.5 Mb/s) cannot carry
    16 Mb/s. A PIO receiver with READY flow control can
    (`docs/host-link-and-devboard-research.md`).

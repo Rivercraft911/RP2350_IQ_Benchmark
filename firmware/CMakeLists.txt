@@ -14,6 +14,8 @@ add_executable(iqbench src/main.c src/iqgen.c src/iqasm.S src/iqout.c src/link.c
 target_compile_definitions(iqbench PRIVATE IQ_ON_DEVICE=1 GIT_REV="${GIT_REV}"
                            PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1)
 target_compile_options(iqbench PRIVATE -O3 -Wall -Wextra -Wno-unused-parameter)
+set(IQ_KERNEL_OPT "-O3" CACHE STRING "optimisation flag for the C kernels (iqgen.c), for A/B runs")
+set_source_files_properties(src/iqgen.c PROPERTIES COMPILE_OPTIONS "${IQ_KERNEL_OPT}")
 target_link_libraries(iqbench pico_stdlib pico_multicore hardware_pio hardware_dma
                       hardware_clocks)
 pico_enable_stdio_usb(iqbench 1)
