@@ -31,7 +31,8 @@ void dvbs2_ldpc_serial(const uint32_t *info, uint32_t *parity);     // bit-seria
 // to a continuous shaper-format word stream (frames are not multiples of 16 symbols).
 typedef struct {
     uint32_t *out;              // destination words
-    uint32_t n;                 // words written
+    uint32_t mask;              // index mask: ring size - 1, or ~0 for a linear buffer
+    uint32_t n;                 // words written (monotonic)
     uint32_t acc_i, acc_q;      // partial word (fill < 16 bits each)
     uint32_t fill;              // symbols in the partial word
 } symstream_t;
@@ -43,7 +44,7 @@ static inline void symstream_put(symstream_t *s, uint32_t w, uint32_t nsym) {
     s->acc_q |= ((w >> 16) & m) << s->fill;
     s->fill += nsym;
     if (s->fill >= 16) {
-        s->out[s->n++] = (s->acc_i & 0xFFFFu) | s->acc_q << 16;
+        s->out[s->n++ & s->mask] = (s->acc_i & 0xFFFFu) | s->acc_q << 16;
         s->acc_i >>= 16, s->acc_q >>= 16, s->fill -= 16;
     }
 }
@@ -54,7 +55,7 @@ extern uint32_t dvbs2_prof[8];
 // Full 16-symbol put: fill is unchanged, so no mask or branch.
 static inline void symstream_put16(symstream_t *s, uint32_t w) {
     const uint32_t ai = s->acc_i | (w & 0xFFFFu) << s->fill, aq = s->acc_q | (w >> 16) << s->fill;
-    s->out[s->n++] = (ai & 0xFFFFu) | aq << 16;
+    s->out[s->n++ & s->mask] = (ai & 0xFFFFu) | aq << 16;
     s->acc_i = ai >> 16, s->acc_q = aq >> 16;
 }
 

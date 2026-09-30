@@ -19,7 +19,7 @@
 #define BLOCK_SYMS(sps) (BLOCK_WORDS / (sps)) // 2048, 1024, 512 symbols for sps 2, 4, 8
 #define BLOCK_IN(sps) (BLOCK_SYMS(sps) / 16)  // input words per block
 #define N_BLOCKS 8                            // output ring depth
-#define IN_WORDS 4096                         // input ring: 65536 symbols
+#define IN_WORDS 8192                         // input ring: 131072 symbols (32 KiB)
 #define CAP_WORDS_MAX 16384                   // capture buffer, 64 KiB
 #define MAX_L 12
 #define TABLE_WORDS 8192                      // max 2^L * sps / 2 over COEF_SETS (32 KiB)

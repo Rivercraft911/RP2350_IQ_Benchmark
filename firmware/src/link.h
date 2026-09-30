@@ -1,11 +1,11 @@
 // Input link (stage 4): PIO receiver on GPIO17-21 (CLK, D0-D3) with READY on GPIO22, DMA into a
-// 16 KiB ring. An on-chip emulator SM drives the same pins from a source ring, standing in for the
+// 32 KiB ring. An on-chip emulator SM drives the same pins from a source ring, standing in for the
 // Pi/payload SPI master so the full receive path runs without external hardware.
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
 
-#define LINK_RING_WORDS 4096u     // equals IN_WORDS so ring index = PRBS index
+#define LINK_RING_WORDS 8192u     // equals IN_WORDS so ring index = PRBS index
 
 extern uint32_t link_ring[LINK_RING_WORDS];
 extern volatile uint32_t link_total;      // words received since start (monotonic)

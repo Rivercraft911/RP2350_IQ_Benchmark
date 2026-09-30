@@ -6,6 +6,8 @@
 //        cores: 0 | 1 | 01 (alternate blocks); cpw: PIO system clocks per 16-bit bus word
 //        lanes > 0: input arrives over the PIO link (emulated host), half = SCK half period
 //   dvbs2 <code> <pilots> [reps]                  DVB-S2 encoder stage cycles + PLFRAME CRC
+//   txs2 <code> <pilots> <kernel> <sps> <L> <cpw> <ms> [cap_words]
+//        full transmitter: core 1 encodes DVB-S2 frames, core 0 shapes and streams
 //        code: index into DVBS2_CODES (dvbs2_codes.h)
 //   bootsel                                       reboot to the USB bootloader
 #include <stdio.h>
@@ -32,7 +34,7 @@
 #define SEED 0x1234ABCDu
 
 static uint32_t ring_buf[N_BLOCKS * BLOCK_WORDS];            // 128 KiB
-static uint32_t in_buf[IN_WORDS] __attribute__((aligned(4 * IN_WORDS)));   // 16 KiB PRBS
+static uint32_t in_buf[IN_WORDS] __attribute__((aligned(4 * IN_WORDS)));   // 32 KiB PRBS
 static uint32_t tab_i[TABLE_WORDS] SRAM_HI, tab_q[TABLE_WORDS] SRAM_HI;   // 32 KiB each
 static uint32_t cap_buf[CAP_WORDS_MAX] SRAM_HI;                          // 64 KiB
 
@@ -97,18 +99,96 @@ static void cmd_bench(const iq_kernel_info_t *k, int reps, bool tables_ok) {
            (double)worst / BLOCK_SYMS(cfg.sps), clock_get_hz(clk_sys) / cps / 1e6);
 }
 
+// ------------------------------------------------------------------ DVB-S2 encoder benchmark
+
+static uint32_t bb_buf[64800 / 32 + 2] SRAM_HI, par_buf[64800 / 32 + 2] SRAM_HI;
+
+static uint32_t time_min(void (*f)(void), int reps) {
+    uint32_t best = ~0u;
+    for (int r = 0; r < reps; r++) {
+        const uint32_t save = save_and_disable_interrupts(), t0 = cycles();
+        f();
+        const uint32_t dt = cycles() - t0;
+        restore_interrupts(save);
+        if (dt < best) best = dt;
+    }
+    return best;
+}
+
+static const dvbs2_code_t *s2c;
+static void t_bch(void) { dvbs2_bch(bb_buf, par_buf); }
+static void t_bch_serial(void) { dvbs2_bch_serial(bb_buf, par_buf); }
+static void t_ldpc(void) { dvbs2_ldpc(bb_buf, par_buf); }
+static void t_ldpc_serial(void) { dvbs2_ldpc_serial(bb_buf, par_buf); }
+static void t_prbs(void) {                                     // input fill, subtracted
+    uint32_t st = 1;
+    prbs_fill(bb_buf, (s2c->kbch + 31) / 32, &st);
+}
+static void t_frame(void) {
+    uint32_t st = 0x9E3779B9u ^ (uint32_t)(s2c - DVBS2_CODES);
+    prbs_fill(bb_buf, (s2c->kbch + 31) / 32, &st);           // fresh input each run (not timed apart)
+    symstream_t s = {.out = cap_buf, .mask = ~0u};
+    dvbs2_frame(bb_buf, &s);
+}
+
+// Configure a code and load its test BBFRAME (same input as host/native/dvbs2_test.c).
+static uint32_t s2_setup(int ci, int pil) {
+    s2c = &DVBS2_CODES[ci];
+    const uint32_t t0 = time_us_32();
+    dvbs2_init(s2c, pil);
+    uint32_t st = 0x9E3779B9u ^ (uint32_t)ci, nw = (s2c->kbch + 31) / 32;
+    memset(bb_buf, 0, sizeof bb_buf);
+    prbs_fill(bb_buf, nw, &st);
+    if (s2c->kbch % 32) bb_buf[nw - 1] &= ~(~0u >> (s2c->kbch % 32));
+    return time_us_32() - t0;
+}
+
+static void cmd_dvbs2(int ci, int pil, int reps) {
+    const uint32_t init_us = s2_setup(ci, pil);
+    uint32_t st = 0;
+    symstream_t s = {.out = cap_buf, .mask = ~0u};
+    dvbs2_frame(bb_buf, &s);
+    symstream_flush(&s);
+    const uint32_t crc = crc32_update(0, cap_buf, s.n * 4);
+    static uint32_t bb_save[64800 / 32 + 2] SRAM_HI;               // timing runs clobber bb_buf
+    memcpy(bb_save, bb_buf, sizeof bb_save);
+    for (uint32_t k = 0; k < 64800 / 32 + 2; k++) bb_buf[k] = st = st * 1664525u + 1013904223u;
+    const uint32_t c_bch = time_min(t_bch, reps), c_bchs = time_min(t_bch_serial, 1);
+    const uint32_t c_ldpc = time_min(t_ldpc, reps), c_ldpcs = time_min(t_ldpc_serial, 1);
+    const uint32_t c_frame = time_min(t_frame, reps), c_prbs = time_min(t_prbs, reps);
+    printf("@{\"cmd\":\"dvbs2\",\"git\":\"%s\",\"clk_hz\":%lu,\"code\":\"%s\",\"index\":%d,"
+           "\"pilots\":%d,\"syms\":%lu,\"words\":%lu,\"crc\":%lu,\"init_us\":%lu,\"reps\":%d,"
+           "\"cyc_bch\":%lu,\"cyc_bch_serial\":%lu,\"cyc_ldpc\":%lu,\"cyc_ldpc_serial\":%lu,"
+           "\"cyc_frame\":%lu,\"prof\":{\"ldpc_groups\":%lu,\"ldpc_accum\":%lu,"
+           "\"ldpc_transpose\":%lu,\"f_bb_bch\":%lu,\"f_ldpc\":%lu,\"f_map\":%lu}}\n",
+           GIT_REV, (unsigned long)clock_get_hz(clk_sys), s2c->name, ci, pil,
+           (unsigned long)dvbs2_plframe_symbols(), (unsigned long)s.n, (unsigned long)crc,
+           (unsigned long)init_us, reps, (unsigned long)c_bch, (unsigned long)c_bchs,
+           (unsigned long)c_ldpc, (unsigned long)c_ldpcs, (unsigned long)(c_frame - c_prbs),
+           (unsigned long)(dvbs2_prof[1] - dvbs2_prof[0]), (unsigned long)(dvbs2_prof[2] - dvbs2_prof[1]),
+           (unsigned long)(dvbs2_prof[3] - dvbs2_prof[2]), (unsigned long)(dvbs2_prof[5] - dvbs2_prof[4]),
+           (unsigned long)(dvbs2_prof[6] - dvbs2_prof[5]), (unsigned long)(dvbs2_prof[7] - dvbs2_prof[6]));
+    memcpy(bb_buf, bb_save, sizeof bb_save);
+}
+
 // ------------------------------------------------------------------ stage 3/5: streaming
 
 typedef struct {
-    uint32_t blocks, gen_cyc, max_block_cyc, t_start, t_end, input_waits;
+    uint64_t gen_cyc, t_start_us, t_end_us;        // 64-bit: DWT wraps every 33.6 s at 128 MHz
+    uint32_t blocks, max_block_cyc, input_waits;
     int32_t min_lead;
 } core_stats_t;
+
+static double busy(uint64_t cyc, uint64_t t0_us, uint64_t t1_us) {
+    return (double)cyc / ((double)(t1_us - t0_us) * 1e-6 * clock_get_hz(clk_sys));
+}
 
 static struct {
     const iq_kernel_info_t *k;
     const uint32_t *src;                           // input ring: in_buf or link_ring
+    volatile uint32_t *avail;                      // words available in src (0 = always full)
     int lanes;
-    uint32_t biw;                                  // input words per block
+    uint32_t biw, stride;                          // input words per block; producer stride
     uint32_t end_us, cap_at_us, cap_words, txstalls;
     volatile bool cap_started;
     core_stats_t st[2];
@@ -140,15 +220,15 @@ static void __not_in_flash_func(produce)(uint32_t s) {
 // has finished block s-N, i.e. while s - done < N.
 static void __not_in_flash_func(producer)(uint32_t first, uint32_t stride, bool mon) {
     core_stats_t *st = &run.st[get_core_num()];
-    *st = (core_stats_t){.min_lead = 1 << 30, .t_start = cycles()};
+    *st = (core_stats_t){.min_lead = 1 << 30, .t_start_us = time_us_64()};
     for (uint32_t s = first;; s += stride) {
         while (s - ring.done >= N_BLOCKS) {
             if (mon) monitor();
             if (expired()) goto out;
         }
-        if (run.lanes && link_total < (s + 1) * run.biw) {
+        if (run.avail && *run.avail < (s + 1) * run.biw) {
             st->input_waits++;
-            while (link_total < (s + 1) * run.biw) {
+            while (*run.avail < (s + 1) * run.biw) {
                 if (mon) monitor();
                 if (expired()) goto out;
             }
@@ -165,22 +245,59 @@ static void __not_in_flash_func(producer)(uint32_t first, uint32_t stride, bool 
         if (mon) monitor();
     }
 out:
-    st->t_end = cycles();
+    st->t_end_us = time_us_64();
 }
 
+// Core 1 runs tasks sent as (function, argument) through the SIO FIFO and replies when done.
 static void core1_entry(void) {
     enable_cyccnt();
     for (;;) {
-        const uint32_t first = multicore_fifo_pop_blocking(), stride = multicore_fifo_pop_blocking();
-        producer(first, stride, false);
+        void (*fn)(uint32_t) = (void (*)(uint32_t))multicore_fifo_pop_blocking();
+        fn(multicore_fifo_pop_blocking());
         multicore_fifo_push_blocking(1);
     }
 }
 
+static void core1_run(void (*fn)(uint32_t), uint32_t arg) {
+    multicore_fifo_push_blocking((uint32_t)fn);
+    multicore_fifo_push_blocking(arg);
+}
+
+static void task_producer1(uint32_t first) { producer(first, run.stride, false); }
+
+// DVB-S2 source (txs2): core 1 encodes the test BBFRAME repeatedly into link_ring. It starts a
+// frame only when a whole frame fits without overwriting the history word of block `done`.
+static struct {
+    volatile uint32_t total;                       // words published to the shaper
+    uint64_t busy_cyc, t0_us, t1_us;
+    uint32_t frames, fw;
+    int32_t min_ahead;                             // untransmitted words when a frame completes
+    symstream_t s;
+} enc;
+
+static void __not_in_flash_func(task_encoder)(uint32_t unused) {
+    (void)unused;
+    enc.t0_us = time_us_64();
+    while (!expired()) {
+        const uint32_t d = ring.done * run.biw, consumed = d ? d - 1 : 0;
+        if (enc.s.n + enc.fw + 1 - consumed > IN_WORDS) continue;
+        const uint32_t t = cycles();
+        dvbs2_frame(bb_buf, &enc.s);
+        enc.busy_cyc += cycles() - t;
+        enc.frames++;
+        __dmb();
+        enc.total = enc.s.n;
+        const int32_t ahead = (int32_t)(enc.s.n - ring.done * run.biw);
+        if (ahead < enc.min_ahead) enc.min_ahead = ahead;
+    }
+    enc.t1_us = time_us_64();
+}
+
 static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, int ms, int cap,
-                       int lanes, int half, bool tables_ok) {
-    const bool c0 = strchr(cores, '0'), c1 = strchr(cores, '1');
-    run = (typeof(run)){.k = k, .src = lanes ? link_ring : in_buf, .lanes = lanes,
+                       int lanes, int half, int s2, bool tables_ok) {
+    const bool c0 = strchr(cores, '0'), c1 = strchr(cores, '1') && s2 < 0;
+    run = (typeof(run)){.k = k, .src = lanes || s2 >= 0 ? link_ring : in_buf,
+                        .avail = lanes ? &link_total : s2 >= 0 ? &enc.total : 0, .lanes = lanes,
                         .biw = BLOCK_IN(cfg.sps), .cap_words = (uint32_t)cap};
     iqout_init(ring_buf, BLOCK_WORDS, N_BLOCKS, cpw, k->layout);
     const uint32_t tl = time_us_32();
@@ -190,21 +307,28 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
         while (link_total < (N_BLOCKS + 1) * run.biw && time_us_32() - tl < 100000)
             link_poll(0);
     }
+    if (s2 >= 0) {                                        // first frame on core 0, then core 1
+        enc = (typeof(enc)){.s = {.out = link_ring, .mask = IN_WORDS - 1}, .min_ahead = 1 << 30,
+                            .fw = (dvbs2_plframe_symbols() + 31) / 16};
+        dvbs2_frame(bb_buf, &enc.s);
+        enc.total = enc.s.n, enc.frames = 1;
+    }
     for (uint32_t s = 0; s < N_BLOCKS; s++) produce(s);   // prefill
     const uint32_t t0 = time_us_32();
     run.end_us = t0 + (uint32_t)ms * 1000u;
     run.cap_at_us = t0 + (uint32_t)ms * 500u;              // capture mid-run
     iqout_start();
     const uint32_t stride = (c0 && c1) ? 2 : 1;
-    if (c1) {
-        multicore_fifo_push_blocking(c0 ? N_BLOCKS + 1 : N_BLOCKS);
-        multicore_fifo_push_blocking(stride);
-    }
+    run.stride = stride;
+    if (c1) core1_run(task_producer1, c0 ? N_BLOCKS + 1 : N_BLOCKS);
+    if (s2 >= 0) core1_run(task_encoder, 0);
     if (c0) producer(N_BLOCKS, stride, true);
     else while (!expired()) monitor();
-    if (c1) multicore_fifo_pop_blocking();
+    // Stop the output as soon as production ends, before waiting for core 1 (whose last DVB-S2
+    // frame can take ~3 ms): otherwise the drained ring is counted as underruns.
     while (run.cap_started && iqout_capture_busy()) tight_loop_contents();
     iqout_stop();
+    if (c1 || s2 >= 0) multicore_fifo_pop_blocking();
     const uint32_t link_words = link_total, t_run = time_us_32() - tl;
     if (lanes) link_stop();
 
@@ -227,12 +351,17 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
         printf("%s{\"id\":%d,\"blocks\":%lu,\"busy\":%.4f,\"max_block_cyc\":%lu,\"min_lead\":%ld,"
                "\"input_waits\":%lu}",
                first ? "" : ",", c, (unsigned long)st->blocks,
-               (double)st->gen_cyc / (double)(st->t_end - st->t_start),
+               busy(st->gen_cyc, st->t_start_us, st->t_end_us),
                (unsigned long)st->max_block_cyc, (long)st->min_lead, (unsigned long)st->input_waits);
         first = false;
     }
+    printf("]");
+    if (s2 >= 0)
+        printf(",\"s2_code\":\"%s\",\"s2_index\":%d,\"s2_frames\":%lu,\"s2_busy\":%.4f,"
+               "\"s2_min_ahead_words\":%ld", s2c->name, s2, (unsigned long)enc.frames,
+               busy(enc.busy_cyc, enc.t0_us, enc.t1_us), (long)enc.min_ahead);
     const uint32_t skip = 8, n = cap > (int)skip ? (uint32_t)cap - skip : 0;
-    printf("],\"cap_words\":%lu,\"cap_crc\":%lu}\n", (unsigned long)n,
+    printf(",\"cap_words\":%lu,\"cap_crc\":%lu}\n", (unsigned long)n,
            (unsigned long)crc32_update(0, cap_buf + skip, n * 4));
     for (uint32_t i = 0; i < n; i += 16) {                 // raw capture for host alignment
         printf("@cap %lu", (unsigned long)i);
@@ -240,70 +369,6 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
         printf("\n");
     }
     if (n) printf("@capend\n");
-}
-
-// ------------------------------------------------------------------ DVB-S2 encoder benchmark
-
-static uint32_t bb_buf[64800 / 32 + 2] SRAM_HI, par_buf[64800 / 32 + 2] SRAM_HI;
-
-static uint32_t time_min(void (*f)(void), int reps) {
-    uint32_t best = ~0u;
-    for (int r = 0; r < reps; r++) {
-        const uint32_t save = save_and_disable_interrupts(), t0 = cycles();
-        f();
-        const uint32_t dt = cycles() - t0;
-        restore_interrupts(save);
-        if (dt < best) best = dt;
-    }
-    return best;
-}
-
-static const dvbs2_code_t *s2c;
-static void t_bch(void) { dvbs2_bch(bb_buf, par_buf); }
-static void t_bch_serial(void) { dvbs2_bch_serial(bb_buf, par_buf); }
-static void t_ldpc(void) { dvbs2_ldpc(bb_buf, par_buf); }
-static void t_ldpc_serial(void) { dvbs2_ldpc_serial(bb_buf, par_buf); }
-static void t_prbs(void) {                                     // input fill, subtracted
-    uint32_t st = 1;
-    prbs_fill(bb_buf, (s2c->kbch + 31) / 32, &st);
-}
-static void t_frame(void) {
-    uint32_t st = 0x9E3779B9u ^ (uint32_t)(s2c - DVBS2_CODES);
-    prbs_fill(bb_buf, (s2c->kbch + 31) / 32, &st);           // fresh input each run (not timed apart)
-    symstream_t s = {.out = cap_buf};
-    dvbs2_frame(bb_buf, &s);
-}
-
-static void cmd_dvbs2(int ci, int pil, int reps) {
-    s2c = &DVBS2_CODES[ci];
-    const uint32_t t0 = time_us_32();
-    dvbs2_init(s2c, pil);
-    const uint32_t init_us = time_us_32() - t0;
-    // Correctness: same input as host/native/dvbs2_test.c.
-    uint32_t st = 0x9E3779B9u ^ (uint32_t)ci, nw = (s2c->kbch + 31) / 32;
-    memset(bb_buf, 0, sizeof bb_buf);
-    prbs_fill(bb_buf, nw, &st);
-    if (s2c->kbch % 32) bb_buf[nw - 1] &= ~(~0u >> (s2c->kbch % 32));
-    symstream_t s = {.out = cap_buf};
-    dvbs2_frame(bb_buf, &s);
-    symstream_flush(&s);
-    const uint32_t crc = crc32_update(0, cap_buf, s.n * 4);
-    for (uint32_t k = 0; k < 64800 / 32 + 2; k++) bb_buf[k] = st = st * 1664525u + 1013904223u;
-    const uint32_t c_bch = time_min(t_bch, reps), c_bchs = time_min(t_bch_serial, 1);
-    const uint32_t c_ldpc = time_min(t_ldpc, reps), c_ldpcs = time_min(t_ldpc_serial, 1);
-    const uint32_t c_frame = time_min(t_frame, reps), c_prbs = time_min(t_prbs, reps);
-    printf("@{\"cmd\":\"dvbs2\",\"git\":\"%s\",\"clk_hz\":%lu,\"code\":\"%s\",\"index\":%d,"
-           "\"pilots\":%d,\"syms\":%lu,\"words\":%lu,\"crc\":%lu,\"init_us\":%lu,\"reps\":%d,"
-           "\"cyc_bch\":%lu,\"cyc_bch_serial\":%lu,\"cyc_ldpc\":%lu,\"cyc_ldpc_serial\":%lu,"
-           "\"cyc_frame\":%lu,\"prof\":{\"ldpc_groups\":%lu,\"ldpc_accum\":%lu,"
-           "\"ldpc_transpose\":%lu,\"f_bb_bch\":%lu,\"f_ldpc\":%lu,\"f_map\":%lu}}\n",
-           GIT_REV, (unsigned long)clock_get_hz(clk_sys), s2c->name, ci, pil,
-           (unsigned long)dvbs2_plframe_symbols(), (unsigned long)s.n, (unsigned long)crc,
-           (unsigned long)init_us, reps, (unsigned long)c_bch, (unsigned long)c_bchs,
-           (unsigned long)c_ldpc, (unsigned long)c_ldpcs, (unsigned long)(c_frame - c_prbs),
-           (unsigned long)(dvbs2_prof[1] - dvbs2_prof[0]), (unsigned long)(dvbs2_prof[2] - dvbs2_prof[1]),
-           (unsigned long)(dvbs2_prof[3] - dvbs2_prof[2]), (unsigned long)(dvbs2_prof[5] - dvbs2_prof[4]),
-           (unsigned long)(dvbs2_prof[6] - dvbs2_prof[5]), (unsigned long)(dvbs2_prof[7] - dvbs2_prof[6]));
 }
 
 // ------------------------------------------------------------------ command loop
@@ -329,6 +394,18 @@ static void dispatch(char *line) {
     const char *cmd = argv[0];
     if (!strcmp(cmd, "info")) return cmd_info();
     if (!strcmp(cmd, "bootsel")) { reset_usb_boot(0, 0); }
+    if (!strcmp(cmd, "txs2") && argc >= 8) {           // txs2 code pilots kernel sps L cpw ms [cap]
+        const int ci = atoi(argv[1]), sps = atoi(argv[4]), L = atoi(argv[5]);
+        const int cpw = atoi(argv[6]), ms = atoi(argv[7]), cap = argc > 8 ? atoi(argv[8]) : 0;
+        bool tables_ok;
+        if (ci < 0 || ci >= N_DVBS2_CODES) return error("no such code");
+        if (!select_variant(sps, L, &tables_ok)) return error("no coefficient set");
+        const iq_kernel_info_t *k = iq_find_kernel(argv[3], sps, L);
+        if (!k) return error("no such kernel");
+        if (cpw < 2 || cpw > 33 || ms <= 0 || cap < 0 || cap > CAP_WORDS_MAX) return error("bad args");
+        s2_setup(ci, atoi(argv[2]) != 0);
+        return cmd_stream(k, "0", cpw, ms, cap, 0, 0, ci, tables_ok);
+    }
     if (!strcmp(cmd, "dvbs2") && argc >= 3) {
         const int ci = atoi(argv[1]);
         if (ci < 0 || ci >= N_DVBS2_CODES) return error("no such code");
@@ -352,7 +429,7 @@ static void dispatch(char *line) {
     if (cpw < 2 || cpw > 33 || ms <= 0 || cap < 0 || cap > CAP_WORDS_MAX) return error("bad args");
     if (lanes && ((lanes != 1 && lanes != 2 && lanes != 4) || half < 2 || half > 16))
         return error("bad link args");
-    cmd_stream(k, argv[4], cpw, ms, cap, lanes, half, tables_ok);
+    cmd_stream(k, argv[4], cpw, ms, cap, lanes, half, -1, tables_ok);
 }
 
 int main(void) {

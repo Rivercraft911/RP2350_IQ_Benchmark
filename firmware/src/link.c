@@ -16,7 +16,7 @@ static uint32_t last_idx;
 // READY is re-evaluated only between blocks (<= ~100 us apart). At 4 lanes x 10.7 MHz = 42.7 Mb/s
 // up to ~135 words can arrive after the ring should have closed; 1024 words covers that with the
 // conservative consumed pointer (history of the oldest untransmitted block).
-enum { READY_MARGIN = 1024, RING_BITS = 14 };   // 2^14 bytes = LINK_RING_WORDS words
+enum { READY_MARGIN = 1024, RING_BITS = 15 };   // 2^15 bytes = LINK_RING_WORDS words (DMA max)
 
 // Emulated host: per 32-bit word wait for READY, then 32/lanes groups, data on SCK low, SCK rising
 // mid-bit. Receiver: sample on each rising SCK edge (2-cycle input synchroniser plus wait latency,

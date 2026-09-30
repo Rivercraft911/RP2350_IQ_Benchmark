@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
             const uint32_t m = c->nldpc - c->kldpc;
             int ldpc_ok = !memcmp(p1, p2, m / 32 * 4);
             if (m % 32) ldpc_ok &= ((p1[m / 32] ^ p2[m / 32]) & ~(~0u >> (m % 32))) == 0;
-            symstream_t s = {.out = out};
+            symstream_t s = {.out = out, .mask = ~0u};
             dvbs2_frame(bb, &s);                               // bb is not modified
             symstream_flush(&s);
             printf("{\"code\":\"%s\",\"pilots\":%d,\"seed\":%u,\"bch_ok\":%d,\"ldpc_ok\":%d,"

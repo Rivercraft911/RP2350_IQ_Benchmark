@@ -6,6 +6,7 @@
                                                    [--lanes 4 --half 6]
   python3 host/iqbench.py sweep [--note "..."]
   python3 host/iqbench.py dvbs2 3 5 6 11 [--pilots 1]     (code indices: firmware/src/dvbs2_codes.h)
+  python3 host/iqbench.py txs2 5 lut_asm_p 4 10 --cpw 2 --ms 3000 --cap 4096   (full transmitter)
   python3 host/iqbench.py raw "clock 150000"
 
 Every measurement is appended to results/optimization-log.jsonl with the host git revision,
@@ -81,11 +82,14 @@ def model_words(sps: int, L: int, seed: int, nwords: int, periodic: bool) -> np.
     return m.generate(np.concatenate([words, words]), lut)[nwords * 16 * sps:]
 
 
-def check_capture(r: dict, cap_lines: list[str], seed: int, in_words: int) -> dict:
-    """Align captured 16-bit bus words to the periodic model stream and count mismatches."""
+def check_capture(r: dict, cap_lines: list[str], seed: int, in_words: int,
+                  ref: np.ndarray | None = None) -> dict:
+    """Align captured 16-bit bus words to the model stream (periodic PRBS by default) and count
+    mismatches."""
     got = np.array([int(x, 16) for l in cap_lines for x in l.split()[2:]], dtype=np.uint32)
     bus = got.view(np.uint16)
-    ref = model_words(r["sps"], r["L"], seed, in_words, periodic=True).view(np.uint16)
+    if ref is None:
+        ref = model_words(r["sps"], r["L"], seed, in_words, periodic=True).view(np.uint16)
     key = bus[:16]
     ext = np.concatenate([ref, ref[:len(key)]])
     win = np.lib.stride_tricks.sliding_window_view(ext, len(key))
@@ -143,8 +147,8 @@ def run_stream(b: Board, kernel, sps, L, cores, cpw, ms, cap, note, lanes=0, hal
     return log(r, note)
 
 
-def dvbs2_ref_crc(code: str, pilots: int, seed: int) -> tuple[int, int]:
-    """CRC32 and symbol count of the reference PLFRAME for the firmware's test input."""
+def dvbs2_ref_symbols(code: str, pilots: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """Reference PLFRAME sign bits (bI, bQ) for the firmware's test BBFRAME."""
     sys.path.insert(0, str(ROOT / "reference" / "dvbs2"))
     import dvbs2 as ref
     frame, rate = code.split()
@@ -152,14 +156,44 @@ def dvbs2_ref_crc(code: str, pilots: int, seed: int) -> tuple[int, int]:
     kbch = ref.code(rate, short).kbch
     w = m.xorshift32(seed, (kbch + 31) // 32)
     bits = ((w[:, None] >> np.arange(31, -1, -1, dtype=np.uint32)) & 1).astype(np.uint8).ravel()[:kbch]
-    bI, bQ = ref.plframe(ref.fecframe(bits, rate, short), rate, short, pilots=bool(pilots))
-    n = len(bI)
-    pad = (-n) % 16
+    return ref.plframe(ref.fecframe(bits, rate, short), rate, short, pilots=bool(pilots))
+
+
+def pack_symbols(bI: np.ndarray, bQ: np.ndarray) -> np.ndarray:
+    """Sign bits -> shaper input words (I_j at bit j, Q_j at bit 16+j); zero-padded to 16."""
+    pad = (-len(bI)) % 16
     bI, bQ = (np.concatenate([b, np.zeros(pad, np.uint8)]).reshape(-1, 16).astype(np.uint32)
               for b in (bI, bQ))
     sh = np.arange(16, dtype=np.uint32)
-    words = ((bI << sh).sum(1) | ((bQ << sh).sum(1) << 16)).astype(np.uint32)
-    return zlib.crc32(words.tobytes()), n
+    return ((bI << sh).sum(1) | ((bQ << sh).sum(1) << 16)).astype(np.uint32)
+
+
+def dvbs2_ref_crc(code: str, pilots: int, seed: int) -> tuple[int, int]:
+    """CRC32 and symbol count of the reference PLFRAME for the firmware's test input."""
+    bI, bQ = dvbs2_ref_symbols(code, pilots, seed)
+    return zlib.crc32(pack_symbols(bI, bQ).tobytes()), len(bI)
+
+
+def run_txs2(b: Board, index: int, pilots: int, kernel: str, sps: int, L: int, cpw: int, ms: int,
+             cap: int, note: str | None) -> dict:
+    """Full transmitter: on-chip DVB-S2 encoder (core 1) -> shaper/DMA/PIO (core 0) -> pin capture,
+    checked against reference PLFRAMEs (identical frames) run through the LUT model."""
+    r, lines = b.cmd(f"txs2 {index} {pilots} {kernel} {sps} {L} {cpw} {ms} {cap}", timeout=ms / 1e3 + 60)
+    if "error" in r:
+        raise RuntimeError(r["error"])
+    if cap:
+        bI, bQ = dvbs2_ref_symbols(r["s2_code"], pilots, 0x9E3779B9 ^ index)
+        words = pack_symbols(np.tile(bI, 3), np.tile(bQ, 3))
+        lut = m.Lut(gen_coeffs.ALPHA, sps, L, 0.0, gen_coeffs.HEADROOM_DB)
+        r.update(check_capture(r, lines, 0, 0, ref=m.generate(words, lut).view(np.uint16)))
+    c0 = r["core"][0]
+    print(f"txs2 {r['s2_code']} pilots={pilots} {kernel} sps={sps} L={L} {r['sym_rate'] / 1e6:.3f} Msym/s "
+          f"{r['ms']} ms: frames {r['s2_frames']} encoder core1 {r['s2_busy'] * 100:.1f}% "
+          f"(min ahead {r['s2_min_ahead_words']} words), shaper core0 {c0['busy'] * 100:.1f}% "
+          f"input waits {c0['input_waits']}, underruns {r['underruns']} txstall {r['txstalls']}" +
+          (f", cap {r['cap_bus_words']} words: " + (f"{r['cap_mismatches']} mismatches" if r["cap_aligned"]
+                                                  else "NOT ALIGNED") if cap else ""))
+    return log(r, note)
 
 
 def run_dvbs2(b: Board, index: int, pilots: int, reps: int, note: str | None) -> dict:
@@ -211,6 +245,14 @@ def main():
     p.add_argument("--lanes", type=int, default=0, help="input over the PIO link (1, 2, 4)")
     p.add_argument("--half", type=int, default=6, help="link SCK half period, system clocks")
     sub.add_parser("sweep")
+    p = sub.add_parser("txs2", help="full on-chip transmitter: DVB-S2 encode + shape + stream")
+    p.add_argument("index", type=int)
+    for a in ("kernel", "sps", "L"):
+        p.add_argument(a, type=int if a != "kernel" else str)
+    p.add_argument("--pilots", type=int, default=1)
+    p.add_argument("--cpw", type=int, required=True)
+    p.add_argument("--ms", type=int, default=3000)
+    p.add_argument("--cap", type=int, default=4096)
     p = sub.add_parser("dvbs2", help="DVB-S2 encoder benchmark; code index into DVBS2_CODES")
     p.add_argument("index", type=int, nargs="+")
     p.add_argument("--pilots", type=int, default=1)
@@ -228,6 +270,8 @@ def main():
         run_stream(b, a.kernel, a.sps, a.L, a.cores, a.cpw, a.ms, a.cap, a.note, a.lanes, a.half)
     elif a.cmd == "sweep":
         sweep(b, a.note)
+    elif a.cmd == "txs2":
+        run_txs2(b, a.index, a.pilots, a.kernel, a.sps, a.L, a.cpw, a.ms, a.cap, a.note)
     elif a.cmd == "dvbs2":
         for i in a.index:
             run_dvbs2(b, i, a.pilots, a.reps, a.note)
