@@ -46,12 +46,16 @@ per symbol). At 1 Msym/s that is 0.965 Mb/s and 33.3 ms per frame; at 8 Msym/s, 
 | LDPC (IRA) | 360-bit group form: each table entry XORs a rotated 360-bit vector (12 words) into one of q rows; about 450–480 entries × ≈ 70 cycles; then transpose + prefix-XOR accumulation (≈ 25 k) | ≈ 60 k |
 | QPSK map, PLHEADER, pilots | bit-plane copy | < 5 k |
 | PL scrambling | fixed Gold sequence (n = 0) precomputed as bit planes. Rotation by k·90° becomes swap/invert of (bI, bQ): k=1 → (¬bQ, bI), k=2 → (¬bI, ¬bQ), k=3 → (bQ, ¬bI); ≈ 8 ops / 32 symbols | ≈ 10 k |
-| **total** | | **≈ 0.17–0.2 M cycles** |
+| **total (estimate)** | | **≈ 0.17–0.2 M cycles** |
+| **total (measured, v4)** | normal 2/3 + pilots: BCH 110 k, LDPC 127 k, framing 116 k | **353 k cycles** |
 
-Load: 0.2 M / 33.3 ms = 6 Mcycles/s ≈ 5 % of a core at 1 Msym/s, and ≈ 38 % at 8 Msym/s. An
-IREC-rate full DVB-S2 transmitter needs both cores: shaping on one (≈ 75 %) and FEC on the other.
-Nothing here is benchmarked yet. A verified Python DVB-S2 reference is being built in
-`reference/dvbs2/` to test a firmware encoder bit-exactly.
+The first estimate was about 2× low. BCH is bounded by 24 table loads and XORs per 32-bit word.
+The group-form LDPC needs a register-pressure-aware inner loop, and deinterleaving plus
+scrambling costs about 42 cycles per 16 symbols. The optimization steps are in the README.
+
+Measured load of the full transmitter (encoder on core 1, shaper on core 0, capture exact):
+- 1 Msym/s, N = 8: encoder 9.2 %, shaper 17.2 %;
+- 8 Msym/s, N = 4, normal 2/3: encoder 70.3 %, shaper 71.5 %, 60 s without underrun.
 
 ## 3. Ingest
 
@@ -82,9 +86,10 @@ across frames. The segmentation and retransmission design is open.
 
 ## Staged tests to add
 
-1. DVB-S2 reference (Python) verified against an independent implementation. *(in progress)*
-2. Firmware BCH, LDPC and PL framing kernels: cycle counts plus bit-exact CRC against the reference.
-3. Stream a DVB-S2 PLFRAME sequence through the existing shaper and PIO at 1 and 8 Msym/s.
+1. ~~DVB-S2 reference (Python) verified against an independent implementation.~~ Done:
+   identical to gr-dtv at 5 stages in all 42 QPSK configurations.
+2. ~~Firmware BCH, LDPC and PL framing kernels, bit-exact against the reference.~~ Done, 21 codes.
+3. ~~Stream DVB-S2 through the shaper and PIO at 1 and 8 Msym/s.~~ Done (`txs2`).
 4. PIO SPI slave with DMA into the file store, with loopback emulation on-chip (GPIO17–22), then a
    real payload master.
 5. can2040 command path concurrently; measure CPU and latency impact.

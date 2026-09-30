@@ -99,4 +99,5 @@ Block period: 2 · 1024 · N · cpw = 16 384 cycles (128 µs). Ring: 8 blocks, 1
 
 - Pi/payload input at 16 Mb/s: RP1 PIO 4 lanes × 10 MHz (primary), SPI 20 MHz (fallback);
   see `host-link-and-devboard-research.md`.
-- DVB-S2 FEC on the RP2350: see `sats-self-contained.md`.
+- DVB-S2 FEC on the RP2350: estimated 0.17–0.2 M cycles/frame, measured 353 k (normal 2/3). See
+  `sats-self-contained.md` §2 and the README optimization table.
