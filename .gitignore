@@ -1,0 +1,9 @@
+# build output
+firmware/build*/
+host/build/
+__pycache__/
+*.pyc
+.DS_Store
+# large downloaded datasheets: see docs/sources/SOURCES.md for URLs and hashes
+docs/sources/*.pdf
+docs/sources/*.txt
