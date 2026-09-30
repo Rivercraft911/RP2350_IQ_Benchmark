@@ -6,8 +6,9 @@
   pv_spi_tx.py --file capture.ts --hz 20e6       a TS file, 7 packets per message
   pv_spi_tx.py --udp 230.10.0.1:1234 --hz 20e6   forward the E200 TS feed
 
-Needs spidev (dtparam=spi=on) and gpiod v1 or v2 (or gpiozero) for READY. Prints a JSON summary,
-including the CRC-32 of all TS bytes sent, to compare with the RP2350's report.
+Needs spidev (dtparam=spi=on) and gpiod v1 or v2 (or gpiozero) for READY. Prints a JSON summary
+with crc_chain (CRC-32 over the CRC fields of all messages sent); the RP2350 reports the same value
+over the messages it accepted, so equal values mean nothing was lost, altered or reordered.
 """
 import argparse
 import json
@@ -145,8 +146,9 @@ def main():
             w = ready.wait(1.0)
             waits += w > 0
             max_wait = max(max_wait, w)
-            spi.writebytes2(message(seq, payload))
-            crc = zlib.crc32(payload, crc)
+            msg = message(seq, payload)
+            spi.writebytes2(msg)
+            crc = zlib.crc32(msg[-4:], crc)
             seq += 1
     except KeyboardInterrupt:
         pass
@@ -154,7 +156,7 @@ def main():
     print(json.dumps(dict(messages=seq, seconds=round(dt, 3), msg_per_s=round(seq / dt, 1),
                           ts_mbps=round(seq * PAYLOAD * 8 / dt / 1e6, 3) if a.pattern else None,
                           ready_waits=waits, max_ready_wait_ms=round(max_wait * 1e3, 3),
-                          ts_crc32=f"0x{crc:08x}", sck_hz=int(a.hz))))
+                          crc_chain=f"0x{crc:08x}", sck_hz=int(a.hz))))
 
 
 if __name__ == "__main__":

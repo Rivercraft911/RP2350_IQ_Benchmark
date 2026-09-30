@@ -10,6 +10,7 @@ E200. The RP2350 builds and transmits DVB-S2 with the E200 profile, so the groun
 | TS capacity | 10.33 Mb/s at 8 Msym/s (8e6 × 42 960 / 33 282), about 981 full messages/s |
 | Ground | `dvbs2-rx --modcod qpsk2/3 --frame-size normal --pilots on --rolloff 0.2` |
 | Firmware | `RP2350_IQ_Benchmark/firmware`, command `pvtx` (see Bring-up) |
+| Status | RP2350 side implemented; on-chip self-test clean for 60 s at 8 Msym/s (58 866 messages, 0 errors, output bit-exact) |
 
 The CM5 has no real-time duty: the RP2350 owns the symbol clock. When the CM5 sends less than
 the channel rate, the RP2350 inserts TS null packets (PID 0x1FFF), so the RF stream never gaps.
@@ -63,8 +64,9 @@ Fixed 1332 bytes. Multi-byte fields are little-endian.
 
 - CRC-32 is IEEE 802.3, reflected, init 0xFFFFFFFF, final XOR 0xFFFFFFFF, i.e. Python
   `zlib.crc32`. Its check value is `crc32("123456789") = 0xCBF43926`.
-- The RP2350 drops, and counts, any message with bad magic, version, type, length or CRC, a
-  packet without 0x47, or a short transfer.
+- The RP2350 checks the CRC in hardware, with the DMA sniffer during reception. It drops, and
+  counts, any message with bad magic, version, type, length or CRC, a packet without 0x47, or a
+  short or long transfer.
 - A jump in `seq` is counted as lost messages. The data is still accepted.
 - TS continuity and PCR are the CM5 mux's job; the RP2350 passes packets through unchanged.
 
@@ -116,14 +118,18 @@ Regenerate it with `python3 host/cm5/pv_spi_tx.py --vector`.
 
 ## Bring-up
 
-Status on the RP2350 comes over its USB serial port, via `host/iqbench.py pvtx ...`; each run
-reports messages OK, CRC/format errors, sequence gaps, overflows, null packets inserted, and a
-CRC32 of all TS bytes accepted.
+Start the RP2350 first, from a PC or the CM5 on its USB port:
+`python3 host/iqbench.py pvtx --ms 600000` (10 min; add `--cpw 4/8/16` for 4/2/1 Msym/s). Then
+start the sender. At the end the RP2350 reports:
+- messages OK, header/CRC/sync errors, lost (sequence gaps), short/long transfers and overflows;
+- TS and null packet counts;
+- `crc_chain`, the CRC-32 over the CRC fields of the accepted messages. It must equal the
+  sender's `crc_chain`.
 
 | Step | Setup | Pass |
 |---|---|---|
-| 0 | Pico alone: `pvtx --selftest` (on-chip SPI emulator) | 0 errors, output capture exact |
-| 1 | Wired, 1 MHz, `pv_spi_tx.py --pattern --count 10000` | 10 000 OK, 0 errors, TS CRC32 equals the sender's |
+| 0 | Pico alone: `iqbench.py pvtx --selftest --cap 4096` (on-chip emulated master, 21 MHz) | PASS: 0 errors, BBFRAMEs and output capture match the reference |
+| 1 | Wired, 1 MHz, `pv_spi_tx.py --pattern --count 10000` | 10 000 OK, 0 errors, `crc_chain` equal on both sides |
 | 2 | 5 → 10 → 16 → 20 MHz, pattern at full rate, 60 s each | 0 errors, ≥ 981 msg/s accepted, READY throttling the sender |
 | 3 | 20 MHz, real TS from the video mux, 10 min | 0 errors or gaps; null packets = unused capacity |
 | 4 | later: AFE7071 + LO, ground E200 decode | per the IREC modem plan |
