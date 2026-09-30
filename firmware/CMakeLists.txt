@@ -7,7 +7,8 @@ project(iqbench C CXX ASM)
 pico_sdk_init()
 
 
-add_executable(iqbench src/main.c src/iqgen.c src/iqasm.S src/iqout.c src/link.c src/dvbs2.c)
+add_executable(iqbench src/main.c src/iqgen.c src/iqasm.S src/iqout.c src/link.c src/dvbs2.c
+               src/pvproto.c src/pvspi.c)
 # git_rev.h is rewritten on every build (only when the revision changes), so logged firmware
 # revisions are current. Records made before 2026-09-30 could carry a stale configure-time value.
 add_custom_target(git_rev ALL

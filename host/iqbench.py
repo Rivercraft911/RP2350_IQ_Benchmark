@@ -7,6 +7,7 @@
   python3 host/iqbench.py sweep [--note "..."]
   python3 host/iqbench.py dvbs2 3 5 6 11 [--pilots 1]     (code indices: firmware/src/dvbs2_codes.h)
   python3 host/iqbench.py txs2 5 lut_asm_p 4 10 --cpw 2 --ms 3000 --cap 4096   (full transmitter)
+  python3 host/iqbench.py pvtx --selftest --cap 4096      (PigeonVision SPI TX; drop --selftest for the CM5)
   python3 host/iqbench.py raw "clock 150000"
 
 Every measurement is appended to results/optimization-log.jsonl with the host git revision,
@@ -252,6 +253,53 @@ def run_dvbs2(b: Board, index: int, pilots: int, reps: int, note: str | None) ->
     return log(r, note)
 
 
+def run_pvtx(b: Board, cpw: int, ms: int, selftest: bool, cap: int, cap_ms: int, note: str | None) -> dict:
+    """PigeonVision TX: PV-SPI v1 TS input -> DVB-S2 normal 2/3 + pilots -> shaper -> pins.
+    Self-test: the on-chip emulated master sends the pattern of host/cm5/pv_spi_tx.py, so the TS
+    CRC, the first BBFRAMEs and the output capture are all checked against the references."""
+    r, lines = b.cmd(f"pvtx {cpw} {ms} {int(selftest)} {cap} {cap_ms}", timeout=ms / 1e3 + 60)
+    if "error" in r:
+        raise RuntimeError(r["error"])
+    pv, faults = r["pv"], stream_faults(r, cap)
+    faults += [k for k in ("bad_hdr", "bad_crc", "bad_sync", "lost", "short", "long", "overflows") if pv[k]]
+    if selftest:
+        sys.path[:0] = [str(ROOT / "host" / "cm5"), str(ROOT / "reference" / "dvbs2")]
+        import dvbs2 as ref
+        import pv_spi_tx as tx
+        pk = [tx.pattern_packet(k) for k in range(112)]
+        emu = [tx.message(m, tx.pattern_payload(m))[-4:] for m in range(16)]   # seq mod 16
+        chain = 0
+        for i in range(pv["msgs_ok"]):
+            chain = zlib.crc32(emu[i % 16], chain)
+        if chain != pv["crc_chain"]:
+            faults.append("CRC chain differs from the pattern (lost or reordered messages)")
+        if pv["null_packets"]:
+            faults.append("null packets in self-test (queue ran dry)")
+        packets = np.frombuffer(b"".join(pk[k % 112] for k in range(8 * 30)), np.uint8)
+        bbs = ref.ts_bbframes(packets, "2/3", ro=0.20)[:8]
+        want = [zlib.crc32(np.packbits(x).tobytes()) for x in bbs[:4]]
+        if want != pv["bb_crc"]:
+            faults.append("first BBFRAMEs differ from ts_bbframes()")
+        if cap:
+            sym = [ref.plframe(ref.fecframe(x, "2/3"), "2/3", pilots=True) for x in bbs]
+            words = pack_symbols(np.concatenate([s_[0] for s_ in sym]), np.concatenate([s_[1] for s_ in sym]))
+            lut = m.Lut(gen_coeffs.ALPHA, 4, 10, 0.0, gen_coeffs.HEADROOM_DB)
+            r.update(check_capture(r, lines, 0, 0, ref=m.generate(words, lut).view(np.uint16)))
+            faults = [f for f in faults if "capture" not in f] + [f for f in stream_faults(r, cap) if "capture" in f]
+    r["faults"] = faults
+    if faults:
+        fail(f"pvtx: {', '.join(faults)}")
+    c0 = r["core"][0]
+    print(f"pvtx {'selftest' if selftest else 'CM5'} {r['sym_rate'] / 1e6:.3f} Msym/s {r['ms']} ms: "
+          f"msgs ok {pv['msgs_ok']} (lost {pv['lost']}, crc {pv['bad_crc']}, hdr {pv['bad_hdr']}, "
+          f"short {pv['short']}, overflow {pv['overflows']}), TS {pv['ts_packets']} + null {pv['null_packets']}, "
+          f"BBFRAMEs {pv['bbframes']}, crc_chain 0x{pv['crc_chain']:08x}; encoder {r['s2_busy'] * 100:.1f}% "
+          f"shaper {c0['busy'] * 100:.1f}%, underruns {r['underruns']}" +
+          (f", cap {r.get('cap_bus_words', 0)} words: {r.get('cap_mismatches', r.get('cap_error'))} mismatches"
+           if cap else "") + ("  FAIL" if faults else "  PASS"))
+    return log(r, note)
+
+
 KERNELS = ("conv", "lut_shift", "lut_win", "lut_pair", "lut_asm")
 
 
@@ -292,6 +340,12 @@ def main():
     p.add_argument("--cpw", type=int, required=True)
     p.add_argument("--ms", type=int, default=3000)
     p.add_argument("--cap", type=int, default=4096)
+    p = sub.add_parser("pvtx", help="PigeonVision TX: PV-SPI input -> DVB-S2 -> shaper")
+    p.add_argument("--cpw", type=int, default=2, help="2 = 8 Msym/s, 4 = 4, 8 = 2, 16 = 1")
+    p.add_argument("--ms", type=int, default=5000)
+    p.add_argument("--selftest", action="store_true", help="on-chip emulated CM5 master")
+    p.add_argument("--cap", type=int, default=0)
+    p.add_argument("--cap-ms", type=int, default=20)
     p = sub.add_parser("dvbs2", help="DVB-S2 encoder benchmark; code index into DVBS2_CODES")
     p.add_argument("index", type=int, nargs="+")
     p.add_argument("--pilots", type=int, default=1)
@@ -309,6 +363,8 @@ def main():
         run_stream(b, a.kernel, a.sps, a.L, a.cores, a.cpw, a.ms, a.cap, a.note, a.lanes, a.half)
     elif a.cmd == "sweep":
         sweep(b, a.note)
+    elif a.cmd == "pvtx":
+        run_pvtx(b, a.cpw, a.ms, a.selftest, a.cap, a.cap_ms, a.note)
     elif a.cmd == "txs2":
         run_txs2(b, a.index, a.pilots, a.kernel, a.sps, a.L, a.cpw, a.ms, a.cap, a.note)
     elif a.cmd == "dvbs2":

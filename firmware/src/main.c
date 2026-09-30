@@ -9,6 +9,9 @@
 //   txs2 <code> <pilots> <kernel> <sps> <L> <cpw> <ms> [cap_words]
 //        full transmitter: core 1 encodes DVB-S2 frames, core 0 shapes and streams
 //        code: index into DVBS2_CODES (dvbs2_codes.h)
+//   pvtx <cpw> <ms> <selftest> [cap_words] [cap_ms]
+//        PigeonVision TX: TS over PV-SPI v1 (docs/pv-spi-spec.md) -> DVB-S2 normal QPSK 2/3 with
+//        pilots -> shaper (N = 4, L = 10). selftest 1 = on-chip emulated CM5 master.
 //   bootsel                                       reboot to the USB bootloader
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,11 +21,14 @@
 #include "dvbs2_codes.h"
 #include "config.h"
 #include "hardware/clocks.h"
+#include "hardware/dma.h"
 #include "hardware/structs/m33.h"
 #include "hardware/sync.h"
 #include "iqgen.h"
 #include "iqout.h"
 #include "link.h"
+#include "pvproto.h"
+#include "pvspi.h"
 #include "pico/bootrom.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -34,7 +40,7 @@
 static uint32_t ring_buf[N_BLOCKS * BLOCK_WORDS];            // 128 KiB
 static uint32_t in_buf[IN_WORDS] __attribute__((aligned(4 * IN_WORDS)));   // 32 KiB PRBS
 static uint32_t tab_i[TABLE_WORDS] SRAM_HI, tab_q[TABLE_WORDS] SRAM_HI;   // 32 KiB each
-static uint32_t cap_buf[CAP_WORDS_MAX] SRAM_HI;                          // 64 KiB
+static uint32_t cap_buf[CAP_WORDS_MAX] SRAM_HI;                          // 56 KiB
 
 static iq_cfg_t cfg = {.ti = tab_i, .tq = tab_q};
 static const coef_set_t *cur_set;
@@ -267,8 +273,27 @@ static struct {
     uint64_t busy_cyc, t0_us, t1_us;
     uint32_t frames, fw;
     int32_t min_ahead;                             // untransmitted words when a frame completes
+    bool ts;                                       // pvtx: BBFRAMEs from the PV-SPI TS queue
+    uint32_t bb_crc[4];                            // CRC-32 of the first four TS BBFRAMEs
+    uint64_t bb_cyc;                               // cycles in TS BBFRAME building
     symstream_t s;
 } enc;
+
+// One PLFRAME. In TS mode the BBFRAME is built from queued packets (nulls when none), as bytes,
+// then turned into the encoder's MSB-first words.
+static void __not_in_flash_func(enc_frame)(void) {
+    if (enc.ts) {
+        const uint32_t t0 = cycles();
+        uint8_t *b = (uint8_t *)bb_buf;
+        const uint32_t nb = s2c->kbch / 8u, nw = (nb + 3) / 4;
+        pv_bbframe(b, s2c->kbch, 0xF2, pvspi_next_packet);   // MATYPE-1: TS, SIS, CCM, RO 0.20
+        for (uint32_t i = nb; i < 4 * nw; i++) b[i] = 0;
+        if (enc.frames < 4) enc.bb_crc[enc.frames] = pv_crc32(0, b, nb);
+        for (uint32_t i = 0; i < nw; i++) bb_buf[i] = __builtin_bswap32(bb_buf[i]);
+        enc.bb_cyc += cycles() - t0;
+    }
+    dvbs2_frame(bb_buf, &enc.s);
+}
 
 static void __not_in_flash_func(task_encoder)(uint32_t unused) {
     (void)unused;
@@ -277,7 +302,7 @@ static void __not_in_flash_func(task_encoder)(uint32_t unused) {
         const uint32_t d = ring.done * run.biw, consumed = d ? d - 1 : 0;
         if (enc.s.n + enc.fw + 1 - consumed > IN_WORDS) continue;
         const uint32_t t = cycles();
-        dvbs2_frame(bb_buf, &enc.s);
+        enc_frame();
         enc.busy_cyc += cycles() - t;
         enc.frames++;
         __dmb();
@@ -288,8 +313,9 @@ static void __not_in_flash_func(task_encoder)(uint32_t unused) {
     enc.t1_us = time_us_64();
 }
 
+// pv: -1 none, 0 PV-SPI from the CM5, 1 PV-SPI self-test. cap_ms: capture time (-1 = mid-run).
 static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, int ms, int cap,
-                       int lanes, int half, int s2, bool tables_ok) {
+                       int lanes, int half, int s2, int pv, int cap_ms, bool tables_ok) {
     const bool c0 = strchr(cores, '0'), c1 = strchr(cores, '1') && s2 < 0;
     run = (typeof(run)){.k = k, .src = lanes || s2 >= 0 ? link_ring : in_buf,
                         .avail = lanes ? &link_total : s2 >= 0 ? &enc.total : 0, .lanes = lanes,
@@ -303,11 +329,18 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
         while (link_total < (N_BLOCKS + 1) * run.biw && time_us_32() - tl < 100000)
             tight_loop_contents();
     }
-    if (s2 >= 0) {                                        // first frame on core 0, then core 1
+    if (pv >= 0) {
+        pv_init(pv ? 16 : 65536);
+        pvspi_start(in_buf, pv == 1, cap_buf + 8192, 3);
+        // self-test: the first BBFRAME needs 28.6 packets (> 4 messages); queue 8 so no null
+        // packet makes frame 0 differ from the reference
+        while (pv == 1 && pvspi.head < 8 && time_us_32() - tl < 100000) tight_loop_contents();
+    }
+    if (s2 >= 0) {                                        // first frames on core 0, then core 1
         enc = (typeof(enc)){.s = {.out = link_ring, .mask = IN_WORDS - 1}, .min_ahead = 1 << 30,
-                            .fw = (dvbs2_plframe_symbols() + 31) / 16};
+                            .fw = (dvbs2_plframe_symbols() + 31) / 16, .ts = pv >= 0};
         while (enc.s.n < (N_BLOCKS + 1) * run.biw) {      // short frames: ~511 words each
-            dvbs2_frame(bb_buf, &enc.s);
+            enc_frame();
             enc.frames++;
         }
         enc.total = enc.s.n;
@@ -315,7 +348,7 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
     for (uint32_t s = 0; s < N_BLOCKS; s++) produce(s);   // prefill
     const uint32_t t0 = time_us_32();
     run.end_us = t0 + (uint32_t)ms * 1000u;
-    run.cap_at_us = t0 + (uint32_t)ms * 500u;              // capture mid-run
+    run.cap_at_us = t0 + (cap_ms >= 0 ? (uint32_t)cap_ms * 1000u : (uint32_t)ms * 500u);
     iqout_start();
     const uint32_t stride = (c0 && c1) ? 2 : 1;
     run.stride = stride;
@@ -330,6 +363,7 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
     if (c1 || s2 >= 0) multicore_fifo_pop_blocking();
     const uint32_t link_words = link_total, t_run = time_us_32() - tl;
     if (lanes) link_stop();
+    if (pv >= 0) pvspi_stop();
 
     const double sym_rate = (double)clock_get_hz(clk_sys) / (2.0 * cfg.sps * cpw);
     const uint32_t period = (uint32_t)(2 * BLOCK_WORDS * cpw);            // cycles per block
@@ -359,6 +393,22 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
         printf(",\"s2_code\":\"%s\",\"s2_index\":%d,\"s2_frames\":%lu,\"s2_busy\":%.4f,"
                "\"s2_min_ahead_words\":%ld", s2c->name, s2, (unsigned long)enc.frames,
                busy(enc.busy_cyc, enc.t0_us, enc.t1_us), (long)enc.min_ahead);
+    if (pv >= 0)
+        printf(",\"pv\":{\"selftest\":%d,\"msgs_ok\":%lu,\"nop\":%lu,\"bad_hdr\":%lu,\"bad_crc\":%lu,"
+               "\"bad_sync\":%lu,\"lost\":%lu,\"short\":%lu,\"long\":%lu,\"overflows\":%lu,"
+               "\"ts_packets\":%lu,\"null_packets\":%lu,\"bbframes\":%lu,\"crc_chain\":%lu,"
+               "\"bb_crc\":[%lu,%lu,%lu,%lu],\"bb_cyc_per_frame\":%lu,\"first_bad_at\":%ld,"
+               "\"first_bad_info\":%lu}", pv, (unsigned long)pv_stats.ok,
+               (unsigned long)pv_stats.nop, (unsigned long)pv_stats.bad_hdr,
+               (unsigned long)pv_stats.bad_crc, (unsigned long)pv_stats.bad_sync,
+               (unsigned long)pv_stats.lost, (unsigned long)pvspi.short_msgs,
+               (unsigned long)pvspi.long_msgs, (unsigned long)pvspi.overflows,
+               (unsigned long)pv_stats.ts_packets, (unsigned long)pv_stats.null_packets,
+               (unsigned long)pv_stats.bbframes, (unsigned long)pv_stats.crc_chain,
+               (unsigned long)enc.bb_crc[0], (unsigned long)enc.bb_crc[1],
+               (unsigned long)enc.bb_crc[2], (unsigned long)enc.bb_crc[3],
+               (unsigned long)(enc.bb_cyc / (enc.frames ? enc.frames : 1)),
+               (long)pv_stats.first_bad_at, (unsigned long)pv_stats.first_bad_info);
     const uint32_t skip = 8, n = cap > (int)skip ? (uint32_t)cap - skip : 0;
     printf(",\"cap_words\":%lu,\"cap_crc\":%lu}\n", (unsigned long)n,
            (unsigned long)crc32_update(0, cap_buf + skip, n * 4));
@@ -368,6 +418,36 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
         printf("\n");
     }
     if (n) printf("@capend\n");
+}
+
+// DMA sniffer check: CRC of pattern message 0 (1328 data bytes, and all 1332 incl. its CRC)
+// for every mode / byte-swap / output-reverse / output-invert combination, seed 0xFFFFFFFF.
+static void cmd_snifftest(void) {
+    uint32_t *msgw = cap_buf, *dst = cap_buf + 512;
+    pv_init(65536);
+    pv_pattern_message((uint8_t *)msgw, 0, 65536);
+    const int ch = dma_claim_unused_channel(true);
+    printf("@{\"cmd\":\"snifftest\",\"sw_crc\":%lu,\"r\":[", (unsigned long)pv_crc32(0, msgw, 1328));
+    for (int c = 0; c < 16; c++) {
+        uint32_t out[2];
+        for (int n = 0; n < 2; n++) {
+            dma_channel_config d = dma_channel_get_default_config(ch);
+            channel_config_set_transfer_data_size(&d, DMA_SIZE_32);
+            channel_config_set_sniff_enable(&d, true);
+            dma_sniffer_enable(ch, c & 1 ? DMA_SNIFF_CTRL_CALC_VALUE_CRC32R : DMA_SNIFF_CTRL_CALC_VALUE_CRC32, true);
+            dma_sniffer_set_byte_swap_enabled(c & 2);
+            dma_sniffer_set_output_reverse_enabled(c & 4);
+            dma_sniffer_set_output_invert_enabled(c & 8);
+            dma_sniffer_set_data_accumulator(0xFFFFFFFFu);
+            dma_channel_configure(ch, &d, dst, msgw, n ? 333 : 332, true);
+            dma_channel_wait_for_finish_blocking(ch);
+            out[n] = dma_sniffer_get_data_accumulator();
+        }
+        printf("%s[%d,%lu,%lu]", c ? "," : "", c, (unsigned long)out[0], (unsigned long)out[1]);
+    }
+    dma_sniffer_disable();
+    dma_channel_unclaim(ch);
+    printf("]}\n");
 }
 
 // ------------------------------------------------------------------ command loop
@@ -393,6 +473,7 @@ static void dispatch(char *line) {
     const char *cmd = argv[0];
     if (!strcmp(cmd, "info")) return cmd_info();
     if (!strcmp(cmd, "bootsel")) { reset_usb_boot(0, 0); }
+    if (!strcmp(cmd, "snifftest")) return cmd_snifftest();
     if (!strcmp(cmd, "txs2") && argc >= 8) {           // txs2 code pilots kernel sps L cpw ms [cap]
         const int ci = atoi(argv[1]), sps = atoi(argv[4]), L = atoi(argv[5]);
         const int cpw = atoi(argv[6]), ms = atoi(argv[7]), cap = argc > 8 ? atoi(argv[8]) : 0;
@@ -404,7 +485,18 @@ static void dispatch(char *line) {
         if (cpw < 2 || cpw > IQOUT_MAX_CPW || ms <= 0 || cap < 0 || cap > CAP_WORDS_MAX)
             return error("bad args");
         s2_setup(ci, atoi(argv[2]) != 0);
-        return cmd_stream(k, "0", cpw, ms, cap, 0, 0, ci, tables_ok);
+        return cmd_stream(k, "0", cpw, ms, cap, 0, 0, ci, -1, -1, tables_ok);
+    }
+    if (!strcmp(cmd, "pvtx") && argc >= 4) {           // pvtx cpw ms selftest [cap] [cap_ms]
+        const int cpw = atoi(argv[1]), ms = atoi(argv[2]), st = atoi(argv[3]) != 0;
+        const int cap = argc > 4 ? atoi(argv[4]) : 0, cap_ms = argc > 5 ? atoi(argv[5]) : -1;
+        bool tables_ok;
+        if (cpw < 2 || cpw > IQOUT_MAX_CPW || ms <= 0 || cap < 0 || cap > (st ? 8192 : CAP_WORDS_MAX))
+            return error("bad args");
+        if (!select_variant(4, 10, &tables_ok)) return error("no coefficient set");
+        s2_setup(5, true);                                    // normal QPSK 2/3, pilots on
+        return cmd_stream(iq_find_kernel("lut_asm_p", 4, 10), "0", cpw, ms, cap, 0, 0, 5,
+                          st, cap_ms, tables_ok);
     }
     if (!strcmp(cmd, "dvbs2") && argc >= 3) {
         const int ci = atoi(argv[1]);
@@ -430,7 +522,7 @@ static void dispatch(char *line) {
         return error("bad args");
     if (lanes && ((lanes != 1 && lanes != 2 && lanes != 4) || half < 2 || half > 16))
         return error("bad link args");
-    cmd_stream(k, argv[4], cpw, ms, cap, lanes, half, -1, tables_ok);
+    cmd_stream(k, argv[4], cpw, ms, cap, lanes, half, -1, -1, -1, tables_ok);
 }
 
 int main(void) {
