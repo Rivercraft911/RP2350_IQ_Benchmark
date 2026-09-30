@@ -1,8 +1,6 @@
 # RP2350 I/Q waveform benchmark
 
 Can an RP2350 replace the FPGA that generates a DVB-S2 QPSK waveform for a TI AFE7071 transmitter?
-Target uses: the IREC PigeonVision video downlink (8 Msym/s) or the SATS image downlink
-(≤ 1 Msym/s).
 
 **Digital result: yes, with margin, on the benchmark board.** A Pimoroni Pico Plus 2 (RP2350B
 rev A2, 128 MHz, stock voltage) runs a complete DVB-S2 transmitter baseband:
