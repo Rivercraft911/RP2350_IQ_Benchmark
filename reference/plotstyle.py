@@ -1,57 +1,106 @@
-"""Figure style: Rosé Pine Moon (rose-pine-moon.mplstyle, h4pZ/rose-pine-matplotlib, MIT) made
-minimal with matplotx.styles.duftify, set in Source Sans 3 (bundled, OFL)."""
+"""Engineering-paper figures: serif text, fine boxed axes and distinct line styles."""
 from pathlib import Path
 
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.font_manager as fm  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
-import matplotx  # noqa: E402
-import numpy as np  # noqa: E402
 
-HERE = Path(__file__).parent
-# Rosé Pine Moon roles
-BASE, SURFACE, OVERLAY, HIGH = "#232136", "#2a273f", "#393552", "#44415a"
-MUTED, SUBTLE, TEXT = "#6e6a86", "#908caa", "#e0def4"
-LOVE, GOLD, ROSE, PINE, FOAM, IRIS = "#eb6f92", "#f6c177", "#ea9a97", "#3e8fb0", "#9ccfd8", "#c4a7e7"
+INK, DARK, MID = "#111111", "#444444", "#707070"
+BLUE, RED, GREEN = "#0055aa", "#c62828", "#287a3e"
+WIDTH = 6.8
 
-for f in sorted((HERE / "fonts").glob("SourceSans3-*.ttf")):
-    fm.fontManager.addfont(str(f))
-
-_rp = dict(matplotlib.rc_params_from_file(str(HERE / "rose-pine-moon.mplstyle"), use_default_template=False))
-plt.style.use(matplotx.styles.duftify(_rp))
+plt.style.use("default")
 plt.rcParams.update({
-    "font.family": "Source Sans 3", "font.size": 10.5, "text.color": TEXT,
-    "axes.titlesize": 13, "axes.titleweight": "semibold", "axes.titlelocation": "left",
-    "axes.titlepad": 12, "axes.titlecolor": TEXT, "axes.labelcolor": SUBTLE, "axes.labelsize": 10,
-    "axes.labelpad": 7, "axes.facecolor": BASE, "axes.xmargin": 0.02, "axes.ymargin": 0.02,
-    "axes.prop_cycle": matplotlib.cycler(color=[FOAM, IRIS, GOLD, ROSE, PINE, LOVE]),
-    "xtick.color": SUBTLE, "ytick.color": SUBTLE, "xtick.labelsize": 9.5, "ytick.labelsize": 9.5,
-    "xtick.major.size": 0, "ytick.major.size": 0, "xtick.major.pad": 6, "ytick.major.pad": 6,
-    "grid.color": OVERLAY, "grid.linewidth": 0.8,
-    "figure.facecolor": BASE, "savefig.facecolor": BASE, "figure.dpi": 110, "savefig.dpi": 300,
-    "savefig.bbox": "tight", "savefig.pad_inches": 0.3,
-    "legend.frameon": False, "legend.fontsize": 9.5, "legend.labelcolor": SUBTLE,
-    "lines.linewidth": 2.0, "lines.markersize": 7.5, "lines.markeredgewidth": 1.6,
-    "lines.markeredgecolor": BASE, "lines.solid_capstyle": "round",
+    "font.family": "serif",
+    "font.serif": ["Times New Roman", "STIXGeneral", "DejaVu Serif"],
+    "mathtext.fontset": "stix",
+    "font.size": 9,
+    "text.color": INK,
+    "axes.titlesize": 9.5,
+    "axes.titleweight": "normal",
+    "axes.titlelocation": "center",
+    "axes.titlepad": 7,
+    "axes.titlecolor": INK,
+    "axes.labelcolor": INK,
+    "axes.labelsize": 9,
+    "axes.labelpad": 5,
+    "axes.facecolor": "white",
+    "axes.edgecolor": INK,
+    "axes.linewidth": 0.6,
+    "axes.spines.top": True,
+    "axes.spines.right": True,
+    "axes.xmargin": 0.03,
+    "axes.ymargin": 0.05,
+    "axes.grid": False,
+    "axes.prop_cycle": matplotlib.cycler(color=[INK, RED, BLUE, GREEN]),
+    "xtick.color": INK,
+    "ytick.color": INK,
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+    "xtick.direction": "in",
+    "ytick.direction": "in",
+    "xtick.top": True,
+    "ytick.right": True,
+    "xtick.major.size": 3,
+    "ytick.major.size": 3,
+    "xtick.minor.size": 1.5,
+    "ytick.minor.size": 1.5,
+    "xtick.major.width": 0.6,
+    "ytick.major.width": 0.6,
+    "xtick.minor.width": 0.4,
+    "ytick.minor.width": 0.4,
+    "xtick.major.pad": 4,
+    "ytick.major.pad": 4,
+    "grid.color": "#dddddd",
+    "grid.linewidth": 0.35,
+    "grid.linestyle": ":",
+    "figure.facecolor": "white",
+    "savefig.facecolor": "white",
+    "figure.dpi": 120,
+    "savefig.dpi": 600,
+    "savefig.bbox": "tight",
+    "savefig.pad_inches": 0.08,
+    "legend.frameon": False,
+    "legend.fontsize": 8,
+    "legend.labelcolor": INK,
+    "legend.handlelength": 2.8,
+    "legend.borderaxespad": 0.7,
+    "lines.linewidth": 0.9,
+    "lines.markersize": 3.2,
+    "lines.markeredgewidth": 0.6,
+    "lines.markerfacecolor": "white",
+    "lines.solid_capstyle": "butt",
+    "lines.dash_capstyle": "butt",
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
+    "svg.fonttype": "path",
 })
 
-WIDTH = 7.0
+
+def dots(ax, x, y, color=INK, label=None, *, marker="o", linestyle="-", **kw):
+    """Thin series with small open markers; distinguish series without colour."""
+    return ax.plot(x, y, color=color, label=label, marker=marker, linestyle=linestyle, **kw)
 
 
-def dots(ax, x, y, color, label=None, **kw):
-    """Dot-and-line series: a ringed dot per measurement."""
-    return ax.plot(x, y, "o-", color=color, label=label, **kw)
+def lollipop(ax, y, x, color=INK, fmt="{:.0f} %", marker="o"):
+    """Fine horizontal stem, open marker and compact numeric label."""
+    ax.hlines(y, 0, x, color=color, lw=0.7)
+    ax.plot([x], [y], marker=marker, color=color, ms=3.2)
+    ax.annotate(fmt.format(x), (x, y), xytext=(5, 0), textcoords="offset points",
+                va="center", fontsize=8, color=INK)
 
 
-def lollipop(ax, y, x, color, fmt="{:.0f} %", size=8.0):
-    """Horizontal dot chart row: thin stem from 0, dot at x, value to the right."""
-    ax.hlines(y, 0, x, color=color, lw=1.6, alpha=0.55, capstyle="round")
-    ax.plot([x], [y], "o", color=color, ms=size)
-    ax.annotate(fmt.format(x), (x, y), xytext=(9, 0), textcoords="offset points", va="center",
-                fontsize=9.5, color=TEXT)
-
-
-__all__ = ["plt", "np", "matplotx", "WIDTH", "dots", "lollipop", "BASE", "SURFACE", "OVERLAY",
-           "HIGH", "MUTED", "SUBTLE", "TEXT", "LOVE", "GOLD", "ROSE", "PINE", "FOAM", "IRIS"]
+def save_figure(fig, path, caption=None):
+    """Export the same layout as a 600-dpi PNG and portable SVG/PDF vectors."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    caption_height = 0.38 if caption and "\n" in caption else 0.22 if caption else 0
+    bottom = caption_height / fig.get_figheight()
+    fig.tight_layout(rect=(0, bottom, 1, 0.98))
+    if caption:
+        fig.text(0.5, 0.025, caption, ha="center", va="bottom", fontsize=7.5,
+                 linespacing=1.3, color=DARK)
+    for ext in ("png", "svg", "pdf"):
+        fig.savefig(path.with_suffix(f".{ext}"))
+    plt.close(fig)

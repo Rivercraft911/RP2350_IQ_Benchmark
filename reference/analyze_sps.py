@@ -1,7 +1,7 @@
 """Why the AFE7071 needs 4 samples/symbol: DAC -> ZOH -> AFE filter -> ideal receiver model.
 
 Run from the repo root:  python3 reference/analyze_sps.py
-Writes results/reference/sps_analysis.json and results/plots/why_4_samples_per_symbol.png.
+Writes results/reference/sps_analysis.json and results/plots/why_4_samples_per_symbol (PNG/SVG/PDF).
 
 The AFE7071 has no interpolation: the rate on its bus is the DAC rate f_s = N R_s. A DAC's output
 spectrum repeats at every multiple of f_s (images), shaped by the zero-order hold
@@ -18,7 +18,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
 import iqlut as m  # noqa: E402
-from plotstyle import FOAM, LOVE, SUBTLE, WIDTH, plt  # noqa: E402
+from plotstyle import BLUE, DARK, WIDTH, plt, save_figure  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 ALPHA, RS = 0.20, 8e6
@@ -117,24 +117,25 @@ def main():
         note="typical curves; magnitude-only filter; image = max PSD beyond f_s - B; rms = I-axis rms "
              "relative to the LUT's no-clip full scale", cases=res, corner_sensitivity=sens), indent=1))
 
-    fig, axes = plt.subplots(len(CASES), 1, figsize=(WIDTH, 6.6), sharex=True)
+    fig, axes = plt.subplots(len(CASES), 1, figsize=(WIDTH, 6.6), sharex=True, sharey=True)
     for ax, (name, N, L, tune, eq, _), r, (fw, db) in zip(axes, CASES, res, spectra):
         f = np.linspace(-72e6, 72e6, 4000)
-        ax.fill_between(fw / 1e6, db, -100, color=FOAM, alpha=0.12, lw=0)
-        ax.plot(fw / 1e6, db, color=FOAM, lw=0.8)
-        ax.plot(f / 1e6, -m.afe_filter_db(f / 1e6, tune), color=SUBTLE, lw=1.1, ls=(0, (5, 4)))
+        ax.plot(fw / 1e6, db, color=BLUE, lw=0.6, label="Output spectrum")
+        ax.plot(f / 1e6, -m.afe_filter_db(f / 1e6, tune), color=DARK, lw=0.7,
+                ls=(0, (5, 3)), label="AFE filter gain")
         ax.set_ylim(-100, 5)
-        ax.set_yticks([0, -40, -80])
-        ax.set_title(f"{N} samples/symbol, filter tune {tune}" + (" + EQ" if eq else ""), fontsize=11,
-                     pad=8)
-        ax.set_title(f"images {r['worst_image_dbc']:.0f} dBc".replace("-", "\u2212"), loc="right", fontsize=10.5, color=LOVE,
-                     fontweight="medium", pad=8)
-    axes[0].text(40, -6, "AFE filter", color=SUBTLE, fontsize=9.5, ha="left", va="top")
-    axes[-1].set_xlabel("MHz")
+        ax.set_yticks([0, -20, -40, -60, -80, -100])
+        ax.set_title(name.split(",", 1)[0] + f", filter tune {tune}" + (" + EQ" if eq else ""),
+                     loc="left")
+        ax.set_title(f"Peak image: {r['worst_image_dbc']:.0f} dBc".replace("-", "\u2212"),
+                     loc="right", fontsize=9)
+    axes[0].legend(loc="upper left")
+    axes[-1].set_xlabel("Baseband frequency (MHz)")
     axes[-1].set_xlim(-72, 72)
-    fig.supylabel("dB", color=SUBTLE, fontsize=10)
-    fig.tight_layout(h_pad=1.2)
-    fig.savefig(ROOT / "results" / "plots" / "why_4_samples_per_symbol.png")
+    fig.supylabel("Relative PSD / filter gain (dB)", fontsize=9)
+    save_figure(fig, ROOT / "results" / "plots" / "why_4_samples_per_symbol.png",
+                "Model: 8 Msym/s, QPSK, RRC α = 0.20; zero-order hold + typical AFE filter magnitude.\n"
+                "Image levels are relative to peak in-band PSD. RF hardware performance has not been measured.")
 
 if __name__ == "__main__":
     main()

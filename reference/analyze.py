@@ -1,7 +1,7 @@
 """Filter-design and correctness analysis for the LUT pulse shaper.
 
 Run from the repo root:  python3 reference/analyze.py
-Writes results/reference/filter_sweep.json and results/plots/*.png.
+Writes results/reference/filter_sweep.json and results/plots/filter_sweep (PNG/SVG/PDF).
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
 import iqlut as m  # noqa: E402
-from plotstyle import FOAM, IRIS, WIDTH, dots, matplotx, plt  # noqa: E402
+from plotstyle import BLUE, RED, WIDTH, dots, plt, save_figure  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "results" / "reference"
@@ -99,22 +99,24 @@ def main():
 
 
 def plot_sweep(sweep):
-    fig, ax = plt.subplots(1, 2, figsize=(WIDTH, 3.2))
-    for sps, col in ((4, FOAM), (2, IRIS)):
+    fig, ax = plt.subplots(1, 2, figsize=(WIDTH, 3.4))
+    for sps, col, marker, ls in ((4, BLUE, "o", "-"), (2, RED, "s", "--")):
         r = [x for x in sweep if x["sps"] == sps and x["kaiser_beta"] == 0]
         L = [x["L"] for x in r]
         for a, key in zip(ax, ("evm_db", "aclr_db")):
-            dots(a, L, [x[key] for x in r], col, f"{sps} samples/symbol", ms=6.5)
-    ax[0].set_title("TX EVM", pad=24)
-    ax[1].set_title("ACLR", pad=24)
+            dots(a, L, [x[key] for x in r], col, f"{sps} samples/symbol", marker=marker, linestyle=ls)
+    ax[0].set_title("(a) Digital TX EVM")
+    ax[1].set_title("(b) Adjacent-channel leakage")
+    ax[0].set_ylabel("EVM (dB)")
+    ax[1].set_ylabel("Adjacent / main channel power (dB)")
     for a in ax:
-        a.set_xlabel("filter span (symbols)")
+        a.set_xlabel("Filter span (symbols)")
         a.set_xticks([4, 8, 12, 16])
         a.margins(y=0.1)
-    matplotx.ylabel_top("dB", ax=ax[0])
-    matplotx.line_labels(ax=ax[1], fontsize=9.5)
-    fig.tight_layout(w_pad=2)
-    fig.savefig(PLOTS / "filter_sweep.png")
+    ax[0].legend(loc="upper right")
+    ax[1].legend(loc="lower left")
+    save_figure(fig, PLOTS / "filter_sweep.png", "Model: 8 Msym/s, RRC α = 0.20, rectangular truncation, AFE filter tune 0.\n"
+                "EVM: digital shaper + ideal matched receiver. Leakage: zero-order hold + typical AFE filter magnitude.")
 
 
 if __name__ == "__main__":

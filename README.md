@@ -10,7 +10,10 @@ rev A2, 128 MHz, stock voltage) runs a complete DVB-S2 transmitter baseband:
 
 At 8 Msym/s the load is 70 % of core 1 and 72 % of core 0. A 60 s run had no underruns, and the
 pins match the reference bit for bit. At 1 Msym/s (SATS) the whole transmitter uses about 26 % of
-one core.
+one core. Fed with camera TS from a real CM5 over one SPI lane (PV-SPI, 20 MHz), it ran 210 s with
+no errors.
+
+![Transmitter load per core](results/plots/progress_full_tx.png)
 
 None of this shows RF performance: spectrum and EVM after the AFE, clock jitter, LO leakage, PA
 behaviour and link closure are untested. The AFE7071, its clocks and the LO are not built.
@@ -47,7 +50,8 @@ Correctness chain:
 ## Optimization log
 
 Every measurement is appended to `results/optimization-log.jsonl` with git revision, clock,
-parameters and verification. `make plots` draws `results/plots/progress_*.png`.
+parameters and verification. `make plots` redraws the progress figures from it and
+`make analyze` the filter figures, each as a 600 dpi PNG plus SVG and PDF in `results/plots/`.
 
 Shaper, N = 4, L = 10 (cycles/symbol; budget 16 per core at 8 Msym/s):
 
@@ -61,6 +65,8 @@ Shaper, N = 4, L = 10 (cycles/symbol; budget 16 per core at 8 Msym/s):
 | v4 + placement | 11.05; stream 73.3 → 69.2 % | tables in SRAM4–7, DMA ring in SRAM0–3, code in SRAM8 |
 | v5 `lut_asm_p` | **10.80**; stream 67.8 % | software pipelining; floor about 10 |
 
+![Shaper kernel cycles per symbol by revision](results/plots/progress_kernels.png)
+
 DVB-S2 encoder, normal 2/3 + pilots (k cycles/frame; one core at 8 Msym/s = 533 k):
 
 | step | frame | BCH | LDPC | framing | change |
@@ -70,6 +76,8 @@ DVB-S2 encoder, normal 2/3 + pilots (k cycles/frame; one core at 8 Msym/s = 533 
 | v2 | 465 | 110 | 163 | 192 | slicing-by-4 BCH, 32-bit symbol stream |
 | v3 | 370 | 110 | 144 | 116 | unrolled transpose, scrambling folded into the bit-interleaved domain |
 | v4 | **353** | 110 | 127 | 116 | LDPC rotate-XOR in streaming asm (GCC hoisted 24 loads and spilled) |
+
+![DVB-S2 encoder cycles per frame by revision](results/plots/progress_dvbs2.png)
 
 Compiler flags: `lut_pair` at -O2 / -Os / -O3 measures 6.98 / 7.66 / 6.98 cycles/symbol (N = 2)
 and 13.17 / 13.24 / 13.17 (N = 4). Flags are not the lever; data movement and register pressure are.
@@ -84,8 +92,9 @@ and 13.17 / 13.24 / 13.17 (N = 4). Flags are not the lever; data movement and re
      corner error;
    - 4 sps: −49 dBc.
 
-   The E200 accepts "2 sps" because its AD9363 interpolates internally
-   (`docs/derivations.md` §2, `results/plots/why_4_samples_per_symbol.png`).
+   The E200 accepts "2 sps" because its AD9363 interpolates internally (`docs/derivations.md` §2).
+
+   ![Modelled output spectra at 2 and 4 samples per symbol](results/plots/why_4_samples_per_symbol.png)
 2. **Shaper load scales with the DAC rate, not the symbol rate:** about 2.6–2.7 cycles per complex
    sample. Low SATS symbol rates use the narrow filter (tune 8) with N = 8
    (`docs/sats-self-contained.md`).
