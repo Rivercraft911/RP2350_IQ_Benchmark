@@ -76,10 +76,16 @@ and 13.17 / 13.24 / 13.17 (N = 4). Flags are not the lever; data movement and re
 
 ## Findings that change the plan
 
-1. **2 samples/symbol cannot meet a clean spectrum with the AFE7071.** Nothing filters between its
-   DAC and modulator except a ZOH sinc and a 4th-order filter, and the widest setting is only
-   18 dB down at 20 MHz. At 16 MS/s the modelled images are −19 dBc and ACLR −25 dB; at 32 MS/s,
-   −49 dBc (`docs/derivations.md` §2).
+1. **Use 4 samples/symbol at the AFE7071; 2 is a fallback that needs hardware data.** The AFE7071
+   has no interpolation, so its bus rate is its DAC rate, and the DAC images are filtered only by
+   its on-chip 4th-order low-pass. Modelled images:
+   - 2 sps, widest filter: −19 dBc;
+   - 2 sps, tune-4 filter + digital pre-EQ in the LUT: −45 dBc, but ±4 dB for a ±10 % filter
+     corner error;
+   - 4 sps: −49 dBc.
+
+   The E200 accepts "2 sps" because its AD9363 interpolates internally
+   (`docs/derivations.md` §2, `results/plots/why_4_samples_per_symbol.png`).
 2. **Shaper load scales with the DAC rate, not the symbol rate:** about 2.6–2.7 cycles per complex
    sample. Low SATS symbol rates use the narrow filter (tune 8) with N = 8
    (`docs/sats-self-contained.md`).

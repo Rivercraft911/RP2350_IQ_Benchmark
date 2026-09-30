@@ -18,25 +18,49 @@ interleaved bus (one I word and one Q word per complex sample, SLOS789C p.5):
 
 In dual-input clock mode DACCLK = 2 f_s, CLK_IO = 2 f_s, and the two must be frequency-locked (p.25).
 
-## 2. Why N = 4, not 2
+## 2. Samples per symbol at the AFE7071
 
-The AFE7071 has no digital interpolation and no access to baseband between its DAC and modulator.
-The only reconstruction filtering is the zero-order-hold sinc and the integrated 4th-order filter.
-Signal half-width B = R_s(1+α)/2 = 4.8 MHz (α = 0.20), and the first image's inner edge sits at
-f_s − B.
+**What N means here.** N is the DAC's own rate divided by the symbol rate. Through the E200 the
+host also sends "2 samples/symbol", but its AD9363 interpolates digitally before its DAC (TX FIR
+and half-band stages; ADI UG-570, not re-checked here), so its DAC runs far faster. The AFE7071
+has no interpolation: the bus rate *is* the DAC rate, f_s = N R_s.
 
-- Filter setting: tune 8 attenuates 18 dB at 5 MHz (p.6), which is inside the signal. Only tune 0
-  (1 dB at 10 MHz, 18 dB at 20 MHz) passes it.
-- N = 2: image edge at 11.2 MHz. ZOH gives 20 log|sinc(11.2/16)| = −8.7 dB; tune 0 gives about
-  −3.8 dB (log-f interpolation between the typical datasheet points). Modelled worst image
-  −18.7 dBc, ACLR −25 dB, independent of filter length (`results/plots/filter_sweep.png`).
-- N = 4: image edge at 27.2 MHz. Modelled worst image −49 dBc; ACLR is then set by pulse-shaper
-  truncation: −39.6 dB at L = 10 and −43.0 dB at L = 12 (rectangular window).
-- An RF filter cannot remove an image 11 MHz from a 1.28 or 2.2 GHz carrier. The fractional
-  bandwidth needed is below 1 %.
+**Why that matters.** A DAC's output repeats the baseband spectrum at every multiple of f_s
+(images). The zero-order hold weights them by |sinc(f/f_s)|. Between the DAC and the modulator
+there is only the integrated 4th-order low-pass. Signal half-width B = R_s(1+α)/2 = 4.8 MHz, and
+the first image starts at f_s − B:
 
-Model limits: the filter curve is typical, interpolated between four datasheet points, and ignores
-modulator nonlinearity, LO leakage and sideband error. Measure the spectrum on hardware.
+| N | f_s | first image | frequency ratio image/edge | ideal 4th-order at edge corner |
+|---|---|---|---|---|
+| 2 | 16 MS/s | 11.2 MHz | 2.33 | 80·log10(2.33) ≈ 29 dB |
+| 4 | 32 MS/s | 27.2 MHz | 5.67 | 80·log10(5.67) ≈ 60 dB |
+
+The filter must pass 4.8 MHz and reject 11.2 MHz. Tune 0 (−1 dB at 10 MHz) is too wide.
+Tune 8 (−18 dB at 5 MHz) cuts into the signal. Tune 4, plotted in SLOS789C Figure 36 but not
+tabulated, sits between them.
+
+**Modelled** (`reference/analyze_sps.py`): ZOH, AFE filter magnitude (typical curves, tune 4 read
+from Figure 36 at ±1 dB), then an ideal RRC receiver.
+
+| option | bus | worst image | ACLR | EVM |
+|---|---|---|---|---|
+| N = 2, tune 0 | 32 MW/s | −19 dBc | −25 dB | −30 dB |
+| N = 2, tune 4 + digital pre-EQ | 32 MW/s | −45 dBc | −35 dB | −30 dB |
+| same, real corner ×0.9 / ×1.1 | | −49 / −42 dBc | −37 / −34 dB | −24 / −37 dB |
+| N = 4, tune 0 (current) | 64 MW/s | −49 dBc | −40 dB | −39 dB |
+
+Pre-EQ divides the RRC target by the modelled ZOH and filter response over the signal band. It is
+folded into the LUT, so it costs nothing at run time. EVM near −30 dB costs < 0.01 dB at the
+QPSK 2/3 threshold, so it is not the constraint.
+
+**Conclusion.** N = 2 is feasible with tune 4 and pre-EQ, but only against a filter response that
+exists as one typical plot. A ±10 % corner error moves the images by ±4 dB, and part-to-part and
+temperature spread are unknown. N = 4 has margin without relying on the filter shape, and it
+fits the RP2350 (67.8 % of a core measured). Keep N = 4 as the baseline. Treat N = 2 + tune 4 +
+EQ as a halved-bus fallback to measure on real AFE7071 parts (gate G6).
+
+The emission limit that sets "enough" (IREC / FCC Part 97 at 1.28 GHz) is not yet written into
+the project requirements.
 
 ## 3. LUT pulse shaper
 
