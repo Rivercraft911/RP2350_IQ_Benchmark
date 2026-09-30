@@ -1,0 +1,17 @@
+{
+  "attempted_messages": 102801,
+  "crc_chain": "0x0f20927e",
+  "max_ready_wait_ms": 0.0,
+  "messages": 102801,
+  "next_seq": 37265,
+  "payload_bytes": 135285740,
+  "pending_payload_bytes": 0,
+  "ready_timeouts": 0,
+  "ready_waits": 0,
+  "ready_waits_over_20ms": 0,
+  "transfer_uncertain": false,
+  "ts_packets": 719605,
+  "implementation": "native",
+  "status": "complete",
+  "error": null
+}

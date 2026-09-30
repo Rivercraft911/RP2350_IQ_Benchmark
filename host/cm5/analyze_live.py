@@ -21,6 +21,7 @@ def analyze(directory, camera_only=False):
     r = json.loads((directory / 'report.json').read_text())
     p = json.loads((directory / 'pico.json').read_text()) if not camera_only else None
     h, pv = (r['sender'], p['pv']) if not camera_only else (None, None)
+    native = bool(h and h.get('implementation') == 'native')
     health = [x for x in r['health'] if x['type'] == 'health']
     end = r['health'][-1]
     frames = [json.loads(x) for x in (directory / 'frames.jsonl').read_text().splitlines()]
@@ -95,15 +96,19 @@ def analyze(directory, camera_only=False):
             faults.append('CRC chain mismatch')
         if h['payload_bytes'] != 188 * h['ts_packets']:
             faults.append('payload bytes/TS packet arithmetic mismatch')
-        if h['udp']['receive_buffer_below_spec'] or not h['udp']['kernel_drop_monitor']:
-            faults.append('UDP receive buffer or drop monitor unavailable')
+        if not native:
+            if h['udp']['receive_buffer_below_spec'] or not h['udp']['kernel_drop_monitor']:
+                faults.append('UDP receive buffer or drop monitor unavailable')
+            if h['udp'].get('kernel_pending_on_close', False):
+                faults.append('unread UDP datagrams at shutdown')
         if h['ts_packets'] != pv['ts_packets']:
             faults.append('TS packet count mismatch')
-        if not h['payload_bytes'] == h['udp']['bytes_received'] == end['outputs']['transport']['wire_bytes']:
+        received=h['payload_bytes'] if native else h['udp']['bytes_received']
+        if not h['payload_bytes'] == received == end['outputs']['transport']['wire_bytes']:
             faults.append('capture/UDP/SPI byte count mismatch')
         for keys, data in [(['bad_hdr','bad_crc','bad_sync','lost','short','long','overflows'], pv),
                            (['underruns','own_errors','txstalls','link_overruns'], p),
-                           (['buffered_unsent','invalid_datagrams','kernel_drops','queue_overflows'], h['udp'])]:
+                           (['pending_payload_bytes'], h) if native else (['buffered_unsent','invalid_datagrams','kernel_drops','queue_overflows'], h['udp'])]:
             faults.extend(k for k in keys if data[k])
     transport = end['outputs']['transport']
     if transport['failed'] or transport['dropped_packets'] or transport['datagram_errors']:
@@ -116,6 +121,8 @@ def analyze(directory, camera_only=False):
             faults.append(f'{camera} recorder failed or lost packets')
     summary = {'label': directory.name, 'requested_duration_s': requested, 'observed_session_duration_s': duration,
                'observed_capture_duration_s': capture_duration, 'capture_signal': end['signal'], 'termination_reason': r.get('error'),
+               'implementation': 'native' if native else ('camera-only' if camera_only else 'python'),
+               'encoder_input': manifest['configuration'].get('encoder_input'),
                'allocator': manifest['configuration']['capture_allocator'], 'encoder_threads': manifest['configuration']['encoder_threads'],
                'width': manifest['configuration']['width'], 'height': manifest['configuration']['height'],
                'measured_transport_mbps': rate, 'messages': h['messages'] if h else None,

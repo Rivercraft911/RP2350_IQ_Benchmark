@@ -1,0 +1,40 @@
+[0:58:02.234391162] [5760] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:330 [0mlibcamera v0.5.2+102-160625a1
+[0:58:02.245612361] [5761] [1;32m INFO [1;37mRPI [1;34mpisp.cpp:720 [0mlibpisp version v1.2.1 981977ff21f3 25-09-2026 (18:17:24)
+[0:58:02.249527661] [5761] [1;32m INFO [1;37mIPAProxy [1;34mipa_proxy.cpp:180 [0mUsing tuning file /usr/local/share/libcamera/ipa/rpi/pisp/fr_imx900.json
+[0:58:02.262675280] [5761] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:220 [0mAdding camera '/base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a' for pipeline handler rpi/pisp
+[0:58:02.262707483] [5761] [1;32m INFO [1;37mRPI [1;34mpisp.cpp:1179 [0mRegistered camera /base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a to CFE device /dev/media0 and ISP device /dev/media2 using PiSP variant BCM2712_D0
+[0:58:02.262755279] [5761] [1;32m INFO [1;37mRPI [1;34mpisp.cpp:720 [0mlibpisp version v1.2.1 981977ff21f3 25-09-2026 (18:17:24)
+[0:58:02.264302625] [5761] [1;32m INFO [1;37mIPAProxy [1;34mipa_proxy.cpp:180 [0mUsing tuning file /usr/local/share/libcamera/ipa/rpi/pisp/fr_imx900.json
+[0:58:02.277297003] [5761] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:220 [0mAdding camera '/base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a' for pipeline handler rpi/pisp
+[0:58:02.277329429] [5761] [1;32m INFO [1;37mRPI [1;34mpisp.cpp:1179 [0mRegistered camera /base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a to CFE device /dev/media1 and ISP device /dev/media4 using PiSP variant BCM2712_D0
+[0:58:02.278069723] [5760] [1;32m INFO [1;37mCamera [1;34mcamera.cpp:1215 [0mconfiguring streams: (0) 2064x1552-YUV420/Rec709
+[0:58:02.278184482] [5761] [1;32m INFO [1;37mRPI [1;34mpisp.cpp:1483 [0mSensor: /base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a - Selected sensor format: 2064x1552-SRGGB10_1X10/RAW - Selected CFE format: 2064x1552-PC1R/RAW
+[0:58:02.279000701] [5760] [1;32m INFO [1;37mCamera [1;34mcamera.cpp:1215 [0mconfiguring streams: (0) 2064x1552-YUV420/Rec709
+[0:58:02.279078478] [5761] [1;32m INFO [1;37mRPI [1;34mpisp.cpp:1483 [0mSensor: /base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a - Selected sensor format: 2064x1552-SRGGB10_1X10/RAW - Selected CFE format: 2064x1552-PC1R/RAW
+[libx264 @ 0x55558f269210] using cpu capabilities: ARMv8 NEON
+[libx264 @ 0x55558f269210] profile Constrained Baseline, level 5.0, 4:2:0, 8-bit
+[libx264 @ 0x55558f269210] 264 - core 164 r3108 31e19f9 - H.264/MPEG-4 AVC codec - Copyleft 2003-2023 - http://www.videolan.org/x264.html - options: cabac=0 ref=1 deblock=0:0:0 analyse=0:0 me=dia subme=0 psy=1 psy_rd=1.00:0.00 mixed_ref=0 me_range=16 chroma_me=1 trellis=0 8x8dct=0 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=0 threads=3 lookahead_threads=3 sliced_threads=1 slices=3 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=0 weightp=0 keyint=30 keyint_min=16 scenecut=0 intra_refresh=0 rc_lookahead=0 rc=cbr mbtree=0 bitrate=4000 ratetol=1.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 vbv_maxrate=4000 vbv_bufsize=2000 nal_hrd=cbr filler=1 ip_ratio=1.40 aq=0
+[0:58:02.293837979] [5760] [1;32m INFO [1;37mCamera [1;34mcamera.cpp:1215 [0mconfiguring streams: (0) 2064x1552-YUV420/Rec709
+[0:58:02.293929294] [5761] [1;32m INFO [1;37mRPI [1;34mpisp.cpp:1483 [0mSensor: /base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a - Selected sensor format: 2064x1552-SRGGB10_1X10/RAW - Selected CFE format: 2064x1552-PC1R/RAW
+[0:58:02.294458866] [5760] [1;32m INFO [1;37mCamera [1;34mcamera.cpp:1215 [0mconfiguring streams: (0) 2064x1552-YUV420/Rec709
+[0:58:02.294518384] [5761] [1;32m INFO [1;37mRPI [1;34mpisp.cpp:1483 [0mSensor: /base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a - Selected sensor format: 2064x1552-SRGGB10_1X10/RAW - Selected CFE format: 2064x1552-PC1R/RAW
+[libx264 @ 0x55558f425a80] using cpu capabilities: ARMv8 NEON
+[libx264 @ 0x55558f425a80] profile Constrained Baseline, level 5.0, 4:2:0, 8-bit
+[libx264 @ 0x55558f425a80] 264 - core 164 r3108 31e19f9 - H.264/MPEG-4 AVC codec - Copyleft 2003-2023 - http://www.videolan.org/x264.html - options: cabac=0 ref=1 deblock=0:0:0 analyse=0:0 me=dia subme=0 psy=1 psy_rd=1.00:0.00 mixed_ref=0 me_range=16 chroma_me=1 trellis=0 8x8dct=0 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=0 threads=3 lookahead_threads=3 sliced_threads=1 slices=3 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=0 weightp=0 keyint=30 keyint_min=16 scenecut=0 intra_refresh=0 rc_lookahead=0 rc=cbr mbtree=0 bitrate=4000 ratetol=1.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 vbv_maxrate=4000 vbv_bufsize=2000 nal_hrd=cbr filler=1 ip_ratio=1.40 aq=0
+[mpegts @ 0x7fff580090f0] Stream 2, codec bin_data, is muxed as a private data stream and may not be recognized upon reading.
+[libx264 @ 0x55558f269210] frame I:59    Avg QP:29.17  size:123489
+[libx264 @ 0x55558f269210] frame P:1688  Avg QP:22.77  size: 12988
+[libx264 @ 0x55558f269210] mb I  I16..4: 100.0%  0.0%  0.0%
+[libx264 @ 0x55558f269210] mb P  I16..4:  1.8%  0.0%  0.0%  P16..4: 22.5%  0.0%  0.0%  0.0%  0.0%    skip:75.7%
+[libx264 @ 0x55558f269210] coded y,uvDC,uvAC intra: 25.2% 36.6% 9.8% inter: 4.9% 11.9% 1.0%
+[libx264 @ 0x55558f269210] i16 v,h,dc,p: 49% 21% 13% 17%
+[libx264 @ 0x55558f269210] i8c dc,h,v,p: 55% 17% 23%  5%
+[libx264 @ 0x55558f269210] kb/s:4012.86
+[libx264 @ 0x55558f425a80] frame I:59    Avg QP:32.22  size:121284
+[libx264 @ 0x55558f425a80] frame P:1688  Avg QP:25.65  size: 13068
+[libx264 @ 0x55558f425a80] mb I  I16..4: 100.0%  0.0%  0.0%
+[libx264 @ 0x55558f425a80] mb P  I16..4:  1.1%  0.0%  0.0%  P16..4: 18.8%  0.0%  0.0%  0.0%  0.0%    skip:80.1%
+[libx264 @ 0x55558f425a80] coded y,uvDC,uvAC intra: 31.0% 33.4% 6.5% inter: 5.2% 7.9% 0.4%
+[libx264 @ 0x55558f425a80] i16 v,h,dc,p: 43% 21% 17% 19%
+[libx264 @ 0x55558f425a80] i8c dc,h,v,p: 59% 15% 21%  6%
+[libx264 @ 0x55558f425a80] kb/s:4013.48

@@ -52,6 +52,19 @@ class EvidenceChecks(unittest.TestCase):
         self.report['sender']['udp']['queue_overflows'] = 1
         self.assertIn('queue_overflows', self.result()['failures'])
 
+    def test_unread_kernel_datagram(self):
+        self.report['sender']['udp']['kernel_pending_on_close'] = True
+        self.assertIn('unread UDP datagrams at shutdown', self.result()['failures'])
+
+    def test_native_counts_without_udp(self):
+        self.report['sender']['implementation'] = 'native'
+        del self.report['sender']['udp']
+        self.assertEqual(self.result()['failures'], [])
+        self.report['sender']['pending_payload_bytes'] = 1316
+        self.assertIn('pending_payload_bytes', self.result()['failures'])
+        self.report['sender']['crc_chain'] = '0x00000000'
+        self.assertIn('CRC chain mismatch', self.result()['failures'])
+
     def test_lost_video_before_spi(self):
         self.report['health'][-1]['outputs']['transport']['dropped_packets'] = 1
         self.assertIn('capture transport failed or dropped packets', self.result()['failures'])

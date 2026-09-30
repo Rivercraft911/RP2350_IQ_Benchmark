@@ -1,0 +1,20 @@
+[
+  "taskset",
+  "-c",
+  "3",
+  "/home/pigeon/pigeonvision/software/.venv-spi/bin/python",
+  "-m",
+  "pigeonvision.spi_transport",
+  "--udp",
+  "127.0.0.1:1234",
+  "--hz",
+  "20000000",
+  "--duration",
+  "70",
+  "--idle-timeout",
+  "15",
+  "--ready-timeout",
+  "2",
+  "--summary",
+  "/home/pigeon/pigeonvision/output/spi-bringup/isolated-spi-core3-60s/sender.json"
+]

@@ -1,0 +1,1 @@
+{"capture_exit": 0, "sender_exit": 0, "error": "SPI sender ended during capture", "messages": 24820, "remote_output": "/home/pigeon/pigeonvision/output/spi-bringup/profile-sender-30s"}

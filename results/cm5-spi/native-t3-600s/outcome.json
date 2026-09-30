@@ -1,0 +1,4 @@
+{
+  "state": "cancelled by user",
+  "reason": "User requested a fresh two-minute run. Capture stopped, then Pico reset before its report. See native-t3-120s for complete evidence."
+}

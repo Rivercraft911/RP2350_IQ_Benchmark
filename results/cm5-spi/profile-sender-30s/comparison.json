@@ -1,0 +1,72 @@
+{
+  "label": "profile-sender-30s",
+  "requested_duration_s": 30.0,
+  "observed_session_duration_s": 30.490805984,
+  "observed_capture_duration_s": 29.648171597,
+  "capture_signal": 15,
+  "termination_reason": "SPI sender ended during capture",
+  "implementation": "python",
+  "encoder_input": "dmabuf",
+  "allocator": "dma_heap_cached",
+  "encoder_threads": 3,
+  "width": 2064,
+  "height": 1552,
+  "measured_transport_mbps": 8.958489605006136,
+  "messages": 24820,
+  "payload_bytes": 32663120,
+  "sequence_wraps": 0,
+  "sender_crc_chain": "0xd18655ad",
+  "pico_crc_chain": "0xd18655ad",
+  "failures": [
+    "process/session failure",
+    "capture shorter than requested duration",
+    "sender did not complete normally",
+    "capture/UDP/SPI byte count mismatch",
+    "buffered_unsent",
+    "queue_overflows"
+  ],
+  "pico_underruns": 0,
+  "cameras": [
+    {
+      "camera": "A",
+      "encoded_frames_total": 855,
+      "steady_encoded_fps": 28.849324925796736,
+      "steady_h264_payload_mbps": 3.8468975825965672,
+      "steady_delivered_fps": 28.899323755824113,
+      "delivered_interval_median_ms": 33.335,
+      "delivered_interval_max_ms": 66.682,
+      "delivered_intervals_over_50ms": 22,
+      "all_drops": {
+        "camera_frame_error": 1,
+        "capture_queue_full": 1
+      },
+      "steady_drops": {
+        "capture_queue_full": 1
+      },
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 32.6878753116913
+    },
+    {
+      "camera": "B",
+      "encoded_frames_total": 854,
+      "steady_encoded_fps": 28.899343984891544,
+      "steady_h264_payload_mbps": 3.839109252219975,
+      "steady_delivered_fps": 28.899343984891544,
+      "delivered_interval_median_ms": 33.335,
+      "delivered_interval_max_ms": 66.679,
+      "delivered_intervals_over_50ms": 22,
+      "all_drops": {
+        "camera_frame_error": 1
+      },
+      "steady_drops": {},
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 32.722274772666054
+    }
+  ],
+  "max_temperature_c": 54.55,
+  "mean_cpu_busy_percent_after_10s": 83.22620548811375,
+  "throttled_bits_observed": [
+    0
+  ],
+  "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+}

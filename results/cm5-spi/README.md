@@ -15,6 +15,41 @@ FPS excludes the first ten seconds. The native capture binary and camera setting
 
 The longer SPI attempt sent 179,818 messages, 1,258,721 TS packets and 236,639,548 bytes. Pico accepted them all, with CRC chain `0x465758f0`, two sequence wraps, and zero protocol errors or output underruns. No UDP bytes remained unsent at the thermal stop. All eight local MKV segments decoded: 5,975 frames per camera. The Pico continued inserting null packets until its original 620-second command expired; that is not 620 seconds of camera video.
 
+## Native sender comparison
+
+All runs below used the fan, cached buffers, three encoder threads, 2064×1552,
+4 Mb/s per camera, 9 Mb/s TS and local recording. The Python runs retained
+loopback UDP; native SPI ran in `pv-capture`'s existing transport worker.
+
+| Run | Seconds | FPS A / B | Total CPU | Intervals >50 ms A / B |
+| --- | ---: | ---: | ---: | ---: |
+| `duplex-fan-control-60s` | 60 | 29.11 / 29.11 | 81.3% | 45 / 45 |
+| `tx-only-t3-60s` | 60 | 29.30 / 29.33 | 80.4% | 35 / 34 |
+| `direct-tx-normal-priority-60s` | 60 | 29.78 / 29.80 | 78.8% | 11 / 10 |
+| `native-t3-retry-60s` | 60 | 30.00 / 30.00 | 60.5% | 0 / 0 |
+| `native-t3-120s` | 120 | 29.99 / 29.99 | 61.4% | 1 / 1 |
+
+The 120-second run sent 102,801 messages and 135,285,740 payload bytes. Pico
+counts and CRC `0x0f20927e` matched, with one sequence wrap and zero protocol
+errors or underruns. Maximum temperature: 56.75°C, no throttling. Four recordings
+decoded without errors: 3,599 frames from A, 3,598 from B. Each camera reported
+one startup frame error. The two later 66.7 ms intervals remain unexplained.
+
+Reserving an entire CPU core for the Python sender caused encoder queue drops.
+Copying frames before encoding fell to 25.6 fps. Neither is selected. Native
+SPI removes the Python/UDP workload; this comparison does not isolate each
+individual source of overhead. The native mux-plus-SPI worker used about 0.084
+CPU cores in one cumulative sample (`transport-thread.json`).
+
+`native-t3-60s` stopped before capture because discovery counted a GPIO symlink
+twice. `native-t3-600s` was cancelled at the user's request and has no Pico report;
+the fresh 120-second case is the completed test. `profile-sender-30s` includes
+profiler overhead and failed on UDP queue overflow. Those are not successful
+performance runs. The Pico firmware was unchanged throughout.
+
+For native runs add `--native-spi --sender-nice 0` to the command below and point
+`--binary` to the native SPI build. Native mode uses no Python sender process.
+
 ## Files
 
 - `runs.csv`: one row per camera/run, including actual duration and failures.

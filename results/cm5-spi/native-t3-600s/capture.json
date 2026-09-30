@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "width": 2064,
+  "height": 1552,
+  "fps": 30,
+  "bitrate": 4000000,
+  "vbv_bits": 2000000,
+  "preset": "ultrafast",
+  "segment_seconds": 60,
+  "min_free_bytes": 2147483648,
+  "encode": true,
+  "record": true,
+  "udp_destination": null,
+  "mux_bitrate": 9000000,
+  "session_dir": "/home/pigeon/pigeonvision/output/sessions/spi-native-t3-600s",
+  "cameras": [
+    {
+      "flip_x": false,
+      "flip_y": true,
+      "id": "A",
+      "device": "/base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a"
+    },
+    {
+      "flip_x": false,
+      "flip_y": true,
+      "id": "B",
+      "device": "/base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a"
+    }
+  ],
+  "duration_seconds": 600,
+  "encoder_threads": 3,
+  "encoder_input": "dmabuf",
+  "capture_allocator": "dma_heap_cached",
+  "camera_controls": {
+    "exposure_us": 9993,
+    "analogue_gain": 1.4125375747680664,
+    "colour_gains": [
+      1.644302248954773,
+      2.3573110103607178
+    ],
+    "colour_correction_matrix": [
+      [
+        2.2082138061523438,
+        -1.0519741773605347,
+        -0.15623421967029572
+      ],
+      [
+        -0.7356135845184326,
+        2.1066701412200928,
+        -0.3710543215274811
+      ],
+      [
+        -0.01670699380338192,
+        -1.151046633720398,
+        2.16774582862854
+      ]
+    ]
+  },
+  "spi": {
+    "device": "/dev/spidev0.0",
+    "gpiochip": "",
+    "hz": 20000000,
+    "ready_line": 25
+  }
+}

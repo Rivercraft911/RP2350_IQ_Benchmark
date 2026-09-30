@@ -17,6 +17,8 @@ def main():
                 'run': run['label'], 'camera': cam['camera'],
                 'requested_seconds': run['requested_duration_s'],
                 'capture_seconds': run['observed_capture_duration_s'],
+                'implementation': run.get('implementation', 'python' if run['messages'] else 'camera-only'),
+                'encoder_input': run.get('encoder_input', 'dmabuf'),
                 'allocator': run['allocator'], 'encoder_threads': run['encoder_threads'],
                 'width': run['width'], 'height': run['height'],
                 'encoded_fps_after_10s': cam['steady_encoded_fps'],
@@ -42,7 +44,7 @@ def main():
     path = DATA/'summary.json'
     summary = json.loads(path.read_text())
     summary['live_runs'] = runs
-    summary['state'] = 'Tests stopped. Camera-only control completed; 600-second SPI attempt stopped at 80 C after 210 seconds. No RF hardware used.'
+    summary['state'] = 'Native SPI completed 120 seconds with fan: 29.99 fps per camera, matching endpoint counts and CRC; one 66.7 ms interval per camera. Ten-minute run cancelled at user request. No RF hardware used.'
     path.write_text(json.dumps(summary, indent=2)+'\n')
 
 

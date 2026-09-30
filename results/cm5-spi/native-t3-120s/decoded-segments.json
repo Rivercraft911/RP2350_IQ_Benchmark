@@ -1,0 +1,37 @@
+{
+  "decoder": "PyAV 16.1.0",
+  "segments": [
+    {
+      "file": "A-000001.mkv",
+      "bytes": 29997481,
+      "frames": 1800,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    },
+    {
+      "file": "A-000002.mkv",
+      "bytes": 30007761,
+      "frames": 1799,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    },
+    {
+      "file": "B-000001.mkv",
+      "bytes": 29997422,
+      "frames": 1800,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    },
+    {
+      "file": "B-000002.mkv",
+      "bytes": 29994352,
+      "frames": 1798,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    }
+  ]
+}

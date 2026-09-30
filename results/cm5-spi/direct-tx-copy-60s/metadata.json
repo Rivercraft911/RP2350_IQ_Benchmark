@@ -1,0 +1,7 @@
+{
+  "started_utc": "2026-09-30T09:34:20.956053+00:00",
+  "pico_command": "pvtx 2 80000 0 0 20",
+  "remote_command": "python3 - --label direct-tx-copy-60s --seconds 60 --allocator dma_heap_cached --threads 3 --sender-nice 0 --root /home/pigeon/pigeonvision --capture-config output/spi-bringup/capture-spi.json --binary build/spi-camera-check/pv-capture --transfer tx-only --udp-mode direct --encoder-input copy",
+  "scope": "wired digital link; real dual cameras; no RF",
+  "host_git": "d4964b0-dirty"
+}

@@ -16,10 +16,17 @@ from iqbench import Board
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--native-spi', action='store_true')
+    p.add_argument('--udp-mode', choices=['threaded', 'direct'], default='threaded')
+    p.add_argument('--transfer', choices=['duplex', 'tx-only'], default='duplex')
     p.add_argument('--label', required=True)
     p.add_argument('--seconds', type=int, required=True)
     p.add_argument('--allocator', choices=['libcamera', 'dma_heap_cached'], required=True)
+    p.add_argument('--encoder-input', choices=['dmabuf', 'copy'], default='dmabuf')
     p.add_argument('--threads', type=int, default=2)
+    p.add_argument('--profile-sender', action='store_true')
+    p.add_argument('--sender-cpus')
+    p.add_argument('--capture-cpus')
     p.add_argument('--sender-nice', type=int, default=0)
     p.add_argument('--remote-root', default='/home/pigeon/pigeonvision')
     p.add_argument('--capture-config', default='output/spi-bringup/capture-spi.json')
@@ -36,6 +43,14 @@ def main():
     (out / 'run_remote.py').write_text(program)
     ssh = ['ssh', '-F', a.ssh_config, a.ssh_host]
     remote_args = ['python3', '-', '--label', a.label, '--seconds', str(a.seconds), '--allocator', a.allocator, '--threads', str(a.threads), '--sender-nice', str(a.sender_nice), '--root', a.remote_root, '--capture-config', a.capture_config, '--binary', a.binary]
+    for key in ('sender_cpus', 'capture_cpus'):
+        if getattr(a, key):
+            remote_args += ['--' + key.replace('_', '-'), getattr(a, key)]
+    if a.profile_sender:
+        remote_args.append('--profile-sender')
+    remote_args += ['--transfer', a.transfer, '--udp-mode', a.udp_mode, '--encoder-input', a.encoder_input]
+    if a.native_spi:
+        remote_args.append('--native-spi')
     pico_command = f'pvtx 2 {(a.seconds + 20) * 1000} 0 0 20'
     meta = {'started_utc': datetime.now(timezone.utc).isoformat(), 'pico_command': pico_command,
             'remote_command': shlex.join(remote_args), 'scope': 'wired digital link; real dual cameras; no RF',
@@ -55,6 +70,11 @@ def main():
             (out / 'pico.json').write_text(json.dumps(pico, indent=2) + '\n')
         files = {f: f'{a.remote_root}/output/spi-bringup/{a.label}/{f}'
                  for f in ['report.json', 'profile.json', 'provenance.json', 'capture.json', 'capture.stderr', 'sender.stderr', 'sender.json', 'sender-command.json']}
+        if a.native_spi:
+            for name in ('sender.stderr','sender-command.json'):
+                files.pop(name)
+        if a.profile_sender:
+            files['sender-profile.txt'] = f'{a.remote_root}/output/spi-bringup/{a.label}/sender-profile.txt'
         files.update({f: f'{a.remote_root}/output/sessions/spi-{a.label}/{f}'
                       for f in ['frames.jsonl', 'segments.jsonl', 'session.json']})
         for name, remote_path in files.items():

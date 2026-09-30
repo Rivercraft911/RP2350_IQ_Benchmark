@@ -1,0 +1,17 @@
+{
+  "attempted_messages": 51588,
+  "crc_chain": "0xdcbd4bac",
+  "max_ready_wait_ms": 0.0,
+  "messages": 51588,
+  "next_seq": 51588,
+  "payload_bytes": 67889432,
+  "pending_payload_bytes": 0,
+  "ready_timeouts": 0,
+  "ready_waits": 0,
+  "ready_waits_over_20ms": 0,
+  "transfer_uncertain": false,
+  "ts_packets": 361114,
+  "implementation": "native",
+  "status": "complete",
+  "error": null
+}

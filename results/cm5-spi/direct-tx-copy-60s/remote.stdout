@@ -1,0 +1,3 @@
+{"elapsed_s": 30.3, "temperature_c": 48.5}
+{"elapsed_s": 60.4, "temperature_c": 52.35}
+{"capture_exit": 0, "sender_exit": 0, "error": null, "messages": 51565, "remote_output": "/home/pigeon/pigeonvision/output/spi-bringup/direct-tx-copy-60s"}
