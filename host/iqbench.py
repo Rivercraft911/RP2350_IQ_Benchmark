@@ -5,6 +5,7 @@
   python3 host/iqbench.py stream lut_asm 4 10 --cores 0 --cpw 2 --ms 2000 [--cap 4096]
                                                    [--lanes 4 --half 6]
   python3 host/iqbench.py sweep [--note "..."]
+  python3 host/iqbench.py dvbs2 3 5 6 11 [--pilots 1]     (code indices: firmware/src/dvbs2_codes.h)
   python3 host/iqbench.py raw "clock 150000"
 
 Every measurement is appended to results/optimization-log.jsonl with the host git revision,
@@ -142,6 +143,42 @@ def run_stream(b: Board, kernel, sps, L, cores, cpw, ms, cap, note, lanes=0, hal
     return log(r, note)
 
 
+def dvbs2_ref_crc(code: str, pilots: int, seed: int) -> tuple[int, int]:
+    """CRC32 and symbol count of the reference PLFRAME for the firmware's test input."""
+    sys.path.insert(0, str(ROOT / "reference" / "dvbs2"))
+    import dvbs2 as ref
+    frame, rate = code.split()
+    short = frame == "short"
+    kbch = ref.code(rate, short).kbch
+    w = m.xorshift32(seed, (kbch + 31) // 32)
+    bits = ((w[:, None] >> np.arange(31, -1, -1, dtype=np.uint32)) & 1).astype(np.uint8).ravel()[:kbch]
+    bI, bQ = ref.plframe(ref.fecframe(bits, rate, short), rate, short, pilots=bool(pilots))
+    n = len(bI)
+    pad = (-n) % 16
+    bI, bQ = (np.concatenate([b, np.zeros(pad, np.uint8)]).reshape(-1, 16).astype(np.uint32)
+              for b in (bI, bQ))
+    sh = np.arange(16, dtype=np.uint32)
+    words = ((bI << sh).sum(1) | ((bQ << sh).sum(1) << 16)).astype(np.uint32)
+    return zlib.crc32(words.tobytes()), n
+
+
+def run_dvbs2(b: Board, index: int, pilots: int, reps: int, note: str | None) -> dict:
+    r, _ = b.cmd(f"dvbs2 {index} {pilots} {reps}", timeout=120)
+    if "error" in r:
+        raise RuntimeError(r["error"])
+    want, n = dvbs2_ref_crc(r["code"], pilots, 0x9E3779B9 ^ index)
+    r["crc_ok"] = r["crc"] == want and r["syms"] == n
+    clk = r["clk_hz"]
+    for rs in (1e6, 8e6):                                  # encoder load at 1 and 8 Msym/s
+        r[f"load_at_{int(rs / 1e6)}msym"] = r["cyc_frame"] / (clk * r["syms"] / rs)
+    print(f"dvbs2 {r['code']:<11} pilots={pilots} frame {r['cyc_frame'] / 1e3:7.1f} k cyc "
+          f"(bch {r['cyc_bch'] / 1e3:.1f} k vs serial {r['cyc_bch_serial'] / 1e3:.0f} k, "
+          f"ldpc {r['cyc_ldpc'] / 1e3:.1f} k vs serial {r['cyc_ldpc_serial'] / 1e3:.0f} k) "
+          f"load {r['load_at_1msym'] * 100:.1f} % @1 / {r['load_at_8msym'] * 100:.1f} % @8 Msym/s "
+          f"crc {'ok' if r['crc_ok'] else 'FAIL'}")
+    return log(r, note)
+
+
 KERNELS = ("conv", "lut_shift", "lut_win", "lut_pair", "lut_asm")
 
 
@@ -174,6 +211,10 @@ def main():
     p.add_argument("--lanes", type=int, default=0, help="input over the PIO link (1, 2, 4)")
     p.add_argument("--half", type=int, default=6, help="link SCK half period, system clocks")
     sub.add_parser("sweep")
+    p = sub.add_parser("dvbs2", help="DVB-S2 encoder benchmark; code index into DVBS2_CODES")
+    p.add_argument("index", type=int, nargs="+")
+    p.add_argument("--pilots", type=int, default=1)
+    p.add_argument("--reps", type=int, default=4)
     a = ap.parse_args()
 
     b = Board(a.port)
@@ -187,6 +228,9 @@ def main():
         run_stream(b, a.kernel, a.sps, a.L, a.cores, a.cpw, a.ms, a.cap, a.note, a.lanes, a.half)
     elif a.cmd == "sweep":
         sweep(b, a.note)
+    elif a.cmd == "dvbs2":
+        for i in a.index:
+            run_dvbs2(b, i, a.pilots, a.reps, a.note)
 
 
 if __name__ == "__main__":

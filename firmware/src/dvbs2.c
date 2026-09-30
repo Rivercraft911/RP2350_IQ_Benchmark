@@ -4,9 +4,11 @@
 
 #ifdef IQ_ON_DEVICE
 #define HOT(f) __attribute__((section(".time_critical." #f))) f
+#define HI __attribute__((section(".sram_hi")))                 // SRAM4-7, away from DMA banks
 static inline uint32_t rbit(uint32_t x) { __asm("rbit %0, %1" : "=r"(x) : "r"(x)); return x; }
 #else
 #define HOT(f) f
+#define HI
 static inline uint32_t rbit(uint32_t x) {
     x = ((x >> 1) & 0x55555555u) | ((x & 0x55555555u) << 1);
     x = ((x >> 2) & 0x33333333u) | ((x & 0x33333333u) << 2);
@@ -27,14 +29,14 @@ enum {
 static const dvbs2_code_t *C;
 static bool pilots;
 static uint32_t M, bch_deg;          // parity bits: LDPC, BCH
-static uint32_t bch_tab[256][BCH_W], bch_g[BCH_W];   // T[b] = b(x) x^deg mod g; g without x^deg
-static uint32_t bb_prbs[MAX_BITS_W];
-static uint16_t a_row[MAX_ADDR], a_off[MAX_ADDR];     // x mod q, 360 - x div q
+static uint32_t bch_tab[256][BCH_W] HI, bch_g[BCH_W];   // T[b] = b(x) x^deg mod g; g without x^deg
+static uint32_t bb_prbs[MAX_BITS_W] HI;
+static uint16_t a_row[MAX_ADDR] HI, a_off[MAX_ADDR] HI;     // x mod q, 360 - x div q
 static uint16_t grp[162 + 1];                         // group offsets, copied out of flash
-static uint32_t P[MAX_Q + 32][12];                   // q x 360 parity matrix (+ zero rows)
-static uint32_t fe[MAX_BITS_W];                      // FECFRAME under construction
-static uint32_t body[MAX_BODY_W];                    // post-header symbols, shaper format
-static uint32_t r0[MAX_BODY_W], r1[MAX_BODY_W];      // PL scrambling R(i) bit planes
+static uint32_t P[MAX_Q + 32][12] HI;                   // q x 360 parity matrix (+ zero rows)
+static uint32_t fe[MAX_BITS_W] HI;                      // FECFRAME under construction
+static uint32_t body[MAX_BODY_W] HI;                    // post-header symbols, shaper format
+static uint32_t r0[MAX_BODY_W] HI, r1[MAX_BODY_W] HI;      // PL scrambling R(i) bit planes
 static uint32_t hdr[6], body_syms;
 
 // ------------------------------------------------------------------ bit-vector helpers
@@ -144,7 +146,7 @@ void HOT(dvbs2_bch)(const uint32_t *m, uint32_t *parity) {
 // ------------------------------------------------------------------ BB scrambling (5.2.2)
 
 void HOT(dvbs2_bbscramble)(uint32_t *bb) {
-    for (uint32_t k = 0; k < (C->kbch + 31) / 32; k++) bb[k] ^= bb_prbs[k];
+    for (uint32_t k = 0; k < (C->kbch + 31u) / 32; k++) bb[k] ^= bb_prbs[k];
 }
 
 // ------------------------------------------------------------------ LDPC (5.3.2)
@@ -323,7 +325,7 @@ void HOT(dvbs2_frame)(uint32_t *bb, symstream_t *s) {
     uint32_t par[BCH_W + 1];
     dvbs2_bch(bb, par);
     copy_bits(fe, C->kbch, par, bch_deg);
-    static uint32_t lpar[MAX_BITS_W];
+    static uint32_t lpar[MAX_BITS_W] HI;
     dvbs2_ldpc(fe, lpar);
     copy_bits(fe, C->kldpc, lpar, M);
 

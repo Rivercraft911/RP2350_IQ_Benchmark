@@ -5,12 +5,15 @@
 //   stream <kernel> <sps> <L> <cores> <cpw> <ms> [cap_words] [lanes half]
 //        cores: 0 | 1 | 01 (alternate blocks); cpw: PIO system clocks per 16-bit bus word
 //        lanes > 0: input arrives over the PIO link (emulated host), half = SCK half period
+//   dvbs2 <code> <pilots> [reps]                  DVB-S2 encoder stage cycles + PLFRAME CRC
+//        code: index into DVBS2_CODES (dvbs2_codes.h)
 //   bootsel                                       reboot to the USB bootloader
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "coeffs.h"
+#include "dvbs2_codes.h"
 #include "config.h"
 #include "hardware/clocks.h"
 #include "hardware/structs/m33.h"
@@ -239,6 +242,66 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
     if (n) printf("@capend\n");
 }
 
+// ------------------------------------------------------------------ DVB-S2 encoder benchmark
+
+static uint32_t bb_buf[64800 / 32 + 2] SRAM_HI, par_buf[64800 / 32 + 2] SRAM_HI;
+
+static uint32_t time_min(void (*f)(void), int reps) {
+    uint32_t best = ~0u;
+    for (int r = 0; r < reps; r++) {
+        const uint32_t save = save_and_disable_interrupts(), t0 = cycles();
+        f();
+        const uint32_t dt = cycles() - t0;
+        restore_interrupts(save);
+        if (dt < best) best = dt;
+    }
+    return best;
+}
+
+static const dvbs2_code_t *s2c;
+static void t_bch(void) { dvbs2_bch(bb_buf, par_buf); }
+static void t_bch_serial(void) { dvbs2_bch_serial(bb_buf, par_buf); }
+static void t_ldpc(void) { dvbs2_ldpc(bb_buf, par_buf); }
+static void t_ldpc_serial(void) { dvbs2_ldpc_serial(bb_buf, par_buf); }
+static void t_prbs(void) {                                     // input fill, subtracted
+    uint32_t st = 1;
+    prbs_fill(bb_buf, (s2c->kbch + 31) / 32, &st);
+}
+static void t_frame(void) {
+    uint32_t st = 0x9E3779B9u ^ (uint32_t)(s2c - DVBS2_CODES);
+    prbs_fill(bb_buf, (s2c->kbch + 31) / 32, &st);           // fresh input each run (not timed apart)
+    symstream_t s = {.out = cap_buf};
+    dvbs2_frame(bb_buf, &s);
+}
+
+static void cmd_dvbs2(int ci, int pil, int reps) {
+    s2c = &DVBS2_CODES[ci];
+    const uint32_t t0 = time_us_32();
+    dvbs2_init(s2c, pil);
+    const uint32_t init_us = time_us_32() - t0;
+    // Correctness: same input as host/native/dvbs2_test.c.
+    uint32_t st = 0x9E3779B9u ^ (uint32_t)ci, nw = (s2c->kbch + 31) / 32;
+    memset(bb_buf, 0, sizeof bb_buf);
+    prbs_fill(bb_buf, nw, &st);
+    if (s2c->kbch % 32) bb_buf[nw - 1] &= ~(~0u >> (s2c->kbch % 32));
+    symstream_t s = {.out = cap_buf};
+    dvbs2_frame(bb_buf, &s);
+    symstream_flush(&s);
+    const uint32_t crc = crc32_update(0, cap_buf, s.n * 4);
+    for (uint32_t k = 0; k < 64800 / 32 + 2; k++) bb_buf[k] = st = st * 1664525u + 1013904223u;
+    const uint32_t c_bch = time_min(t_bch, reps), c_bchs = time_min(t_bch_serial, 1);
+    const uint32_t c_ldpc = time_min(t_ldpc, reps), c_ldpcs = time_min(t_ldpc_serial, 1);
+    const uint32_t c_frame = time_min(t_frame, reps), c_prbs = time_min(t_prbs, reps);
+    printf("@{\"cmd\":\"dvbs2\",\"git\":\"%s\",\"clk_hz\":%lu,\"code\":\"%s\",\"index\":%d,"
+           "\"pilots\":%d,\"syms\":%lu,\"words\":%lu,\"crc\":%lu,\"init_us\":%lu,\"reps\":%d,"
+           "\"cyc_bch\":%lu,\"cyc_bch_serial\":%lu,\"cyc_ldpc\":%lu,\"cyc_ldpc_serial\":%lu,"
+           "\"cyc_frame\":%lu}\n",
+           GIT_REV, (unsigned long)clock_get_hz(clk_sys), s2c->name, ci, pil,
+           (unsigned long)dvbs2_plframe_symbols(), (unsigned long)s.n, (unsigned long)crc,
+           (unsigned long)init_us, reps, (unsigned long)c_bch, (unsigned long)c_bchs,
+           (unsigned long)c_ldpc, (unsigned long)c_ldpcs, (unsigned long)(c_frame - c_prbs));
+}
+
 // ------------------------------------------------------------------ command loop
 
 static void cmd_info(void) {
@@ -262,6 +325,11 @@ static void dispatch(char *line) {
     const char *cmd = argv[0];
     if (!strcmp(cmd, "info")) return cmd_info();
     if (!strcmp(cmd, "bootsel")) { reset_usb_boot(0, 0); }
+    if (!strcmp(cmd, "dvbs2") && argc >= 3) {
+        const int ci = atoi(argv[1]);
+        if (ci < 0 || ci >= N_DVBS2_CODES) return error("no such code");
+        return cmd_dvbs2(ci, atoi(argv[2]) != 0, argc > 3 ? atoi(argv[3]) : 4);
+    }
     if (!strcmp(cmd, "clock") && argc == 2) {
         const uint32_t khz = (uint32_t)atoi(argv[1]);
         if (khz > 150000 || !set_sys_clock_khz(khz, false)) return error("clock not reachable");
