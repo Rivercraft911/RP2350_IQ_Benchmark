@@ -2,8 +2,9 @@
 //   info
 //   clock <khz>                                   set clk_sys (stock max 150000)
 //   bench <kernel> <sps> <L> [reps]               kernel throughput + output CRC
-//   stream <kernel> <sps> <L> <cores> <cpw> <ms> [cap_words]
+//   stream <kernel> <sps> <L> <cores> <cpw> <ms> [cap_words] [lanes half]
 //        cores: 0 | 1 | 01 (alternate blocks); cpw: PIO system clocks per 16-bit bus word
+//        lanes > 0: input arrives over the PIO link (emulated host), half = SCK half period
 //   bootsel                                       reboot to the USB bootloader
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,7 @@
 #include "hardware/sync.h"
 #include "iqgen.h"
 #include "iqout.h"
+#include "link.h"
 #include "pico/bootrom.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -28,7 +30,7 @@
 #define TABLE_WORDS ((1u << MAX_L) * MAX_SPS / 2)
 
 static uint32_t ring_buf[N_BLOCKS * BLOCK_SYMS * MAX_SPS];   // 128 KiB
-static uint32_t in_buf[IN_WORDS];                            // 16 KiB
+static uint32_t in_buf[IN_WORDS] __attribute__((aligned(4 * IN_WORDS)));   // 16 KiB PRBS
 static uint32_t tab_i[TABLE_WORDS], tab_q[TABLE_WORDS];      // 32 KiB each
 static uint32_t cap_buf[CAP_WORDS_MAX];                      // 64 KiB
 
@@ -97,19 +99,27 @@ static void cmd_bench(const iq_kernel_info_t *k, int reps, bool tables_ok) {
 // ------------------------------------------------------------------ stage 3/5: streaming
 
 typedef struct {
-    uint32_t blocks, gen_cyc, max_block_cyc, t_start, t_end;
+    uint32_t blocks, gen_cyc, max_block_cyc, t_start, t_end, input_waits;
     int32_t min_lead;
 } core_stats_t;
 
 static struct {
     const iq_kernel_info_t *k;
+    const uint32_t *src;                           // input ring: in_buf or link_ring
+    int lanes;
     uint32_t end_us, cap_at_us, cap_words, txstalls;
     volatile bool cap_started;
     core_stats_t st[2];
 } run;
 
+static inline bool expired(void) { return (int32_t)(time_us_32() - run.end_us) >= 0; }
+
 static void __not_in_flash_func(monitor)(void) {   // core 0 only
     if (iqout_take_txstall()) run.txstalls++;
+    if (run.lanes) {                                // oldest needed word: history of block `done`
+        const uint32_t d = ring.done * BLOCK_IN_WORDS;
+        link_poll(d ? d - 1 : 0);
+    }
     if (run.cap_words && !run.cap_started && time_us_32() >= run.cap_at_us) {
         iqout_capture_start(cap_buf, run.cap_words);
         run.cap_started = true;
@@ -118,8 +128,8 @@ static void __not_in_flash_func(monitor)(void) {   // core 0 only
 
 static void __not_in_flash_func(produce)(uint32_t s) {
     const uint32_t slot = s % N_BLOCKS, off = (s * BLOCK_IN_WORDS) % IN_WORDS;
-    run.k->fn(ring.buf + slot * ring.block_words, in_buf + off, BLOCK_IN_WORDS,
-              in_buf[(off + IN_WORDS - 1) % IN_WORDS], &cfg);
+    run.k->fn(ring.buf + slot * ring.block_words, run.src + off, BLOCK_IN_WORDS,
+              run.src[(off + IN_WORDS - 1) % IN_WORDS], &cfg);
     __dmb();
     ring.ready[slot] = s + 1;
 }
@@ -132,9 +142,16 @@ static void __not_in_flash_func(producer)(uint32_t first, uint32_t stride, bool 
     for (uint32_t s = first;; s += stride) {
         while (s - ring.done >= N_BLOCKS) {
             if (mon) monitor();
-            if ((int32_t)(time_us_32() - run.end_us) >= 0) goto out;
+            if (expired()) goto out;
         }
-        if ((int32_t)(time_us_32() - run.end_us) >= 0) break;
+        if (run.lanes && link_total < (s + 1) * BLOCK_IN_WORDS) {
+            st->input_waits++;
+            while (link_total < (s + 1) * BLOCK_IN_WORDS) {
+                if (mon) monitor();
+                if (expired()) goto out;
+            }
+        }
+        if (expired()) break;
         const uint32_t t0 = cycles();
         produce(s);
         const uint32_t dt = cycles() - t0;
@@ -159,10 +176,18 @@ static void core1_entry(void) {
 }
 
 static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, int ms, int cap,
-                       bool tables_ok) {
+                       int lanes, int half, bool tables_ok) {
     const bool c0 = strchr(cores, '0'), c1 = strchr(cores, '1');
-    run = (typeof(run)){.k = k, .cap_words = (uint32_t)cap};
+    run = (typeof(run)){.k = k, .src = lanes ? link_ring : in_buf, .lanes = lanes,
+                        .cap_words = (uint32_t)cap};
     iqout_init(ring_buf, BLOCK_SYMS * cfg.sps, N_BLOCKS, cpw, k->layout);
+    const uint32_t tl = time_us_32();
+    if (lanes) {                                          // fill enough input for the prefill
+        link_init(lanes, half, in_buf);
+        link_start();
+        while (link_total < (N_BLOCKS + 1) * BLOCK_IN_WORDS && time_us_32() - tl < 100000)
+            link_poll(0);
+    }
     for (uint32_t s = 0; s < N_BLOCKS; s++) produce(s);   // prefill
     const uint32_t t0 = time_us_32();
     run.end_us = t0 + (uint32_t)ms * 1000u;
@@ -174,28 +199,34 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
         multicore_fifo_push_blocking(stride);
     }
     if (c0) producer(N_BLOCKS, stride, true);
-    else while ((int32_t)(time_us_32() - run.end_us) < 0) monitor();
+    else while (!expired()) monitor();
     if (c1) multicore_fifo_pop_blocking();
     while (run.cap_started && iqout_capture_busy()) tight_loop_contents();
     iqout_stop();
+    const uint32_t link_words = link_total, t_run = time_us_32() - tl;
+    if (lanes) link_stop();
 
     const double sym_rate = (double)clock_get_hz(clk_sys) / (2.0 * cfg.sps * cpw);
     const uint32_t period = (uint32_t)(2 * BLOCK_SYMS * cfg.sps * cpw);   // cycles per block
     json_head("stream", k);
     printf(",\"cores\":\"%s\",\"cpw\":%d,\"sym_rate\":%.1f,\"ms\":%d,\"tables_ok\":%d,"
            "\"block_syms\":%d,\"n_blocks\":%d,\"block_period_cyc\":%lu,\"blocks_out\":%lu,"
-           "\"underruns\":%lu,\"own_errors\":%lu,\"txstalls\":%lu,\"core\":[",
+           "\"underruns\":%lu,\"own_errors\":%lu,\"txstalls\":%lu,\"lanes\":%d,\"half\":%d,"
+           "\"link_words\":%lu,\"link_mbps\":%.3f,\"link_overruns\":%lu,\"core\":[",
            cores, cpw, sym_rate, ms, tables_ok, BLOCK_SYMS, N_BLOCKS, (unsigned long)period,
            (unsigned long)ring.done, (unsigned long)ring.underruns,
-           (unsigned long)ring.own_errors, (unsigned long)run.txstalls);
+           (unsigned long)ring.own_errors, (unsigned long)run.txstalls, lanes, half,
+           (unsigned long)(lanes ? link_words : 0), lanes ? 32.0 * link_words / t_run : 0.0,
+           (unsigned long)(lanes ? link_overruns : 0));
     bool first = true;
     for (int c = 0; c < 2; c++) {
         if (!(c ? c1 : c0)) continue;
         const core_stats_t *st = &run.st[c];
-        printf("%s{\"id\":%d,\"blocks\":%lu,\"busy\":%.4f,\"max_block_cyc\":%lu,\"min_lead\":%ld}",
+        printf("%s{\"id\":%d,\"blocks\":%lu,\"busy\":%.4f,\"max_block_cyc\":%lu,\"min_lead\":%ld,"
+               "\"input_waits\":%lu}",
                first ? "" : ",", c, (unsigned long)st->blocks,
                (double)st->gen_cyc / (double)(st->t_end - st->t_start),
-               (unsigned long)st->max_block_cyc, (long)st->min_lead);
+               (unsigned long)st->max_block_cyc, (long)st->min_lead, (unsigned long)st->input_waits);
         first = false;
     }
     const uint32_t skip = 8, n = cap > (int)skip ? (uint32_t)cap - skip : 0;
@@ -225,9 +256,9 @@ static void cmd_info(void) {
 static void error(const char *msg) { printf("@{\"error\":\"%s\"}\n", msg); }
 
 static void dispatch(char *line) {
-    char *argv[8];
+    char *argv[10];
     int argc = 0;
-    for (char *t = strtok(line, " \t\r"); t && argc < 8; t = strtok(0, " \t\r")) argv[argc++] = t;
+    for (char *t = strtok(line, " \t\r"); t && argc < 10; t = strtok(0, " \t\r")) argv[argc++] = t;
     if (!argc) return;
     const char *cmd = argv[0];
     if (!strcmp(cmd, "info")) return cmd_info();
@@ -246,8 +277,11 @@ static void dispatch(char *line) {
     if (!k) return error("no such kernel");
     if (bench) return cmd_bench(k, argc > 4 ? atoi(argv[4]) : 4, tables_ok);
     const int cpw = atoi(argv[5]), ms = atoi(argv[6]), cap = argc > 7 ? atoi(argv[7]) : 0;
+    const int lanes = argc > 8 ? atoi(argv[8]) : 0, half = argc > 9 ? atoi(argv[9]) : 6;
     if (cpw < 2 || cpw > 17 || ms <= 0 || cap < 0 || cap > CAP_WORDS_MAX) return error("bad args");
-    cmd_stream(k, argv[4], cpw, ms, cap, tables_ok);
+    if (lanes && ((lanes != 1 && lanes != 2 && lanes != 4) || half < 4 || half > 16))
+        return error("bad link args");
+    cmd_stream(k, argv[4], cpw, ms, cap, lanes, half, tables_ok);
 }
 
 int main(void) {

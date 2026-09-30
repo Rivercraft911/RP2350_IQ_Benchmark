@@ -2,7 +2,8 @@
 
   python3 host/iqbench.py info
   python3 host/iqbench.py bench lut_win 4 10 [--reps 4] [--note "..."]
-  python3 host/iqbench.py stream lut_win 4 10 --cores 0 --cpw 2 --ms 2000 [--cap 4096]
+  python3 host/iqbench.py stream lut_asm 4 10 --cores 0 --cpw 2 --ms 2000 [--cap 4096]
+                                                   [--lanes 4 --half 6]
   python3 host/iqbench.py sweep [--note "..."]
   python3 host/iqbench.py raw "clock 150000"
 
@@ -119,21 +120,25 @@ def run_bench(b: Board, kernel: str, sps: int, L: int, reps: int, note: str | No
     return log(r, note)
 
 
-def run_stream(b: Board, kernel, sps, L, cores, cpw, ms, cap, note) -> dict:
-    r, lines = b.cmd(f"stream {kernel} {sps} {L} {cores} {cpw} {ms} {cap}", timeout=ms / 1e3 + 60)
+def run_stream(b: Board, kernel, sps, L, cores, cpw, ms, cap, note, lanes=0, half=6) -> dict:
+    r, lines = b.cmd(f"stream {kernel} {sps} {L} {cores} {cpw} {ms} {cap} {lanes} {half}",
+                     timeout=ms / 1e3 + 60)
     if "error" in r:
         raise RuntimeError(r["error"])
     info, _ = b.cmd("info")
     if cap:
         r.update(check_capture(r, lines, info["seed"], info["in_words"]))
-    busy = " ".join(f"c{c['id']}={c['busy'] * 100:.1f}%/lead{c['min_lead']}" for c in r["core"])
+    busy = " ".join(f"c{c['id']}={c['busy'] * 100:.1f}%/lead{c['min_lead']}/iw{c['input_waits']}"
+                    for c in r["core"])
+    link = (f" link {r['lanes']}x @ {r['link_mbps']:.2f} Mb/s ovr {r['link_overruns']}"
+            if r["lanes"] else "")
     capmsg = ""
     if cap:
         capmsg = (f" cap {r['cap_bus_words']} words: " +
                   (f"{r['cap_mismatches']} mismatches" if r["cap_aligned"] else "NOT ALIGNED"))
     print(f"stream {kernel} sps={sps} L={L} cores={cores} {r['sym_rate'] / 1e6:.3f} Msym/s "
           f"{r['ms']} ms: blocks {r['blocks_out']} underruns {r['underruns']} own_err "
-          f"{r['own_errors']} txstall {r['txstalls']} busy {busy}{capmsg}")
+          f"{r['own_errors']} txstall {r['txstalls']} busy {busy}{link}{capmsg}")
     return log(r, note)
 
 
@@ -166,6 +171,8 @@ def main():
     p.add_argument("--cpw", type=int, required=True)
     p.add_argument("--ms", type=int, default=2000)
     p.add_argument("--cap", type=int, default=0)
+    p.add_argument("--lanes", type=int, default=0, help="input over the PIO link (1, 2, 4)")
+    p.add_argument("--half", type=int, default=6, help="link SCK half period, system clocks")
     sub.add_parser("sweep")
     a = ap.parse_args()
 
@@ -177,7 +184,7 @@ def main():
     elif a.cmd == "bench":
         run_bench(b, a.kernel, a.sps, a.L, a.reps, a.note)
     elif a.cmd == "stream":
-        run_stream(b, a.kernel, a.sps, a.L, a.cores, a.cpw, a.ms, a.cap, a.note)
+        run_stream(b, a.kernel, a.sps, a.L, a.cores, a.cpw, a.ms, a.cap, a.note, a.lanes, a.half)
     elif a.cmd == "sweep":
         sweep(b, a.note)
 
