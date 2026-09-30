@@ -26,6 +26,7 @@ def write_json(path, value):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--transfer', choices=['duplex', 'tx-only'], default='duplex')
     p.add_argument('--label', required=True)
     p.add_argument('--port', default='/dev/cu.usbmodem2101')
     p.add_argument('--ssh-host', required=True)
@@ -50,7 +51,7 @@ def main():
         ssh += ['-F', str(a.ssh_config)]
     ssh += [a.ssh_host]
     sender = ['software/.venv-spi/bin/python', '-m', 'pigeonvision.spi_transport',
-              '--pattern', '--hz', str(a.hz), '--ready-timeout', '2']
+              '--pattern', '--hz', str(a.hz), '--transfer', a.transfer, '--ready-timeout', '2']
     sender += ['--count', str(a.count)] if a.count is not None else ['--duration', str(a.seconds)]
     command = 'cd ' + shlex.quote(a.remote_root) + ' && PYTHONPATH=software/python ' + shlex.join(sender)
     metadata = {'time_utc': datetime.now(timezone.utc).isoformat(),

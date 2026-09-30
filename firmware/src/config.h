@@ -1,4 +1,4 @@
-// Board, pin and buffer configuration. Pin facts: docs/board-pico-plus-2.md.
+// Board, pin and buffer configuration. Pin facts: docs/rp2350-notes.md.
 #pragma once
 
 // 128 MHz = 4 x 32 MHz: integer PIO cycles per bus word at 8 Msym/s for sps 2 (4 cyc) and

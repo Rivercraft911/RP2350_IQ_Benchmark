@@ -84,13 +84,13 @@ numbered segments with CRC32 inside BBFRAMEs (GSE is the standard encapsulation)
 segments are recovered by request over the LoRa command link, or by packet-level erasure coding
 across frames. The segmentation and retransmission design is open.
 
-## Staged tests to add
+## Tests
 
-1. ~~DVB-S2 reference (Python) verified against an independent implementation.~~ Done:
-   identical to gr-dtv at 5 stages in all 42 QPSK configurations.
-2. ~~Firmware BCH, LDPC and PL framing kernels, bit-exact against the reference.~~ Done, 21 codes.
-3. ~~Stream DVB-S2 through the shaper and PIO at 1 and 8 Msym/s.~~ Done (`txs2`).
-4. PIO SPI slave with DMA into the file store, with loopback emulation on-chip (GPIO17–22), then a
-   real payload master.
-5. can2040 command path concurrently; measure CPU and latency impact.
-6. Ground decode: capture I/Q samples (or AFE output with an SDR later) and decode with gr-dvbs2rx.
+Done: DVB-S2 reference matches gr-dtv (42 configurations); firmware encoder bit-exact (21 codes);
+DVB-S2 streamed through the shaper at 1 and 8 Msym/s (`txs2`); PIO SPI slave with CRC and queue
+(PV-SPI, real CM5 master).
+
+Open:
+1. File store: SPI segments into SRAM/PSRAM, then GCS BBFRAMEs on demand.
+2. can2040 command path running concurrently; CPU and latency cost.
+3. Ground decode with gr-dvbs2rx, from captured I/Q first, then from the AFE output.

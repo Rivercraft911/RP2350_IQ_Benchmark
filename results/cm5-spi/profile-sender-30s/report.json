@@ -1,0 +1,5946 @@
+{
+  "interrupts_after": "           CPU0       CPU1       CPU2       CPU3       \n  9:          0          0          0          0     GICv2  25 Level     vgic\n 11:          0          0          0          0     GICv2  30 Level     kvm guest ptimer\n 12:          0          0          0          0     GICv2  27 Level     kvm guest vtimer\n 13:     690790     299315     291749     331108     GICv2  26 Level     arch_timer\n 15:       3015          0          0          0     GICv2  65 Level     107c013880.mailbox\n 16:         14          0          0          0     GICv2 152 Level     uart-pl011\n 22:          0          0          0          0     GICv2 119 Level     DMA IRQ\n 23:          0          0          0          0     GICv2 120 Level     DMA IRQ\n 24:          0          0          0          0     GICv2 121 Level     DMA IRQ\n 25:          0          0          0          0     GICv2 122 Level     DMA IRQ\n 33:       2812          0          0          0     GICv2 308 Level     ttyS0\n 34:          1          0          0          0     GICv2 105 Level     1000480000.usb, dwc2_hsotg:usb1\n 35:          0          0          0          0     GICv2  48 Level     arm-pmu\n 36:          0          0          0          0     GICv2  49 Level     arm-pmu\n 37:          0          0          0          0     GICv2  50 Level     arm-pmu\n 38:          0          0          0          0     GICv2  51 Level     arm-pmu\n 40:          0          0          0          0     GICv2 261 Level     PCIe PME, aerdrv\n108:     177555          0          0          0  rp1_irq_chip   6 Level     eth0\n109:       7847          0          0          0  rp1_irq_chip   7 Level     1f00070000.i2c\n110:          0          0          0          0  rp1_irq_chip   8 Level     1f00074000.i2c\n115:       7841          0          0          0  rp1_irq_chip  13 Level     1f00088000.i2c\n121:          0          0          0          0  rp1_irq_chip  19 Level     1f00050000.spi\n133:          1          0          0          0  rp1_irq_chip  31 Edge      xhci-hcd:usb2\n138:         33          0          0          0  rp1_irq_chip  36 Edge      xhci-hcd:usb4\n142:     469758          0          0          0  rp1_irq_chip  40 Level     dw_axi_dmac_platform\n149:      55723          0          0          0  rp1_irq_chip  47 Level     rp1-cfe\n150:      55880          0          0          0  rp1_irq_chip  48 Level     rp1-cfe\n160:          2          0          0          0  rp1_irq_chip  58 Level     1f00008000.mailbox\n163:      11927          0          0          0     GICv2 305 Level     mmc0\n164:       9581          0          0          0     GICv2 306 Level     mmc1\n165:          3          0          0          0  pinctrl-rp1  37 Level     1f00100000.ethernet-ffffffff:00\n166:      70576          0          0          0     GICv2 104 Level     pispbe\n167:          0          0          0          0     GICv2 130 Level     1000800000.codec\n168:          0          0          0          0  107d508500.gpio  20 Edge      pwr_button\n169:          0          0          0          0     GICv2 150 Level     107d004000.spi\n170:         74          0          0          0  intc@7d508380   1 Level     107d508200.i2c\n171:          2          0          0          0  intc@7d508380   2 Level     107d508280.i2c\n172:          0          0          0          0     GICv2 281 Level     v3d_core0\n173:          0          0          0          0     GICv2 282 Level     v3d_hub\n174:         16          0          0          0  interrupt-controller@7c502000   2 Level     107c580000.hvs\n175:          0          0          0          0  interrupt-controller@7c502000   9 Level     107c580000.hvs\n176:          0          0          0          0  interrupt-controller@7c502000  16 Level     107c580000.hvs\n177:          0          0          0          0  interrupt-controller@7d510600   7 Level     vc4 hdmi hpd connected\n178:          0          0          0          0  interrupt-controller@7d510600   8 Level     vc4 hdmi hpd disconnected\n179:          0          0          0          0  interrupt-controller@7d510600   2 Level     vc4 hdmi cec rx\n180:          0          0          0          0  interrupt-controller@7d510600   1 Level     vc4 hdmi cec tx\n181:          0          0          0          0  interrupt-controller@7d510600  14 Level     vc4 hdmi hpd connected\n182:          0          0          0          0  interrupt-controller@7d510600  15 Level     vc4 hdmi hpd disconnected\n183:          0          0          0          0  interrupt-controller@7d510600  12 Level     vc4 hdmi cec rx\n184:          0          0          0          0  interrupt-controller@7d510600  11 Level     vc4 hdmi cec tx\n185:          0          0          0          0  interrupt-controller@7c502000   1 Level     107c500000.mop\n186:          0          0          0          0  interrupt-controller@7c502000   0 Level     107c501000.moplet\n187:          9          0          0          0     GICv2 133 Level     vc4 crtc\n188:          0          0          0          0     GICv2 142 Level     vc4 crtc\nIPI0:      9520      15646      17832      17185       Rescheduling interrupts\nIPI1:    250364     424251     421438     530336       Function call interrupts\nIPI2:         0          0          0          0       CPU stop interrupts\nIPI3:         0          0          0          0       CPU stop NMIs\nIPI4:         0          0          0          0       Timer broadcast interrupts\nIPI5:     11197       2953       1878       3895       IRQ work interrupts\nIPI6:         0          0          0          0       CPU backtrace interrupts\nIPI7:         0          0          0          0       KGDB roundup interrupts\nErr:          0\n",
+  "capture_exit": 0,
+  "sender_exit": 0,
+  "error": "SPI sender ended during capture",
+  "sender": {
+    "attempted_messages": 24820,
+    "crc_chain": "0xd18655ad",
+    "error": "UDP software queue overflow; stopping instead of dropping TS silently",
+    "max_ready_wait_ms": 0,
+    "messages": 24820,
+    "mirror_datagrams": 0,
+    "mirror_errors": 0,
+    "msg_per_s": 826.49,
+    "next_seq": 24820,
+    "payload_bytes": 32663120,
+    "pending_payload_bytes": 0,
+    "protocol": "PV-SPI v1",
+    "ready_timeouts": 0,
+    "ready_waits": 0,
+    "ready_waits_over_20ms": 0,
+    "receiver_acceptance": "unverified: compare Pico counters and crc_chain",
+    "sck_hz": 20000000.0,
+    "seconds": 30.030626,
+    "status": "error",
+    "stop_reason": "error",
+    "transfer_uncertain": false,
+    "ts_mbps": 8.701282,
+    "ts_packets": 173740,
+    "udp": {
+      "buffered_unsent": 256,
+      "bytes_received": 33001332,
+      "datagrams_received": 25077,
+      "invalid_datagrams": 0,
+      "kernel_drop_monitor": true,
+      "kernel_drops": 0,
+      "queue_high_water": 256,
+      "queue_overflows": 1,
+      "receive_buffer_below_spec": false,
+      "receive_buffer_bytes": 8388608,
+      "receive_buffer_requested_bytes": 4194304
+    }
+  },
+  "health": [
+    {
+      "camera_id": null,
+      "clock_domain": "CLOCK_BOOTTIME",
+      "component": "transport",
+      "detail": "127.0.0.1:1234",
+      "event": "started",
+      "schema_version": 1,
+      "timestamp_ns": 3206921732607,
+      "type": "event"
+    },
+    {
+      "camera_id": "A",
+      "clock_domain": "CLOCK_BOOTTIME",
+      "component": "camera",
+      "detail": "/base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a",
+      "event": "started",
+      "schema_version": 1,
+      "timestamp_ns": 3207180117365,
+      "type": "event"
+    },
+    {
+      "camera_id": "B",
+      "clock_domain": "CLOCK_BOOTTIME",
+      "component": "camera",
+      "detail": "/base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a",
+      "event": "started",
+      "schema_version": 1,
+      "timestamp_ns": 3207443474029,
+      "type": "event"
+    },
+    {
+      "camera_id": null,
+      "clock_domain": "CLOCK_BOOTTIME",
+      "component": "session",
+      "detail": "",
+      "event": "started",
+      "schema_version": 1,
+      "timestamp_ns": 3207443481511,
+      "type": "event"
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 0,
+          "dma_quarantined": false,
+          "dropped_frames": 0,
+          "encoded_frames": 0,
+          "failed": false,
+          "last_frame_ns": 0,
+          "queue": 0,
+          "queue_high_water": 0,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "dma_sync_end": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "dma_sync_start": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_input_and_send": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_send_call": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 0,
+          "dma_quarantined": false,
+          "dropped_frames": 0,
+          "encoded_frames": 0,
+          "failed": false,
+          "last_frame_ns": 0,
+          "queue": 0,
+          "queue_high_water": 0,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "dma_sync_end": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "dma_sync_start": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_input_and_send": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_send_call": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": null,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3738419200,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 0,
+            "written_packets": 0
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 0,
+            "written_packets": 0
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": -1,
+            "B": -1
+          },
+          "max_queue_age_us": 11,
+          "queue": 0,
+          "queue_age_us": 11,
+          "queue_high_water": 1,
+          "video_packets": 0,
+          "wire_bytes": 0
+        }
+      },
+      "pts_us": 555922,
+      "schema_version": 1,
+      "temperature_c": 39.15,
+      "throttled_bits": 0,
+      "timestamp_ns": 3207445864649,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "camera_id": "A",
+      "clock_domain": "CLOCK_BOOTTIME",
+      "component": "recording",
+      "detail": "A-000001.mkv",
+      "event": "segment_open",
+      "schema_version": 1,
+      "timestamp_ns": 3207468649910,
+      "type": "event"
+    },
+    {
+      "camera_id": "B",
+      "clock_domain": "CLOCK_BOOTTIME",
+      "component": "recording",
+      "detail": "B-000001.mkv",
+      "event": "segment_open",
+      "schema_version": 1,
+      "timestamp_ns": 3207514257745,
+      "type": "event"
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 31,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 29,
+          "failed": false,
+          "last_frame_ns": 3208449613544,
+          "queue": 0,
+          "queue_high_water": 1,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 31459.077,
+              "mean_us": 7223.754933333334,
+              "min_us": 7.648,
+              "samples": 30,
+              "total_us": 216712.648
+            },
+            "dma_sync_end": {
+              "max_us": 1157.569,
+              "mean_us": 207.66510344827586,
+              "min_us": 92.425,
+              "samples": 29,
+              "total_us": 6022.288
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 180.292,
+              "min_us": 81.296,
+              "samples": 30,
+              "total_us": 5408.76
+            },
+            "encoder_input_and_send": {
+              "max_us": 42834.365,
+              "mean_us": 28728.97144827586,
+              "min_us": 11496.973,
+              "samples": 29,
+              "total_us": 833140.172
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 8.074,
+              "mean_us": 3.3097068965517242,
+              "min_us": 1.093,
+              "samples": 58,
+              "total_us": 191.963
+            },
+            "encoder_send_call": {
+              "max_us": 42834.365,
+              "mean_us": 28728.97144827586,
+              "min_us": 11496.973,
+              "samples": 29,
+              "total_us": 833140.172
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 29,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 27,
+          "failed": false,
+          "last_frame_ns": 3208429110849,
+          "queue": 0,
+          "queue_high_water": 1,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 9527.165,
+              "mean_us": 1663.4802142857143,
+              "min_us": 10.556,
+              "samples": 28,
+              "total_us": 46577.446
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 355.5039259259259,
+              "min_us": 91.999,
+              "samples": 27,
+              "total_us": 9598.606
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 127.95382142857143,
+              "min_us": 81.555,
+              "samples": 28,
+              "total_us": 3582.707
+            },
+            "encoder_input_and_send": {
+              "max_us": 41807.333,
+              "mean_us": 28988.461777777775,
+              "min_us": 14107.481,
+              "samples": 27,
+              "total_us": 782688.468
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 9.574,
+              "mean_us": 3.4876851851851853,
+              "min_us": 0.982,
+              "samples": 54,
+              "total_us": 188.335
+            },
+            "encoder_send_call": {
+              "max_us": 41807.333,
+              "mean_us": 28988.461777777775,
+              "min_us": 14107.481,
+              "samples": 27,
+              "total_us": 782688.468
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 76.38190954773869,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3672375296,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 29
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 27
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 1292395,
+            "B": 1355764
+          },
+          "max_queue_age_us": 259757,
+          "queue": 7,
+          "queue_age_us": 135887,
+          "queue_high_water": 16,
+          "video_packets": 48,
+          "wire_bytes": 1119916
+        }
+      },
+      "pts_us": 1572010,
+      "schema_version": 1,
+      "temperature_c": 43.0,
+      "throttled_bits": 0,
+      "timestamp_ns": 3208466428458,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 61,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 58,
+          "failed": false,
+          "last_frame_ns": 3209472315346,
+          "queue": 1,
+          "queue_high_water": 1,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 31459.077,
+              "mean_us": 5472.784,
+              "min_us": 7.648,
+              "samples": 59,
+              "total_us": 322894.256
+            },
+            "dma_sync_end": {
+              "max_us": 1157.569,
+              "mean_us": 179.7138275862069,
+              "min_us": 90.814,
+              "samples": 58,
+              "total_us": 10423.402
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 160.87201694915254,
+              "min_us": 81.296,
+              "samples": 59,
+              "total_us": 9491.449
+            },
+            "encoder_input_and_send": {
+              "max_us": 42834.365,
+              "mean_us": 29950.396327586208,
+              "min_us": 11496.973,
+              "samples": 58,
+              "total_us": 1737122.987
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 8.074,
+              "mean_us": 3.189810344827586,
+              "min_us": 1.093,
+              "samples": 116,
+              "total_us": 370.018
+            },
+            "encoder_send_call": {
+              "max_us": 42834.365,
+              "mean_us": 29950.396327586208,
+              "min_us": 11496.973,
+              "samples": 58,
+              "total_us": 1737122.987
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 60,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 56,
+          "failed": false,
+          "last_frame_ns": 3209480526184,
+          "queue": 2,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 38791.622,
+              "mean_us": 5432.84801754386,
+              "min_us": 10.556,
+              "samples": 57,
+              "total_us": 309672.337
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 232.5000357142857,
+              "min_us": 89.37,
+              "samples": 56,
+              "total_us": 13020.002
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 120.06540350877192,
+              "min_us": 81.555,
+              "samples": 57,
+              "total_us": 6843.728
+            },
+            "encoder_input_and_send": {
+              "max_us": 43840.417,
+              "mean_us": 30918.94692857143,
+              "min_us": 14107.481,
+              "samples": 56,
+              "total_us": 1731461.028
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 9.574,
+              "mean_us": 3.2634017857142856,
+              "min_us": 0.87,
+              "samples": 112,
+              "total_us": 365.501
+            },
+            "encoder_send_call": {
+              "max_us": 43840.417,
+              "mean_us": 30918.94692857143,
+              "min_us": 14107.481,
+              "samples": 56,
+              "total_us": 1731461.028
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 80.75,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3670949888,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 58
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 56
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 2325768,
+            "B": 2289116
+          },
+          "max_queue_age_us": 345406,
+          "queue": 7,
+          "queue_age_us": 132429,
+          "queue_high_water": 21,
+          "video_packets": 107,
+          "wire_bytes": 2255624
+        }
+      },
+      "pts_us": 2590326,
+      "schema_version": 1,
+      "temperature_c": 45.75,
+      "throttled_bits": 0,
+      "timestamp_ns": 3209482415973,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 90,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 88,
+          "failed": false,
+          "last_frame_ns": 3210466385654,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 11447.978382022473,
+              "min_us": 7.648,
+              "samples": 89,
+              "total_us": 1018870.076
+            },
+            "dma_sync_end": {
+              "max_us": 1157.569,
+              "mean_us": 179.95,
+              "min_us": 90.814,
+              "samples": 88,
+              "total_us": 15835.6
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 161.0824382022472,
+              "min_us": 81.296,
+              "samples": 89,
+              "total_us": 14336.337
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 31189.063545454548,
+              "min_us": 11496.973,
+              "samples": 88,
+              "total_us": 2744637.592
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 9.223,
+              "mean_us": 3.2904204545454543,
+              "min_us": 1.093,
+              "samples": 176,
+              "total_us": 579.114
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 31189.063545454548,
+              "min_us": 11496.973,
+              "samples": 88,
+              "total_us": 2744637.592
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 88,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 86,
+          "failed": false,
+          "last_frame_ns": 3210492439160,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 7217.051793103448,
+              "min_us": 10.556,
+              "samples": 87,
+              "total_us": 627883.506
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 203.09409302325582,
+              "min_us": 89.37,
+              "samples": 86,
+              "total_us": 17466.092
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 127.25952325581396,
+              "min_us": 81.555,
+              "samples": 86,
+              "total_us": 10944.319
+            },
+            "encoder_input_and_send": {
+              "max_us": 43840.417,
+              "mean_us": 31613.82806976744,
+              "min_us": 14107.481,
+              "samples": 86,
+              "total_us": 2718789.214
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.4694302325581394,
+              "min_us": 0.759,
+              "samples": 172,
+              "total_us": 596.742
+            },
+            "encoder_send_call": {
+              "max_us": 43840.417,
+              "mean_us": 31613.82806976744,
+              "min_us": 14107.481,
+              "samples": 86,
+              "total_us": 2718789.214
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 82.66331658291458,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3670917120,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 88
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 1,
+            "queue_high_water": 1,
+            "written_packets": 85
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 3259114,
+            "B": 3255822
+          },
+          "max_queue_age_us": 364466,
+          "queue": 9,
+          "queue_age_us": 130261,
+          "queue_high_water": 21,
+          "video_packets": 164,
+          "wire_bytes": 3379488
+        }
+      },
+      "pts_us": 3596434,
+      "schema_version": 1,
+      "temperature_c": 45.75,
+      "throttled_bits": 0,
+      "timestamp_ns": 3210494089617,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 119,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 118,
+          "failed": false,
+          "last_frame_ns": 3211480697419,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 8863.373686440678,
+              "min_us": 7.648,
+              "samples": 118,
+              "total_us": 1045878.095
+            },
+            "dma_sync_end": {
+              "max_us": 1157.569,
+              "mean_us": 186.13543220338983,
+              "min_us": 90.814,
+              "samples": 118,
+              "total_us": 21963.981
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 147.92320338983052,
+              "min_us": 81.296,
+              "samples": 118,
+              "total_us": 17454.938
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 30913.99313559322,
+              "min_us": 11496.973,
+              "samples": 118,
+              "total_us": 3647851.19
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 11.352,
+              "mean_us": 3.3720254237288136,
+              "min_us": 1.093,
+              "samples": 236,
+              "total_us": 795.798
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 30913.99313559322,
+              "min_us": 11496.973,
+              "samples": 118,
+              "total_us": 3647851.19
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 117,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 115,
+          "failed": false,
+          "last_frame_ns": 3211497301889,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 6098.361293103448,
+              "min_us": 10.556,
+              "samples": 116,
+              "total_us": 707409.91
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 181.60614782608695,
+              "min_us": 89.37,
+              "samples": 115,
+              "total_us": 20884.707
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 126.33070689655173,
+              "min_us": 81.555,
+              "samples": 116,
+              "total_us": 14654.362
+            },
+            "encoder_input_and_send": {
+              "max_us": 43840.417,
+              "mean_us": 31618.782104347825,
+              "min_us": 14107.481,
+              "samples": 115,
+              "total_us": 3636159.942
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.3933826086956524,
+              "min_us": 0.759,
+              "samples": 230,
+              "total_us": 780.478
+            },
+            "encoder_send_call": {
+              "max_us": 43840.417,
+              "mean_us": 31618.782104347825,
+              "min_us": 14107.481,
+              "samples": 115,
+              "total_us": 3636159.942
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.46055979643766,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3671949312,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 118
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 115
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 4292469,
+            "B": 4322499
+          },
+          "max_queue_age_us": 364466,
+          "queue": 8,
+          "queue_age_us": 135033,
+          "queue_high_water": 21,
+          "video_packets": 224,
+          "wire_bytes": 4540200
+        }
+      },
+      "pts_us": 4610013,
+      "schema_version": 1,
+      "temperature_c": 47.4,
+      "throttled_bits": 0,
+      "timestamp_ns": 3211513504028,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 148,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 146,
+          "failed": false,
+          "last_frame_ns": 3212484587356,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 8774.57124489796,
+              "min_us": 7.648,
+              "samples": 147,
+              "total_us": 1289861.973
+            },
+            "dma_sync_end": {
+              "max_us": 1157.569,
+              "mean_us": 186.74896575342464,
+              "min_us": 90.814,
+              "samples": 146,
+              "total_us": 27265.349
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 151.03445578231293,
+              "min_us": 81.296,
+              "samples": 147,
+              "total_us": 22202.065
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 31512.76609589041,
+              "min_us": 11496.973,
+              "samples": 146,
+              "total_us": 4600863.85
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 11.352,
+              "mean_us": 3.34277397260274,
+              "min_us": 0.722,
+              "samples": 292,
+              "total_us": 976.09
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 31512.76609589041,
+              "min_us": 11496.973,
+              "samples": 146,
+              "total_us": 4600863.85
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 146,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 144,
+          "failed": false,
+          "last_frame_ns": 3212494142522,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 5131.572655172414,
+              "min_us": 9.685,
+              "samples": 145,
+              "total_us": 744078.035
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 171.83802083333333,
+              "min_us": 89.37,
+              "samples": 144,
+              "total_us": 24744.675
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 124.53471724137931,
+              "min_us": 81.555,
+              "samples": 145,
+              "total_us": 18057.534
+            },
+            "encoder_input_and_send": {
+              "max_us": 43840.417,
+              "mean_us": 31693.06479861111,
+              "min_us": 14107.481,
+              "samples": 144,
+              "total_us": 4563801.331
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.3668888888888886,
+              "min_us": 0.759,
+              "samples": 288,
+              "total_us": 969.664
+            },
+            "encoder_send_call": {
+              "max_us": 43840.417,
+              "mean_us": 31693.06479861111,
+              "min_us": 14107.481,
+              "samples": 144,
+              "total_us": 4563801.331
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 82.86445012787725,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3673227264,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 146
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 144
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 5259157,
+            "B": 5322537
+          },
+          "max_queue_age_us": 364466,
+          "queue": 8,
+          "queue_age_us": 146098,
+          "queue_high_water": 21,
+          "video_packets": 281,
+          "wire_bytes": 5665380
+        }
+      },
+      "pts_us": 5617387,
+      "schema_version": 1,
+      "temperature_c": 47.4,
+      "throttled_bits": 0,
+      "timestamp_ns": 3212511066917,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 178,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 175,
+          "failed": false,
+          "last_frame_ns": 3213522470493,
+          "queue": 1,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 11041.036960227273,
+              "min_us": 7.648,
+              "samples": 176,
+              "total_us": 1943222.505
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 187.67730285714285,
+              "min_us": 90.814,
+              "samples": 175,
+              "total_us": 32843.528
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 150.95553977272726,
+              "min_us": 81.296,
+              "samples": 176,
+              "total_us": 26568.175
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 31948.16534285714,
+              "min_us": 11496.973,
+              "samples": 175,
+              "total_us": 5590928.935
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.37,
+              "mean_us": 3.4658742857142855,
+              "min_us": 0.722,
+              "samples": 350,
+              "total_us": 1213.056
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 31948.16534285714,
+              "min_us": 11496.973,
+              "samples": 175,
+              "total_us": 5590928.935
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 175,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 173,
+          "failed": false,
+          "last_frame_ns": 3213501115486,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 4805.888022988505,
+              "min_us": 9.685,
+              "samples": 174,
+              "total_us": 836224.516
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 169.83754335260116,
+              "min_us": 89.37,
+              "samples": 173,
+              "total_us": 29381.895
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 123.5001264367816,
+              "min_us": 81.555,
+              "samples": 174,
+              "total_us": 21489.022
+            },
+            "encoder_input_and_send": {
+              "max_us": 43840.417,
+              "mean_us": 31852.774138728324,
+              "min_us": 14107.481,
+              "samples": 173,
+              "total_us": 5510529.926
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.430199421965318,
+              "min_us": 0.759,
+              "samples": 346,
+              "total_us": 1186.849
+            },
+            "encoder_send_call": {
+              "max_us": 43840.417,
+              "mean_us": 31852.774138728324,
+              "min_us": 14107.481,
+              "samples": 173,
+              "total_us": 5510529.926
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.63171355498721,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3672981504,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 175
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 173
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 6292516,
+            "B": 6289216
+          },
+          "max_queue_age_us": 364466,
+          "queue": 9,
+          "queue_age_us": 174891,
+          "queue_high_water": 21,
+          "video_packets": 338,
+          "wire_bytes": 6822144
+        }
+      },
+      "pts_us": 6622460,
+      "schema_version": 1,
+      "temperature_c": 47.95,
+      "throttled_bits": 0,
+      "timestamp_ns": 3213532434712,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 207,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 205,
+          "failed": false,
+          "last_frame_ns": 3214533449850,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 10363.033694174757,
+              "min_us": 7.648,
+              "samples": 206,
+              "total_us": 2134784.941
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 184.72768292682926,
+              "min_us": 90.814,
+              "samples": 205,
+              "total_us": 37869.175
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 145.5955291262136,
+              "min_us": 81.296,
+              "samples": 206,
+              "total_us": 29992.679
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 31941.249458536586,
+              "min_us": 11496.973,
+              "samples": 205,
+              "total_us": 6547956.139
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.37,
+              "mean_us": 3.4698317073170735,
+              "min_us": 0.722,
+              "samples": 410,
+              "total_us": 1422.631
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 31941.249458536586,
+              "min_us": 11496.973,
+              "samples": 205,
+              "total_us": 6547956.139
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 204,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 202,
+          "failed": false,
+          "last_frame_ns": 3214508307135,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 5009.668463054188,
+              "min_us": 9.667,
+              "samples": 203,
+              "total_us": 1016962.698
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 165.40432178217822,
+              "min_us": 89.37,
+              "samples": 202,
+              "total_us": 33411.673
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 123.7497290640394,
+              "min_us": 81.555,
+              "samples": 203,
+              "total_us": 25121.195
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32026.35142079208,
+              "min_us": 14107.481,
+              "samples": 202,
+              "total_us": 6469322.987
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.459774752475248,
+              "min_us": 0.759,
+              "samples": 404,
+              "total_us": 1397.749
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32026.35142079208,
+              "min_us": 14107.481,
+              "samples": 202,
+              "total_us": 6469322.987
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 84.25,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3672784896,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 205
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 202
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 7259226,
+            "B": 7255933
+          },
+          "max_queue_age_us": 364466,
+          "queue": 12,
+          "queue_age_us": 217488,
+          "queue_high_water": 21,
+          "video_packets": 394,
+          "wire_bytes": 7956536
+        }
+      },
+      "pts_us": 7630766,
+      "schema_version": 1,
+      "temperature_c": 48.5,
+      "throttled_bits": 0,
+      "timestamp_ns": 3214547394664,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 236,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 233,
+          "failed": false,
+          "last_frame_ns": 3215543406194,
+          "queue": 1,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 9467.753427350428,
+              "min_us": 7.648,
+              "samples": 234,
+              "total_us": 2215454.302
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 182.4321502145923,
+              "min_us": 90.814,
+              "samples": 233,
+              "total_us": 42506.691
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 145.22497435897435,
+              "min_us": 81.296,
+              "samples": 234,
+              "total_us": 33982.644
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 31861.381270386268,
+              "min_us": 11496.973,
+              "samples": 233,
+              "total_us": 7423701.836
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 37.815,
+              "mean_us": 3.5264935622317597,
+              "min_us": 0.722,
+              "samples": 466,
+              "total_us": 1643.346
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 31861.381270386268,
+              "min_us": 11496.973,
+              "samples": 233,
+              "total_us": 7423701.836
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 233,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 231,
+          "failed": false,
+          "last_frame_ns": 3215524385122,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 4839.2647586206895,
+              "min_us": 9.611,
+              "samples": 232,
+              "total_us": 1122709.424
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 160.2636277056277,
+              "min_us": 89.37,
+              "samples": 231,
+              "total_us": 37020.898
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 121.91330603448276,
+              "min_us": 81.555,
+              "samples": 232,
+              "total_us": 28283.887
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32011.497606060606,
+              "min_us": 14107.481,
+              "samples": 231,
+              "total_us": 7394655.947
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.406824675324675,
+              "min_us": 0.759,
+              "samples": 462,
+              "total_us": 1573.953
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32011.497606060606,
+              "min_us": 14107.481,
+              "samples": 231,
+              "total_us": 7394655.947
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.50253807106598,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3675340800,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 1,
+            "queue_high_water": 1,
+            "written_packets": 233
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 231
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 8192563,
+            "B": 8189274
+          },
+          "max_queue_age_us": 364466,
+          "queue": 16,
+          "queue_age_us": 281793,
+          "queue_high_water": 21,
+          "video_packets": 448,
+          "wire_bytes": 9077768
+        }
+      },
+      "pts_us": 8648520,
+      "schema_version": 1,
+      "temperature_c": 49.6,
+      "throttled_bits": 0,
+      "timestamp_ns": 3215544561689,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 265,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 262,
+          "failed": false,
+          "last_frame_ns": 3216539200448,
+          "queue": 1,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 9442.992072243345,
+              "min_us": 7.648,
+              "samples": 263,
+              "total_us": 2483506.915
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 181.1056183206107,
+              "min_us": 90.814,
+              "samples": 262,
+              "total_us": 47449.672
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 146.87625095057032,
+              "min_us": 81.296,
+              "samples": 263,
+              "total_us": 38628.454
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 32007.259851145038,
+              "min_us": 11496.973,
+              "samples": 262,
+              "total_us": 8385902.081
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 37.815,
+              "mean_us": 3.550740458015267,
+              "min_us": 0.722,
+              "samples": 524,
+              "total_us": 1860.588
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 32007.259851145038,
+              "min_us": 11496.973,
+              "samples": 262,
+              "total_us": 8385902.081
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 263,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 261,
+          "failed": false,
+          "last_frame_ns": 3216553367909,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 4562.230996183206,
+              "min_us": 9.611,
+              "samples": 262,
+              "total_us": 1195304.521
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 157.29713026819923,
+              "min_us": 89.37,
+              "samples": 261,
+              "total_us": 41054.551
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 121.3711679389313,
+              "min_us": 81.555,
+              "samples": 262,
+              "total_us": 31799.246
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 31982.137597701152,
+              "min_us": 14107.481,
+              "samples": 261,
+              "total_us": 8347337.913
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.3988735632183906,
+              "min_us": 0.444,
+              "samples": 522,
+              "total_us": 1774.212
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 31982.137597701152,
+              "min_us": 14107.481,
+              "samples": 261,
+              "total_us": 8347337.913
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.0,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3678011392,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 262
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 261
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 9192592,
+            "B": 9255972
+          },
+          "max_queue_age_us": 364466,
+          "queue": 15,
+          "queue_age_us": 271008,
+          "queue_high_water": 21,
+          "video_packets": 507,
+          "wire_bytes": 10226636
+        }
+      },
+      "pts_us": 9664798,
+      "schema_version": 1,
+      "temperature_c": 49.05,
+      "throttled_bits": 0,
+      "timestamp_ns": 3216559845124,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 294,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 292,
+          "failed": false,
+          "last_frame_ns": 3217544052260,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 9319.93471331058,
+              "min_us": 7.648,
+              "samples": 293,
+              "total_us": 2730740.871
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 176.51138356164384,
+              "min_us": 90.814,
+              "samples": 292,
+              "total_us": 51541.324
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 145.35873037542663,
+              "min_us": 81.296,
+              "samples": 293,
+              "total_us": 42590.108
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 32070.58022260274,
+              "min_us": 11496.973,
+              "samples": 292,
+              "total_us": 9364609.425
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 37.815,
+              "mean_us": 3.5222465753424657,
+              "min_us": 0.666,
+              "samples": 584,
+              "total_us": 2056.992
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 32070.58022260274,
+              "min_us": 11496.973,
+              "samples": 292,
+              "total_us": 9364609.425
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 292,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 289,
+          "failed": false,
+          "last_frame_ns": 3217566646688,
+          "queue": 1,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 4351.4061172413785,
+              "min_us": 5.814,
+              "samples": 290,
+              "total_us": 1261907.774
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 153.1864705882353,
+              "min_us": 89.37,
+              "samples": 289,
+              "total_us": 44270.89
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 118.92584827586207,
+              "min_us": 81.555,
+              "samples": 290,
+              "total_us": 34488.496
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32055.837570934254,
+              "min_us": 14107.481,
+              "samples": 289,
+              "total_us": 9264137.058
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.358081314878893,
+              "min_us": 0.444,
+              "samples": 578,
+              "total_us": 1940.971
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32055.837570934254,
+              "min_us": 14107.481,
+              "samples": 289,
+              "total_us": 9264137.058
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.16326530612244,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3681288192,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 292
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 289
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 10192605,
+            "B": 10222647
+          },
+          "max_queue_age_us": 364466,
+          "queue": 16,
+          "queue_age_us": 296318,
+          "queue_high_water": 21,
+          "video_packets": 564,
+          "wire_bytes": 11355764
+        }
+      },
+      "pts_us": 10673907,
+      "schema_version": 1,
+      "temperature_c": 49.6,
+      "throttled_bits": 0,
+      "timestamp_ns": 3217568830253,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 323,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 321,
+          "failed": false,
+          "last_frame_ns": 3218548262909,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 8608.095301242236,
+              "min_us": 7.648,
+              "samples": 322,
+              "total_us": 2771806.687
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 173.20356074766354,
+              "min_us": 90.814,
+              "samples": 321,
+              "total_us": 55598.343
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 142.08155900621117,
+              "min_us": 81.296,
+              "samples": 322,
+              "total_us": 45750.262
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 31898.937529595016,
+              "min_us": 11496.973,
+              "samples": 321,
+              "total_us": 10239558.947
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 37.815,
+              "mean_us": 3.4619127725856695,
+              "min_us": 0.297,
+              "samples": 642,
+              "total_us": 2222.548
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 31898.937529595016,
+              "min_us": 11496.973,
+              "samples": 321,
+              "total_us": 10239558.947
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 321,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 319,
+          "failed": false,
+          "last_frame_ns": 3218565265248,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 4210.64885625,
+              "min_us": 5.814,
+              "samples": 320,
+              "total_us": 1347407.634
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 164.38235736677115,
+              "min_us": 89.37,
+              "samples": 319,
+              "total_us": 52437.972
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 118.66643124999999,
+              "min_us": 81.555,
+              "samples": 320,
+              "total_us": 37973.258
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 31881.90813479624,
+              "min_us": 14107.481,
+              "samples": 319,
+              "total_us": 10170328.695
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.3353808777429466,
+              "min_us": 0.37,
+              "samples": 638,
+              "total_us": 2127.973
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 31881.90813479624,
+              "min_us": 14107.481,
+              "samples": 319,
+              "total_us": 10170328.695
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.62282878411911,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3683319808,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 321
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 319
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 11225965,
+            "B": 11222667
+          },
+          "max_queue_age_us": 364466,
+          "queue": 16,
+          "queue_age_us": 276529,
+          "queue_high_water": 21,
+          "video_packets": 623,
+          "wire_bytes": 12498052
+        }
+      },
+      "pts_us": 11684242,
+      "schema_version": 1,
+      "temperature_c": 49.05,
+      "throttled_bits": 0,
+      "timestamp_ns": 3218579991078,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 353,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 351,
+          "failed": false,
+          "last_frame_ns": 3219581000816,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 8095.551198863636,
+              "min_us": 7.648,
+              "samples": 352,
+              "total_us": 2849634.022
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 170.94768091168092,
+              "min_us": 88.388,
+              "samples": 351,
+              "total_us": 60002.636
+            },
+            "dma_sync_start": {
+              "max_us": 1669.827,
+              "mean_us": 148.66924147727275,
+              "min_us": 81.296,
+              "samples": 352,
+              "total_us": 52331.573
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 31842.49660683761,
+              "min_us": 11496.973,
+              "samples": 351,
+              "total_us": 11176716.309
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 37.815,
+              "mean_us": 3.4467507122507124,
+              "min_us": 0.297,
+              "samples": 702,
+              "total_us": 2419.619
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 31842.49660683761,
+              "min_us": 11496.973,
+              "samples": 351,
+              "total_us": 11176716.309
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 350,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 348,
+          "failed": false,
+          "last_frame_ns": 3219568716847,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 4199.014518624642,
+              "min_us": 5.814,
+              "samples": 349,
+              "total_us": 1465456.067
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 161.13977586206894,
+              "min_us": 89.37,
+              "samples": 348,
+              "total_us": 56076.642
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 117.47624355300859,
+              "min_us": 81.555,
+              "samples": 349,
+              "total_us": 40999.209
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 31940.35171551724,
+              "min_us": 14107.481,
+              "samples": 348,
+              "total_us": 11115242.397
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.2930905172413794,
+              "min_us": 0.37,
+              "samples": 696,
+              "total_us": 2291.991
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 31940.35171551724,
+              "min_us": 14107.481,
+              "samples": 348,
+              "total_us": 11115242.397
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.83838383838383,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3686514688,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 351
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 348
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 12192652,
+            "B": 12222709
+          },
+          "max_queue_age_us": 364466,
+          "queue": 18,
+          "queue_age_us": 315948,
+          "queue_high_water": 21,
+          "video_packets": 680,
+          "wire_bytes": 13631128
+        }
+      },
+      "pts_us": 12694189,
+      "schema_version": 1,
+      "temperature_c": 51.25,
+      "throttled_bits": 0,
+      "timestamp_ns": 3219591842921,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 382,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 380,
+          "failed": false,
+          "last_frame_ns": 3220583782178,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 7742.052131233596,
+              "min_us": 7.648,
+              "samples": 381,
+              "total_us": 2949721.862
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 169.0547447368421,
+              "min_us": 88.388,
+              "samples": 380,
+              "total_us": 64240.803
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 162.90452755905514,
+              "min_us": 81.296,
+              "samples": 381,
+              "total_us": 62066.625
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 31847.93312631579,
+              "min_us": 11496.973,
+              "samples": 380,
+              "total_us": 12102214.588
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 37.815,
+              "mean_us": 3.4035763157894734,
+              "min_us": 0.297,
+              "samples": 760,
+              "total_us": 2586.718
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 31847.93312631579,
+              "min_us": 11496.973,
+              "samples": 380,
+              "total_us": 12102214.588
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 379,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 377,
+          "failed": false,
+          "last_frame_ns": 3220571524560,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 39277.361,
+              "mean_us": 4730.750431216931,
+              "min_us": 5.814,
+              "samples": 378,
+              "total_us": 1788223.663
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 162.37977453580902,
+              "min_us": 89.37,
+              "samples": 377,
+              "total_us": 61217.175
+            },
+            "dma_sync_start": {
+              "max_us": 704.757,
+              "mean_us": 117.92638624338623,
+              "min_us": 81.555,
+              "samples": 378,
+              "total_us": 44576.174
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32043.693344827585,
+              "min_us": 14107.481,
+              "samples": 377,
+              "total_us": 12080472.391
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.2944456233421753,
+              "min_us": 0.37,
+              "samples": 754,
+              "total_us": 2484.012
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32043.693344827585,
+              "min_us": 14107.481,
+              "samples": 377,
+              "total_us": 12080472.391
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 82.41206030150754,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3689775104,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 380
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 377
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 13192699,
+            "B": 13256049
+          },
+          "max_queue_age_us": 364466,
+          "queue": 17,
+          "queue_age_us": 307601,
+          "queue_high_water": 21,
+          "video_packets": 739,
+          "wire_bytes": 14772100
+        }
+      },
+      "pts_us": 13712900,
+      "schema_version": 1,
+      "temperature_c": 50.15,
+      "throttled_bits": 0,
+      "timestamp_ns": 3220610045203,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 412,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 409,
+          "failed": false,
+          "last_frame_ns": 3221613882932,
+          "queue": 1,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 8599.387551219512,
+              "min_us": 7.648,
+              "samples": 410,
+              "total_us": 3525748.896
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 166.2590097799511,
+              "min_us": 88.388,
+              "samples": 409,
+              "total_us": 67999.935
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 161.36354390243903,
+              "min_us": 81.296,
+              "samples": 410,
+              "total_us": 66159.053
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 31991.002797066016,
+              "min_us": 11496.973,
+              "samples": 409,
+              "total_us": 13084320.144
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 37.815,
+              "mean_us": 3.3596772616136916,
+              "min_us": 0.297,
+              "samples": 818,
+              "total_us": 2748.216
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 31991.002797066016,
+              "min_us": 11496.973,
+              "samples": 409,
+              "total_us": 13084320.144
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 410,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 408,
+          "failed": false,
+          "last_frame_ns": 3221625522997,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 40075.581,
+              "mean_us": 5633.189831295843,
+              "min_us": 5.814,
+              "samples": 409,
+              "total_us": 2303974.641
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 159.7773480392157,
+              "min_us": 89.37,
+              "samples": 408,
+              "total_us": 65189.158
+            },
+            "dma_sync_start": {
+              "max_us": 1070.607,
+              "mean_us": 120.54697310513447,
+              "min_us": 81.555,
+              "samples": 409,
+              "total_us": 49303.712
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32062.887889705882,
+              "min_us": 14107.481,
+              "samples": 408,
+              "total_us": 13081658.259
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.2911311274509805,
+              "min_us": 0.37,
+              "samples": 816,
+              "total_us": 2685.563
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32062.887889705882,
+              "min_us": 14107.481,
+              "samples": 408,
+              "total_us": 13081658.259
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 82.16080402010051,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3693641728,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 409
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 408
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 14259371,
+            "B": 14256084
+          },
+          "max_queue_age_us": 364466,
+          "queue": 17,
+          "queue_age_us": 280987,
+          "queue_high_water": 21,
+          "video_packets": 799,
+          "wire_bytes": 15923600
+        }
+      },
+      "pts_us": 14734542,
+      "schema_version": 1,
+      "temperature_c": 50.7,
+      "throttled_bits": 0,
+      "timestamp_ns": 3221628064431,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 441,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 438,
+          "failed": false,
+          "last_frame_ns": 3222628536565,
+          "queue": 1,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 9419.303375854215,
+              "min_us": 7.648,
+              "samples": 439,
+              "total_us": 4135074.182
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 166.28603196347032,
+              "min_us": 88.388,
+              "samples": 438,
+              "total_us": 72833.282
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 159.97709794988612,
+              "min_us": 81.296,
+              "samples": 439,
+              "total_us": 70229.946
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 32095.236506849316,
+              "min_us": 11496.973,
+              "samples": 438,
+              "total_us": 14057713.59
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 40.185,
+              "mean_us": 3.4208447488584475,
+              "min_us": 0.297,
+              "samples": 876,
+              "total_us": 2996.66
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 32095.236506849316,
+              "min_us": 11496.973,
+              "samples": 438,
+              "total_us": 14057713.59
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 439,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 437,
+          "failed": false,
+          "last_frame_ns": 3222641243680,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 40075.581,
+              "mean_us": 5407.660141552512,
+              "min_us": 5.814,
+              "samples": 438,
+              "total_us": 2368555.142
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 158.3807414187643,
+              "min_us": 89.37,
+              "samples": 437,
+              "total_us": 69212.384
+            },
+            "dma_sync_start": {
+              "max_us": 1070.607,
+              "mean_us": 121.89039726027397,
+              "min_us": 81.555,
+              "samples": 438,
+              "total_us": 53387.994
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32120.27972311213,
+              "min_us": 14107.481,
+              "samples": 437,
+              "total_us": 14036562.239
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.286491990846682,
+              "min_us": 0.37,
+              "samples": 874,
+              "total_us": 2872.394
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32120.27972311213,
+              "min_us": 14107.481,
+              "samples": 437,
+              "total_us": 14036562.239
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.24873096446701,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3698245632,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 438
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 437
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 15192721,
+            "B": 15256098
+          },
+          "max_queue_age_us": 364466,
+          "queue": 19,
+          "queue_age_us": 347977,
+          "queue_high_water": 21,
+          "video_packets": 855,
+          "wire_bytes": 17072468
+        }
+      },
+      "pts_us": 15745838,
+      "schema_version": 1,
+      "temperature_c": 50.7,
+      "throttled_bits": 0,
+      "timestamp_ns": 3222645606552,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 470,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 468,
+          "failed": false,
+          "last_frame_ns": 3223638641550,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 9709.64149466951,
+              "min_us": 7.648,
+              "samples": 469,
+              "total_us": 4553821.861
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 167.82216666666665,
+              "min_us": 88.388,
+              "samples": 468,
+              "total_us": 78540.774
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 164.9324669509595,
+              "min_us": 81.296,
+              "samples": 469,
+              "total_us": 77353.327
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 32190.785955128205,
+              "min_us": 11496.973,
+              "samples": 468,
+              "total_us": 15065287.827
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 40.185,
+              "mean_us": 3.4291613247863246,
+              "min_us": 0.297,
+              "samples": 936,
+              "total_us": 3209.695
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 32190.785955128205,
+              "min_us": 11496.973,
+              "samples": 468,
+              "total_us": 15065287.827
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 467,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 466,
+          "failed": false,
+          "last_frame_ns": 3223612487710,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 40075.581,
+              "mean_us": 5639.721053648069,
+              "min_us": 5.814,
+              "samples": 466,
+              "total_us": 2628110.011
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 157.14340987124461,
+              "min_us": 89.37,
+              "samples": 466,
+              "total_us": 73228.829
+            },
+            "dma_sync_start": {
+              "max_us": 2325.343,
+              "mean_us": 125.1367339055794,
+              "min_us": 81.555,
+              "samples": 466,
+              "total_us": 58313.718
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32193.61236909871,
+              "min_us": 14107.481,
+              "samples": 466,
+              "total_us": 15002223.364
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.2743841201716735,
+              "min_us": 0.37,
+              "samples": 932,
+              "total_us": 3051.726
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32193.61236909871,
+              "min_us": 14107.481,
+              "samples": 466,
+              "total_us": 15002223.364
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.41708542713569,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3701129216,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 468
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 466
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 16259412,
+            "B": 16256118
+          },
+          "max_queue_age_us": 364466,
+          "queue": 18,
+          "queue_age_us": 303421,
+          "queue_high_water": 21,
+          "video_packets": 915,
+          "wire_bytes": 18204228
+        }
+      },
+      "pts_us": 16764436,
+      "schema_version": 1,
+      "temperature_c": 50.7,
+      "throttled_bits": 0,
+      "timestamp_ns": 3223656220054,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 500,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 498,
+          "failed": false,
+          "last_frame_ns": 3224659210791,
+          "queue": 0,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 9246.86623046092,
+              "min_us": 7.648,
+              "samples": 499,
+              "total_us": 4614186.249
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 165.4096767068273,
+              "min_us": 88.388,
+              "samples": 498,
+              "total_us": 82374.019
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 163.39968537074148,
+              "min_us": 81.296,
+              "samples": 499,
+              "total_us": 81536.443
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 32179.783570281124,
+              "min_us": 11496.973,
+              "samples": 498,
+              "total_us": 16025532.218
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.769386546184739,
+              "min_us": 0.297,
+              "samples": 996,
+              "total_us": 3754.309
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 32179.783570281124,
+              "min_us": 11496.973,
+              "samples": 498,
+              "total_us": 16025532.218
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 497,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 494,
+          "failed": false,
+          "last_frame_ns": 3224645265551,
+          "queue": 1,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 61975.012,
+              "mean_us": 6181.849957575758,
+              "min_us": 5.814,
+              "samples": 495,
+              "total_us": 3060015.729
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 162.153520242915,
+              "min_us": 89.37,
+              "samples": 494,
+              "total_us": 80103.839
+            },
+            "dma_sync_start": {
+              "max_us": 2325.343,
+              "mean_us": 127.25823636363636,
+              "min_us": 81.555,
+              "samples": 495,
+              "total_us": 62992.827
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32275.017459514173,
+              "min_us": 14107.481,
+              "samples": 494,
+              "total_us": 15943858.625
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.290418016194332,
+              "min_us": 0.37,
+              "samples": 988,
+              "total_us": 3250.933
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32275.017459514173,
+              "min_us": 14107.481,
+              "samples": 494,
+              "total_us": 15943858.625
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.87909319899245,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3704471552,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 498
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 494
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 17292773,
+            "B": 17289479
+          },
+          "max_queue_age_us": 364466,
+          "queue": 18,
+          "queue_age_us": 313751,
+          "queue_high_water": 21,
+          "video_packets": 973,
+          "wire_bytes": 19353096
+        }
+      },
+      "pts_us": 17772660,
+      "schema_version": 1,
+      "temperature_c": 51.8,
+      "throttled_bits": 0,
+      "timestamp_ns": 3224678241845,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 529,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 526,
+          "failed": false,
+          "last_frame_ns": 3225649597655,
+          "queue": 1,
+          "queue_high_water": 2,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 53096.343,
+              "mean_us": 9495.454967741935,
+              "min_us": 7.648,
+              "samples": 527,
+              "total_us": 5004104.768
+            },
+            "dma_sync_end": {
+              "max_us": 1217.569,
+              "mean_us": 164.5773441064639,
+              "min_us": 88.388,
+              "samples": 526,
+              "total_us": 86567.683
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 163.46068311195444,
+              "min_us": 81.296,
+              "samples": 527,
+              "total_us": 86143.78
+            },
+            "encoder_input_and_send": {
+              "max_us": 46640.184,
+              "mean_us": 32325.968032319393,
+              "min_us": 11496.973,
+              "samples": 526,
+              "total_us": 17003459.185
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.7438536121673005,
+              "min_us": 0.297,
+              "samples": 1052,
+              "total_us": 3938.534
+            },
+            "encoder_send_call": {
+              "max_us": 46640.184,
+              "mean_us": 32325.968032319393,
+              "min_us": 11496.973,
+              "samples": 526,
+              "total_us": 17003459.185
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 527,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 523,
+          "failed": false,
+          "last_frame_ns": 3225670710570,
+          "queue": 2,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 8047.366625954199,
+              "min_us": 5.814,
+              "samples": 524,
+              "total_us": 4216820.112
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 159.97566156787764,
+              "min_us": 89.37,
+              "samples": 523,
+              "total_us": 83667.271
+            },
+            "dma_sync_start": {
+              "max_us": 2325.343,
+              "mean_us": 131.88233587786257,
+              "min_us": 81.555,
+              "samples": 524,
+              "total_us": 69106.344
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32332.594676864243,
+              "min_us": 14107.481,
+              "samples": 523,
+              "total_us": 16909947.016
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.281974187380497,
+              "min_us": 0.37,
+              "samples": 1046,
+              "total_us": 3432.945
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32332.594676864243,
+              "min_us": 14107.481,
+              "samples": 523,
+              "total_us": 16909947.016
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 82.41206030150754,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3706683392,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 526
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 523
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 18292796,
+            "B": 18256170
+          },
+          "max_queue_age_us": 364466,
+          "queue": 18,
+          "queue_age_us": 331338,
+          "queue_high_water": 21,
+          "video_packets": 1030,
+          "wire_bytes": 20478276
+        }
+      },
+      "pts_us": 18778833,
+      "schema_version": 1,
+      "temperature_c": 49.6,
+      "throttled_bits": 0,
+      "timestamp_ns": 3225678231855,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 559,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 554,
+          "failed": false,
+          "last_frame_ns": 3226674575881,
+          "queue": 2,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 91916.985,
+              "mean_us": 11872.570374774774,
+              "min_us": 7.648,
+              "samples": 555,
+              "total_us": 6589276.558
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 170.41613176895305,
+              "min_us": 88.388,
+              "samples": 554,
+              "total_us": 94410.537
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 162.59252612612613,
+              "min_us": 81.296,
+              "samples": 555,
+              "total_us": 90238.852
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32476.778718411555,
+              "min_us": 11496.973,
+              "samples": 554,
+              "total_us": 17992135.41
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.718477436823105,
+              "min_us": 0.297,
+              "samples": 1108,
+              "total_us": 4120.073
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32476.778718411555,
+              "min_us": 11496.973,
+              "samples": 554,
+              "total_us": 17992135.41
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 557,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 554,
+          "failed": false,
+          "last_frame_ns": 3226691526018,
+          "queue": 1,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 8783.650563963965,
+              "min_us": 5.814,
+              "samples": 555,
+              "total_us": 4874926.063
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 166.07290072202167,
+              "min_us": 89.203,
+              "samples": 554,
+              "total_us": 92004.387
+            },
+            "dma_sync_start": {
+              "max_us": 2325.343,
+              "mean_us": 130.95655855855856,
+              "min_us": 81.555,
+              "samples": 555,
+              "total_us": 72680.89
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32327.13937725632,
+              "min_us": 14107.481,
+              "samples": 554,
+              "total_us": 17909235.215
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.2754241877256316,
+              "min_us": 0.37,
+              "samples": 1108,
+              "total_us": 3629.17
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32327.13937725632,
+              "min_us": 14107.481,
+              "samples": 554,
+              "total_us": 17909235.215
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 82.11586901763224,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3710533632,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 554
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 554
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 19259482,
+            "B": 19289539
+          },
+          "max_queue_age_us": 364466,
+          "queue": 19,
+          "queue_age_us": 310770,
+          "queue_high_water": 21,
+          "video_packets": 1089,
+          "wire_bytes": 21616616
+        }
+      },
+      "pts_us": 19796367,
+      "schema_version": 1,
+      "temperature_c": 52.35,
+      "throttled_bits": 0,
+      "timestamp_ns": 3226697036996,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 588,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 583,
+          "failed": false,
+          "last_frame_ns": 3227677678790,
+          "queue": 2,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 91916.985,
+              "mean_us": 13045.140325342465,
+              "min_us": 7.648,
+              "samples": 584,
+              "total_us": 7618361.95
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 169.24734991423668,
+              "min_us": 88.388,
+              "samples": 583,
+              "total_us": 98671.205
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 160.91705821917807,
+              "min_us": 81.296,
+              "samples": 584,
+              "total_us": 93975.562
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32569.894617495713,
+              "min_us": 11496.973,
+              "samples": 583,
+              "total_us": 18988248.562
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.682358490566038,
+              "min_us": 0.297,
+              "samples": 1166,
+              "total_us": 4293.63
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32569.894617495713,
+              "min_us": 11496.973,
+              "samples": 583,
+              "total_us": 18988248.562
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 586,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 583,
+          "failed": false,
+          "last_frame_ns": 3227699168871,
+          "queue": 1,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 8930.32467979452,
+              "min_us": 5.814,
+              "samples": 584,
+              "total_us": 5215309.613
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 167.6897461406518,
+              "min_us": 89.203,
+              "samples": 583,
+              "total_us": 97763.122
+            },
+            "dma_sync_start": {
+              "max_us": 2325.343,
+              "mean_us": 132.79426198630136,
+              "min_us": 80.759,
+              "samples": 584,
+              "total_us": 77551.849
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32356.39200343053,
+              "min_us": 14107.481,
+              "samples": 583,
+              "total_us": 18863776.538
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 32.074,
+              "mean_us": 3.301854202401372,
+              "min_us": 0.37,
+              "samples": 1166,
+              "total_us": 3849.962
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32356.39200343053,
+              "min_us": 14107.481,
+              "samples": 583,
+              "total_us": 18863776.538
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.12342569269522,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3712598016,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 583
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 583
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 20292845,
+            "B": 20322884
+          },
+          "max_queue_age_us": 364466,
+          "queue": 18,
+          "queue_age_us": 317568,
+          "queue_high_water": 22,
+          "video_packets": 1147,
+          "wire_bytes": 22754956
+        }
+      },
+      "pts_us": 20798258,
+      "schema_version": 1,
+      "temperature_c": 50.15,
+      "throttled_bits": 0,
+      "timestamp_ns": 3227699543184,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 617,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 612,
+          "failed": false,
+          "last_frame_ns": 3228709366697,
+          "queue": 2,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 97416.723,
+              "mean_us": 15582.049337683524,
+              "min_us": 7.648,
+              "samples": 613,
+              "total_us": 9551796.244
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 169.00932189542482,
+              "min_us": 88.388,
+              "samples": 612,
+              "total_us": 103433.705
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 159.61904567699835,
+              "min_us": 81.296,
+              "samples": 613,
+              "total_us": 97846.475
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32642.094397058823,
+              "min_us": 11496.973,
+              "samples": 612,
+              "total_us": 19976961.771
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.6597352941176466,
+              "min_us": 0.297,
+              "samples": 1224,
+              "total_us": 4479.516
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32642.094397058823,
+              "min_us": 11496.973,
+              "samples": 612,
+              "total_us": 19976961.771
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 614,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 612,
+          "failed": false,
+          "last_frame_ns": 3228691674193,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 8782.893084828713,
+              "min_us": 5.814,
+              "samples": 613,
+              "total_us": 5383913.461
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 166.52286274509805,
+              "min_us": 89.203,
+              "samples": 612,
+              "total_us": 101911.992
+            },
+            "dma_sync_start": {
+              "max_us": 4085.131,
+              "mean_us": 139.86885807504078,
+              "min_us": 80.759,
+              "samples": 613,
+              "total_us": 85739.61
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32375.365727124183,
+              "min_us": 14107.481,
+              "samples": 612,
+              "total_us": 19813723.825
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 35.13,
+              "mean_us": 3.3388978758169934,
+              "min_us": 0.37,
+              "samples": 1224,
+              "total_us": 4086.811
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32375.365727124183,
+              "min_us": 14107.481,
+              "samples": 612,
+              "total_us": 19813723.825
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 85.0253807106599,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3714023424,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 612
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 612
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 21226196,
+            "B": 21289588
+          },
+          "max_queue_age_us": 364466,
+          "queue": 19,
+          "queue_age_us": 335370,
+          "queue_high_water": 22,
+          "video_packets": 1204,
+          "wire_bytes": 23890664
+        }
+      },
+      "pts_us": 21808707,
+      "schema_version": 1,
+      "temperature_c": 51.8,
+      "throttled_bits": 0,
+      "timestamp_ns": 3228712365055,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 645,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 642,
+          "failed": false,
+          "last_frame_ns": 3229693473591,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 97416.723,
+              "mean_us": 15360.76998289269,
+              "min_us": 7.648,
+              "samples": 643,
+              "total_us": 9876975.099
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 168.43194859813084,
+              "min_us": 88.388,
+              "samples": 642,
+              "total_us": 108133.311
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 162.06380404354587,
+              "min_us": 81.296,
+              "samples": 643,
+              "total_us": 104207.026
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32611.04768380062,
+              "min_us": 11496.973,
+              "samples": 642,
+              "total_us": 20936292.613
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.6547359813084115,
+              "min_us": 0.297,
+              "samples": 1284,
+              "total_us": 4692.681
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32611.04768380062,
+              "min_us": 11496.973,
+              "samples": 642,
+              "total_us": 20936292.613
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 642,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 640,
+          "failed": false,
+          "last_frame_ns": 3229677913412,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 8774.86355850234,
+              "min_us": 5.814,
+              "samples": 641,
+              "total_us": 5624687.541
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 165.9400140625,
+              "min_us": 89.203,
+              "samples": 640,
+              "total_us": 106201.609
+            },
+            "dma_sync_start": {
+              "max_us": 4085.131,
+              "mean_us": 138.19911700468018,
+              "min_us": 80.759,
+              "samples": 641,
+              "total_us": 88585.634
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32371.14945625,
+              "min_us": 14107.481,
+              "samples": 640,
+              "total_us": 20717535.652
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 35.13,
+              "mean_us": 3.357953125,
+              "min_us": 0.37,
+              "samples": 1280,
+              "total_us": 4298.18
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32371.14945625,
+              "min_us": 14107.481,
+              "samples": 640,
+              "total_us": 20717535.652
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 84.21052631578947,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3716300800,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 642
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 640
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 22359556,
+            "B": 22289604
+          },
+          "max_queue_age_us": 364466,
+          "queue": 18,
+          "queue_age_us": 229613,
+          "queue_high_water": 22,
+          "video_packets": 1263,
+          "wire_bytes": 24913196
+        }
+      },
+      "pts_us": 22812213,
+      "schema_version": 1,
+      "temperature_c": 51.25,
+      "throttled_bits": 0,
+      "timestamp_ns": 3229706360743,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 674,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 671,
+          "failed": false,
+          "last_frame_ns": 3230699797602,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 97416.723,
+              "mean_us": 14794.424421130952,
+              "min_us": 7.648,
+              "samples": 672,
+              "total_us": 9941853.211
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 167.60155588673624,
+              "min_us": 88.388,
+              "samples": 671,
+              "total_us": 112460.644
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 161.2502380952381,
+              "min_us": 81.296,
+              "samples": 672,
+              "total_us": 108360.16
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32594.92187481371,
+              "min_us": 11496.973,
+              "samples": 671,
+              "total_us": 21871192.578
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.6268405365126677,
+              "min_us": 0.297,
+              "samples": 1342,
+              "total_us": 4867.22
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32594.92187481371,
+              "min_us": 11496.973,
+              "samples": 671,
+              "total_us": 21871192.578
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 672,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 670,
+          "failed": false,
+          "last_frame_ns": 3230712196238,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 8638.16871833085,
+              "min_us": 5.814,
+              "samples": 671,
+              "total_us": 5796211.21
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 163.98350447761194,
+              "min_us": 89.203,
+              "samples": 670,
+              "total_us": 109868.948
+            },
+            "dma_sync_start": {
+              "max_us": 4085.131,
+              "mean_us": 139.96608047690015,
+              "min_us": 80.759,
+              "samples": 671,
+              "total_us": 93917.24
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32361.747532835823,
+              "min_us": 14107.481,
+              "samples": 670,
+              "total_us": 21682370.847
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 35.13,
+              "mean_us": 3.3506574626865673,
+              "min_us": 0.37,
+              "samples": 1340,
+              "total_us": 4489.881
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32361.747532835823,
+              "min_us": 14107.481,
+              "samples": 670,
+              "total_us": 21682370.847
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.16582914572864,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3717300224,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 671
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 670
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 23359583,
+            "B": 23322972
+          },
+          "max_queue_age_us": 364466,
+          "queue": 17,
+          "queue_age_us": 235846,
+          "queue_high_water": 22,
+          "video_packets": 1323,
+          "wire_bytes": 26079172
+        }
+      },
+      "pts_us": 23831412,
+      "schema_version": 1,
+      "temperature_c": 52.35,
+      "throttled_bits": 0,
+      "timestamp_ns": 3230729347836,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 704,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 700,
+          "failed": false,
+          "last_frame_ns": 3231729901057,
+          "queue": 1,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 97416.723,
+              "mean_us": 14429.865670470756,
+              "min_us": 7.648,
+              "samples": 701,
+              "total_us": 10115335.835
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 166.63063428571428,
+              "min_us": 88.388,
+              "samples": 700,
+              "total_us": 116641.444
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 159.0645934379458,
+              "min_us": 81.296,
+              "samples": 701,
+              "total_us": 111504.28
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32593.52609,
+              "min_us": 11496.973,
+              "samples": 700,
+              "total_us": 22815468.263
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.6249342857142857,
+              "min_us": 0.297,
+              "samples": 1400,
+              "total_us": 5074.908
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32593.52609,
+              "min_us": 11496.973,
+              "samples": 700,
+              "total_us": 22815468.263
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 701,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 699,
+          "failed": false,
+          "last_frame_ns": 3231710280135,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 8551.536892857144,
+              "min_us": 5.814,
+              "samples": 700,
+              "total_us": 5986075.825
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 163.27002288984264,
+              "min_us": 89.203,
+              "samples": 699,
+              "total_us": 114125.746
+            },
+            "dma_sync_start": {
+              "max_us": 4085.131,
+              "mean_us": 138.96188571428573,
+              "min_us": 80.759,
+              "samples": 700,
+              "total_us": 97273.32
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32356.653896995707,
+              "min_us": 14107.481,
+              "samples": 699,
+              "total_us": 22617301.074
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 333.795,
+              "mean_us": 3.6251995708154503,
+              "min_us": 0.37,
+              "samples": 1398,
+              "total_us": 5068.029
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32356.653896995707,
+              "min_us": 14107.481,
+              "samples": 699,
+              "total_us": 22617301.074
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.08080808080808,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3719004160,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 700
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 699
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 24392949,
+            "B": 24356321
+          },
+          "max_queue_age_us": 364466,
+          "queue": 16,
+          "queue_age_us": 223654,
+          "queue_high_water": 23,
+          "video_packets": 1382,
+          "wire_bytes": 27230672
+        }
+      },
+      "pts_us": 24841548,
+      "schema_version": 1,
+      "temperature_c": 51.25,
+      "throttled_bits": 0,
+      "timestamp_ns": 3231740979772,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 733,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 730,
+          "failed": false,
+          "last_frame_ns": 3232732036624,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 97416.723,
+              "mean_us": 13966.69576880985,
+              "min_us": 7.648,
+              "samples": 731,
+              "total_us": 10209654.607
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 168.39362191780822,
+              "min_us": 88.388,
+              "samples": 730,
+              "total_us": 122927.344
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 159.62156908344733,
+              "min_us": 81.296,
+              "samples": 731,
+              "total_us": 116683.367
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32569.596116438355,
+              "min_us": 11496.973,
+              "samples": 730,
+              "total_us": 23775805.165
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.595980821917808,
+              "min_us": 0.297,
+              "samples": 1460,
+              "total_us": 5250.132
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32569.596116438355,
+              "min_us": 11496.973,
+              "samples": 730,
+              "total_us": 23775805.165
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 730,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 728,
+          "failed": false,
+          "last_frame_ns": 3232723154141,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 8477.088934156378,
+              "min_us": 5.814,
+              "samples": 729,
+              "total_us": 6179797.833
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 161.25958241758244,
+              "min_us": 89.203,
+              "samples": 728,
+              "total_us": 117396.976
+            },
+            "dma_sync_start": {
+              "max_us": 4085.131,
+              "mean_us": 138.00618792866942,
+              "min_us": 80.759,
+              "samples": 729,
+              "total_us": 100606.511
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32409.885554945056,
+              "min_us": 14107.481,
+              "samples": 728,
+              "total_us": 23594396.684
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 333.795,
+              "mean_us": 3.6084196428571427,
+              "min_us": 0.37,
+              "samples": 1456,
+              "total_us": 5253.859
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32409.885554945056,
+              "min_us": 14107.481,
+              "samples": 728,
+              "total_us": 23594396.684
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.66834170854271,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3720740864,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 730
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 728
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 25426293,
+            "B": 25389675
+          },
+          "max_queue_age_us": 364466,
+          "queue": 15,
+          "queue_age_us": 216294,
+          "queue_high_water": 23,
+          "video_packets": 1442,
+          "wire_bytes": 28382172
+        }
+      },
+      "pts_us": 25861261,
+      "schema_version": 1,
+      "temperature_c": 52.35,
+      "throttled_bits": 0,
+      "timestamp_ns": 3232756473527,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 762,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 759,
+          "failed": false,
+          "last_frame_ns": 3233740945648,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 97416.723,
+              "mean_us": 13454.26677368421,
+              "min_us": 7.648,
+              "samples": 760,
+              "total_us": 10225242.748
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 167.55920948616603,
+              "min_us": 88.388,
+              "samples": 759,
+              "total_us": 127177.44
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 157.52585657894736,
+              "min_us": 81.296,
+              "samples": 760,
+              "total_us": 119719.651
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32471.012424242424,
+              "min_us": 11496.973,
+              "samples": 759,
+              "total_us": 24645498.43
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.579957839262187,
+              "min_us": 0.297,
+              "samples": 1518,
+              "total_us": 5434.376
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32471.012424242424,
+              "min_us": 11496.973,
+              "samples": 759,
+              "total_us": 24645498.43
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 759,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 757,
+          "failed": false,
+          "last_frame_ns": 3233734579507,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 9082.894959102903,
+              "min_us": 5.814,
+              "samples": 758,
+              "total_us": 6884834.379
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 160.98397225891676,
+              "min_us": 86.129,
+              "samples": 757,
+              "total_us": 121864.867
+            },
+            "dma_sync_start": {
+              "max_us": 4085.131,
+              "mean_us": 138.99434432717678,
+              "min_us": 80.759,
+              "samples": 758,
+              "total_us": 105357.713
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32470.852487450462,
+              "min_us": 14107.481,
+              "samples": 757,
+              "total_us": 24580435.333
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 333.795,
+              "mean_us": 3.5862575957727874,
+              "min_us": 0.37,
+              "samples": 1514,
+              "total_us": 5429.594
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32470.852487450462,
+              "min_us": 14107.481,
+              "samples": 757,
+              "total_us": 24580435.333
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.63171355498721,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3722084352,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 759
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 757
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 26492985,
+            "B": 26456371
+          },
+          "max_queue_age_us": 364466,
+          "queue": 12,
+          "queue_age_us": 208999,
+          "queue_high_water": 23,
+          "video_packets": 1503,
+          "wire_bytes": 29570520
+        }
+      },
+      "pts_us": 26868416,
+      "schema_version": 1,
+      "temperature_c": 52.35,
+      "throttled_bits": 0,
+      "timestamp_ns": 3233764359462,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 791,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 789,
+          "failed": false,
+          "last_frame_ns": 3234736664633,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 97416.723,
+              "mean_us": 13153.064517110266,
+              "min_us": 7.648,
+              "samples": 789,
+              "total_us": 10377767.904
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 168.34585804816223,
+              "min_us": 88.388,
+              "samples": 789,
+              "total_us": 132824.882
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 156.12494803548796,
+              "min_us": 81.296,
+              "samples": 789,
+              "total_us": 123182.584
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32465.263716096324,
+              "min_us": 11496.973,
+              "samples": 789,
+              "total_us": 25615093.072
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.574510773130545,
+              "min_us": 0.297,
+              "samples": 1578,
+              "total_us": 5640.578
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32465.263716096324,
+              "min_us": 11496.973,
+              "samples": 789,
+              "total_us": 25615093.072
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 789,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 786,
+          "failed": false,
+          "last_frame_ns": 3234757978048,
+          "queue": 1,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 10022.843260482845,
+              "min_us": 5.814,
+              "samples": 787,
+              "total_us": 7887977.646
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 159.81366030534352,
+              "min_us": 86.129,
+              "samples": 786,
+              "total_us": 125613.537
+            },
+            "dma_sync_start": {
+              "max_us": 4085.131,
+              "mean_us": 140.53062007623888,
+              "min_us": 80.759,
+              "samples": 787,
+              "total_us": 110597.598
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32538.087795165393,
+              "min_us": 14107.481,
+              "samples": 786,
+              "total_us": 25574937.007
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 651.664,
+              "mean_us": 3.9854860050890584,
+              "min_us": 0.37,
+              "samples": 1572,
+              "total_us": 6265.184
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32538.087795165393,
+              "min_us": 14107.481,
+              "samples": 786,
+              "total_us": 25574937.007
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 82.87153652392946,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3721723904,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 789
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 786
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 27459676,
+            "B": 27423067
+          },
+          "max_queue_age_us": 364466,
+          "queue": 15,
+          "queue_age_us": 254453,
+          "queue_high_water": 23,
+          "video_packets": 1559,
+          "wire_bytes": 30711492
+        }
+      },
+      "pts_us": 27882061,
+      "schema_version": 1,
+      "temperature_c": 52.9,
+      "throttled_bits": 0,
+      "timestamp_ns": 3234775205609,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 820,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 817,
+          "failed": false,
+          "last_frame_ns": 3235748376593,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 97416.723,
+              "mean_us": 12811.969520782397,
+              "min_us": 7.648,
+              "samples": 818,
+              "total_us": 10480191.068
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 168.0560930232558,
+              "min_us": 88.388,
+              "samples": 817,
+              "total_us": 137301.828
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 155.17143643031784,
+              "min_us": 81.296,
+              "samples": 818,
+              "total_us": 126930.235
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32441.081799265605,
+              "min_us": 11496.973,
+              "samples": 817,
+              "total_us": 26504363.83
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.5674455324357406,
+              "min_us": 0.297,
+              "samples": 1634,
+              "total_us": 5829.206
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32441.081799265605,
+              "min_us": 11496.973,
+              "samples": 817,
+              "total_us": 26504363.83
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 818,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 816,
+          "failed": false,
+          "last_frame_ns": 3235765256452,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 9833.29229130967,
+              "min_us": 5.814,
+              "samples": 817,
+              "total_us": 8033799.802
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 158.05386519607845,
+              "min_us": 86.129,
+              "samples": 816,
+              "total_us": 128971.954
+            },
+            "dma_sync_start": {
+              "max_us": 4085.131,
+              "mean_us": 143.3899277845777,
+              "min_us": 80.759,
+              "samples": 817,
+              "total_us": 117149.571
+            },
+            "encoder_input_and_send": {
+              "max_us": 46359.055,
+              "mean_us": 32489.924160539216,
+              "min_us": 14107.481,
+              "samples": 816,
+              "total_us": 26511778.115
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 651.664,
+              "mean_us": 3.9637242647058826,
+              "min_us": 0.37,
+              "samples": 1632,
+              "total_us": 6468.798
+            },
+            "encoder_send_call": {
+              "max_us": 46359.055,
+              "mean_us": 32489.924160539216,
+              "min_us": 14107.481,
+              "samples": 816,
+              "total_us": 26511778.115
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 82.35294117647058,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3722575872,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 817
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 816
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 28459700,
+            "B": 28489761
+          },
+          "max_queue_age_us": 364466,
+          "queue": 13,
+          "queue_age_us": 136820,
+          "queue_high_water": 23,
+          "video_packets": 1619,
+          "wire_bytes": 31735340
+        }
+      },
+      "pts_us": 28889135,
+      "schema_version": 1,
+      "temperature_c": 54.55,
+      "throttled_bits": 0,
+      "timestamp_ns": 3235784967188,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "cameras": [
+        {
+          "active": true,
+          "camera_id": "A",
+          "captured_frames": 850,
+          "dma_quarantined": false,
+          "dropped_frames": 2,
+          "encoded_frames": 847,
+          "failed": false,
+          "last_frame_ns": 3236776482378,
+          "queue": 0,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 97416.723,
+              "mean_us": 12632.779669811322,
+              "min_us": 7.648,
+              "samples": 848,
+              "total_us": 10712597.16
+            },
+            "dma_sync_end": {
+              "max_us": 2629.396,
+              "mean_us": 166.9452526564345,
+              "min_us": 88.388,
+              "samples": 847,
+              "total_us": 141402.629
+            },
+            "dma_sync_start": {
+              "max_us": 5283.053,
+              "mean_us": 154.2468066037736,
+              "min_us": 81.296,
+              "samples": 848,
+              "total_us": 130801.292
+            },
+            "encoder_input_and_send": {
+              "max_us": 48951.342,
+              "mean_us": 32469.763864226683,
+              "min_us": 11496.973,
+              "samples": 847,
+              "total_us": 27501889.993
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 357.628,
+              "mean_us": 3.5502998819362457,
+              "min_us": 0.297,
+              "samples": 1694,
+              "total_us": 6014.208
+            },
+            "encoder_send_call": {
+              "max_us": 48951.342,
+              "mean_us": 32469.763864226683,
+              "min_us": 11496.973,
+              "samples": 847,
+              "total_us": 27501889.993
+            }
+          }
+        },
+        {
+          "active": true,
+          "camera_id": "B",
+          "captured_frames": 848,
+          "dma_quarantined": false,
+          "dropped_frames": 1,
+          "encoded_frames": 845,
+          "failed": false,
+          "last_frame_ns": 3236789062291,
+          "queue": 1,
+          "queue_high_water": 3,
+          "timing_us": {
+            "capture_queue_dwell": {
+              "max_us": 70614.811,
+              "mean_us": 10023.447592198583,
+              "min_us": 5.814,
+              "samples": 846,
+              "total_us": 8479836.663
+            },
+            "dma_sync_end": {
+              "max_us": 5164.627,
+              "mean_us": 158.12269349112427,
+              "min_us": 86.129,
+              "samples": 845,
+              "total_us": 133613.676
+            },
+            "dma_sync_start": {
+              "max_us": 4085.131,
+              "mean_us": 143.4376524822695,
+              "min_us": 80.759,
+              "samples": 846,
+              "total_us": 121348.254
+            },
+            "encoder_input_and_send": {
+              "max_us": 49945.653,
+              "mean_us": 32485.519610650885,
+              "min_us": 14107.481,
+              "samples": 845,
+              "total_us": 27450264.071
+            },
+            "encoder_input_copy": {
+              "max_us": null,
+              "mean_us": null,
+              "min_us": null,
+              "samples": 0,
+              "total_us": 0.0
+            },
+            "encoder_receive_call": {
+              "max_us": 651.664,
+              "mean_us": 3.9484544378698225,
+              "min_us": 0.37,
+              "samples": 1690,
+              "total_us": 6672.888
+            },
+            "encoder_send_call": {
+              "max_us": 49945.653,
+              "mean_us": 32485.519610650885,
+              "min_us": 14107.481,
+              "samples": 845,
+              "total_us": 27450264.071
+            }
+          }
+        }
+      ],
+      "clock_domain": "CLOCK_BOOTTIME",
+      "cpu_busy_percent": 83.12342569269522,
+      "cpu_clock_khz": 2400000,
+      "log_failed": false,
+      "log_records_lost": 0,
+      "memory_available_bytes": 3722330112,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 847
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 845
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 29493075,
+            "B": 29489770
+          },
+          "max_queue_age_us": 364466,
+          "queue": 13,
+          "queue_age_us": 132946,
+          "queue_high_water": 23,
+          "video_packets": 1678,
+          "wire_bytes": 32896052
+        }
+      },
+      "pts_us": 29900640,
+      "schema_version": 1,
+      "temperature_c": 53.45,
+      "throttled_bits": 0,
+      "timestamp_ns": 3236804472822,
+      "type": "health",
+      "undervoltage": false
+    },
+    {
+      "camera_id": "A",
+      "clock_domain": "CLOCK_BOOTTIME",
+      "component": "camera",
+      "detail": "",
+      "event": "stopped",
+      "schema_version": 1,
+      "timestamp_ns": 3237091653108,
+      "type": "event"
+    },
+    {
+      "camera_id": "B",
+      "clock_domain": "CLOCK_BOOTTIME",
+      "component": "camera",
+      "detail": "",
+      "event": "stopped",
+      "schema_version": 1,
+      "timestamp_ns": 3237130243936,
+      "type": "event"
+    },
+    {
+      "clock_domain": "CLOCK_BOOTTIME",
+      "failed": false,
+      "outputs": {
+        "recorders": {
+          "A": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 855
+          },
+          "B": {
+            "dropped_packets": 0,
+            "failed": false,
+            "queue": 0,
+            "queue_high_water": 1,
+            "written_packets": 854
+          }
+        },
+        "transport": {
+          "datagram_errors": 0,
+          "dropped_packets": 0,
+          "failed": false,
+          "last_video_pts_us": {
+            "A": 30026417,
+            "B": 30023124
+          },
+          "max_queue_age_us": 364466,
+          "queue": 0,
+          "queue_age_us": 283296,
+          "queue_high_water": 23,
+          "video_packets": 1709,
+          "wire_bytes": 33649180
+        }
+      },
+      "schema_version": 1,
+      "signal": 15,
+      "timestamp_ns": 3237378497042,
+      "type": "session_end"
+    }
+  ],
+  "session_dir": "/home/pigeon/pigeonvision/output/sessions/spi-profile-sender-30s",
+  "manifest": {
+    "calibration": null,
+    "clock_domain": "CLOCK_BOOTTIME",
+    "clock_origin_ns": 3206887691058,
+    "clock_sample": {
+      "boottime_ns": 3206887691058,
+      "monotonic_after_ns": 3206887691132,
+      "monotonic_before_ns": 3206887691003
+    },
+    "configuration": {
+      "bitrate": 4000000,
+      "camera_controls": {
+        "analogue_gain": 1.4125375747680664,
+        "colour_correction_matrix": [
+          [
+            2.2082138061523438,
+            -1.0519741773605347,
+            -0.15623421967029572
+          ],
+          [
+            -0.7356135845184326,
+            2.1066701412200928,
+            -0.3710543215274811
+          ],
+          [
+            -0.01670699380338192,
+            -1.151046633720398,
+            2.16774582862854
+          ]
+        ],
+        "colour_gains": [
+          1.644302248954773,
+          2.3573110103607178
+        ],
+        "exposure_us": 9993
+      },
+      "cameras": [
+        {
+          "device": "/base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a",
+          "flip_x": false,
+          "flip_y": true,
+          "id": "A"
+        },
+        {
+          "device": "/base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a",
+          "flip_x": false,
+          "flip_y": true,
+          "id": "B"
+        }
+      ],
+      "capture_allocator": "dma_heap_cached",
+      "duration_seconds": 30.0,
+      "encode": true,
+      "encoder_input": "dmabuf",
+      "encoder_threads": 3,
+      "fps": 30,
+      "height": 1552,
+      "min_free_bytes": 2147483648,
+      "mux_bitrate": 9000000,
+      "preset": "ultrafast",
+      "record": true,
+      "schema_version": 1,
+      "segment_seconds": 60,
+      "sensor_mode": {
+        "bit_depth": 10,
+        "height": 1552,
+        "width": 2064
+      },
+      "session_dir": "/home/pigeon/pigeonvision/output/sessions/spi-profile-sender-30s",
+      "udp_destination": "127.0.0.1:1234",
+      "vbv_bits": 2000000,
+      "width": 2064
+    },
+    "created_utc": "2026-09-30T09:20:22Z",
+    "hardware": {
+      "architecture": "aarch64",
+      "cameras": [
+        {
+          "buffer_count": 8,
+          "buffer_planes": [
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ]
+          ],
+          "capture_allocator": "dma_heap_cached",
+          "colour_control_provenance": {
+            "ae_enable_requested": false,
+            "analogue_gain_requested": 1.4125375747680664,
+            "awb_default_enabled": null,
+            "awb_enable_requested": false,
+            "awb_mode_requested": null,
+            "ccm_note": "Explicit base matrix; vendor saturation/lux processing can still alter the reported matrix.",
+            "colour_correction_matrix_requested": [
+              [
+                2.2082138061523438,
+                -1.0519741773605347,
+                -0.15623421967029572
+              ],
+              [
+                -0.7356135845184326,
+                2.1066701412200928,
+                -0.3710543215274811
+              ],
+              [
+                -0.01670699380338192,
+                -1.151046633720398,
+                2.16774582862854
+              ]
+            ],
+            "colour_gains_requested": [
+              1.644302248954773,
+              2.3573110103607178
+            ],
+            "colour_temperature_k_requested": null,
+            "exposure_us_requested": 9993,
+            "note": "Requested controls are not measured results. Compare per-frame exposure/gain/WB/CCM; sensor quantization, digital gain and ISP processing may differ. Unreported values remain null.",
+            "policy": "explicit_shared_camera_controls"
+          },
+          "colour_space": "Rec709",
+          "device": "/base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a",
+          "dma_heap_path": "/dev/dma_heap/vidbuf_cached",
+          "dma_heap_target": "/dev/dma_heap/system",
+          "encoder_input": "dmabuf",
+          "exposure_alignment_verified": false,
+          "flip_x": false,
+          "flip_y": true,
+          "frame_rate_control": {
+            "control_id": 9968049,
+            "control_name": "Frame rate",
+            "control_node": "/dev/v4l-subdev5",
+            "control_range": [
+              1000000,
+              87176053,
+              1
+            ],
+            "control_units": "micro_fps",
+            "libcamera_exposure_max_us": 33320,
+            "libcamera_frame_duration_limits_us": [
+              33333,
+              33333
+            ],
+            "measured_cadence_verified": false,
+            "method": "framos_private_rate_then_identical_mode_ipa_refresh",
+            "of_node": "/sys/firmware/devicetree/base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a",
+            "readback_micro_fps": 30000000,
+            "requested_fps": 30,
+            "requested_micro_fps": 30000000,
+            "vblank_lines": 3408
+          },
+          "frame_size": 5065728,
+          "height": 1552,
+          "id": "A",
+          "manual_control_ranges": {
+            "AnalogueGain": [
+              1.0,
+              251.1886444091797
+            ],
+            "ColourCorrectionMatrix": {
+              "maximum_exclusive": true,
+              "note": "Vendor advertised unsigned minimum is unsuitable for signed CCM coefficients; compare reported per-frame matrix.",
+              "validated_signed_range": [
+                -8,
+                8
+              ]
+            },
+            "ColourGains": [
+              0.0,
+              32.0
+            ],
+            "ExposureTime": [
+              6.0,
+              33320.0
+            ]
+          },
+          "orientation": 4,
+          "pixel_array_active_areas": [
+            [
+              0,
+              0,
+              2064,
+              1552
+            ]
+          ],
+          "pixel_array_size": [
+            2064,
+            1552
+          ],
+          "pixel_format": "YUV420",
+          "requested_scaler_crop": [
+            0,
+            0,
+            2064,
+            1552
+          ],
+          "requested_sensor_crop": [
+            0.0,
+            0.0,
+            2064.0,
+            1552.0
+          ],
+          "scaler_crop_maximum": [
+            0,
+            0,
+            2064,
+            1552
+          ],
+          "sensor_bit_depth": 10,
+          "sensor_coordinate_transform": {
+            "canonical_size": [
+              2064,
+              1552
+            ],
+            "pixel_array_origin": [
+              0,
+              0
+            ],
+            "sensor_pixels_per_array_pixel": [
+              1.0,
+              1.0
+            ],
+            "source": "configured full-mode ScalerCropMaximum"
+          },
+          "sensor_size": [
+            2064,
+            1552
+          ],
+          "stride": 2176,
+          "synchronization": "free_running",
+          "timestamp_source": "libcamera SensorTimestamp; PiSP forwards CFE buffer timestamp",
+          "width": 2064
+        },
+        {
+          "buffer_count": 8,
+          "buffer_planes": [
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ],
+            [
+              {
+                "length": 5065728,
+                "offset": 0
+              }
+            ]
+          ],
+          "capture_allocator": "dma_heap_cached",
+          "colour_control_provenance": {
+            "ae_enable_requested": false,
+            "analogue_gain_requested": 1.4125375747680664,
+            "awb_default_enabled": null,
+            "awb_enable_requested": false,
+            "awb_mode_requested": null,
+            "ccm_note": "Explicit base matrix; vendor saturation/lux processing can still alter the reported matrix.",
+            "colour_correction_matrix_requested": [
+              [
+                2.2082138061523438,
+                -1.0519741773605347,
+                -0.15623421967029572
+              ],
+              [
+                -0.7356135845184326,
+                2.1066701412200928,
+                -0.3710543215274811
+              ],
+              [
+                -0.01670699380338192,
+                -1.151046633720398,
+                2.16774582862854
+              ]
+            ],
+            "colour_gains_requested": [
+              1.644302248954773,
+              2.3573110103607178
+            ],
+            "colour_temperature_k_requested": null,
+            "exposure_us_requested": 9993,
+            "note": "Requested controls are not measured results. Compare per-frame exposure/gain/WB/CCM; sensor quantization, digital gain and ISP processing may differ. Unreported values remain null.",
+            "policy": "explicit_shared_camera_controls"
+          },
+          "colour_space": "Rec709",
+          "device": "/base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a",
+          "dma_heap_path": "/dev/dma_heap/vidbuf_cached",
+          "dma_heap_target": "/dev/dma_heap/system",
+          "encoder_input": "dmabuf",
+          "exposure_alignment_verified": false,
+          "flip_x": false,
+          "flip_y": true,
+          "frame_rate_control": {
+            "control_id": 9968049,
+            "control_name": "Frame rate",
+            "control_node": "/dev/v4l-subdev2",
+            "control_range": [
+              1000000,
+              87176053,
+              1
+            ],
+            "control_units": "micro_fps",
+            "libcamera_exposure_max_us": 33320,
+            "libcamera_frame_duration_limits_us": [
+              33333,
+              33333
+            ],
+            "measured_cadence_verified": false,
+            "method": "framos_private_rate_then_identical_mode_ipa_refresh",
+            "of_node": "/sys/firmware/devicetree/base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a",
+            "readback_micro_fps": 30000000,
+            "requested_fps": 30,
+            "requested_micro_fps": 30000000,
+            "vblank_lines": 3408
+          },
+          "frame_size": 5065728,
+          "height": 1552,
+          "id": "B",
+          "manual_control_ranges": {
+            "AnalogueGain": [
+              1.0,
+              251.1886444091797
+            ],
+            "ColourCorrectionMatrix": {
+              "maximum_exclusive": true,
+              "note": "Vendor advertised unsigned minimum is unsuitable for signed CCM coefficients; compare reported per-frame matrix.",
+              "validated_signed_range": [
+                -8,
+                8
+              ]
+            },
+            "ColourGains": [
+              0.0,
+              32.0
+            ],
+            "ExposureTime": [
+              6.0,
+              33320.0
+            ]
+          },
+          "orientation": 4,
+          "pixel_array_active_areas": [
+            [
+              0,
+              0,
+              2064,
+              1552
+            ]
+          ],
+          "pixel_array_size": [
+            2064,
+            1552
+          ],
+          "pixel_format": "YUV420",
+          "requested_scaler_crop": [
+            0,
+            0,
+            2064,
+            1552
+          ],
+          "requested_sensor_crop": [
+            0.0,
+            0.0,
+            2064.0,
+            1552.0
+          ],
+          "scaler_crop_maximum": [
+            0,
+            0,
+            2064,
+            1552
+          ],
+          "sensor_bit_depth": 10,
+          "sensor_coordinate_transform": {
+            "canonical_size": [
+              2064,
+              1552
+            ],
+            "pixel_array_origin": [
+              0,
+              0
+            ],
+            "sensor_pixels_per_array_pixel": [
+              1.0,
+              1.0
+            ],
+            "source": "configured full-mode ScalerCropMaximum"
+          },
+          "sensor_size": [
+            2064,
+            1552
+          ],
+          "stride": 2176,
+          "synchronization": "free_running",
+          "timestamp_source": "libcamera SensorTimestamp; PiSP forwards CFE buffer timestamp",
+          "width": 2064
+        }
+      ],
+      "kernel": "6.12.47+rpt-rpi-2712",
+      "model": "Raspberry Pi Compute Module 5 Rev 1.0"
+    },
+    "schema_version": 1,
+    "sensor_timestamp_optically_verified": false,
+    "session_id": "spi-profile-sender-30s",
+    "software": {
+      "capture_version": "0.1.0",
+      "ffmpeg": "7.1.5-0+deb13u1+rpt2",
+      "libcamera": "v0.5.2+102-160625a1"
+    },
+    "transport": {
+      "metadata_pes_clock": "producer_queue_admission",
+      "metadata_pid": 258,
+      "mux_delay_us": 500000,
+      "pts_offset_us": 1000000,
+      "video_pids": {
+        "A": 256,
+        "B": 257
+      }
+    }
+  }
+}

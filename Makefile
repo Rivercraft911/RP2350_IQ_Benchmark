@@ -23,8 +23,9 @@ bootsel:
 test:                  ## host-native kernels vs Python model, bit-exact
 	python3 host/test_native.py
 
-analyze:
+analyze:               ## filter sweep and samples/symbol figures
 	python3 reference/analyze.py
+	python3 reference/analyze_sps.py
 
 coeffs:
 	python3 reference/gen_coeffs.py

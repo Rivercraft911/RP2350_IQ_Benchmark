@@ -1,24 +1,7 @@
 {
-  "ready": {
-    "resistor_ohms_user_reported": 6800,
-    "pico_pins": {
-      "ready_pin": 22,
-      "ready_function": 5,
-      "ready_output": 1,
-      "ready_latch": 1,
-      "ready_input": 1
-    },
-    "cm5_samples": 696,
-    "high_samples": 497,
-    "first_high_s": 0.624,
-    "last_high_s": 5.614,
-    "initial_level": 0,
-    "final_level": 0,
-    "pico_accepted": 0
-  },
   "pattern_runs": [
     {
-      "directory": "smoke-1mhz-6k8",
+      "directory": "smoke-1mhz",
       "requested_sck_hz": 1000000,
       "sender_exit": 0,
       "messages_sent": 200,
@@ -110,54 +93,6 @@
       "errors": []
     }
   ],
-  "legacy_live_30s": {
-    "requested_sck_hz": 20000000,
-    "stream_target_mbps": 9,
-    "measured_transport_mbps_health_interval": 8.997231248468074,
-    "rate_interval_seconds": 24.239403654,
-    "messages_sent": 25786,
-    "messages_accepted": 25786,
-    "payload_bytes": 33933248,
-    "sender_crc_chain": "0x2bfacbfd",
-    "pico_crc_chain": "0x2bfacbfd",
-    "transport_errors": [],
-    "camera_width": 2064,
-    "camera_height": 1552,
-    "camera_target_fps": 30,
-    "cameras": [
-      {
-        "camera": "A",
-        "encoded_frames": 823,
-        "encoded_span_seconds": 29.733997,
-        "encoded_fps": 27.645122853816122,
-        "drops_by_reason": {
-          "camera_frame_error": 8,
-          "capture_queue_full": 70
-        }
-      },
-      {
-        "camera": "B",
-        "encoded_frames": 829,
-        "encoded_span_seconds": 29.80068,
-        "encoded_fps": 27.784600888301878,
-        "drops_by_reason": {
-          "camera_frame_error": 8,
-          "capture_queue_full": 66
-        }
-      }
-    ],
-    "max_temperature_c": 55.1,
-    "throttled_bits_observed": [
-      0
-    ],
-    "limitations": [
-      "30-second camera run; not a long-duration or RF qualification",
-      "No analogue RF hardware connected",
-      "Requested SPI clock not verified with a scope",
-      "Camera frames were dropped before encoding; transport acceptance does not recover them"
-    ],
-    "capture_build_note": "Older build/flight/pv-capture silently ignored cached allocator and encoder thread settings. Use current-* runs for the rebuilt pipeline."
-  },
   "live_runs": [
     {
       "label": "camera-only-control-90s",
@@ -539,7 +474,581 @@
         0
       ],
       "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+    },
+    {
+      "label": "direct-tx-copy-60s",
+      "requested_duration_s": 60.0,
+      "observed_session_duration_s": 60.905423797,
+      "observed_capture_duration_s": 60.048083318,
+      "capture_signal": 0,
+      "termination_reason": null,
+      "implementation": "python",
+      "encoder_input": "copy",
+      "allocator": "dma_heap_cached",
+      "encoder_threads": 3,
+      "width": 2064,
+      "height": 1552,
+      "measured_transport_mbps": 9.000990948144537,
+      "messages": 51565,
+      "payload_bytes": 67859164,
+      "sequence_wraps": 0,
+      "sender_crc_chain": "0x8725a045",
+      "pico_crc_chain": "0x8725a045",
+      "failures": [],
+      "pico_underruns": 0,
+      "cameras": [
+        {
+          "camera": "A",
+          "encoded_frames_total": 1540,
+          "steady_encoded_fps": 25.652099907304986,
+          "steady_h264_payload_mbps": 3.420505164897436,
+          "steady_delivered_fps": 25.652099907304986,
+          "delivered_interval_median_ms": 33.336,
+          "delivered_interval_max_ms": 66.694,
+          "delivered_intervals_over_50ms": 219,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 32.39741994570013
+        },
+        {
+          "camera": "B",
+          "encoded_frames_total": 1539,
+          "steady_encoded_fps": 25.635115441452662,
+          "steady_h264_payload_mbps": 3.4212807609232425,
+          "steady_delivered_fps": 25.635115441452662,
+          "delivered_interval_median_ms": 33.336,
+          "delivered_interval_max_ms": 66.694,
+          "delivered_intervals_over_50ms": 220,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 32.29019364995061
+        }
+      ],
+      "max_temperature_c": 52.35,
+      "mean_cpu_busy_percent_after_10s": 77.07354204286284,
+      "throttled_bits_observed": [
+        0
+      ],
+      "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+    },
+    {
+      "label": "direct-tx-normal-priority-60s",
+      "requested_duration_s": 60.0,
+      "observed_session_duration_s": 60.856149115,
+      "observed_capture_duration_s": 60.046237198,
+      "capture_signal": 0,
+      "termination_reason": null,
+      "implementation": "python",
+      "encoder_input": "dmabuf",
+      "allocator": "dma_heap_cached",
+      "encoder_threads": 3,
+      "width": 2064,
+      "height": 1552,
+      "measured_transport_mbps": 8.995810948783788,
+      "messages": 51539,
+      "payload_bytes": 67824572,
+      "sequence_wraps": 0,
+      "sender_crc_chain": "0xdfebcdce",
+      "pico_crc_chain": "0xdfebcdce",
+      "failures": [],
+      "pico_underruns": 0,
+      "cameras": [
+        {
+          "camera": "A",
+          "encoded_frames_total": 1786,
+          "steady_encoded_fps": 29.780875888914473,
+          "steady_h264_payload_mbps": 3.97186414027952,
+          "steady_delivered_fps": 29.780875888914473,
+          "delivered_interval_median_ms": 33.334,
+          "delivered_interval_max_ms": 66.679,
+          "delivered_intervals_over_50ms": 11,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 26.774063698187184
+        },
+        {
+          "camera": "B",
+          "encoded_frames_total": 1787,
+          "steady_encoded_fps": 29.80099124084824,
+          "steady_h264_payload_mbps": 3.971352662035504,
+          "steady_delivered_fps": 29.80099124084824,
+          "delivered_interval_median_ms": 33.334,
+          "delivered_interval_max_ms": 66.691,
+          "delivered_intervals_over_50ms": 10,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 26.851088899381214
+        }
+      ],
+      "max_temperature_c": 56.2,
+      "mean_cpu_busy_percent_after_10s": 78.80838893582727,
+      "throttled_bits_observed": [
+        0
+      ],
+      "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+    },
+    {
+      "label": "direct-tx-t3-60s",
+      "requested_duration_s": 60.0,
+      "observed_session_duration_s": 60.941556215,
+      "observed_capture_duration_s": 60.055029972,
+      "capture_signal": 0,
+      "termination_reason": null,
+      "implementation": "python",
+      "encoder_input": "dmabuf",
+      "allocator": "dma_heap_cached",
+      "encoder_threads": 3,
+      "width": 2064,
+      "height": 1552,
+      "measured_transport_mbps": 9.000196621745657,
+      "messages": 51607,
+      "payload_bytes": 67914436,
+      "sequence_wraps": 0,
+      "sender_crc_chain": "0xa4216683",
+      "pico_crc_chain": "0xa4216683",
+      "failures": [],
+      "pico_underruns": 0,
+      "cameras": [
+        {
+          "camera": "A",
+          "encoded_frames_total": 1783,
+          "steady_encoded_fps": 29.701687323690873,
+          "steady_h264_payload_mbps": 3.9649313745192893,
+          "steady_delivered_fps": 29.701687323690873,
+          "delivered_interval_median_ms": 33.334,
+          "delivered_interval_max_ms": 66.68,
+          "delivered_intervals_over_50ms": 15,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 27.672817237604484
+        },
+        {
+          "camera": "B",
+          "encoded_frames_total": 1781,
+          "steady_encoded_fps": 29.682034035835237,
+          "steady_h264_payload_mbps": 3.9637343044348428,
+          "steady_delivered_fps": 29.682034035835237,
+          "delivered_interval_median_ms": 33.335,
+          "delivered_interval_max_ms": 66.684,
+          "delivered_intervals_over_50ms": 16,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 27.565046010258122
+        }
+      ],
+      "max_temperature_c": 56.2,
+      "mean_cpu_busy_percent_after_10s": 78.75230756015903,
+      "throttled_bits_observed": [
+        0
+      ],
+      "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+    },
+    {
+      "label": "duplex-fan-control-60s",
+      "requested_duration_s": 60.0,
+      "observed_session_duration_s": 61.042796087,
+      "observed_capture_duration_s": 60.050061415,
+      "capture_signal": 0,
+      "termination_reason": null,
+      "implementation": "python",
+      "encoder_input": "dmabuf",
+      "allocator": "dma_heap_cached",
+      "encoder_threads": 3,
+      "width": 2064,
+      "height": 1552,
+      "measured_transport_mbps": 9.000748400155897,
+      "messages": 51663,
+      "payload_bytes": 67987380,
+      "sequence_wraps": 0,
+      "sender_crc_chain": "0x566092b2",
+      "pico_crc_chain": "0x566092b2",
+      "failures": [],
+      "pico_underruns": 0,
+      "cameras": [
+        {
+          "camera": "A",
+          "encoded_frames_total": 1747,
+          "steady_encoded_fps": 29.107638083989823,
+          "steady_h264_payload_mbps": 3.8812085784588457,
+          "steady_delivered_fps": 29.107638083989823,
+          "delivered_interval_median_ms": 33.334,
+          "delivered_interval_max_ms": 66.687,
+          "delivered_intervals_over_50ms": 45,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 30.331187666392005
+        },
+        {
+          "camera": "B",
+          "encoded_frames_total": 1747,
+          "steady_encoded_fps": 29.10762078131948,
+          "steady_h264_payload_mbps": 3.8808770322305772,
+          "steady_delivered_fps": 29.10762078131948,
+          "delivered_interval_median_ms": 33.335,
+          "delivered_interval_max_ms": 66.685,
+          "delivered_intervals_over_50ms": 45,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 30.20790148779144
+        }
+      ],
+      "max_temperature_c": 56.2,
+      "mean_cpu_busy_percent_after_10s": 81.2654151653902,
+      "throttled_bits_observed": [
+        0
+      ],
+      "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+    },
+    {
+      "label": "isolated-spi-core3-60s",
+      "requested_duration_s": 60.0,
+      "observed_session_duration_s": 60.990765748,
+      "observed_capture_duration_s": 60.05643987,
+      "capture_signal": 0,
+      "termination_reason": null,
+      "implementation": "python",
+      "encoder_input": "dmabuf",
+      "allocator": "dma_heap_cached",
+      "encoder_threads": 3,
+      "width": 2064,
+      "height": 1552,
+      "measured_transport_mbps": 8.988342514087845,
+      "messages": 51657,
+      "payload_bytes": 67980048,
+      "sequence_wraps": 0,
+      "sender_crc_chain": "0x73cf280a",
+      "pico_crc_chain": "0x73cf280a",
+      "failures": [],
+      "pico_underruns": 0,
+      "cameras": [
+        {
+          "camera": "A",
+          "encoded_frames_total": 1726,
+          "steady_encoded_fps": 28.691532185677328,
+          "steady_h264_payload_mbps": 3.8216049298075934,
+          "steady_delivered_fps": 29.99929539303555,
+          "delivered_interval_median_ms": 33.334,
+          "delivered_interval_max_ms": 33.372,
+          "delivered_intervals_over_50ms": 0,
+          "all_drops": {
+            "camera_frame_error": 1,
+            "capture_queue_full": 74
+          },
+          "steady_drops": {
+            "capture_queue_full": 66
+          },
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 34.286056684853946
+        },
+        {
+          "camera": "B",
+          "encoded_frames_total": 1751,
+          "steady_encoded_fps": 29.149509216136103,
+          "steady_h264_payload_mbps": 3.887475779969228,
+          "steady_delivered_fps": 29.999291518708205,
+          "delivered_interval_median_ms": 33.334,
+          "delivered_interval_max_ms": 33.384,
+          "delivered_intervals_over_50ms": 0,
+          "all_drops": {
+            "camera_frame_error": 1,
+            "capture_queue_full": 51
+          },
+          "steady_drops": {
+            "capture_queue_full": 43
+          },
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 33.75870565984513
+        }
+      ],
+      "max_temperature_c": 52.9,
+      "mean_cpu_busy_percent_after_10s": 77.22033460873818,
+      "throttled_bits_observed": [
+        0
+      ],
+      "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+    },
+    {
+      "label": "native-t3-120s",
+      "requested_duration_s": 120.0,
+      "observed_session_duration_s": 120.847903852,
+      "observed_capture_duration_s": 120.044447143,
+      "capture_signal": 0,
+      "termination_reason": null,
+      "implementation": "native",
+      "encoder_input": "dmabuf",
+      "allocator": "dma_heap_cached",
+      "encoder_threads": 3,
+      "width": 2064,
+      "height": 1552,
+      "measured_transport_mbps": 9.000572278077675,
+      "messages": 102801,
+      "payload_bytes": 135285740,
+      "sequence_wraps": 1,
+      "sender_crc_chain": "0x0f20927e",
+      "pico_crc_chain": "0x0f20927e",
+      "failures": [],
+      "pico_underruns": 0,
+      "cameras": [
+        {
+          "camera": "A",
+          "encoded_frames_total": 3599,
+          "steady_encoded_fps": 29.990726216071703,
+          "steady_h264_payload_mbps": 3.991983474358956,
+          "steady_delivered_fps": 29.990726216071703,
+          "delivered_interval_median_ms": 33.334,
+          "delivered_interval_max_ms": 66.654,
+          "delivered_intervals_over_50ms": 1,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 19.17490959651494
+        },
+        {
+          "camera": "B",
+          "encoded_frames_total": 3598,
+          "steady_encoded_fps": 29.99070830860683,
+          "steady_h264_payload_mbps": 3.994021508358926,
+          "steady_delivered_fps": 29.99070830860683,
+          "delivered_interval_median_ms": 33.334,
+          "delivered_interval_max_ms": 66.674,
+          "delivered_intervals_over_50ms": 1,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 18.20457890527575
+        }
+      ],
+      "max_temperature_c": 56.75,
+      "mean_cpu_busy_percent_after_10s": 61.37305319917761,
+      "throttled_bits_observed": [
+        0
+      ],
+      "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+    },
+    {
+      "label": "native-t3-retry-60s",
+      "requested_duration_s": 60.0,
+      "observed_session_duration_s": 60.934850557,
+      "observed_capture_duration_s": 60.051075419,
+      "capture_signal": 0,
+      "termination_reason": null,
+      "implementation": "native",
+      "encoder_input": "dmabuf",
+      "allocator": "dma_heap_cached",
+      "encoder_threads": 3,
+      "width": 2064,
+      "height": 1552,
+      "measured_transport_mbps": 8.994914568426582,
+      "messages": 51588,
+      "payload_bytes": 67889432,
+      "sequence_wraps": 0,
+      "sender_crc_chain": "0xdcbd4bac",
+      "pico_crc_chain": "0xdcbd4bac",
+      "failures": [],
+      "pico_underruns": 0,
+      "cameras": [
+        {
+          "camera": "A",
+          "encoded_frames_total": 1801,
+          "steady_encoded_fps": 29.999935841721367,
+          "steady_h264_payload_mbps": 4.004383673793331,
+          "steady_delivered_fps": 29.999935841721367,
+          "delivered_interval_median_ms": 33.333,
+          "delivered_interval_max_ms": 33.423,
+          "delivered_intervals_over_50ms": 0,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 17.77940817474206
+        },
+        {
+          "camera": "B",
+          "encoded_frames_total": 1800,
+          "steady_encoded_fps": 29.99990877336448,
+          "steady_h264_payload_mbps": 3.9860517838398923,
+          "steady_delivered_fps": 29.99990877336448,
+          "delivered_interval_median_ms": 33.333,
+          "delivered_interval_max_ms": 33.419,
+          "delivered_intervals_over_50ms": 0,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 18.712026809720985
+        }
+      ],
+      "max_temperature_c": 53.45,
+      "mean_cpu_busy_percent_after_10s": 60.49350523019778,
+      "throttled_bits_observed": [
+        0
+      ],
+      "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+    },
+    {
+      "label": "profile-sender-30s",
+      "requested_duration_s": 30.0,
+      "observed_session_duration_s": 30.490805984,
+      "observed_capture_duration_s": 29.648171597,
+      "capture_signal": 15,
+      "termination_reason": "SPI sender ended during capture",
+      "implementation": "python",
+      "encoder_input": "dmabuf",
+      "allocator": "dma_heap_cached",
+      "encoder_threads": 3,
+      "width": 2064,
+      "height": 1552,
+      "measured_transport_mbps": 8.958489605006136,
+      "messages": 24820,
+      "payload_bytes": 32663120,
+      "sequence_wraps": 0,
+      "sender_crc_chain": "0xd18655ad",
+      "pico_crc_chain": "0xd18655ad",
+      "failures": [
+        "process/session failure",
+        "capture shorter than requested duration",
+        "sender did not complete normally",
+        "capture/UDP/SPI byte count mismatch",
+        "buffered_unsent",
+        "queue_overflows"
+      ],
+      "pico_underruns": 0,
+      "cameras": [
+        {
+          "camera": "A",
+          "encoded_frames_total": 855,
+          "steady_encoded_fps": 28.849324925796736,
+          "steady_h264_payload_mbps": 3.8468975825965672,
+          "steady_delivered_fps": 28.899323755824113,
+          "delivered_interval_median_ms": 33.335,
+          "delivered_interval_max_ms": 66.682,
+          "delivered_intervals_over_50ms": 22,
+          "all_drops": {
+            "camera_frame_error": 1,
+            "capture_queue_full": 1
+          },
+          "steady_drops": {
+            "capture_queue_full": 1
+          },
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 32.6878753116913
+        },
+        {
+          "camera": "B",
+          "encoded_frames_total": 854,
+          "steady_encoded_fps": 28.899343984891544,
+          "steady_h264_payload_mbps": 3.839109252219975,
+          "steady_delivered_fps": 28.899343984891544,
+          "delivered_interval_median_ms": 33.335,
+          "delivered_interval_max_ms": 66.679,
+          "delivered_intervals_over_50ms": 22,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 32.722274772666054
+        }
+      ],
+      "max_temperature_c": 54.55,
+      "mean_cpu_busy_percent_after_10s": 83.22620548811375,
+      "throttled_bits_observed": [
+        0
+      ],
+      "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+    },
+    {
+      "label": "tx-only-t3-60s",
+      "requested_duration_s": 60.0,
+      "observed_session_duration_s": 60.858930087,
+      "observed_capture_duration_s": 60.042254595,
+      "capture_signal": 0,
+      "termination_reason": null,
+      "implementation": "python",
+      "encoder_input": "dmabuf",
+      "allocator": "dma_heap_cached",
+      "encoder_threads": 3,
+      "width": 2064,
+      "height": 1552,
+      "measured_transport_mbps": 9.000559835846381,
+      "messages": 51537,
+      "payload_bytes": 67821752,
+      "sequence_wraps": 0,
+      "sender_crc_chain": "0x3600e64f",
+      "pico_crc_chain": "0x3600e64f",
+      "failures": [],
+      "pico_underruns": 0,
+      "cameras": [
+        {
+          "camera": "A",
+          "encoded_frames_total": 1759,
+          "steady_encoded_fps": 29.30439991071291,
+          "steady_h264_payload_mbps": 3.9019054669839774,
+          "steady_delivered_fps": 29.30439991071291,
+          "delivered_interval_median_ms": 33.334,
+          "delivered_interval_max_ms": 66.697,
+          "delivered_intervals_over_50ms": 35,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 28.944169671532443
+        },
+        {
+          "camera": "B",
+          "encoded_frames_total": 1760,
+          "steady_encoded_fps": 29.325137575343692,
+          "steady_h264_payload_mbps": 3.8997404675755383,
+          "steady_delivered_fps": 29.325137575343692,
+          "delivered_interval_median_ms": 33.334,
+          "delivered_interval_max_ms": 66.701,
+          "delivered_intervals_over_50ms": 34,
+          "all_drops": {
+            "camera_frame_error": 1
+          },
+          "steady_drops": {},
+          "untimed_drops": {},
+          "mean_interval_encoder_ms": 29.0109502130777
+        }
+      ],
+      "max_temperature_c": 54.0,
+      "mean_cpu_busy_percent_after_10s": 80.35833387890872,
+      "throttled_bits_observed": [
+        0
+      ],
+      "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
     }
   ],
-  "state": "Tests stopped. Camera-only control completed; 600-second SPI attempt stopped at 80 C after 210 seconds. No RF hardware used."
+  "state": "Native SPI completed 120 seconds with fan: 29.99 fps per camera, matching endpoint counts and CRC; one 66.7 ms interval per camera. Ten-minute run cancelled at user request. No RF hardware used."
 }

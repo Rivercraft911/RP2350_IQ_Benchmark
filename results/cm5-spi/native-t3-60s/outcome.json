@@ -1,0 +1,4 @@
+{
+  "state": "setup failed",
+  "reason": "RP1 GPIO alias counted twice; no SPI messages sent"
+}

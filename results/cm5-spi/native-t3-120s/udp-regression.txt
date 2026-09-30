@@ -1,0 +1,43 @@
+[mpegts @ 0x7fff580090f0] Stream 2, codec bin_data, is muxed as a private data stream and may not be recognized upon reading.
+[mpegts @ 0x5555d4a3cdb0] DTS discontinuity in stream 2: packet 6 with DTS 96022, packet 7 with DTS 105016
+[mpegts @ 0x5555d4a3cdb0] DTS discontinuity in stream 2: packet 12 with DTS 105021, packet 13 with DTS 114017
+[mpegts @ 0x5555d4a3cdb0] DTS discontinuity in stream 2: packet 18 with DTS 114022, packet 19 with DTS 123016
+[mpegts @ 0x5555d4a3cdb0] DTS discontinuity in stream 2: packet 24 with DTS 123022, packet 25 with DTS 132016
+[mpegts @ 0x5555d4a3cdb0] DTS discontinuity in stream 2: packet 30 with DTS 132021, packet 31 with DTS 141016
+[mpegts @ 0x5555d4a3cdb0] DTS discontinuity in stream 2: packet 37 with DTS 141021, packet 38 with DTS 150016
+[mpegts @ 0x5555d4a3cdb0] stream 0 : no PTS found at end of file, duration not set
+{
+  "recorders": {
+    "A": {
+      "dropped_packets": 0,
+      "failed": false,
+      "queue": 0,
+      "queue_high_water": 2,
+      "written_packets": 60
+    },
+    "B": {
+      "dropped_packets": 0,
+      "failed": false,
+      "queue": 0,
+      "queue_high_water": 2,
+      "written_packets": 120
+    }
+  },
+  "transport": {
+    "datagram_errors": 0,
+    "dropped_packets": 0,
+    "failed": false,
+    "last_video_pts_us": {
+      "A": 1966666,
+      "B": 3966666
+    },
+    "max_queue_age_us": 254582,
+    "queue": 0,
+    "queue_age_us": 243,
+    "queue_high_water": 15,
+    "video_packets": 180,
+    "wire_bytes": 4481544
+  }
+}
+Maximum producer-to-metadata timestamp error: 23 us
+PASS: cbr-burst: independent sinks, bounded queues, keyframe segments; valid PCR/decode deadlines and private JSON when streaming

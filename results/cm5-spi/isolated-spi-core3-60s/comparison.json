@@ -1,0 +1,68 @@
+{
+  "label": "isolated-spi-core3-60s",
+  "requested_duration_s": 60.0,
+  "observed_session_duration_s": 60.990765748,
+  "observed_capture_duration_s": 60.05643987,
+  "capture_signal": 0,
+  "termination_reason": null,
+  "implementation": "python",
+  "encoder_input": "dmabuf",
+  "allocator": "dma_heap_cached",
+  "encoder_threads": 3,
+  "width": 2064,
+  "height": 1552,
+  "measured_transport_mbps": 8.988342514087845,
+  "messages": 51657,
+  "payload_bytes": 67980048,
+  "sequence_wraps": 0,
+  "sender_crc_chain": "0x73cf280a",
+  "pico_crc_chain": "0x73cf280a",
+  "failures": [],
+  "pico_underruns": 0,
+  "cameras": [
+    {
+      "camera": "A",
+      "encoded_frames_total": 1726,
+      "steady_encoded_fps": 28.691532185677328,
+      "steady_h264_payload_mbps": 3.8216049298075934,
+      "steady_delivered_fps": 29.99929539303555,
+      "delivered_interval_median_ms": 33.334,
+      "delivered_interval_max_ms": 33.372,
+      "delivered_intervals_over_50ms": 0,
+      "all_drops": {
+        "camera_frame_error": 1,
+        "capture_queue_full": 74
+      },
+      "steady_drops": {
+        "capture_queue_full": 66
+      },
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 34.286056684853946
+    },
+    {
+      "camera": "B",
+      "encoded_frames_total": 1751,
+      "steady_encoded_fps": 29.149509216136103,
+      "steady_h264_payload_mbps": 3.887475779969228,
+      "steady_delivered_fps": 29.999291518708205,
+      "delivered_interval_median_ms": 33.334,
+      "delivered_interval_max_ms": 33.384,
+      "delivered_intervals_over_50ms": 0,
+      "all_drops": {
+        "camera_frame_error": 1,
+        "capture_queue_full": 51
+      },
+      "steady_drops": {
+        "capture_queue_full": 43
+      },
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 33.75870565984513
+    }
+  ],
+  "max_temperature_c": 52.9,
+  "mean_cpu_busy_percent_after_10s": 77.22033460873818,
+  "throttled_bits_observed": [
+    0
+  ],
+  "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+}

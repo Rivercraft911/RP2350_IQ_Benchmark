@@ -1,0 +1,498 @@
+{
+  "calibration": null,
+  "clock_domain": "CLOCK_BOOTTIME",
+  "clock_origin_ns": 3762956449604,
+  "clock_sample": {
+    "boottime_ns": 3762956449604,
+    "monotonic_after_ns": 3762956449659,
+    "monotonic_before_ns": 3762956449122
+  },
+  "configuration": {
+    "bitrate": 4000000,
+    "camera_controls": {
+      "analogue_gain": 1.4125375747680664,
+      "colour_correction_matrix": [
+        [
+          2.2082138061523438,
+          -1.0519741773605347,
+          -0.15623421967029572
+        ],
+        [
+          -0.7356135845184326,
+          2.1066701412200928,
+          -0.3710543215274811
+        ],
+        [
+          -0.01670699380338192,
+          -1.151046633720398,
+          2.16774582862854
+        ]
+      ],
+      "colour_gains": [
+        1.644302248954773,
+        2.3573110103607178
+      ],
+      "exposure_us": 9993
+    },
+    "cameras": [
+      {
+        "device": "/base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a",
+        "flip_x": false,
+        "flip_y": true,
+        "id": "A"
+      },
+      {
+        "device": "/base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a",
+        "flip_x": false,
+        "flip_y": true,
+        "id": "B"
+      }
+    ],
+    "capture_allocator": "dma_heap_cached",
+    "duration_seconds": 60.0,
+    "encode": true,
+    "encoder_input": "dmabuf",
+    "encoder_threads": 3,
+    "fps": 30,
+    "height": 1552,
+    "min_free_bytes": 2147483648,
+    "mux_bitrate": 9000000,
+    "preset": "ultrafast",
+    "record": true,
+    "schema_version": 1,
+    "segment_seconds": 60,
+    "sensor_mode": {
+      "bit_depth": 10,
+      "height": 1552,
+      "width": 2064
+    },
+    "session_dir": "/home/pigeon/pigeonvision/output/sessions/spi-direct-tx-normal-priority-60s",
+    "udp_destination": "127.0.0.1:1234",
+    "vbv_bits": 2000000,
+    "width": 2064
+  },
+  "created_utc": "2026-09-30T09:29:38Z",
+  "hardware": {
+    "architecture": "aarch64",
+    "cameras": [
+      {
+        "buffer_count": 8,
+        "buffer_planes": [
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ]
+        ],
+        "capture_allocator": "dma_heap_cached",
+        "colour_control_provenance": {
+          "ae_enable_requested": false,
+          "analogue_gain_requested": 1.4125375747680664,
+          "awb_default_enabled": null,
+          "awb_enable_requested": false,
+          "awb_mode_requested": null,
+          "ccm_note": "Explicit base matrix; vendor saturation/lux processing can still alter the reported matrix.",
+          "colour_correction_matrix_requested": [
+            [
+              2.2082138061523438,
+              -1.0519741773605347,
+              -0.15623421967029572
+            ],
+            [
+              -0.7356135845184326,
+              2.1066701412200928,
+              -0.3710543215274811
+            ],
+            [
+              -0.01670699380338192,
+              -1.151046633720398,
+              2.16774582862854
+            ]
+          ],
+          "colour_gains_requested": [
+            1.644302248954773,
+            2.3573110103607178
+          ],
+          "colour_temperature_k_requested": null,
+          "exposure_us_requested": 9993,
+          "note": "Requested controls are not measured results. Compare per-frame exposure/gain/WB/CCM; sensor quantization, digital gain and ISP processing may differ. Unreported values remain null.",
+          "policy": "explicit_shared_camera_controls"
+        },
+        "colour_space": "Rec709",
+        "device": "/base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a",
+        "dma_heap_path": "/dev/dma_heap/vidbuf_cached",
+        "dma_heap_target": "/dev/dma_heap/system",
+        "encoder_input": "dmabuf",
+        "exposure_alignment_verified": false,
+        "flip_x": false,
+        "flip_y": true,
+        "frame_rate_control": {
+          "control_id": 9968049,
+          "control_name": "Frame rate",
+          "control_node": "/dev/v4l-subdev5",
+          "control_range": [
+            1000000,
+            87176053,
+            1
+          ],
+          "control_units": "micro_fps",
+          "libcamera_exposure_max_us": 33320,
+          "libcamera_frame_duration_limits_us": [
+            33333,
+            33333
+          ],
+          "measured_cadence_verified": false,
+          "method": "framos_private_rate_then_identical_mode_ipa_refresh",
+          "of_node": "/sys/firmware/devicetree/base/axi/pcie@1000120000/rp1/i2c@88000/imx900@1a",
+          "readback_micro_fps": 30000000,
+          "requested_fps": 30,
+          "requested_micro_fps": 30000000,
+          "vblank_lines": 3408
+        },
+        "frame_size": 5065728,
+        "height": 1552,
+        "id": "A",
+        "manual_control_ranges": {
+          "AnalogueGain": [
+            1.0,
+            251.1886444091797
+          ],
+          "ColourCorrectionMatrix": {
+            "maximum_exclusive": true,
+            "note": "Vendor advertised unsigned minimum is unsuitable for signed CCM coefficients; compare reported per-frame matrix.",
+            "validated_signed_range": [
+              -8,
+              8
+            ]
+          },
+          "ColourGains": [
+            0.0,
+            32.0
+          ],
+          "ExposureTime": [
+            6.0,
+            33320.0
+          ]
+        },
+        "orientation": 4,
+        "pixel_array_active_areas": [
+          [
+            0,
+            0,
+            2064,
+            1552
+          ]
+        ],
+        "pixel_array_size": [
+          2064,
+          1552
+        ],
+        "pixel_format": "YUV420",
+        "requested_scaler_crop": [
+          0,
+          0,
+          2064,
+          1552
+        ],
+        "requested_sensor_crop": [
+          0.0,
+          0.0,
+          2064.0,
+          1552.0
+        ],
+        "scaler_crop_maximum": [
+          0,
+          0,
+          2064,
+          1552
+        ],
+        "sensor_bit_depth": 10,
+        "sensor_coordinate_transform": {
+          "canonical_size": [
+            2064,
+            1552
+          ],
+          "pixel_array_origin": [
+            0,
+            0
+          ],
+          "sensor_pixels_per_array_pixel": [
+            1.0,
+            1.0
+          ],
+          "source": "configured full-mode ScalerCropMaximum"
+        },
+        "sensor_size": [
+          2064,
+          1552
+        ],
+        "stride": 2176,
+        "synchronization": "free_running",
+        "timestamp_source": "libcamera SensorTimestamp; PiSP forwards CFE buffer timestamp",
+        "width": 2064
+      },
+      {
+        "buffer_count": 8,
+        "buffer_planes": [
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ],
+          [
+            {
+              "length": 5065728,
+              "offset": 0
+            }
+          ]
+        ],
+        "capture_allocator": "dma_heap_cached",
+        "colour_control_provenance": {
+          "ae_enable_requested": false,
+          "analogue_gain_requested": 1.4125375747680664,
+          "awb_default_enabled": null,
+          "awb_enable_requested": false,
+          "awb_mode_requested": null,
+          "ccm_note": "Explicit base matrix; vendor saturation/lux processing can still alter the reported matrix.",
+          "colour_correction_matrix_requested": [
+            [
+              2.2082138061523438,
+              -1.0519741773605347,
+              -0.15623421967029572
+            ],
+            [
+              -0.7356135845184326,
+              2.1066701412200928,
+              -0.3710543215274811
+            ],
+            [
+              -0.01670699380338192,
+              -1.151046633720398,
+              2.16774582862854
+            ]
+          ],
+          "colour_gains_requested": [
+            1.644302248954773,
+            2.3573110103607178
+          ],
+          "colour_temperature_k_requested": null,
+          "exposure_us_requested": 9993,
+          "note": "Requested controls are not measured results. Compare per-frame exposure/gain/WB/CCM; sensor quantization, digital gain and ISP processing may differ. Unreported values remain null.",
+          "policy": "explicit_shared_camera_controls"
+        },
+        "colour_space": "Rec709",
+        "device": "/base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a",
+        "dma_heap_path": "/dev/dma_heap/vidbuf_cached",
+        "dma_heap_target": "/dev/dma_heap/system",
+        "encoder_input": "dmabuf",
+        "exposure_alignment_verified": false,
+        "flip_x": false,
+        "flip_y": true,
+        "frame_rate_control": {
+          "control_id": 9968049,
+          "control_name": "Frame rate",
+          "control_node": "/dev/v4l-subdev2",
+          "control_range": [
+            1000000,
+            87176053,
+            1
+          ],
+          "control_units": "micro_fps",
+          "libcamera_exposure_max_us": 33320,
+          "libcamera_frame_duration_limits_us": [
+            33333,
+            33333
+          ],
+          "measured_cadence_verified": false,
+          "method": "framos_private_rate_then_identical_mode_ipa_refresh",
+          "of_node": "/sys/firmware/devicetree/base/axi/pcie@1000120000/rp1/i2c@70000/imx900@1a",
+          "readback_micro_fps": 30000000,
+          "requested_fps": 30,
+          "requested_micro_fps": 30000000,
+          "vblank_lines": 3408
+        },
+        "frame_size": 5065728,
+        "height": 1552,
+        "id": "B",
+        "manual_control_ranges": {
+          "AnalogueGain": [
+            1.0,
+            251.1886444091797
+          ],
+          "ColourCorrectionMatrix": {
+            "maximum_exclusive": true,
+            "note": "Vendor advertised unsigned minimum is unsuitable for signed CCM coefficients; compare reported per-frame matrix.",
+            "validated_signed_range": [
+              -8,
+              8
+            ]
+          },
+          "ColourGains": [
+            0.0,
+            32.0
+          ],
+          "ExposureTime": [
+            6.0,
+            33320.0
+          ]
+        },
+        "orientation": 4,
+        "pixel_array_active_areas": [
+          [
+            0,
+            0,
+            2064,
+            1552
+          ]
+        ],
+        "pixel_array_size": [
+          2064,
+          1552
+        ],
+        "pixel_format": "YUV420",
+        "requested_scaler_crop": [
+          0,
+          0,
+          2064,
+          1552
+        ],
+        "requested_sensor_crop": [
+          0.0,
+          0.0,
+          2064.0,
+          1552.0
+        ],
+        "scaler_crop_maximum": [
+          0,
+          0,
+          2064,
+          1552
+        ],
+        "sensor_bit_depth": 10,
+        "sensor_coordinate_transform": {
+          "canonical_size": [
+            2064,
+            1552
+          ],
+          "pixel_array_origin": [
+            0,
+            0
+          ],
+          "sensor_pixels_per_array_pixel": [
+            1.0,
+            1.0
+          ],
+          "source": "configured full-mode ScalerCropMaximum"
+        },
+        "sensor_size": [
+          2064,
+          1552
+        ],
+        "stride": 2176,
+        "synchronization": "free_running",
+        "timestamp_source": "libcamera SensorTimestamp; PiSP forwards CFE buffer timestamp",
+        "width": 2064
+      }
+    ],
+    "kernel": "6.12.47+rpt-rpi-2712",
+    "model": "Raspberry Pi Compute Module 5 Rev 1.0"
+  },
+  "schema_version": 1,
+  "sensor_timestamp_optically_verified": false,
+  "session_id": "spi-direct-tx-normal-priority-60s",
+  "software": {
+    "capture_version": "0.1.0",
+    "ffmpeg": "7.1.5-0+deb13u1+rpt2",
+    "libcamera": "v0.5.2+102-160625a1"
+  },
+  "transport": {
+    "metadata_pes_clock": "producer_queue_admission",
+    "metadata_pid": 258,
+    "mux_delay_us": 500000,
+    "pts_offset_us": 1000000,
+    "video_pids": {
+      "A": 256,
+      "B": 257
+    }
+  }
+}

@@ -1,0 +1,21 @@
+[
+  "/home/pigeon/pigeonvision/software/.venv-spi/bin/python",
+  "-m",
+  "cProfile",
+  "-o",
+  "/home/pigeon/pigeonvision/output/spi-bringup/profile-sender-30s/sender.pstats",
+  "-m",
+  "pigeonvision.spi_transport",
+  "--udp",
+  "127.0.0.1:1234",
+  "--hz",
+  "20000000",
+  "--duration",
+  "40",
+  "--idle-timeout",
+  "15",
+  "--ready-timeout",
+  "2",
+  "--summary",
+  "/home/pigeon/pigeonvision/output/spi-bringup/profile-sender-30s/sender.json"
+]

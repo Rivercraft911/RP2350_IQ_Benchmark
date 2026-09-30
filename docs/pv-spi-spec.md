@@ -10,7 +10,7 @@ E200. The RP2350 builds and transmits DVB-S2 with the E200 profile, so the groun
 | TS capacity | 10.33 Mb/s at 8 Msym/s (8e6 × 42 960 / 33 282), about 981 full messages/s |
 | Ground | `dvbs2-rx --modcod qpsk2/3 --frame-size normal --pilots on --rolloff 0.2` |
 | Firmware | `RP2350_IQ_Benchmark/firmware`, command `pvtx` (see Bring-up) |
-| Status | RP2350 side implemented; on-chip self-test clean for 60 s at 8 Msym/s (58 866 messages, 0 errors, output bit-exact) |
+| Status | Working with a real CM5 at 20 MHz: 179 818 messages of camera TS in 210 s, 0 errors, CRC chains equal ([results](../results/cm5-spi/README.md)) |
 
 The CM5 has no real-time duty: the RP2350 owns the symbol clock. When the CM5 sends less than
 the channel rate, the RP2350 inserts TS null packets (PID 0x1FFF), so the RF stream never gaps.
@@ -30,11 +30,8 @@ are the CM5 IO Board 40-pin header (RP1 SPI0).
 | RUN (reset, optional) | CM5 → Pico | RUN (pin 30), open-drain low = reset | e.g. GPIO24 (pin 18) |
 | GND | | pins 23, 28 | pins 20, 25 |
 
-- Put a 4.7 kΩ pull-up to Pico 3.3 V on CS_N and a 4.7–6.8 kΩ pull-down to GND on READY.
-  These resistors connect to the rails, not in series with the signal wires. The READY
-  pull-down also meets the ≤8.2 kΩ recommendation for A2 erratum E9 when that pad is an input
-  with its output disabled; E9 does not apply while READY is actively driven.
-  See the [board notes](board-pico-plus-2.md).
+- Pull-ups/downs to the rails: 4.7 kΩ CS_N to 3.3 V, 4.7–6.8 kΩ READY to GND. READY stays low
+  while the Pico is off or resetting (≤ 8.2 kΩ also covers A2 erratum E9).
 - Power the Pico before the CM5 drives the SPI pins, so the RP2350 is not back-fed through them.
 - Keep jumpers short (≤ 15 cm at 20 MHz), with a ground wire next to SCK.
 
@@ -136,11 +133,12 @@ start the sender. At the end the RP2350 reports:
 | 3 | 20 MHz, real TS from the video mux, 10 min | 0 errors or gaps; null packets = unused capacity |
 | 4 | later: AFE7071 + LO, ground E200 decode | per the IREC modem plan |
 
+Done so far: steps 0–1; step 2 at 5, 10 and 20 MHz for 1–10 s each; step 3 for 210 s, stopped by
+the CM5's 80 °C limit, not by the link.
+
 ## Not in v1
 
 - Status on MISO (planned v1.1: a status block returned during NOP messages clocked ≤ 4 MHz).
 - Runtime configuration (MODCOD, symbol rate, frequency, RF enable) over SPI. v1 is configured
   over USB.
 - Final carrier pinout and connector; the pins above are the Pico Plus 2 bench wiring.
-
-Bench data and chart-ready CSVs: [CM5 camera runs](../results/cm5-spi/README.md).

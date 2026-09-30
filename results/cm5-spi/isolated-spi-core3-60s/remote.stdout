@@ -1,0 +1,3 @@
+{"elapsed_s": 30.3, "temperature_c": 49.05}
+{"elapsed_s": 60.4, "temperature_c": 51.25}
+{"capture_exit": 0, "sender_exit": 0, "error": null, "messages": 51657, "remote_output": "/home/pigeon/pigeonvision/output/spi-bringup/isolated-spi-core3-60s"}

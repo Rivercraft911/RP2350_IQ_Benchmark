@@ -1,0 +1,7 @@
+{
+  "started_utc": "2026-09-30T09:18:44.890064+00:00",
+  "pico_command": "pvtx 2 80000 0 0 20",
+  "remote_command": "python3 - --label isolated-spi-core3-60s --seconds 60 --allocator dma_heap_cached --threads 3 --sender-nice -5 --root /home/pigeon/pigeonvision --capture-config output/spi-bringup/capture-spi.json --binary build/spi-camera-check/pv-capture --sender-cpus 3 --capture-cpus 0-2",
+  "scope": "wired digital link; real dual cameras; no RF",
+  "host_git": "d4964b0-dirty"
+}

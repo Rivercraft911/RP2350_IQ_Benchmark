@@ -1,0 +1,55 @@
+Wed Sep 30 02:20:52 2026    /home/pigeon/pigeonvision/output/spi-bringup/profile-sender-30s/sender.pstats
+
+         3752587 function calls (3751940 primitive calls) in 30.064 seconds
+
+   Ordered by: internal time
+   List reduced from 852 to 45 due to restriction <45>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    24820   12.618    0.001   42.637    0.002 {method 'xfer2' of 'SpiDev' objects}
+    25090    7.454    0.000    7.465    0.000 {method 'recvmsg' of '_socket.socket' objects}
+    24820    2.323    0.000   77.116    0.003 spi_transport.py:170(send)
+    24820    1.138    0.000    1.356    0.000 {method 'get_values' of 'gpiod._ext.Request' objects}
+    74717    0.533    0.000    1.094    0.000 spi_transport.py:34(validate_payload)
+    24820    0.365    0.000    0.915    0.000 spi_transport.py:41(message)
+    24820    0.351    0.000    1.945    0.000 line_request.py:105(get_values)
+    49640    0.341    0.000    0.341    0.000 {built-in method zlib.crc32}
+    24833    0.324    0.000    1.488    0.000 queue.py:180(get)
+    25081    0.310    0.000    0.602    0.000 enum.py:1596(__or__)
+    25077    0.276    0.000    0.628    0.000 queue.py:140(put)
+    75026    0.274    0.000    0.445    0.000 enum.py:695(__call__)
+    74717    0.265    0.000    0.509    0.000 {built-in method builtins.any}
+   597736    0.244    0.000    0.244    0.000 spi_transport.py:37(<genexpr>)
+124384/124383    0.233    0.000    0.321    0.000 spi_transport.py:90(check)
+500426/500376    0.212    0.000    0.212    0.000 {built-in method builtins.len}
+    24820    0.184    0.000    2.508    0.000 spi_transport.py:142(_ready)
+    74461    0.174    0.000    0.417    0.000 spi_transport.py:133(_check)
+    75026    0.171    0.000    0.171    0.000 enum.py:1156(__new__)
+   150516    0.163    0.000    0.281    0.000 enum.py:1589(_get_value)
+   273713    0.160    0.000    0.160    0.000 {built-in method time.monotonic}
+   227805    0.137    0.000    0.137    0.000 {built-in method builtins.isinstance}
+    49640    0.128    0.000    0.128    0.000 {built-in method _struct.pack}
+    24820    0.126    0.000    1.658    0.000 spi_transport.py:353(__iter__)
+        1    0.124    0.124   10.636   10.636 threading.py:983(run)
+    25091    0.098    0.000    0.315    0.000 enum.py:1607(__and__)
+    49899    0.094    0.000    0.230    0.000 threading.py:398(notify)
+    49914    0.088    0.000    0.088    0.000 {method '__enter__' of '_thread.lock' objects}
+    49914    0.088    0.000    0.138    0.000 threading.py:306(__exit__)
+    49914    0.081    0.000    0.170    0.000 threading.py:303(__enter__)
+    24820    0.081    0.000    2.026    0.000 line_request.py:85(get_value)
+50335/50209    0.081    0.000    0.081    0.000 {method 'acquire' of '_thread.lock' objects}
+    25077    0.075    0.000    0.703    0.000 queue.py:220(put_nowait)
+    25077    0.070    0.000    0.094    0.000 queue.py:110(qsize)
+    24820    0.067    0.000    2.092    0.000 spi_transport.py:394(get)
+    24822    0.061    0.000    1.737    0.000 {built-in method builtins.next}
+    50008    0.059    0.000    0.133    0.000 threading.py:318(_is_owned)
+    74991    0.058    0.000    0.058    0.000 {method '__exit__' of '_thread.lock' objects}
+    25090    0.054    0.000    0.054    0.000 {built-in method _socket.CMSG_SPACE}
+    75095    0.044    0.000    0.072    0.000 queue.py:267(_qsize)
+   149478    0.041    0.000    0.041    0.000 threading.py:605(is_set)
+    25181    0.037    0.000    0.038    0.000 {built-in method builtins.max}
+    25076    0.035    0.000    0.059    0.000 queue.py:271(_put)
+    24820    0.032    0.000    0.060    0.000 queue.py:275(_get)
+    99294    0.029    0.000    0.029    0.000 spi_transport.py:349(check)
+
+

@@ -1,0 +1,22 @@
+{
+  "requested_sck_hz": 20000000,
+  "sender_exit": 0,
+  "messages_sent": 9821,
+  "messages_accepted": 9821,
+  "sender_ts_mbps": 10.339398,
+  "sender_crc_chain": "0x59a9cb63",
+  "pico_crc_chain": "0x59a9cb63",
+  "receiver_errors": {
+    "bad_hdr": 0,
+    "bad_crc": 0,
+    "bad_sync": 0,
+    "lost": 0,
+    "short": 0,
+    "long": 0,
+    "overflows": 0
+  },
+  "ready_waits": 2394,
+  "max_ready_wait_ms": 1.9531040002220834,
+  "underruns": 0,
+  "errors": []
+}

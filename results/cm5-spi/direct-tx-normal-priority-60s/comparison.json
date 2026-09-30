@@ -1,0 +1,62 @@
+{
+  "label": "direct-tx-normal-priority-60s",
+  "requested_duration_s": 60.0,
+  "observed_session_duration_s": 60.856149115,
+  "observed_capture_duration_s": 60.046237198,
+  "capture_signal": 0,
+  "termination_reason": null,
+  "implementation": "python",
+  "encoder_input": "dmabuf",
+  "allocator": "dma_heap_cached",
+  "encoder_threads": 3,
+  "width": 2064,
+  "height": 1552,
+  "measured_transport_mbps": 8.995810948783788,
+  "messages": 51539,
+  "payload_bytes": 67824572,
+  "sequence_wraps": 0,
+  "sender_crc_chain": "0xdfebcdce",
+  "pico_crc_chain": "0xdfebcdce",
+  "failures": [],
+  "pico_underruns": 0,
+  "cameras": [
+    {
+      "camera": "A",
+      "encoded_frames_total": 1786,
+      "steady_encoded_fps": 29.780875888914473,
+      "steady_h264_payload_mbps": 3.97186414027952,
+      "steady_delivered_fps": 29.780875888914473,
+      "delivered_interval_median_ms": 33.334,
+      "delivered_interval_max_ms": 66.679,
+      "delivered_intervals_over_50ms": 11,
+      "all_drops": {
+        "camera_frame_error": 1
+      },
+      "steady_drops": {},
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 26.774063698187184
+    },
+    {
+      "camera": "B",
+      "encoded_frames_total": 1787,
+      "steady_encoded_fps": 29.80099124084824,
+      "steady_h264_payload_mbps": 3.971352662035504,
+      "steady_delivered_fps": 29.80099124084824,
+      "delivered_interval_median_ms": 33.334,
+      "delivered_interval_max_ms": 66.691,
+      "delivered_intervals_over_50ms": 10,
+      "all_drops": {
+        "camera_frame_error": 1
+      },
+      "steady_drops": {},
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 26.851088899381214
+    }
+  ],
+  "max_temperature_c": 56.2,
+  "mean_cpu_busy_percent_after_10s": 78.80838893582727,
+  "throttled_bits_observed": [
+    0
+  ],
+  "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+}

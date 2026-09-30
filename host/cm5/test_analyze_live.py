@@ -24,6 +24,28 @@ class EvidenceChecks(unittest.TestCase):
         (self.directory / 'frames.jsonl').write_text(self.frames)
         return analyze(self.directory, camera_only=camera_only)
 
+    def test_missing_session_end(self):
+        self.report['health'] = [x for x in self.report['health'] if x['type'] != 'session_end']
+        with self.assertRaisesRegex(ValueError, 'incomplete run'):
+            self.result()
+        self.assertFalse((self.directory / 'comparison.json').exists())
+
+    def test_missing_sender_summary(self):
+        self.report['sender'] = None
+        with self.assertRaisesRegex(ValueError, 'incomplete run'):
+            self.result()
+
+    def test_missing_frames(self):
+        self.frames = ''
+        with self.assertRaisesRegex(ValueError, 'too few timed frames'):
+            self.result()
+        self.assertFalse((self.directory / 'telemetry.csv').exists())
+
+    def test_missing_health(self):
+        self.report['health'] = [x for x in self.report['health'] if x['type'] != 'health']
+        with self.assertRaisesRegex(ValueError, 'incomplete run'):
+            self.result()
+
     def test_observed_run(self):
         result = self.result()
         self.assertEqual(result['failures'], [])
@@ -51,6 +73,19 @@ class EvidenceChecks(unittest.TestCase):
     def test_udp_overload(self):
         self.report['sender']['udp']['queue_overflows'] = 1
         self.assertIn('queue_overflows', self.result()['failures'])
+
+    def test_unread_kernel_datagram(self):
+        self.report['sender']['udp']['kernel_pending_on_close'] = True
+        self.assertIn('unread UDP datagrams at shutdown', self.result()['failures'])
+
+    def test_native_counts_without_udp(self):
+        self.report['sender']['implementation'] = 'native'
+        del self.report['sender']['udp']
+        self.assertEqual(self.result()['failures'], [])
+        self.report['sender']['pending_payload_bytes'] = 1316
+        self.assertIn('pending_payload_bytes', self.result()['failures'])
+        self.report['sender']['crc_chain'] = '0x00000000'
+        self.assertIn('CRC chain mismatch', self.result()['failures'])
 
     def test_lost_video_before_spi(self):
         self.report['health'][-1]['outputs']['transport']['dropped_packets'] = 1

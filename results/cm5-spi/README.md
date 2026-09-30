@@ -1,41 +1,70 @@
 # CM5 to Pico bench data
 
-Two real IMX900 cameras, 2064×1552 at a requested 30 fps, x264 ultrafast at 4 Mb/s each, 9 Mb/s MPEG-TS, and local recording. SPI requested 20 MHz. Pico Plus 2 ran PV-SPI into its 8 Msym/s QPSK pipeline. No RF hardware was connected.
+Native SPI delivered **29.99 fps per camera at 9 Mb/s MPEG-TS** over a two-minute
+run. Two IMX900s at 2064×1552, x264 ultrafast at 4 Mb/s each, local recording,
+cached buffers and three encoder threads per camera. SPI requested 20 MHz;
+Pico Plus 2 ran its 8 Msym/s QPSK pipeline. No RF hardware was connected.
 
-| Run | Capture time | Encoded fps A / B | Result |
+## Sender comparison
+
+These runs used a fan. FPS and CPU exclude the first ten seconds; CPU is the
+percentage of all four CM5 cores. Python runs used loopback UDP. Native SPI
+ran in `pv-capture`'s transport worker.
+
+| Run | Seconds | FPS A / B | CPU | Intervals >50 ms A / B |
+| --- | ---: | ---: | ---: | ---: |
+| `duplex-fan-control-60s` | 60 | 29.11 / 29.11 | 81.3% | 45 / 45 |
+| `tx-only-t3-60s` | 60 | 29.30 / 29.33 | 80.4% | 35 / 34 |
+| `direct-tx-normal-priority-60s` | 60 | 29.78 / 29.80 | 78.8% | 11 / 10 |
+| `native-t3-retry-60s` | 60 | 30.00 / 30.00 | 60.5% | 0 / 0 |
+| `native-t3-120s` | 120 | 29.99 / 29.99 | 61.4% | 1 / 1 |
+
+The 120-second run sent 102,801 messages and 135,285,740 payload bytes. Pico
+counts and CRC `0x0f20927e` matched, with one sequence wrap and zero protocol
+errors or underruns. Maximum temperature: 56.75°C, no throttling. Four recordings
+decoded: 3,599 frames from A, 3,598 from B. Each camera had one startup error.
+The two later 66.7 ms intervals remain unexplained. Pico firmware was unchanged.
+
+Reserving a CPU core for Python caused encoder queue drops. Copying camera
+frames before encoding fell to 25.6 fps. Neither is selected. Native SPI removes
+the Python/UDP workload; these tests do not isolate each source of overhead.
+
+## Earlier runs
+
+| Run | Capture time | FPS A / B | Result |
 | --- | ---: | ---: | --- |
-| `current-uncached-60s` | 60 s | 27.05 / 27.51 | Encoder queues dropped frames; SPI counts and CRC matched |
-| `current-cached-60s` | 60 s | 28.73 / 28.79 | Cached buffers reduced queue drops; SPI counts and CRC matched |
-| `current-cached-t3-60s` | ~18 s | 29.25 / 29.12 | Failed: CM5 UDP queue overflow |
-| `current-cached-t3-priority-60s` | 60 s | 28.71 / 28.63 | Sender nice −5; SPI counts and CRC matched |
-| `current-cached-t3-priority-600s` | 210 s of 600 s | 28.42 / 28.41 | Stopped at 80°C; not a completed ten-minute test |
-| `camera-only-control-90s` | 90 s | 30.00 / 30.00 | Local UDP drain replacing SPI; no steady-state drops |
+| `current-uncached-60s` | 60 s | 27.05 / 27.51 | Encoder queue drops |
+| `current-cached-60s` | 60 s | 28.73 / 28.79 | Fewer queue drops |
+| `current-cached-t3-60s` | ~18 s | 29.25 / 29.12 | UDP queue overflow |
+| `current-cached-t3-priority-60s` | 60 s | 28.71 / 28.63 | Sender nice −5 |
+| `current-cached-t3-priority-600s` | 210 of 600 s | 28.42 / 28.41 | Stopped at 80°C without a fan |
+| `camera-only-control-90s` | 90 s | 30.00 / 30.00 | Local UDP drain, no SPI |
 
-FPS excludes the first ten seconds. The native capture binary and camera settings match across the cached/control runs. Starting temperatures differed. The comparison associates the current SPI workload with the frame-rate reduction; it does not isolate scheduling from other shared resources.
+The thermal-stop run's 179,818 messages matched the Pico, CRC `0x465758f0`, with
+zero protocol errors or underruns. Eight recordings decoded, 5,975 frames per
+camera. Pico's later null output is not additional camera video.
 
-The longer SPI attempt sent 179,818 messages, 1,258,721 TS packets and 236,639,548 bytes. Pico accepted them all, with CRC chain `0x465758f0`, two sequence wraps, and zero protocol errors or output underruns. No UDP bytes remained unsent at the thermal stop. All eight local MKV segments decoded: 5,975 frames per camera. The Pico continued inserting null packets until its original 620-second command expired; that is not 620 seconds of camera video.
+`native-t3-60s` failed GPIO discovery before capture. `native-t3-600s` was cancelled
+and has no Pico report. `profile-sender-30s` includes profiler overhead and failed
+on UDP overflow. All are retained as failed or incomplete runs.
 
 ## Files
 
-- `runs.csv`: one row per camera/run, including actual duration and failures.
-- Each run: raw Pico/CM5 reports, configuration, source/binary hashes, `telemetry.csv`, `frames.csv`, and `comparison.json`.
-- `firmware/`: exact flashed UF2, SHA-256, base revision and source patch. The only firmware change adds READY-pin readback.
-- `summary.json`: READY checks, earlier pattern tests and current comparisons.
-- `current-cached-t3-priority-600s/decoded-segments.json`: offline decode counts for the thermal-stop recordings. Video files stay outside Git.
-
-`frames.csv` retains capture timestamps and dropped-frame records. `telemetry.csv` contains cumulative counts and per-interval encoder time. A zero drop counter does not imply 30 fps: the SPI runs have occasional 66 ms delivery intervals. `failures` includes intentional thermal termination and shortened duration, separately from raw transport counters.
-
-`live-30s-6k8` used an older capture executable that ignored cached-buffer/thread settings. Use the `current-*` runs for the rebuilt pipeline. Earlier READY diagnostics include unsuccessful runs before the user replaced the mistakenly fitted 4.7 Ω resistor with 6.8 kΩ. No claim about latent hardware damage is made.
+- `runs.csv`: per-camera measurements, duration and failures.
+- Each run: raw reports, configuration, source/binary hashes, `telemetry.csv`, `frames.csv`, `comparison.json`.
+- `firmware/`: flashed UF2, hash, base revision and READY-readback patch.
+- `summary.json`: initial pattern tests and camera comparisons.
+- `decoded-segments.json` in recorded runs: offline decode counts. Video stays outside Git.
 
 ## Reproduce
 
-Use the wiring in [the protocol](../../docs/pv-spi-spec.md). Start no other camera or Pico test. Never enable Pico SPI self-test while the CM5 is wired to those pins.
-
-From this repository, after building the current PigeonVision capture executable on the CM5:
+Use [the bench wiring](../../docs/pv-spi-spec.md). No other camera or Pico test
+should be running. Never enable Pico SPI self-test with the CM5 wired to it.
+Build the current PigeonVision capture executable on the CM5, then:
 
 ```sh
-python3 host/cm5/run_live.py --label new-run --seconds 60 \
-  --allocator dma_heap_cached --threads 3 --sender-nice -5 \
+python3 host/cm5/run_live.py --native-spi --label new-run --seconds 120 \
+  --allocator dma_heap_cached --threads 3 \
   --port /dev/cu.usbmodemYOUR_PORT --ssh-config /path/to/ssh_config --ssh-host cm5 \
   --remote-root /path/to/PigeonVision --capture-config /path/to/capture.json \
   --binary /path/to/pv-capture
@@ -44,6 +73,12 @@ python3 host/cm5/export_runs.py
 python3 -m unittest discover -s host/cm5 -p 'test_*.py'
 ```
 
-The remote checkout needs the SPI-only Python environment from PigeonVision's SPI guide, a working two-camera config, and permission for `sysctl` and `renice`. The runner saves the executed remote script with each case. It stops capture at 80°C, checks effective settings, and preserves failures. Analysis exits nonzero on an incomplete or inconsistent run.
+Native mode needs SPI/GPIO access and a working camera config. It does not use
+Python SPI packages or `sysctl`. For the Python comparison, omit `--native-spi`,
+add `--transfer tx-only --udp-mode direct`, and install PigeonVision's SPI extra.
+That path also needs permission to set the UDP receive buffer with `sysctl`.
 
-The 90-second control's `run_remote.py` preserves its exact one-off procedure. Analyze it with `--camera-only`; this mode makes no Pico acceptance claim. Physical SPI timing, RF modulation quality and the over-air link remain unmeasured here.
+The runner saves its remote script, checks effective settings and stops at 80°C.
+Analysis exits nonzero on incomplete or inconsistent evidence. Use `--camera-only`
+to analyze the UDP-discard control without claiming Pico acceptance. Final wiring
+timing, RF modulation quality and the over-air link remain unmeasured.
