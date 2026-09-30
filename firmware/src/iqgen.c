@@ -163,6 +163,8 @@ static inline __attribute__((always_inline)) void lut_pair(
 _Static_assert(offsetof(iq_cfg_t, ti) == 12 && offsetof(iq_cfg_t, tq) == 16, "iqasm.S CFG_TI/TQ");
 void k_asm8_8(uint32_t *, const uint32_t *, uint32_t, uint32_t, const iq_cfg_t *);
 void k_asm8_10(uint32_t *, const uint32_t *, uint32_t, uint32_t, const iq_cfg_t *);
+void k_asm4p_10(uint32_t *, const uint32_t *, uint32_t, uint32_t, const iq_cfg_t *);
+void k_asm4p_12(uint32_t *, const uint32_t *, uint32_t, uint32_t, const iq_cfg_t *);
 
 #define LUT_ASM(S, LL, PLACE)                                                              \
     static void PLACE(k_asm_##S##_##LL)(uint32_t *o, const uint32_t *in, uint32_t n,       \
@@ -185,12 +187,13 @@ void k_asm8_10(uint32_t *, const uint32_t *, uint32_t, uint32_t, const iq_cfg_t 
         }                                                                                  \
     }
 LUT_ASM(2, 8, IQ_HOT) LUT_ASM(2, 10, IQ_HOT) LUT_ASM(2, 12, IQ_HOT)
-LUT_ASM(4, 8, IQ_HOT) LUT_ASM(4, 10, IQ_HOT_X) LUT_ASM(4, 12, IQ_HOT_X)
+LUT_ASM(4, 8, IQ_HOT) LUT_ASM(4, 10, IQ_HOT_X) LUT_ASM(4, 12, IQ_HOT)
 #define ASM_KERNELS                                                                        \
     {"lut_asm", 2, 8, 1, k_asm_2_8},   {"lut_asm", 2, 10, 1, k_asm_2_10},                    \
     {"lut_asm", 2, 12, 1, k_asm_2_12}, {"lut_asm", 4, 8, 1, k_asm_4_8},                      \
     {"lut_asm", 4, 10, 1, k_asm_4_10}, {"lut_asm", 4, 12, 1, k_asm_4_12},                    \
-    {"lut_asm", 8, 8, 1, k_asm8_8},    {"lut_asm", 8, 10, 1, k_asm8_10},
+    {"lut_asm", 8, 8, 1, k_asm8_8},    {"lut_asm", 8, 10, 1, k_asm8_10},                     \
+    {"lut_asm_p", 4, 10, 1, k_asm4p_10}, {"lut_asm_p", 4, 12, 1, k_asm4p_12},
 #else
 #define ASM_KERNELS
 #endif

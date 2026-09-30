@@ -35,6 +35,7 @@ Optimization steps at N = 4, L = 10, all bit-exact (`results/plots/progress_kern
 | v3 `lut_pair`: PIO does the I/Q interleave | 13.8 | CPU stores table words unmodified |
 | v4 `lut_asm`: hand-written Thumb-2 | 11.55 | 8 instructions/symbol; predicted 11.5 |
 | v4 + placement: tables SRAM4–7, ring SRAM0–3, code SRAM8 | 11.05 kernel; stream busy 73.3 → 69.2 % | bank collisions with DMA removed |
+| v5 `lut_asm_p`: software-pipelined `.S` | **10.80**; stream busy 67.8 % | next UBFX hides load-use stall; floor ≈ 10 |
 
 Every run is appended to `results/optimization-log.jsonl` (git revision, clock, parameters,
 verification). `make plots` regenerates the figures.
@@ -102,4 +103,4 @@ hardware/    dev-board requirements draft and gates
 2. Real input: a Pi 5/CM5 RP1-PIO or SPI master into GPIO17–22, with external pulls (E9 on A2).
 3. Logic analyzer on GPIO0–16 at 64 MW/s: setup/hold, skew, CLK_IO duty.
 4. AFE7071 breakout with a locked DACCLK and an external LO: spectrum, images, QMC calibration.
-5. Kernel v5: software pipelining and 2-word unrolling (predicted floor ≈ 10 cycles/symbol).
+5. Kernel: 2-word unrolling would remove about half the remaining 0.8 cycles/symbol of loop overhead (≈ 4 %).
