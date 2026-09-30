@@ -2,7 +2,7 @@
 
 #include "coeffs.h"
 
-#ifdef PICO_BUILD
+#ifdef IQ_ON_DEVICE
 #define IQ_HOT(f) __attribute__((section(".time_critical." #f))) f
 #else
 #define IQ_HOT(f) f

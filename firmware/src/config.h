@@ -1,0 +1,24 @@
+// Board, pin and buffer configuration. Pin facts: docs/board-pico-plus-2.md.
+#pragma once
+
+// 128 MHz = 4 x 32 MHz: integer PIO cycles per bus word at 8 Msym/s for sps 2 (4 cyc) and
+// sps 4 (2 cyc). 12 MHz XOSC -> VCO 1536 MHz / 6 / 2. Stock limit is 150 MHz.
+#define DEFAULT_SYS_KHZ 128000
+
+// AFE7071 data bus: out pins GPIO0-15 = D0..D13, IQ_FLAG, spare (header pins 1-20).
+// CLK_IO on GPIO16 (side-set). GP0/1 are the default UART: stdio uses USB only.
+#define PIN_D0 0
+#define PIN_CLKIO 16
+
+// Input link (stage 4): clock, 4 data lanes, ready. Reserved, GPIO17-22.
+#define PIN_IN_CLK 17
+#define PIN_IN_D0 18
+#define PIN_IN_READY 22
+
+#define BLOCK_SYMS 1024                       // symbols per output block
+#define BLOCK_IN_WORDS (BLOCK_SYMS / 16)      // input words per block
+#define MAX_SPS 4
+#define N_BLOCKS 8                            // output ring depth
+#define IN_WORDS 4096                         // input ring: 65536 symbols
+#define CAP_WORDS_MAX 16384                   // capture buffer, 64 KiB
+#define MAX_L 12
