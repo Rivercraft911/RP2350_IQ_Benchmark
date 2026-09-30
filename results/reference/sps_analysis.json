@@ -1,0 +1,80 @@
+{
+ "alpha": 0.2,
+ "symbol_rate": 8000000.0,
+ "filter_model": "AFE_FILTER_TYPICAL in reference/iqlut.py",
+ "note": "typical curves; magnitude-only filter; image = max PSD beyond f_s - B; rms = I-axis rms relative to the LUT's no-clip full scale",
+ "cases": [
+  {
+   "N": 2,
+   "L": 12,
+   "tune": 0,
+   "eq": false,
+   "filter_freq_scale": 1.0,
+   "f_dac_msps": 16.0,
+   "bus_mwords": 32.0,
+   "worst_image_dbc": -18.706187111192435,
+   "aclr_db": -24.98464912529203,
+   "evm_db": -29.53505750001443,
+   "rms_backoff_db": -4.621152875339512,
+   "name": "(a) 2 sps, filter tune 0"
+  },
+  {
+   "N": 2,
+   "L": 12,
+   "tune": 4,
+   "eq": true,
+   "filter_freq_scale": 1.0,
+   "f_dac_msps": 16.0,
+   "bus_mwords": 32.0,
+   "worst_image_dbc": -45.139006673455796,
+   "aclr_db": -35.027159386718004,
+   "evm_db": -29.73756399030745,
+   "rms_backoff_db": -3.975864332471635,
+   "name": "(b) 2 sps, tune 4 + digital pre-equalisation"
+  },
+  {
+   "N": 4,
+   "L": 10,
+   "tune": 0,
+   "eq": false,
+   "filter_freq_scale": 1.0,
+   "f_dac_msps": 32.0,
+   "bus_mwords": 64.0,
+   "worst_image_dbc": -49.29560697395111,
+   "aclr_db": -39.4961443204928,
+   "evm_db": -39.22951342065779,
+   "rms_backoff_db": -5.280521650667389,
+   "name": "(c) 4 sps, tune 0 (current design)"
+  }
+ ],
+ "corner_sensitivity": [
+  {
+   "N": 2,
+   "L": 12,
+   "tune": 4,
+   "eq": true,
+   "filter_freq_scale": 0.9,
+   "f_dac_msps": 16.0,
+   "bus_mwords": 32.0,
+   "worst_image_dbc": -48.60904591952554,
+   "aclr_db": -36.988461020375404,
+   "evm_db": -24.0328974394402,
+   "rms_backoff_db": -3.975864332471635,
+   "name": "    (b) with the real tune-4 corner x0.9"
+  },
+  {
+   "N": 2,
+   "L": 12,
+   "tune": 4,
+   "eq": true,
+   "filter_freq_scale": 1.1,
+   "f_dac_msps": 16.0,
+   "bus_mwords": 32.0,
+   "worst_image_dbc": -41.765597851837924,
+   "aclr_db": -33.95316604289468,
+   "evm_db": -36.55353307227226,
+   "rms_backoff_db": -3.975864332471635,
+   "name": "    (b) with the real tune-4 corner x1.1"
+  }
+ ]
+}

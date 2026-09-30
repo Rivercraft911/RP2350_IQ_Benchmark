@@ -9,13 +9,11 @@ import json
 import sys
 from pathlib import Path
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
 import iqlut as m  # noqa: E402
+from plotstyle import CYAN, PINK, glow, plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "results" / "reference"
@@ -98,46 +96,21 @@ def main():
     (OUT / "filter_sweep.json").write_text(json.dumps(
         dict(meta=meta, lut_vs_convolution=checks, sweep=sweep), indent=1))
     plot_sweep(sweep)
-    plot_spectra(words)
 
 
 def plot_sweep(sweep):
-    fig, ax = plt.subplots(1, 2, figsize=(10, 4))
-    for sps in (2, 4):
-        for beta, ls in ((0.0, "-"), (3.0, "--"), (6.0, ":")):
-            r = [x for x in sweep if x["sps"] == sps and x["kaiser_beta"] == beta]
-            L = [x["L"] for x in r]
-            lab = f"sps={sps}, Kaiser β={beta:g}"
-            ax[0].plot(L, [x["evm_db"] for x in r], ls, marker="o", label=lab)
-            ax[1].plot(L, [x["aclr_db"] for x in r], ls, marker="o", label=lab)
-    ax[0].set(xlabel="LUT span L (symbols)", ylabel="TX EVM, ideal matched RX (dB)",
-              title=f"Truncation + quantization EVM, α={ALPHA}")
-    ax[1].set(xlabel="LUT span L (symbols)", ylabel="ACLR (dB)",
-              title="Adjacent-channel ratio incl. DAC images\n(ZOH + AFE filter tune 0, typical)")
-    for a in ax:
-        a.grid(True, alpha=0.3)
-    ax[1].legend(fontsize=7)
-    fig.tight_layout()
-    fig.savefig(PLOTS / "filter_sweep.png", dpi=130)
-
-
-def plot_spectra(words):
-    ib, qb = m.unpack_bits(words)
-    fig, ax = plt.subplots(figsize=(10, 4))
-    for sps, L in ((2, 10), (4, 10)):
-        lut = m.Lut(ALPHA, sps, L)
-        y = m.lut_axis(ib, lut) + 1j * m.lut_axis(qb, lut)
-        f, db = m.analog_spectrum(y, RS * sps, tune=0)
-        ax.plot(f / 1e6, db, lw=0.8, label=f"sps={sps} (DAC {RS * sps / 1e6:.0f} MS/s), L={L}")
-    ax.axvspan(-RS * (1 + ALPHA) / 2e6, RS * (1 + ALPHA) / 2e6, color="k", alpha=0.07)
-    ax.set(xlim=(-70, 70), ylim=(-100, 5), xlabel="Baseband frequency (MHz)",
-           ylabel="PSD rel. peak (dB)",
-           title=f"Modelled AFE7071 modulator input: {RS / 1e6:g} Msym/s QPSK, α={ALPHA}, "
-                 "ZOH + filter tune 0 (typical)")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(PLOTS / "analog_spectrum_sps2_vs_sps4.png", dpi=130)
+    fig, ax = plt.subplots(1, 2, figsize=(8.5, 3.3))
+    for sps, col in ((2, PINK), (4, CYAN)):
+        r = [x for x in sweep if x["sps"] == sps and x["kaiser_beta"] == 0]
+        L = [x["L"] for x in r]
+        for a, key in zip(ax, ("evm_db", "aclr_db")):
+            glow(a, L, [x[key] for x in r], col, label=f"N = {sps}")
+            a.scatter(L, [x[key] for x in r], s=14, color=col, zorder=3)
+    ax[0].set(xlabel="L (symbols)", ylabel="dB", title="TX EVM")
+    ax[1].set(xlabel="L (symbols)", title="ACLR incl. DAC images")
+    ax[1].legend(loc="lower left")
+    fig.tight_layout(w_pad=3)
+    fig.savefig(PLOTS / "filter_sweep.png")
 
 
 if __name__ == "__main__":

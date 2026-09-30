@@ -191,17 +191,22 @@ def psd(y: np.ndarray, nfft: int = 4096) -> tuple[np.ndarray, np.ndarray]:
     return np.fft.fftshift(f), np.fft.fftshift(p)
 
 
-# AFE7071 SLOS789C p.6, integrated baseband filter, typical attenuation (dB) vs MHz.
+# AFE7071 SLOS789C integrated baseband filter, typical attenuation (dB, positive) vs MHz.
+# Tunes 0 and 8: the p.6 table (1/18/42/58 and 1/18/42/65 dB). Tune 4 is not tabulated; it is
+# read from Figure 36 (p.13) at +-1 dB reading accuracy. Figure 36 draws tune 0 about 2-3 dB
+# lower than the table at 20 MHz, so these are typical curves for one part, not bounds.
 AFE_FILTER_TYPICAL = {
     0: ([10, 20, 40, 55], [1, 18, 42, 58]),
+    4: ([3, 4, 5, 6, 7, 8, 9, 10, 12.5, 15, 17.5, 20], [0.3, 1.5, 4, 8, 13, 18, 22, 26, 34, 40, 46, 50]),
     8: ([2.5, 5, 10, 20], [1, 18, 42, 65]),
 }
 
 
 def afe_filter_db(f_mhz: np.ndarray, tune: int) -> np.ndarray:
-    """Attenuation (dB, positive) interpolated linearly in log-frequency between the datasheet
-    typical points; 0 dB below the first point, 80 dB/decade (4th order) beyond the last.
-    A screening model only: not a guaranteed response."""
+    """Attenuation (dB, positive) interpolated linearly in log-frequency between the typical
+    points; ~f^4 toward 0 dB below the first point, 80 dB/decade (4th order) beyond the last.
+    A screening model only: not a guaranteed response, and magnitude only (the datasheet gives
+    2 degrees RMS phase deviation from linear)."""
     fp, ap = map(np.asarray, AFE_FILTER_TYPICAL[tune])
     f = np.maximum(np.abs(np.asarray(f_mhz, float)), 1e-6)
     a = np.interp(np.log10(f), np.log10(fp), ap, left=0.0)
