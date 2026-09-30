@@ -1,0 +1,4 @@
+{
+  "binary_sha256": "d7a26d49cb7ed1fb0d5f598207d7c6f16635e1428f11825f1ce58ff50b755b08",
+  "change": "UDP sink discards locally; no SPI process. Same cached buffers, 3 encoder threads, recording, video and mux rates."
+}

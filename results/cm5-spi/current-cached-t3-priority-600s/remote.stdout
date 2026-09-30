@@ -1,0 +1,7 @@
+{"elapsed_s": 30.3, "temperature_c": 66.1}
+{"elapsed_s": 60.4, "temperature_c": 68.85}
+{"elapsed_s": 90.4, "temperature_c": 72.15}
+{"elapsed_s": 120.5, "temperature_c": 73.8}
+{"elapsed_s": 150.6, "temperature_c": 76.55}
+{"elapsed_s": 180.6, "temperature_c": 77.65}
+{"capture_exit": 0, "sender_exit": 143, "error": "temperature reached 80 C; stopping test", "messages": 179818, "remote_output": "/home/pigeon/pigeonvision/output/spi-bringup/current-cached-t3-priority-600s"}

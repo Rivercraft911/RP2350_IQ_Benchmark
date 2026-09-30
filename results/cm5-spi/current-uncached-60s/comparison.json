@@ -1,0 +1,66 @@
+{
+  "label": "current-uncached-60s",
+  "requested_duration_s": 60.0,
+  "observed_session_duration_s": 61.058821829,
+  "observed_capture_duration_s": 60.044926629,
+  "capture_signal": 0,
+  "termination_reason": null,
+  "allocator": "libcamera",
+  "encoder_threads": 2,
+  "width": 2064,
+  "height": 1552,
+  "measured_transport_mbps": 8.996028310867997,
+  "messages": 51712,
+  "payload_bytes": 68052804,
+  "sequence_wraps": 0,
+  "sender_crc_chain": "0xf0341446",
+  "pico_crc_chain": "0xf0341446",
+  "failures": [],
+  "pico_underruns": 0,
+  "cameras": [
+    {
+      "camera": "A",
+      "encoded_frames_total": 1627,
+      "steady_encoded_fps": 27.04753613392307,
+      "steady_h264_payload_mbps": 3.621299936686969,
+      "steady_delivered_fps": 29.99997780714984,
+      "delivered_interval_median_ms": 33.333,
+      "delivered_interval_max_ms": 33.379,
+      "delivered_intervals_over_50ms": 0,
+      "all_drops": {
+        "camera_frame_error": 1,
+        "capture_queue_full": 173
+      },
+      "steady_drops": {
+        "capture_queue_full": 149
+      },
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 36.757804775979686
+    },
+    {
+      "camera": "B",
+      "encoded_frames_total": 1658,
+      "steady_encoded_fps": 27.50983629809461,
+      "steady_h264_payload_mbps": 3.68385767272358,
+      "steady_delivered_fps": 29.999950790594553,
+      "delivered_interval_median_ms": 33.333,
+      "delivered_interval_max_ms": 33.387,
+      "delivered_intervals_over_50ms": 0,
+      "all_drops": {
+        "camera_frame_error": 1,
+        "capture_queue_full": 144
+      },
+      "steady_drops": {
+        "capture_queue_full": 126
+      },
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 36.17154190943927
+    }
+  ],
+  "max_temperature_c": 66.1,
+  "mean_cpu_busy_percent_after_10s": 77.14336456312344,
+  "throttled_bits_observed": [
+    0
+  ],
+  "scope": "Real-camera wired digital test, no RF. Steady camera statistics exclude the first 10 seconds."
+}

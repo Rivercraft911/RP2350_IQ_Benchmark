@@ -1,0 +1,3 @@
+{"elapsed_s": 30.3, "temperature_c": 61.7}
+{"elapsed_s": 60.3, "temperature_c": 66.1}
+{"capture_exit": 0, "sender_exit": 0, "messages": 51712, "remote_output": "/home/pigeon/pigeonvision/output/spi-bringup/current-uncached-60s"}

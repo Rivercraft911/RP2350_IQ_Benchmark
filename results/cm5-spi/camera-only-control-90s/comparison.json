@@ -1,0 +1,60 @@
+{
+  "label": "camera-only-control-90s",
+  "requested_duration_s": 90.0,
+  "observed_session_duration_s": 90.876375879,
+  "observed_capture_duration_s": 90.055399116,
+  "capture_signal": 0,
+  "termination_reason": null,
+  "allocator": "dma_heap_cached",
+  "encoder_threads": 3,
+  "width": 2064,
+  "height": 1552,
+  "measured_transport_mbps": 8.999684053725078,
+  "messages": null,
+  "payload_bytes": 101592380,
+  "sequence_wraps": null,
+  "sender_crc_chain": null,
+  "pico_crc_chain": null,
+  "failures": [],
+  "pico_underruns": null,
+  "cameras": [
+    {
+      "camera": "A",
+      "encoded_frames_total": 2699,
+      "steady_encoded_fps": 29.999462297246435,
+      "steady_h264_payload_mbps": 3.9922719495392385,
+      "steady_delivered_fps": 29.999462297246435,
+      "delivered_interval_median_ms": 33.334,
+      "delivered_interval_max_ms": 33.366,
+      "delivered_intervals_over_50ms": 0,
+      "all_drops": {
+        "camera_frame_error": 1
+      },
+      "steady_drops": {},
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 20.52469371608634
+    },
+    {
+      "camera": "B",
+      "encoded_frames_total": 2699,
+      "steady_encoded_fps": 29.99943317841162,
+      "steady_h264_payload_mbps": 3.9919891699934467,
+      "steady_delivered_fps": 29.99943317841162,
+      "delivered_interval_median_ms": 33.334,
+      "delivered_interval_max_ms": 33.376,
+      "delivered_intervals_over_50ms": 0,
+      "all_drops": {
+        "camera_frame_error": 1
+      },
+      "steady_drops": {},
+      "untimed_drops": {},
+      "mean_interval_encoder_ms": 20.751923420749275
+    }
+  ],
+  "max_temperature_c": 76.55,
+  "mean_cpu_busy_percent_after_10s": 68.11720784284539,
+  "throttled_bits_observed": [
+    0
+  ],
+  "scope": "Camera-only local UDP control, no SPI. Steady camera statistics exclude the first 10 seconds."
+}

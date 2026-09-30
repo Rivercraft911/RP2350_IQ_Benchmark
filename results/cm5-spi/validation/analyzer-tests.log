@@ -1,0 +1,20 @@
+test_camera_only_control_has_no_pico_claim (test_analyze_live.EvidenceChecks.test_camera_only_control_has_no_pico_claim) ... ok
+test_camera_only_udp_loss (test_analyze_live.EvidenceChecks.test_camera_only_udp_loss) ... ok
+test_clean_exit_does_not_hide_sigterm (test_analyze_live.EvidenceChecks.test_clean_exit_does_not_hide_sigterm) ... ok
+test_count_mismatches (test_analyze_live.EvidenceChecks.test_count_mismatches) ... ok
+test_crc_mismatch (test_analyze_live.EvidenceChecks.test_crc_mismatch) ... ok
+test_harness_error (test_analyze_live.EvidenceChecks.test_harness_error) ... ok
+test_lost_recording (test_analyze_live.EvidenceChecks.test_lost_recording) ... ok
+test_lost_video_before_spi (test_analyze_live.EvidenceChecks.test_lost_video_before_spi) ... ok
+test_missing_process_exit (test_analyze_live.EvidenceChecks.test_missing_process_exit) ... ok
+test_observed_run (test_analyze_live.EvidenceChecks.test_observed_run) ... ok
+test_selftest_is_not_external_input (test_analyze_live.EvidenceChecks.test_selftest_is_not_external_input) ... ok
+test_shortened_capture (test_analyze_live.EvidenceChecks.test_shortened_capture) ... ok
+test_udp_overload (test_analyze_live.EvidenceChecks.test_udp_overload) ... ok
+test_unmonitored_udp (test_analyze_live.EvidenceChecks.test_unmonitored_udp) ... ok
+test_untimed_frame_drop (test_analyze_live.EvidenceChecks.test_untimed_frame_drop) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.634s
+
+OK

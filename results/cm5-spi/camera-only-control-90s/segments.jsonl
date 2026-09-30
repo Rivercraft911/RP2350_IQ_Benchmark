@@ -1,0 +1,4 @@
+{"camera_id":"A","complete":true,"first_pts_us":316123,"index":1,"last_pts_us":60483856,"path":"A-000001.mkv","schema_version":1}
+{"camera_id":"B","complete":true,"first_pts_us":580721,"index":1,"last_pts_us":60548494,"path":"B-000001.mkv","schema_version":1}
+{"camera_id":"A","complete":true,"first_pts_us":60517188,"index":2,"last_pts_us":90451076,"path":"A-000002.mkv","schema_version":1}
+{"camera_id":"B","complete":true,"first_pts_us":60581827,"index":2,"last_pts_us":90515745,"path":"B-000002.mkv","schema_version":1}

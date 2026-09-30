@@ -1,0 +1,17 @@
+{
+  "resistor_ohms_user_reported": 6800,
+  "pico_pins": {
+    "ready_pin": 22,
+    "ready_function": 5,
+    "ready_output": 1,
+    "ready_latch": 1,
+    "ready_input": 1
+  },
+  "cm5_samples": 696,
+  "high_samples": 497,
+  "first_high_s": 0.624,
+  "last_high_s": 5.614,
+  "initial_level": 0,
+  "final_level": 0,
+  "pico_accepted": 0
+}

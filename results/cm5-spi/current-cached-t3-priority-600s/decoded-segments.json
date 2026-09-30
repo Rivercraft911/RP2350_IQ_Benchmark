@@ -1,0 +1,69 @@
+{
+  "decoder": "PyAV 16.1.0",
+  "segments": [
+    {
+      "file": "A-000001.mkv",
+      "bytes": 28996950,
+      "frames": 1740,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    },
+    {
+      "file": "A-000002.mkv",
+      "bytes": 28521506,
+      "frames": 1710,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    },
+    {
+      "file": "A-000003.mkv",
+      "bytes": 28521503,
+      "frames": 1710,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    },
+    {
+      "file": "A-000004.mkv",
+      "bytes": 13704548,
+      "frames": 815,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    },
+    {
+      "file": "B-000001.mkv",
+      "bytes": 28997132,
+      "frames": 1740,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    },
+    {
+      "file": "B-000002.mkv",
+      "bytes": 28521681,
+      "frames": 1710,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    },
+    {
+      "file": "B-000003.mkv",
+      "bytes": 28521471,
+      "frames": 1710,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    },
+    {
+      "file": "B-000004.mkv",
+      "bytes": 13690394,
+      "frames": 815,
+      "error": null,
+      "width": 2064,
+      "height": 1552
+    }
+  ]
+}

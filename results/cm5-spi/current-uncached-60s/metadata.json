@@ -1,0 +1,7 @@
+{
+  "started_utc": "2026-09-30T08:45:18.034900+00:00",
+  "pico_command": "pvtx 2 80000 0 0 20",
+  "remote_command": "python3 - --label current-uncached-60s --seconds 60 --allocator libcamera --threads 2",
+  "scope": "wired digital link; real dual cameras; no RF",
+  "host_git": "c60b6ce-dirty"
+}
