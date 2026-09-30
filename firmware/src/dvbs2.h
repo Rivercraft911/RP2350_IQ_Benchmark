@@ -32,11 +32,25 @@ void dvbs2_ldpc_serial(const uint32_t *info, uint32_t *parity);     // bit-seria
 typedef struct {
     uint32_t *out;              // destination words
     uint32_t n;                 // words written
-    uint64_t acc_i, acc_q;      // partial word
+    uint32_t acc_i, acc_q;      // partial word (fill < 16 bits each)
     uint32_t fill;              // symbols in the partial word
 } symstream_t;
 
+// Append nsym (<= 16) symbols of a shaper word. A full 16-symbol put leaves fill unchanged.
+static inline void symstream_put(symstream_t *s, uint32_t w, uint32_t nsym) {
+    const uint32_t m = nsym == 16 ? 0xFFFFu : (1u << nsym) - 1;
+    s->acc_i |= (w & m) << s->fill;
+    s->acc_q |= ((w >> 16) & m) << s->fill;
+    s->fill += nsym;
+    if (s->fill >= 16) {
+        s->out[s->n++] = (s->acc_i & 0xFFFFu) | s->acc_q << 16;
+        s->acc_i >>= 16, s->acc_q >>= 16, s->fill -= 16;
+    }
+}
+
+// Cycle checkpoints (device only): LDPC groups, accumulate, transpose; frame BB+BCH, LDPC, map.
+extern uint32_t dvbs2_prof[8];
+
 uint32_t dvbs2_plframe_symbols(void);                         // for the configured code
-void dvbs2_frame(uint32_t *bbframe_scratch, symstream_t *s);  // bbframe: kbch bits, clobbered
-void symstream_put(symstream_t *s, uint32_t word, uint32_t nsym);   // nsym <= 16
+void dvbs2_frame(const uint32_t *bbframe, symstream_t *s);     // bbframe: kbch bits, unscrambled
 void symstream_flush(symstream_t *s);

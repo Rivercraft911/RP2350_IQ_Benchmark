@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
             int ldpc_ok = !memcmp(p1, p2, m / 32 * 4);
             if (m % 32) ldpc_ok &= ((p1[m / 32] ^ p2[m / 32]) & ~(~0u >> (m % 32))) == 0;
             symstream_t s = {.out = out};
-            dvbs2_frame(bb, &s);
+            dvbs2_frame(bb, &s);                               // bb is not modified
             symstream_flush(&s);
             printf("{\"code\":\"%s\",\"pilots\":%d,\"seed\":%u,\"bch_ok\":%d,\"ldpc_ok\":%d,"
                    "\"syms\":%u,\"words\":[", c->name, pil, 0x9E3779B9u ^ (uint32_t)ci, bch_ok,

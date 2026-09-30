@@ -295,11 +295,15 @@ static void cmd_dvbs2(int ci, int pil, int reps) {
     printf("@{\"cmd\":\"dvbs2\",\"git\":\"%s\",\"clk_hz\":%lu,\"code\":\"%s\",\"index\":%d,"
            "\"pilots\":%d,\"syms\":%lu,\"words\":%lu,\"crc\":%lu,\"init_us\":%lu,\"reps\":%d,"
            "\"cyc_bch\":%lu,\"cyc_bch_serial\":%lu,\"cyc_ldpc\":%lu,\"cyc_ldpc_serial\":%lu,"
-           "\"cyc_frame\":%lu}\n",
+           "\"cyc_frame\":%lu,\"prof\":{\"ldpc_groups\":%lu,\"ldpc_accum\":%lu,"
+           "\"ldpc_transpose\":%lu,\"f_bb_bch\":%lu,\"f_ldpc\":%lu,\"f_map\":%lu}}\n",
            GIT_REV, (unsigned long)clock_get_hz(clk_sys), s2c->name, ci, pil,
            (unsigned long)dvbs2_plframe_symbols(), (unsigned long)s.n, (unsigned long)crc,
            (unsigned long)init_us, reps, (unsigned long)c_bch, (unsigned long)c_bchs,
-           (unsigned long)c_ldpc, (unsigned long)c_ldpcs, (unsigned long)(c_frame - c_prbs));
+           (unsigned long)c_ldpc, (unsigned long)c_ldpcs, (unsigned long)(c_frame - c_prbs),
+           (unsigned long)(dvbs2_prof[1] - dvbs2_prof[0]), (unsigned long)(dvbs2_prof[2] - dvbs2_prof[1]),
+           (unsigned long)(dvbs2_prof[3] - dvbs2_prof[2]), (unsigned long)(dvbs2_prof[5] - dvbs2_prof[4]),
+           (unsigned long)(dvbs2_prof[6] - dvbs2_prof[5]), (unsigned long)(dvbs2_prof[7] - dvbs2_prof[6]));
 }
 
 // ------------------------------------------------------------------ command loop
