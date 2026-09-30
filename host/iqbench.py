@@ -110,7 +110,8 @@ def run_bench(b: Board, kernel: str, sps: int, L: int, reps: int, note: str | No
     r, _ = b.cmd(f"bench {kernel} {sps} {L} {reps}", timeout=120)
     if "error" in r:
         raise RuntimeError(r["error"])
-    want = zlib.crc32(model_words(sps, L, r["seed"], r["in_words"], periodic=False).tobytes())
+    ref = model_words(sps, L, r["seed"], r["in_words"], periodic=False)
+    want = zlib.crc32(m.to_layout(ref, r["layout"]).tobytes())
     r["crc_ok"] = r["crc"] == want and bool(r["tables_ok"])
     print(f"bench {kernel:<9} sps={sps} L={L:<2} {r['cyc_per_sym']:7.2f} cyc/sym "
           f"(worst block {r['worst_block_cyc_per_sym']:.2f}) -> {r['msym_s_one_core']:6.2f} "
@@ -136,10 +137,13 @@ def run_stream(b: Board, kernel, sps, L, cores, cpw, ms, cap, note) -> dict:
     return log(r, note)
 
 
+KERNELS = ("conv", "lut_shift", "lut_win", "lut_pair", "lut_asm")
+
+
 def sweep(b: Board, note: str | None):
     for sps in (2, 4):
         for L in (8, 10, 12):
-            for k in ("conv", "lut_shift", "lut_win"):
+            for k in KERNELS:
                 run_bench(b, k, sps, L, 1 if k == "conv" else 4, note)
 
 

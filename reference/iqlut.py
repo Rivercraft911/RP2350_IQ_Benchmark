@@ -145,9 +145,23 @@ def unpack(words: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.nd
 
 
 def generate(words: np.ndarray, lut: Lut) -> np.ndarray:
-    """Full model: input words -> bus words."""
+    """Full model: input words -> one word per complex sample (PACKED layout, bus order)."""
     ib, qb = unpack_bits(words)
     return pack(lut_axis(ib, lut), lut_axis(qb, lut))
+
+
+LAYOUT_PACKED, LAYOUT_PAIRS = 0, 1
+
+
+def to_layout(words: np.ndarray, layout: int) -> np.ndarray:
+    """PACKED sample words -> firmware buffer layout. PAIRS: [I0|I1] [Q0|Q1] per sample pair;
+    the PIO restores bus order I0 Q0 I1 Q1."""
+    if layout == LAYOUT_PACKED:
+        return words
+    i, q = words & 0xFFFF, words >> 16
+    ip = i[0::2] | (i[1::2] << 16)
+    qp = q[0::2] | (q[1::2] << 16)
+    return np.stack([ip, qp], axis=1).ravel().astype(np.uint32)
 
 
 # ---------------------------------------------------------------- metrics

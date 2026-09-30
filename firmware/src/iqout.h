@@ -18,7 +18,8 @@ typedef struct {
 
 extern ring_t ring;
 
-void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cycles_per_word);
+void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cycles_per_word,
+                int layout);
 void iqout_start(void);              // first two blocks must be ready
 void iqout_stop(void);
 bool iqout_take_txstall(void);       // PIO TX FIFO ran dry since last call

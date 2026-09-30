@@ -1,10 +1,13 @@
 #include "iqout.h"
 
+#include <string.h>
+
 #include "config.h"
 #include "hardware/dma.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
 #include "hardware/sync.h"
+#include "iqgen.h"
 
 ring_t ring;
 
@@ -12,15 +15,29 @@ static PIO const pio = pio0;
 static uint sm_out, sm_cap, off_out, off_cap;
 static int ch[2] = {-1, -1}, ch_cap = -1;
 static uint32_t ch_seq[2];
-static uint16_t prog_out[2], prog_cap[3];
+static uint16_t prog_out[8], prog_cap[3];
+static uint8_t len_out;
 static uint32_t idle_block[MAX_SPS * BLOCK_SYMS];
 
-// out pins,16 side 0 [d0] ; nop side 1 [d1]: data changes, CLK_IO rises floor(cpw/2) cycles
-// later and falls with the next data change. AFE7071 needs >= 1 ns setup and hold at CLK_IO.
-static void build_programs(int cpw) {
+// Every bus word takes two instructions: one that changes the data with CLK_IO low (side 0)
+// and one with CLK_IO high (side 1), so CLK_IO rises floor(cpw/2) cycles after the data and
+// falls with the next change. AFE7071 needs >= 1 ns setup and hold at CLK_IO (SLOS789C p.5).
+// PACKED: FIFO word = I | Q << 16.   PAIRS: FIFO words [I0|I1] [Q0|Q1]; X holds I1.
+static void build_programs(int cpw, int layout) {
     const uint d0 = (uint)cpw / 2 - 1, d1 = (uint)cpw - 2 - d0;   // cpw >= 2; odd cpw allowed
-    prog_out[0] = pio_encode_out(pio_pins, 16) | pio_encode_sideset(1, 0) | pio_encode_delay(d0);
-    prog_out[1] = pio_encode_nop() | pio_encode_sideset(1, 1) | pio_encode_delay(d1);
+#define LO(i) ((i) | pio_encode_sideset(1, 0) | pio_encode_delay(d0))
+#define HI(i) ((i) | pio_encode_sideset(1, 1) | pio_encode_delay(d1))
+    const uint out16 = pio_encode_out(pio_pins, 16), nop = pio_encode_nop();
+    if (layout == IQ_LAYOUT_PACKED) {
+        const uint16_t p[] = {LO(out16), HI(nop)};
+        memcpy(prog_out, p, sizeof p), len_out = 2;
+    } else {
+        const uint16_t p[] = {LO(out16), HI(pio_encode_out(pio_x, 16)), LO(out16), HI(nop),
+                              LO(pio_encode_mov(pio_pins, pio_x)), HI(nop), LO(out16), HI(nop)};
+        memcpy(prog_out, p, sizeof p), len_out = 8;
+    }
+#undef LO
+#undef HI
     // Capture: two samples cpw apart, then push noblock so the SM never stalls or slips phase.
     prog_cap[0] = pio_encode_in(pio_pins, 16) | pio_encode_delay((uint)cpw - 1);
     prog_cap[1] = pio_encode_in(pio_pins, 16) | pio_encode_delay((uint)cpw - 2);
@@ -53,7 +70,7 @@ static void __not_in_flash_func(dma_isr)(void) {
     }
 }
 
-void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw) {
+void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw, int layout) {
     ring = (ring_t){.buf = buf, .block_words = block_words, .n_blocks = n_blocks};
     for (uint32_t i = 0; i < block_words; i++) idle_block[i] = 1u << 14;  // zero, IQ_FLAG on I
 
@@ -65,11 +82,12 @@ void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw)
         sm_cap = pio_claim_unused_sm(pio, true);
         irq_set_exclusive_handler(DMA_IRQ_0, dma_isr);
     } else {
-        pio_remove_program(pio, &(pio_program_t){prog_out, 2, -1, 0}, off_out);
-        pio_remove_program(pio, &(pio_program_t){prog_cap, 3, -1, 0}, off_cap);
+        pio_remove_program(pio, &(pio_program_t){.instructions = prog_out, .length = len_out}, off_out);
+        pio_remove_program(pio, &(pio_program_t){.instructions = prog_cap, .length = 3}, off_cap);
     }
-    build_programs(cpw);
-    const pio_program_t po = {prog_out, 2, -1, 0}, pc = {prog_cap, 3, -1, 0};
+    build_programs(cpw, layout);
+    const pio_program_t po = {.instructions = prog_out, .length = len_out, .origin = -1},
+                        pc = {.instructions = prog_cap, .length = 3, .origin = -1};
     off_out = pio_add_program(pio, &po);
     off_cap = pio_add_program(pio, &pc);
 
@@ -79,11 +97,11 @@ void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw)
     pio_sm_set_consecutive_pindirs(pio, sm_out, PIN_CLKIO, 1, true);
 
     pio_sm_config c = pio_get_default_sm_config();
-    sm_config_set_wrap(&c, off_out, off_out + 1);
+    sm_config_set_wrap(&c, off_out, off_out + len_out - 1);
     sm_config_set_out_pins(&c, PIN_D0, 16);
     sm_config_set_sideset(&c, 1, false, false);
     sm_config_set_sideset_pins(&c, PIN_CLKIO);
-    sm_config_set_out_shift(&c, true, true, 32);          // LSB first: I slot, then Q slot
+    sm_config_set_out_shift(&c, true, true, 32);          // LSB (earlier) slot first
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
     sm_config_set_clkdiv_int_frac8(&c, 1, 0);
     pio_sm_init(pio, sm_out, off_out, &c);

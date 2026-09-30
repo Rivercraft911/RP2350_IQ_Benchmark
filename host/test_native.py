@@ -22,7 +22,7 @@ fail = 0
 for r in rows:
     words = m.xorshift32(r["seed"], r["nwords"])
     lut = m.Lut(gen_coeffs.ALPHA, r["sps"], r["L"], 0.0, gen_coeffs.HEADROOM_DB)
-    want = zlib.crc32(m.generate(words, lut).tobytes())
+    want = zlib.crc32(m.to_layout(m.generate(words, lut), r["layout"]).tobytes())
     ok = r["tables_ok"] and r["crc"] == want
     fail += not ok
     print(f"{'ok ' if ok else 'FAIL'} {r['kernel']:<10} sps={r['sps']} L={r['L']:<2} "

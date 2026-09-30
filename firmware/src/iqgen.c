@@ -110,12 +110,96 @@ static inline __attribute__((always_inline)) void lut_win(
     }
 LUT_WIN(2, 8) LUT_WIN(2, 10) LUT_WIN(2, 12) LUT_WIN(4, 8) LUT_WIN(4, 10) LUT_WIN(4, 12)
 
+// v3: PAIRS layout. Table words are stored as they are, since the PIO does the I/Q interleave;
+// per symbol only field extracts, loads and stores remain.
+static inline __attribute__((always_inline)) void lut_pair(
+    uint32_t *restrict out, const uint32_t *restrict in, uint32_t n, uint32_t prev,
+    const uint32_t *restrict ti, const uint32_t *restrict tq, const int sps, const int L) {
+    const int half = sps / 2;
+    const uint32_t mask = (1u << L) - 1;
+    for (uint32_t w = 0; w < n; w++) {
+        const uint32_t cur = in[w];
+        const uint32_t ri = (prev & 0xFFFFu) | (cur << 16);
+        const uint32_t rq = (prev >> 16) | (cur & 0xFFFF0000u);
+        prev = cur;
+#pragma GCC unroll 16
+        for (int j = 0; j < 16; j++) {
+            const uint32_t *ei = ti + ((ri >> (17 + j - L)) & mask) * half;
+            const uint32_t *eq = tq + ((rq >> (17 + j - L)) & mask) * half;
+            for (int k = 0; k < half; k++) {
+                out[0] = ei[k];
+                out[1] = eq[k];
+                out += 2;
+            }
+        }
+    }
+}
+
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+// v4: v3 in hand-written Thumb-2. Per symbol: 2 UBFX, sps LDR (register offset, LSL), and
+// sps/2 STRD with post-increment. ti1/tq1 point one word into the table for phase pair 1.
+#define SYM_SPS2                                                                           \
+    "ubfx %[hi], %[ri], #(17+\\j-%c[L]), #%c[L]\n"                                         \
+    "ubfx %[hq], %[rq], #(17+\\j-%c[L]), #%c[L]\n"                                         \
+    "ldr  %[a0], [%[ti0], %[hi], lsl #2]\n"                                                \
+    "ldr  %[b0], [%[tq0], %[hq], lsl #2]\n"                                                \
+    "strd %[a0], %[b0], [%[o]], #8\n"
+#define SYM_SPS4                                                                           \
+    "ubfx %[hi], %[ri], #(17+\\j-%c[L]), #%c[L]\n"                                         \
+    "ubfx %[hq], %[rq], #(17+\\j-%c[L]), #%c[L]\n"                                         \
+    "ldr  %[a0], [%[ti0], %[hi], lsl #3]\n"                                                \
+    "ldr  %[b0], [%[tq0], %[hq], lsl #3]\n"                                                \
+    "ldr  %[a1], [%[ti1], %[hi], lsl #3]\n"                                                \
+    "ldr  %[b1], [%[tq1], %[hq], lsl #3]\n"                                                \
+    "strd %[a0], %[b0], [%[o]], #8\n"                                                      \
+    "strd %[a1], %[b1], [%[o]], #8\n"
+
+#define LUT_ASM(S, LL)                                                                     \
+    static void IQ_HOT(k_asm_##S##_##LL)(uint32_t *o, const uint32_t *in, uint32_t n,       \
+                                         uint32_t prev, const iq_cfg_t *c) {               \
+        const uint32_t *ti0 = c->ti, *tq0 = c->tq, *ti1 = ti0 + 1, *tq1 = tq0 + 1;          \
+        for (const uint32_t *end = in + n; in != end; in++) {                              \
+            const uint32_t cur = *in;                                                      \
+            const uint32_t ri = (prev & 0xFFFFu) | (cur << 16);                            \
+            const uint32_t rq = (prev >> 16) | (cur & 0xFFFF0000u);                        \
+            prev = cur;                                                                    \
+            uint32_t hi, hq, a0, b0, a1, b1;                                               \
+            __asm volatile(".irp j,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15\n" SYM_SPS##S     \
+                           ".endr\n"                                                       \
+                           : [o] "+r"(o), [hi] "=&r"(hi), [hq] "=&r"(hq), [a0] "=&r"(a0),  \
+                             [b0] "=&r"(b0), [a1] "=&r"(a1), [b1] "=&r"(b1)                \
+                           : [ri] "r"(ri), [rq] "r"(rq), [ti0] "r"(ti0), [tq0] "r"(tq0),   \
+                             [ti1] "r"(ti1), [tq1] "r"(tq1), [L] "i"(LL)                   \
+                           : "memory");                                                    \
+            (void)a1, (void)b1;                                                            \
+        }                                                                                  \
+    }
+LUT_ASM(2, 8) LUT_ASM(2, 10) LUT_ASM(2, 12) LUT_ASM(4, 8) LUT_ASM(4, 10) LUT_ASM(4, 12)
+#define ASM_KERNELS                                                                        \
+    {"lut_asm", 2, 8, 1, k_asm_2_8},   {"lut_asm", 2, 10, 1, k_asm_2_10},                    \
+    {"lut_asm", 2, 12, 1, k_asm_2_12}, {"lut_asm", 4, 8, 1, k_asm_4_8},                      \
+    {"lut_asm", 4, 10, 1, k_asm_4_10}, {"lut_asm", 4, 12, 1, k_asm_4_12},
+#else
+#define ASM_KERNELS
+#endif
+
+#define LUT_PAIR(S, LL)                                                                    \
+    static void IQ_HOT(k_pair_##S##_##LL)(uint32_t *o, const uint32_t *i, uint32_t n,      \
+                                          uint32_t p, const iq_cfg_t *c) {                 \
+        lut_pair(o, i, n, p, c->ti, c->tq, S, LL);                                         \
+    }
+LUT_PAIR(2, 8) LUT_PAIR(2, 10) LUT_PAIR(2, 12) LUT_PAIR(4, 8) LUT_PAIR(4, 10) LUT_PAIR(4, 12)
+
 const iq_kernel_info_t IQ_KERNELS[] = {
-    {"conv", 0, 0, k_conv},
-    {"lut_shift", 0, 0, k_lut_shift},
-    {"lut_win", 2, 8, k_win_2_8},   {"lut_win", 2, 10, k_win_2_10},
-    {"lut_win", 2, 12, k_win_2_12}, {"lut_win", 4, 8, k_win_4_8},
-    {"lut_win", 4, 10, k_win_4_10}, {"lut_win", 4, 12, k_win_4_12},
+    {"conv", 0, 0, 0, k_conv},
+    {"lut_shift", 0, 0, 0, k_lut_shift},
+    {"lut_win", 2, 8, 0, k_win_2_8},   {"lut_win", 2, 10, 0, k_win_2_10},
+    {"lut_win", 2, 12, 0, k_win_2_12}, {"lut_win", 4, 8, 0, k_win_4_8},
+    {"lut_win", 4, 10, 0, k_win_4_10}, {"lut_win", 4, 12, 0, k_win_4_12},
+    {"lut_pair", 2, 8, 1, k_pair_2_8},   {"lut_pair", 2, 10, 1, k_pair_2_10},
+    {"lut_pair", 2, 12, 1, k_pair_2_12}, {"lut_pair", 4, 8, 1, k_pair_4_8},
+    {"lut_pair", 4, 10, 1, k_pair_4_10}, {"lut_pair", 4, 12, 1, k_pair_4_12},
+    ASM_KERNELS
 };
 const int IQ_N_KERNELS = sizeof IQ_KERNELS / sizeof IQ_KERNELS[0];
 

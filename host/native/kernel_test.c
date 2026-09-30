@@ -24,8 +24,8 @@ int main(int argc, char **argv) {
             if (ki->sps && (ki->sps != cs->sps || ki->L != cs->L)) continue;
             for (int b = 0; b < NWORDS; b += BLOCK)
                 ki->fn(out + (size_t)b * 16 * cs->sps, in + b, BLOCK, b ? in[b - 1] : 0, &cfg);
-            printf("{\"kernel\":\"%s\",\"sps\":%d,\"L\":%d,\"seed\":%u,\"nwords\":%d,"
-                   "\"tables_ok\":%d,\"crc\":%u}\n", ki->name, cs->sps, cs->L, seed, NWORDS,
+            printf("{\"kernel\":\"%s\",\"layout\":%d,\"sps\":%d,\"L\":%d,\"seed\":%u,"
+                   "\"nwords\":%d,\"tables_ok\":%d,\"crc\":%u}\n", ki->name, ki->layout, cs->sps, cs->L, seed, NWORDS,
                    tables_ok, crc32_update(0, out, (size_t)NWORDS * 16 * cs->sps * 4));
         }
     }

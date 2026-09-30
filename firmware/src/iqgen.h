@@ -17,9 +17,16 @@ typedef struct {
 typedef void (*iq_kernel_t)(uint32_t *out, const uint32_t *in, uint32_t nwords,
                             uint32_t prev, const iq_cfg_t *cfg);
 
+// Output buffer layouts. The bus order is always I0 Q0 I1 Q1 ...; the PIO program matches.
+enum {
+    IQ_LAYOUT_PACKED = 0,     // one word per complex sample: I | Q << 16
+    IQ_LAYOUT_PAIRS = 1,      // per sample pair: I(2k) | I(2k+1) << 16, then Q(2k) | Q(2k+1) << 16
+};
+
 typedef struct {
     const char *name;         // version tag logged with every measurement
     int sps, L;               // 0 = any
+    int layout;
     iq_kernel_t fn;
 } iq_kernel_info_t;
 

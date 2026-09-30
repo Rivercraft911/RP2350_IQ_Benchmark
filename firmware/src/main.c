@@ -59,8 +59,9 @@ static bool select_variant(int sps, int L, bool *tables_ok) {
 }
 
 static void json_head(const char *cmd, const iq_kernel_info_t *k) {
-    printf("@{\"cmd\":\"%s\",\"git\":\"%s\",\"clk_hz\":%lu,\"kernel\":\"%s\",\"sps\":%d,\"L\":%d",
-           cmd, GIT_REV, (unsigned long)clock_get_hz(clk_sys), k->name, cfg.sps, cfg.L);
+    printf("@{\"cmd\":\"%s\",\"git\":\"%s\",\"clk_hz\":%lu,\"kernel\":\"%s\",\"layout\":%d,"
+           "\"sps\":%d,\"L\":%d",
+           cmd, GIT_REV, (unsigned long)clock_get_hz(clk_sys), k->name, k->layout, cfg.sps, cfg.L);
 }
 
 // ------------------------------------------------------------------ stage 2: kernel benchmark
@@ -161,7 +162,7 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
                        bool tables_ok) {
     const bool c0 = strchr(cores, '0'), c1 = strchr(cores, '1');
     run = (typeof(run)){.k = k, .cap_words = (uint32_t)cap};
-    iqout_init(ring_buf, BLOCK_SYMS * cfg.sps, N_BLOCKS, cpw);
+    iqout_init(ring_buf, BLOCK_SYMS * cfg.sps, N_BLOCKS, cpw, k->layout);
     for (uint32_t s = 0; s < N_BLOCKS; s++) produce(s);   // prefill
     const uint32_t t0 = time_us_32();
     run.end_us = t0 + (uint32_t)ms * 1000u;
