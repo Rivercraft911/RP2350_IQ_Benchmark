@@ -19,3 +19,18 @@ target_link_libraries(iqbench pico_stdlib pico_multicore hardware_pio hardware_d
 pico_enable_stdio_usb(iqbench 1)
 pico_enable_stdio_uart(iqbench 0)
 pico_add_extra_outputs(iqbench)
+
+# Memory placement: split the striped SRAM into RAM (SRAM0-3: code, DMA ring, input rings) and
+# RAM_HI (SRAM4-7: tables, capture) so CPU table loads and DMA traffic use different banks.
+# Generated from the SDK default script so SDK updates carry over.
+file(READ ${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2350/memmap_default.ld LD)
+string(REPLACE "RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 512k"
+       "RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 256k\n    RAM_HI(rwx) : ORIGIN = 0x20040000, LENGTH = 256k"
+       LD "${LD}")
+string(REPLACE "    .heap (NOLOAD):"
+       "    .sram_hi (NOLOAD) : { *(.sram_hi*) } > RAM_HI\n\n    .heap (NOLOAD):" LD "${LD}")
+if(NOT LD MATCHES "RAM_HI" OR NOT LD MATCHES "sram_hi")
+    message(FATAL_ERROR "SDK linker script changed; update the RAM_HI patch")
+endif()
+file(WRITE ${CMAKE_BINARY_DIR}/memmap_iq.ld "${LD}")
+pico_set_linker_script(iqbench ${CMAKE_BINARY_DIR}/memmap_iq.ld)

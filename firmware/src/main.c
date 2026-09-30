@@ -31,8 +31,8 @@
 
 static uint32_t ring_buf[N_BLOCKS * BLOCK_SYMS * MAX_SPS];   // 128 KiB
 static uint32_t in_buf[IN_WORDS] __attribute__((aligned(4 * IN_WORDS)));   // 16 KiB PRBS
-static uint32_t tab_i[TABLE_WORDS], tab_q[TABLE_WORDS];      // 32 KiB each
-static uint32_t cap_buf[CAP_WORDS_MAX];                      // 64 KiB
+static uint32_t tab_i[TABLE_WORDS] SRAM_HI, tab_q[TABLE_WORDS] SRAM_HI;   // 32 KiB each
+static uint32_t cap_buf[CAP_WORDS_MAX] SRAM_HI;                          // 64 KiB
 
 static iq_cfg_t cfg = {.ti = tab_i, .tq = tab_q};
 static const coef_set_t *cur_set;

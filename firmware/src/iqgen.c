@@ -4,8 +4,12 @@
 
 #ifdef IQ_ON_DEVICE
 #define IQ_HOT(f) __attribute__((section(".time_critical." #f))) f
+// SRAM8 (SCRATCH_X, unstriped): instruction fetch never collides with table or buffer accesses.
+// Room for about 2 KiB of code below core 1's stack.
+#define IQ_HOT_X(f) __attribute__((section(".scratch_x." #f))) f
 #else
 #define IQ_HOT(f) f
+#define IQ_HOT_X(f) f
 #endif
 
 // Signed right shifts below are arithmetic (GCC/Clang on Arm and x86), matching Python's >>.
@@ -154,8 +158,8 @@ static inline __attribute__((always_inline)) void lut_pair(
     "strd %[a0], %[b0], [%[o]], #8\n"                                                      \
     "strd %[a1], %[b1], [%[o]], #8\n"
 
-#define LUT_ASM(S, LL)                                                                     \
-    static void IQ_HOT(k_asm_##S##_##LL)(uint32_t *o, const uint32_t *in, uint32_t n,       \
+#define LUT_ASM(S, LL, PLACE)                                                              \
+    static void PLACE(k_asm_##S##_##LL)(uint32_t *o, const uint32_t *in, uint32_t n,       \
                                          uint32_t prev, const iq_cfg_t *c) {               \
         const uint32_t *ti0 = c->ti, *tq0 = c->tq, *ti1 = ti0 + 1, *tq1 = tq0 + 1;          \
         for (const uint32_t *end = in + n; in != end; in++) {                              \
@@ -174,7 +178,8 @@ static inline __attribute__((always_inline)) void lut_pair(
             (void)a1, (void)b1;                                                            \
         }                                                                                  \
     }
-LUT_ASM(2, 8) LUT_ASM(2, 10) LUT_ASM(2, 12) LUT_ASM(4, 8) LUT_ASM(4, 10) LUT_ASM(4, 12)
+LUT_ASM(2, 8, IQ_HOT) LUT_ASM(2, 10, IQ_HOT) LUT_ASM(2, 12, IQ_HOT)
+LUT_ASM(4, 8, IQ_HOT) LUT_ASM(4, 10, IQ_HOT_X) LUT_ASM(4, 12, IQ_HOT_X)
 #define ASM_KERNELS                                                                        \
     {"lut_asm", 2, 8, 1, k_asm_2_8},   {"lut_asm", 2, 10, 1, k_asm_2_10},                    \
     {"lut_asm", 2, 12, 1, k_asm_2_12}, {"lut_asm", 4, 8, 1, k_asm_4_8},                      \

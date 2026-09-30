@@ -22,3 +22,6 @@
 #define IN_WORDS 4096                         // input ring: 65536 symbols
 #define CAP_WORDS_MAX 16384                   // capture buffer, 64 KiB
 #define MAX_L 12
+
+// Placement (see CMakeLists.txt): SRAM4-7 for data the CPU reads randomly, away from DMA traffic.
+#define SRAM_HI __attribute__((section(".sram_hi")))
