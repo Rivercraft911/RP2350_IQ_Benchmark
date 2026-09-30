@@ -278,7 +278,7 @@ static void dispatch(char *line) {
     const int cpw = atoi(argv[5]), ms = atoi(argv[6]), cap = argc > 7 ? atoi(argv[7]) : 0;
     const int lanes = argc > 8 ? atoi(argv[8]) : 0, half = argc > 9 ? atoi(argv[9]) : 6;
     if (cpw < 2 || cpw > 33 || ms <= 0 || cap < 0 || cap > CAP_WORDS_MAX) return error("bad args");
-    if (lanes && ((lanes != 1 && lanes != 2 && lanes != 4) || half < 4 || half > 16))
+    if (lanes && ((lanes != 1 && lanes != 2 && lanes != 4) || half < 2 || half > 16))
         return error("bad link args");
     cmd_stream(k, argv[4], cpw, ms, cap, lanes, half, tables_ok);
 }

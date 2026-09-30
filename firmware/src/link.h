@@ -11,7 +11,8 @@ extern uint32_t link_ring[LINK_RING_WORDS];
 extern volatile uint32_t link_total;      // words received since start (monotonic)
 extern volatile uint32_t link_overruns;   // polls that found unconsumed data overwritten
 
-// lanes: 1, 2 or 4. half: system clocks per SCK half period (>= 4). src must be 16 KiB aligned.
+// lanes: 1, 2 or 4. half: system clocks per SCK half period (>= 2; see results for the working
+// minimum). src must be 16 KiB aligned.
 void link_init(int lanes, int half, const uint32_t *src);
 void link_start(void);
 void link_stop(void);
