@@ -26,7 +26,7 @@ the first image, at f_s − R_s(1+α)/2, where the AFE7071 filter and the ZOH si
 | 8 Msym/s (IREC) | 0 | 32 MS/s | 4 | 27.2 MHz | 15 + 29 = 44 dB at the edge; worst image PSD −49 dBc | 72 % measured |
 | 1 Msym/s (SATS) | 8 | 8 MS/s | 8 | 7.4 MHz | 22 + 32 = 54 dB | ≈ 15–18 % est. |
 | 1 Msym/s | 0 | 4 MS/s | 4 | 3.4 MHz | 15 + 0 = 15 dB | inadequate |
-| 0.25 Msym/s | 8 | 4 MS/s | 16 | 3.85 MHz | 28 + 12 = 40 dB | marginal; N = 32 at 8 MS/s gives ≈ 60 dB |
+| 0.25 Msym/s | 8 | 4 MS/s | 16 | 3.85 MHz | 28 + 12 = 40 dB | marginal; N = 32 at 8 MS/s gives 68 dB |
 
 Values are ZOH + filter attenuation at the image's inner edge, computed with `reference/iqlut.py` (`afe_filter_db`). The tune-8 figures use the datasheet's typical points (1 dB at 2.5 MHz, 18 dB at 5 MHz, 42 dB at
 10 MHz). Intermediate tunes are not tabulated. Low rates therefore favour tune 8 with f_s ≈ 8 MS/s,
