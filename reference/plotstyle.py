@@ -1,64 +1,57 @@
-"""Dark theme shared by the figures: JetBrains Mono, hairline grid, a small neon palette."""
-import glob
-import os
+"""Figure style: Rosé Pine Moon (rose-pine-moon.mplstyle, h4pZ/rose-pine-matplotlib, MIT) made
+minimal with matplotx.styles.duftify, set in Source Sans 3 (bundled, OFL)."""
+from pathlib import Path
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.font_manager as fm  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotx  # noqa: E402
 import numpy as np  # noqa: E402
 
-BG, PANEL, FG, MUTED, GRID = "#0d1117", "#0d1117", "#e6edf3", "#8b949e", "#21262d"
-CYAN, VIOLET, PINK, AMBER, GREEN, ROSE = "#38bdf8", "#a78bfa", "#f472b6", "#fbbf24", "#34d399", "#fb7185"
-PALETTE = [CYAN, VIOLET, PINK, AMBER, GREEN]
+HERE = Path(__file__).parent
+# Rosé Pine Moon roles
+BASE, SURFACE, OVERLAY, HIGH = "#232136", "#2a273f", "#393552", "#44415a"
+MUTED, SUBTLE, TEXT = "#6e6a86", "#908caa", "#e0def4"
+LOVE, GOLD, ROSE, PINE, FOAM, IRIS = "#eb6f92", "#f6c177", "#ea9a97", "#3e8fb0", "#9ccfd8", "#c4a7e7"
 
-for f in glob.glob(os.path.expanduser("~/Library/Fonts/JetBrainsMono*NerdFont-*.ttf")):
-    fm.fontManager.addfont(f)
-_font = "JetBrainsMono NF" if any(f.name == "JetBrainsMono NF" for f in fm.fontManager.ttflist) else "monospace"
+for f in sorted((HERE / "fonts").glob("SourceSans3-*.ttf")):
+    fm.fontManager.addfont(str(f))
 
+_rp = dict(matplotlib.rc_params_from_file(str(HERE / "rose-pine-moon.mplstyle"), use_default_template=False))
+plt.style.use(matplotx.styles.duftify(_rp))
 plt.rcParams.update({
-    "font.family": _font, "font.size": 9, "text.color": FG,
-    "figure.facecolor": BG, "axes.facecolor": PANEL, "savefig.facecolor": BG,
-    "figure.dpi": 110, "savefig.dpi": 160, "savefig.bbox": "tight", "savefig.pad_inches": 0.25,
-    "axes.edgecolor": GRID, "axes.labelcolor": MUTED, "axes.titlecolor": FG,
-    "axes.titlesize": 11, "axes.titleweight": "medium", "axes.titlelocation": "left", "axes.titlepad": 12,
-    "axes.spines.top": False, "axes.spines.right": False, "axes.spines.left": False,
-    "axes.grid": True, "axes.grid.axis": "y", "grid.color": GRID, "grid.linewidth": 0.7,
-    "axes.axisbelow": True, "axes.prop_cycle": matplotlib.cycler(color=PALETTE),
-    "xtick.color": MUTED, "ytick.color": MUTED, "xtick.major.size": 0, "ytick.major.size": 0,
-    "xtick.minor.size": 0, "ytick.minor.size": 0,
-    "xtick.major.pad": 6, "ytick.major.pad": 6,
-    "legend.frameon": False, "legend.fontsize": 8, "legend.labelcolor": MUTED,
-    "lines.linewidth": 1.4, "lines.solid_capstyle": "round",
+    "font.family": "Source Sans 3", "font.size": 10.5, "text.color": TEXT,
+    "axes.titlesize": 13, "axes.titleweight": "semibold", "axes.titlelocation": "left",
+    "axes.titlepad": 12, "axes.titlecolor": TEXT, "axes.labelcolor": SUBTLE, "axes.labelsize": 10,
+    "axes.labelpad": 7, "axes.facecolor": BASE, "axes.xmargin": 0.02, "axes.ymargin": 0.02,
+    "axes.prop_cycle": matplotlib.cycler(color=[FOAM, IRIS, GOLD, ROSE, PINE, LOVE]),
+    "xtick.color": SUBTLE, "ytick.color": SUBTLE, "xtick.labelsize": 9.5, "ytick.labelsize": 9.5,
+    "xtick.major.size": 0, "ytick.major.size": 0, "xtick.major.pad": 6, "ytick.major.pad": 6,
+    "grid.color": OVERLAY, "grid.linewidth": 0.8,
+    "figure.facecolor": BASE, "savefig.facecolor": BASE, "figure.dpi": 110, "savefig.dpi": 300,
+    "savefig.bbox": "tight", "savefig.pad_inches": 0.3,
+    "legend.frameon": False, "legend.fontsize": 9.5, "legend.labelcolor": SUBTLE,
+    "lines.linewidth": 2.0, "lines.markersize": 7.5, "lines.markeredgewidth": 1.6,
+    "lines.markeredgecolor": BASE, "lines.solid_capstyle": "round",
 })
 
-
-def bar_values(ax, bars, fmt="{:.0f}", inside=False):
-    """Small value labels at the bar ends."""
-    for b in bars:
-        h = b.get_height()
-        if not h:
-            continue
-        y = b.get_y() + (h / 2 if inside else h)
-        ax.annotate(fmt.format(h), (b.get_x() + b.get_width() / 2, y), xytext=(0, 0 if inside else 3),
-                    textcoords="offset points", ha="center", va="center" if inside else "bottom",
-                    fontsize=7.5, color=BG if inside else MUTED,
-                    bbox=None if inside else dict(fc=BG, ec="none", pad=0.6))
+WIDTH = 7.0
 
 
-def glow(ax, x, y, color, lw=1.2, label=None):
-    """Line with a soft glow: a few wide low-alpha strokes under the line."""
-    for w, a in ((6, 0.05), (3.5, 0.08), (2, 0.12)):
-        ax.plot(x, y, color=color, lw=w, alpha=a, solid_capstyle="round")
-    ax.plot(x, y, color=color, lw=lw, label=label)
+def dots(ax, x, y, color, label=None, **kw):
+    """Dot-and-line series: a ringed dot per measurement."""
+    return ax.plot(x, y, "o-", color=color, label=label, **kw)
 
 
-def budget(ax, y, text, color=ROSE):
-    ax.axhline(y, color=color, lw=0.9, ls=(0, (4, 3)))
-    ax.annotate(text, (1, y), xycoords=("axes fraction", "data"), xytext=(0, 4), textcoords="offset points",
-                ha="right", va="bottom", fontsize=7.5, color=color)
+def lollipop(ax, y, x, color, fmt="{:.0f} %", size=8.0):
+    """Horizontal dot chart row: thin stem from 0, dot at x, value to the right."""
+    ax.hlines(y, 0, x, color=color, lw=1.6, alpha=0.55, capstyle="round")
+    ax.plot([x], [y], "o", color=color, ms=size)
+    ax.annotate(fmt.format(x), (x, y), xytext=(9, 0), textcoords="offset points", va="center",
+                fontsize=9.5, color=TEXT)
 
 
-__all__ = ["plt", "np", "bar_values", "glow", "budget", "BG", "FG", "MUTED", "GRID",
-           "CYAN", "VIOLET", "PINK", "AMBER", "GREEN", "ROSE", "PALETTE"]
+__all__ = ["plt", "np", "matplotx", "WIDTH", "dots", "lollipop", "BASE", "SURFACE", "OVERLAY",
+           "HIGH", "MUTED", "SUBTLE", "TEXT", "LOVE", "GOLD", "ROSE", "PINE", "FOAM", "IRIS"]

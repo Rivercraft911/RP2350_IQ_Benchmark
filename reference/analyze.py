@@ -13,7 +13,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
 import iqlut as m  # noqa: E402
-from plotstyle import CYAN, PINK, glow, plt  # noqa: E402
+from plotstyle import FOAM, IRIS, WIDTH, dots, matplotx, plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "results" / "reference"
@@ -99,17 +99,21 @@ def main():
 
 
 def plot_sweep(sweep):
-    fig, ax = plt.subplots(1, 2, figsize=(8.5, 3.3))
-    for sps, col in ((2, PINK), (4, CYAN)):
+    fig, ax = plt.subplots(1, 2, figsize=(WIDTH, 3.2))
+    for sps, col in ((4, FOAM), (2, IRIS)):
         r = [x for x in sweep if x["sps"] == sps and x["kaiser_beta"] == 0]
         L = [x["L"] for x in r]
         for a, key in zip(ax, ("evm_db", "aclr_db")):
-            glow(a, L, [x[key] for x in r], col, label=f"N = {sps}")
-            a.scatter(L, [x[key] for x in r], s=14, color=col, zorder=3)
-    ax[0].set(xlabel="L (symbols)", ylabel="dB", title="TX EVM")
-    ax[1].set(xlabel="L (symbols)", title="ACLR incl. DAC images")
-    ax[1].legend(loc="lower left")
-    fig.tight_layout(w_pad=3)
+            dots(a, L, [x[key] for x in r], col, f"{sps} samples/symbol", ms=6.5)
+    ax[0].set_title("TX EVM", pad=24)
+    ax[1].set_title("ACLR", pad=24)
+    for a in ax:
+        a.set_xlabel("filter span (symbols)")
+        a.set_xticks([4, 8, 12, 16])
+        a.margins(y=0.1)
+    matplotx.ylabel_top("dB", ax=ax[0])
+    matplotx.line_labels(ax=ax[1], fontsize=9.5)
+    fig.tight_layout(w_pad=2)
     fig.savefig(PLOTS / "filter_sweep.png")
 
 

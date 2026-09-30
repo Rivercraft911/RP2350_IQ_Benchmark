@@ -18,7 +18,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
 import iqlut as m  # noqa: E402
-from plotstyle import AMBER, CYAN, MUTED, ROSE, glow, plt  # noqa: E402
+from plotstyle import FOAM, LOVE, SUBTLE, WIDTH, plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 ALPHA, RS = 0.20, 8e6
@@ -117,20 +117,23 @@ def main():
         note="typical curves; magnitude-only filter; image = max PSD beyond f_s - B; rms = I-axis rms "
              "relative to the LUT's no-clip full scale", cases=res, corner_sensitivity=sens), indent=1))
 
-    colors = [ROSE, AMBER, CYAN]
-    fig, axes = plt.subplots(len(CASES), 1, figsize=(7.5, 7), sharex=True)
-    for ax, (name, N, L, tune, eq, _), r, (fw, db), col in zip(axes, CASES, res, spectra, colors):
+    fig, axes = plt.subplots(len(CASES), 1, figsize=(WIDTH, 6.6), sharex=True)
+    for ax, (name, N, L, tune, eq, _), r, (fw, db) in zip(axes, CASES, res, spectra):
         f = np.linspace(-72e6, 72e6, 4000)
-        ax.fill_between(fw / 1e6, db, -120, color=col, alpha=0.07, lw=0)
-        glow(ax, fw / 1e6, db, col, lw=1)
-        ax.plot(f / 1e6, -m.afe_filter_db(f / 1e6, tune), color=MUTED, lw=0.9, ls=(0, (4, 3)))
-        ax.set_ylim(-100, 6)
-        ax.set_ylabel("dB")
-        ax.set_title(f"N = {N}  tune {tune}" + ("  + EQ" if eq else ""), loc="left")
-        ax.set_title(f"images {r['worst_image_dbc']:.0f} dBc", loc="right", color=col, fontsize=9)
+        ax.fill_between(fw / 1e6, db, -100, color=FOAM, alpha=0.12, lw=0)
+        ax.plot(fw / 1e6, db, color=FOAM, lw=0.8)
+        ax.plot(f / 1e6, -m.afe_filter_db(f / 1e6, tune), color=SUBTLE, lw=1.1, ls=(0, (5, 4)))
+        ax.set_ylim(-100, 5)
+        ax.set_yticks([0, -40, -80])
+        ax.set_title(f"{N} samples/symbol, filter tune {tune}" + (" + EQ" if eq else ""), fontsize=11,
+                     pad=8)
+        ax.set_title(f"images {r['worst_image_dbc']:.0f} dBc".replace("-", "\u2212"), loc="right", fontsize=10.5, color=LOVE,
+                     fontweight="medium", pad=8)
+    axes[0].text(40, -6, "AFE filter", color=SUBTLE, fontsize=9.5, ha="left", va="top")
     axes[-1].set_xlabel("MHz")
     axes[-1].set_xlim(-72, 72)
-    fig.tight_layout(h_pad=1.5)
+    fig.supylabel("dB", color=SUBTLE, fontsize=10)
+    fig.tight_layout(h_pad=1.2)
     fig.savefig(ROOT / "results" / "plots" / "why_4_samples_per_symbol.png")
 
 if __name__ == "__main__":
