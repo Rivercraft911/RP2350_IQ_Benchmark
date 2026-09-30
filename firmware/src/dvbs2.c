@@ -32,7 +32,7 @@ uint32_t dvbs2_prof[8];
 static const dvbs2_code_t *C;
 static bool pilots;
 static uint32_t M, bch_deg;          // parity bits: LDPC, BCH
-static uint32_t bch_tab[4][256][BCH_W] HI, bch_g[BCH_W];  // T_k[b] = b(x) x^(deg+8k) mod g
+static uint32_t bch_tab[4][256][8] HI, bch_g[BCH_W];      // T_k[b] = b(x) x^(deg+8k) mod g; 8-word rows
 static uint32_t bb_prbs[MAX_BITS_W] HI;
 static uint16_t a_row[MAX_ADDR] HI, a_off[MAX_ADDR] HI;     // x mod q, 360 - x div q
 static uint16_t grp[162 + 1];                         // group offsets, copied out of flash
@@ -43,11 +43,6 @@ static uint32_t hdr[6], body_syms;
 
 // ------------------------------------------------------------------ bit-vector helpers
 
-static inline uint32_t get32(const uint32_t *a, uint32_t bit) {   // a must have 1 word slack
-    const uint32_t i = bit >> 5, s = bit & 31;
-    return (uint32_t)((((uint64_t)a[i] << 32) | a[i + 1]) >> (32 - s));
-}
-
 static inline void or_bits(uint32_t *a, uint32_t bit, uint32_t v, uint32_t n) {  // v MSB-aligned
     const uint32_t i = bit >> 5, s = bit & 31;
     a[i] |= v >> s;
@@ -55,6 +50,12 @@ static inline void or_bits(uint32_t *a, uint32_t bit, uint32_t v, uint32_t n) { 
 }
 
 static void copy_bits(uint32_t *dst, uint32_t dbit, const uint32_t *src, uint32_t n) {
+    if (!(dbit & 31)) {                                        // word-aligned destination
+        uint32_t *d = dst + (dbit >> 5);
+        for (uint32_t k = 0; k < n / 32; k++) d[k] = src[k];
+        if (n & 31) d[n / 32] |= src[n / 32] & ~(~0u >> (n & 31));
+        return;
+    }
     for (uint32_t k = 0; k < n; k += 32) {
         const uint32_t len = n - k < 32 ? n - k : 32;
         const uint32_t v = src[k >> 5] & (len == 32 ? ~0u : ~(~0u >> len));
@@ -114,7 +115,7 @@ static void bch_setup(void) {
                 if (fb)
                     for (int j = 0; j < BCH_W; j++) r[j] ^= bch_g[j];
             }
-            memcpy(bch_tab[k][b], r, sizeof r);
+            memcpy(bch_tab[k][b], r, sizeof r);                  // words 6, 7 are padding
         }
 }
 
@@ -135,8 +136,8 @@ void dvbs2_bch_serial(const uint32_t *m, uint32_t *parity) {
 void HOT(dvbs2_bch)(const uint32_t *m, uint32_t *parity) {
     uint32_t r0_ = 0, r1_ = 0, r2 = 0, r3 = 0, r4 = 0, r5 = 0;
     const uint32_t nw = C->kbch / 32u, tail = (C->kbch % 32u) / 8;
-    const uint32_t(*t0)[BCH_W] = bch_tab[0], (*t1)[BCH_W] = bch_tab[1];
-    const uint32_t(*t2)[BCH_W] = bch_tab[2], (*t3)[BCH_W] = bch_tab[3];
+    const uint32_t(*t0)[8] = bch_tab[0], (*t1)[8] = bch_tab[1];
+    const uint32_t(*t2)[8] = bch_tab[2], (*t3)[8] = bch_tab[3];
     for (uint32_t i = 0; i < nw; i++) {
         const uint32_t x = r0_ ^ m[i];
         const uint32_t *a = t3[x >> 24], *b = t2[(x >> 16) & 0xFF], *c = t1[(x >> 8) & 0xFF],
@@ -183,16 +184,47 @@ void dvbs2_ldpc_serial(const uint32_t *info, uint32_t *parity) {
         if (bit_at(parity, i - 1)) parity[i >> 5] ^= 1u << (31 - (i & 31));
 }
 
-// 32x32 bit-matrix transpose, MSB-first rows (Hacker's Delight, 2nd ed., fig. 7-6).
-static void HOT(transpose32)(uint32_t *a) {
-    uint32_t m = 0x0000FFFFu;
-    for (uint32_t j = 16; j; j >>= 1, m ^= m << j)
-        for (uint32_t k = 0; k < 32; k = (k + j + 1) & ~j) {
-            const uint32_t t = (a[k] ^ (a[k + j] >> j)) & m;
-            a[k] ^= t;
-            a[k + j] ^= t << j;
-        }
+// 32x32 bit-matrix transpose, MSB-first rows (Hacker's Delight, 2nd ed., fig. 7-6), with each
+// stage unrolled so shifts and masks are immediates.
+#define TSTAGE(J, MASK)                                                                    \
+    _Pragma("GCC unroll 16") for (uint32_t k = 0; k < 32; k = (k + J + 1) & ~(uint32_t)J) { \
+        const uint32_t t = (a[k] ^ (a[k + J] >> J)) & MASK;                                 \
+        a[k] ^= t, a[k + J] ^= t << J;                                                      \
+    }
+static inline void transpose32(uint32_t *a) {
+    TSTAGE(16, 0x0000FFFFu) TSTAGE(8, 0x00FF00FFu) TSTAGE(4, 0x0F0F0F0Fu)
+    TSTAGE(2, 0x33333333u) TSTAGE(1, 0x55555555u)
 }
+
+// row[0..11] ^= 12 words of src starting sh bits in (0 <= sh < 32).
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+// Streaming order in asm: GCC otherwise hoists all 24 loads and spills (measured 2x slower).
+#define XW(K, LO, HI)                                                                      \
+    "ldr  %[" #HI "], [%[src], #(4*" #K "+4)]\n"                                            \
+    "lsl  %[t], %[" #LO "], %[sh]\n"                                                        \
+    "lsr  %[u], %[" #HI "], %[rs]\n"                                                        \
+    "orr  %[t], %[t], %[u]\n"                                                               \
+    "ldr  %[u], [%[row], #(4*" #K ")]\n"                                                    \
+    "eor  %[u], %[u], %[t]\n"                                                               \
+    "str  %[u], [%[row], #(4*" #K ")]\n"
+static inline void xor_rot(uint32_t *row, const uint32_t *src, uint32_t sh) {
+    if (!sh) {
+        for (int k = 0; k < 12; k++) row[k] ^= src[k];
+        return;
+    }
+    uint32_t a, b, t, u;
+    __asm volatile("ldr %[a], [%[src]]\n" XW(0, a, b) XW(1, b, a) XW(2, a, b) XW(3, b, a)
+                   XW(4, a, b) XW(5, b, a) XW(6, a, b) XW(7, b, a) XW(8, a, b) XW(9, b, a)
+                   XW(10, a, b) XW(11, b, a)
+                   : [a] "=&r"(a), [b] "=&r"(b), [t] "=&r"(t), [u] "=&r"(u)
+                   : [src] "r"(src), [row] "r"(row), [sh] "r"(sh), [rs] "r"(32 - sh)
+                   : "memory");
+}
+#else
+static inline void xor_rot(uint32_t *row, const uint32_t *src, uint32_t sh) {
+    for (int k = 0; k < 12; k++) row[k] ^= sh ? src[k] << sh | src[k + 1] >> (32 - sh) : src[k];
+}
+#endif
 
 // Group form. With M = 360 q, address x for bit m of group g is (x + m q) mod M. Writing
 // x = r + c q gives row r and column (c + m) mod 360 of a q x 360 matrix P (parity index
@@ -204,28 +236,18 @@ void HOT(dvbs2_ldpc)(const uint32_t *info, uint32_t *parity) {
     PROF(0);
     memset(P, 0, sizeof P);
     for (uint32_t g = 0; g < C->n_groups; g++) {
+        // u = the group's 360 bits (word-aligned copy); u2 = u || u, so rotation is extraction.
         uint32_t u[13], u2[25];
-        for (int k = 0; k < 12; k++) u[k] = get32(info, g * 360 + 32 * k);
+        const uint32_t *in = info + (g * 360 >> 5), s0 = g * 360 & 31;
+        for (int k = 0; k < 12; k++) u[k] = s0 ? in[k] << s0 | in[k + 1] >> (32 - s0) : in[k];
         u[11] &= 0xFF000000u;                                  // 360 = 11 * 32 + 8
         u[12] = 0;
         for (int k = 0; k < 11; k++) u2[k] = u[k];
-        for (int k = 11; k < 25; k++)                          // u2 = u || u (bit 360 on)
-            u2[k] = (k < 12 ? u[k] : 0) | (k - 11 < 13 ? u[k - 11] >> 8 : 0) |
-                    (k >= 12 && k - 12 < 13 ? u[k - 12] << 24 : 0);
-        for (uint32_t a = grp[g]; a < grp[g + 1]; a++) {
-            uint32_t *row = P[a_row[a]];
-            const uint32_t *src = u2 + (a_off[a] >> 5), sh = a_off[a] & 31;
-            if (!sh) {
-                for (int k = 0; k < 12; k++) row[k] ^= src[k];
-            } else {
-                uint32_t lo = src[0];
-                for (int k = 0; k < 12; k++) {
-                    const uint32_t hi = src[k + 1];
-                    row[k] ^= (lo << sh) | (hi >> (32 - sh));
-                    lo = hi;
-                }
-            }
-        }
+        u2[11] = u[11] | u[0] >> 8;
+        for (int k = 0; k < 11; k++) u2[12 + k] = u[k] << 24 | u[k + 1] >> 8;
+        u2[23] = u2[24] = 0;
+        for (uint32_t a = grp[g]; a < grp[g + 1]; a++)
+            xor_rot(P[a_row[a]], u2 + (a_off[a] >> 5), a_off[a] & 31);
     }
     PROF(1);
     for (uint32_t r = 1; r < q; r++)
@@ -262,8 +284,8 @@ void HOT(dvbs2_ldpc)(const uint32_t *info, uint32_t *parity) {
 
 // FECFRAME word (MSB first: I0 Q0 I1 Q1 ... I15 Q15) -> shaper word (I_j at bit j, Q_j at
 // bit 16+j): bit-reverse, then outer unshuffle (even bits to [15:0], odd bits to [31:16]).
-static inline uint32_t map16(uint32_t w) {
-    uint32_t x = rbit(w), t;
+static inline uint32_t unshuffle(uint32_t x) {
+    uint32_t t;
     t = (x ^ (x >> 1)) & 0x22222222u, x ^= t ^ (t << 1);
     t = (x ^ (x >> 2)) & 0x0C0C0C0Cu, x ^= t ^ (t << 2);
     t = (x ^ (x >> 4)) & 0x00F000F0u, x ^= t ^ (t << 4);
@@ -271,8 +293,17 @@ static inline uint32_t map16(uint32_t w) {
     return x;
 }
 
+// Map, scramble and convert one FECFRAME word: swap I/Q where r0, flip signs, unshuffle.
+static inline uint32_t map_scramble16(uint32_t w, uint32_t swap, uint32_t flip) {
+    uint32_t x = rbit(w);
+    const uint32_t t = (x ^ (x >> 1)) & swap;
+    x ^= t | t << 1;
+    return unshuffle(x ^ flip);
+}
+
 // PL scrambling of 16 symbols by R = 2 r1 + r0 (5.5.4): R=1 (-Q, I), R=2 (-I, -Q), R=3 (Q, -I).
 // In sign bits: I' = (r0 ? bQ : bI) ^ (r0 ^ r1), Q' = (r0 ? bI : bQ) ^ r1. rm = r0 | r1 << 16.
+// Used at init for the pilot blocks; data words are scrambled in the interleaved domain below.
 static inline uint32_t scramble16(uint32_t w, uint32_t rm) {
     const uint32_t bi = w & 0xFFFFu, bq = w >> 16, a = rm & 0xFFFFu, c = rm >> 16;
     const uint32_t ni = ((a & bq) | (~a & bi)) ^ (a ^ c), nq = ((a & bi) | (~a & bq)) ^ c;
@@ -283,9 +314,11 @@ void symstream_flush(symstream_t *s) {
     if (s->fill) symstream_put(s, 0, 16 - s->fill);
 }
 
-// Precomputed per code: scrambling masks for each 16-symbol data word (a data word never
-// straddles a pilot block, since 1440 = 90 x 16) and the scrambled pilot blocks, as 16+16+4 symbols.
-static uint32_t rmask[64800 / 32 + 1] HI, pil[22][3] HI;
+// Precomputed per code: for each 16-symbol data word (a data word never straddles a pilot block,
+// since 1440 = 90 x 16) the scrambling masks in the bit-reversed interleaved domain (bit 2j = I_j,
+// bit 2j+1 = Q_j): swap[] has bit 2j set where r0_j = 1, flip[] has r0^r1 at 2j and r1 at 2j+1.
+// Also the scrambled pilot blocks, as 16+16+4 symbols.
+static uint32_t swapm[64800 / 32 + 1] HI, flipm[64800 / 32 + 1] HI, pil[22][3] HI;
 static uint32_t n_pil;
 
 static uint32_t plane16(const uint32_t *pl, uint32_t pos) {   // 16 bits of an R plane at pos
@@ -315,7 +348,13 @@ static void pl_setup(void) {
     const uint32_t nsym = C->nldpc / 2u;
     for (uint32_t j = 0; j * 16 < nsym; j++) {
         const uint32_t pos = 16 * j + (pilots ? 36 * (16 * j / 1440) : 0);
-        rmask[j] = plane16(r0, pos) | plane16(r1, pos) << 16;
+        const uint32_t a = plane16(r0, pos), c = plane16(r1, pos);
+        swapm[j] = flipm[j] = 0;
+        for (int b = 0; b < 16; b++) {
+            const uint32_t ra = (a >> b) & 1, rc = (c >> b) & 1;
+            swapm[j] |= ra << (2 * b);
+            flipm[j] |= (ra ^ rc) << (2 * b) | rc << (2 * b + 1);
+        }
     }
     for (uint32_t k = 0; k < n_pil; k++)                       // pilots are (bI, bQ) = (0, 0)
         for (uint32_t w = 0; w < 3; w++) {
@@ -381,14 +420,19 @@ void HOT(dvbs2_frame)(const uint32_t *bb, symstream_t *out) {
     PROF(6);
 
     symstream_t s = *out;                                      // local copy keeps state in registers
-    for (int k = 0; k < 6; k++) symstream_put(&s, hdr[k], k < 5 ? 16 : 10);
-    for (uint32_t j = 0, sym = 0; sym < nsym; j++, sym += 16) {
-        const uint32_t n = nsym - sym < 16 ? nsym - sym : 16;
-        symstream_put(&s, scramble16(map16(fe[j]), rmask[j]), n);
-        if (n_pil && (sym + 16) % 1440 == 0 && sym + 16 < nsym) {
-            const uint32_t *p = pil[(sym + 16) / 1440 - 1];
-            symstream_put(&s, p[0], 16), symstream_put(&s, p[1], 16), symstream_put(&s, p[2], 4);
+    for (int k = 0; k < 5; k++) symstream_put16(&s, hdr[k]);
+    symstream_put(&s, hdr[5], 10);
+    const uint32_t *f = fe, *sw = swapm, *fl = flipm;
+    for (uint32_t left = nsym, blk = 0; left;) {               // runs of 1440 data symbols
+        const uint32_t run = blk < n_pil && left > 1440 ? 1440 : left;
+        for (uint32_t i = 0; i < run / 16; i++) symstream_put16(&s, map_scramble16(*f++, *sw++, *fl++));
+        if (run % 16) symstream_put(&s, map_scramble16(*f, *sw, *fl), run % 16);
+        if (blk < n_pil && left > 1440) {
+            symstream_put16(&s, pil[blk][0]), symstream_put16(&s, pil[blk][1]);
+            symstream_put(&s, pil[blk][2], 4);
+            blk++;
         }
+        left -= run;
     }
     *out = s;
     PROF(7);

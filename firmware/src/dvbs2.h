@@ -51,6 +51,13 @@ static inline void symstream_put(symstream_t *s, uint32_t w, uint32_t nsym) {
 // Cycle checkpoints (device only): LDPC groups, accumulate, transpose; frame BB+BCH, LDPC, map.
 extern uint32_t dvbs2_prof[8];
 
+// Full 16-symbol put: fill is unchanged, so no mask or branch.
+static inline void symstream_put16(symstream_t *s, uint32_t w) {
+    const uint32_t ai = s->acc_i | (w & 0xFFFFu) << s->fill, aq = s->acc_q | (w >> 16) << s->fill;
+    s->out[s->n++] = (ai & 0xFFFFu) | aq << 16;
+    s->acc_i = ai >> 16, s->acc_q = aq >> 16;
+}
+
 uint32_t dvbs2_plframe_symbols(void);                         // for the configured code
 void dvbs2_frame(const uint32_t *bbframe, symstream_t *s);     // bbframe: kbch bits, unscrambled
 void symstream_flush(symstream_t *s);
