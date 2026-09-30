@@ -10,8 +10,8 @@ marked.
 |---|---|---|
 | G1 | Kernel ≤ 75 % of one core at 8 Msym/s, N = 4, bit-exact | **passed**: 11.55 cyc/sym, 72 % (log `lut_asm`) |
 | G2 | Continuous DMA/PIO output, 0 underruns, pin capture exact | **passed**: 20 s, 156 249 blocks |
-| G3 | Concurrent 16 Mb/s input (PIO receiver + DMA) with G2 still clean | pending (stage 4) |
-| G4 | DVB-S2 encode on-chip at the target rate, bit-exact vs reference | pending |
+| G3 | Concurrent 16 Mb/s input (PIO receiver + DMA) with G2 still clean | **passed** (on-chip loopback emulator; real host pending) |
+| G4 | DVB-S2 encode on-chip at the target rate, bit-exact vs reference | **passed**: 8 Msym/s, 2 cores at 70/72 %, 60 s |
 | G5 | Logic-analyzer check of setup/hold and CLK_IO at the header, 64 MW/s | pending (needs equipment) |
 | G6 | AFE7071 bring-up on a breakout: spectrum, images, LO leakage after QMC | pending (needs RF bench) |
 
