@@ -79,9 +79,6 @@ DVB-S2 encoder, normal 2/3 + pilots (k cycles/frame; one core at 8 Msym/s = 533 
 
 ![DVB-S2 encoder cycles per frame by revision](results/plots/progress_dvbs2.png)
 
-Compiler flags: `lut_pair` at -O2 / -Os / -O3 measures 6.98 / 7.66 / 6.98 cycles/symbol (N = 2)
-and 13.17 / 13.24 / 13.17 (N = 4). Flags are not the lever; data movement and register pressure are.
-
 ## Why 4 samples per symbol
 
 The shaper sends the DAC 4 I/Q samples for every QPSK symbol, so at 8 Msym/s the AFE7071's DAC
