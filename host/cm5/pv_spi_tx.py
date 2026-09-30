@@ -37,8 +37,14 @@ def pattern_packet(k: int) -> bytes:
     return bytes([0x47, 0x01, 0x00, 0x10 | (k & 15)]) + bytes(((k % 112) + j) & 0xFF for j in range(184))
 
 
+_PATTERN = {}
+
+
 def pattern_payload(m: int) -> bytes:
-    return b"".join(pattern_packet(7 * m + i) for i in range(7))
+    """Payload of pattern message m (period 16 messages, cached so the sender keeps up)."""
+    if m % 16 not in _PATTERN:
+        _PATTERN[m % 16] = b"".join(pattern_packet(7 * (m % 16) + i) for i in range(7))
+    return _PATTERN[m % 16]
 
 
 class Ready:

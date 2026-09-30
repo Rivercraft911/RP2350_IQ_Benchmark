@@ -31,6 +31,7 @@ behaviour and link closure are untested. The AFE7071, its clocks and the LO are 
 | shaper streaming with PIO input link (4 lanes, READY flow control) | 67.8 % of one core at 8 Msym/s; 16.0 Mb/s received |
 | input link limit (1 lane, on-chip loopback) | 21.3 and 32 MHz SCK clean; 16 MHz flagged as short of the 16 Mb/s coded need |
 | streaming at 150 MHz, PIO limit (2 clocks/word = 75 MW/s) | 9.375 Msym/s, clean |
+| **PigeonVision TX (`pvtx`)**: TS over PV-SPI v1 → DVB-S2 normal 2/3 + pilots, 8 Msym/s, on-chip emulated master at 21 MHz, 60 s | 58 866 messages (981/s), 0 errors; BBFRAMEs match the gr-dtv-checked reference; encoder 79.8 %, shaper 72.1 %; capture exact |
 
 Correctness chain:
 - The firmware encoder is bit-exact against the Python DVB-S2 reference (`reference/dvbs2/`) for
@@ -91,8 +92,9 @@ and 13.17 / 13.24 / 13.17 (N = 4). Flags are not the lever; data movement and re
    (`docs/sats-self-contained.md`).
 3. **Do the FEC on the RP2350, then one SPI lane is enough.** The host (CM5 or CM4) sends
    information bits, ≤ 10.3 Mb/s for PigeonVision, instead of 16 Mb/s of coded symbols, and never
-   needs to be real-time. The RP2350 owns the symbol clock and sends dummy PLFRAMEs when starved
-   (`docs/spi-protocol.md`).
+   needs to be real-time. The RP2350 owns the symbol clock and stuffs TS null packets when starved.
+   The interface is specified in `docs/pv-spi-spec.md`, and `host/cm5/pv_spi_tx.py` is the
+   reference sender.
 4. **On this chip, "cache" means SRAM bank placement.** There is no data cache on SRAM; keep
    instruction fetch and CPU tables off the banks the DMA reads.
 5. RP2350 USB (≤ 9.7 Mb/s) and the hardware SPI slave (≤ 12.5 Mb/s) are too slow for coded
