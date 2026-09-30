@@ -10,7 +10,7 @@ enum { NWORDS = 2048, BLOCK = 64 };
 
 int main(int argc, char **argv) {
     uint32_t seed = argc > 1 ? (uint32_t)strtoul(argv[1], 0, 0) : 0x1234ABCDu;
-    static uint32_t in[NWORDS], out[NWORDS * 16 * 4], ti[1 << 13], tq[1 << 13];
+    static uint32_t in[NWORDS], out[NWORDS * 16 * 8], ti[1 << 13], tq[1 << 13];
     uint32_t st = seed;
     prbs_fill(in, NWORDS, &st);
     for (int s = 0; s < N_COEF_SETS; s++) {

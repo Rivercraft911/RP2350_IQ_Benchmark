@@ -17,7 +17,7 @@ static int ch[2] = {-1, -1}, ch_cap = -1;
 static uint32_t ch_seq[2];
 static uint16_t prog_out[8], prog_cap[3];
 static uint8_t len_out;
-static uint32_t idle_block[MAX_SPS * BLOCK_SYMS];
+static uint32_t idle_block[BLOCK_WORDS];
 
 // Every bus word takes two instructions: one that changes the data with CLK_IO low (side 0)
 // and one with CLK_IO high (side 1), so CLK_IO rises floor(cpw/2) cycles after the data and

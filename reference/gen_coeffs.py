@@ -13,7 +13,7 @@ import iqlut as m  # noqa: E402
 
 ALPHA = 0.20
 HEADROOM_DB = 1.0
-VARIANTS = [(2, 8), (2, 10), (2, 12), (4, 8), (4, 10), (4, 12)]
+VARIANTS = [(2, 8), (2, 10), (2, 12), (4, 8), (4, 10), (4, 12), (8, 8), (8, 10)]
 OUT = Path(__file__).resolve().parents[1] / "firmware" / "src" / "coeffs.h"
 
 

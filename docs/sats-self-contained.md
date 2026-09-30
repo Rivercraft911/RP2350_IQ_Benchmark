@@ -24,7 +24,7 @@ the first image, at f_s − R_s(1+α)/2, where the AFE7071 filter and the ZOH si
 | R_s | filter tune | f_s | N | image edge | ZOH + filter (typ.) | load at 128 MHz |
 |---|---|---|---|---|---|---|
 | 8 Msym/s (IREC) | 0 | 32 MS/s | 4 | 27.2 MHz | 15 + 29 = 44 dB at the edge; worst image PSD −49 dBc | 72 % measured |
-| 1 Msym/s (SATS) | 8 | 8 MS/s | 8 | 7.4 MHz | 22 + 32 = 54 dB | ≈ 15–18 % est. |
+| 1 Msym/s (SATS) | 8 | 8 MS/s | 8 | 7.4 MHz | 22 + 32 = 54 dB | 16.6 % measured (streaming, link on) |
 | 1 Msym/s | 0 | 4 MS/s | 4 | 3.4 MHz | 15 + 0 = 15 dB | inadequate |
 | 0.25 Msym/s | 8 | 4 MS/s | 16 | 3.85 MHz | 28 + 12 = 40 dB | marginal; N = 32 at 8 MS/s gives 68 dB |
 
@@ -32,7 +32,7 @@ Values are ZOH + filter attenuation at the image's inner edge, computed with `re
 10 MHz). Intermediate tunes are not tabulated. Low rates therefore favour tune 8 with f_s ≈ 8 MS/s,
 and the kernel must support N = 8–32. For N ≥ 8 the entry per axis is ≥ 16 bytes, so use LDM from
 the computed address and one STM with interleaved register numbers (I in odd, Q in even
-registers). Predicted ≈ 23 cycles/symbol at N = 8.
+registers). Predicted ≈ 23 cycles/symbol at N = 8; measured 20.9 (`lut_asm`, `firmware/src/iqasm.S`).
 
 ## 2. DVB-S2 encoding on the RP2350
 

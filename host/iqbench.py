@@ -146,8 +146,8 @@ KERNELS = ("conv", "lut_shift", "lut_win", "lut_pair", "lut_asm")
 
 
 def sweep(b: Board, note: str | None):
-    for sps in (2, 4):
-        for L in (8, 10, 12):
+    for sps, Ls in ((2, (8, 10, 12)), (4, (8, 10, 12)), (8, (8, 10))):
+        for L in Ls:
             for k in KERNELS:
                 run_bench(b, k, sps, L, 1 if k == "conv" else 4, note)
 

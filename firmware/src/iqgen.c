@@ -158,6 +158,12 @@ static inline __attribute__((always_inline)) void lut_pair(
     "strd %[a0], %[b0], [%[o]], #8\n"                                                      \
     "strd %[a1], %[b1], [%[o]], #8\n"
 
+// N = 8 kernels live in iqasm.S (they need explicit register numbers for LDM/STM).
+#include <stddef.h>
+_Static_assert(offsetof(iq_cfg_t, ti) == 12 && offsetof(iq_cfg_t, tq) == 16, "iqasm.S CFG_TI/TQ");
+void k_asm8_8(uint32_t *, const uint32_t *, uint32_t, uint32_t, const iq_cfg_t *);
+void k_asm8_10(uint32_t *, const uint32_t *, uint32_t, uint32_t, const iq_cfg_t *);
+
 #define LUT_ASM(S, LL, PLACE)                                                              \
     static void PLACE(k_asm_##S##_##LL)(uint32_t *o, const uint32_t *in, uint32_t n,       \
                                          uint32_t prev, const iq_cfg_t *c) {               \
@@ -183,7 +189,8 @@ LUT_ASM(4, 8, IQ_HOT) LUT_ASM(4, 10, IQ_HOT_X) LUT_ASM(4, 12, IQ_HOT_X)
 #define ASM_KERNELS                                                                        \
     {"lut_asm", 2, 8, 1, k_asm_2_8},   {"lut_asm", 2, 10, 1, k_asm_2_10},                    \
     {"lut_asm", 2, 12, 1, k_asm_2_12}, {"lut_asm", 4, 8, 1, k_asm_4_8},                      \
-    {"lut_asm", 4, 10, 1, k_asm_4_10}, {"lut_asm", 4, 12, 1, k_asm_4_12},
+    {"lut_asm", 4, 10, 1, k_asm_4_10}, {"lut_asm", 4, 12, 1, k_asm_4_12},                    \
+    {"lut_asm", 8, 8, 1, k_asm8_8},    {"lut_asm", 8, 10, 1, k_asm8_10},
 #else
 #define ASM_KERNELS
 #endif
@@ -194,6 +201,7 @@ LUT_ASM(4, 8, IQ_HOT) LUT_ASM(4, 10, IQ_HOT_X) LUT_ASM(4, 12, IQ_HOT_X)
         lut_pair(o, i, n, p, c->ti, c->tq, S, LL);                                         \
     }
 LUT_PAIR(2, 8) LUT_PAIR(2, 10) LUT_PAIR(2, 12) LUT_PAIR(4, 8) LUT_PAIR(4, 10) LUT_PAIR(4, 12)
+LUT_PAIR(8, 8) LUT_PAIR(8, 10)
 
 const iq_kernel_info_t IQ_KERNELS[] = {
     {"conv", 0, 0, 0, k_conv},
@@ -204,6 +212,7 @@ const iq_kernel_info_t IQ_KERNELS[] = {
     {"lut_pair", 2, 8, 1, k_pair_2_8},   {"lut_pair", 2, 10, 1, k_pair_2_10},
     {"lut_pair", 2, 12, 1, k_pair_2_12}, {"lut_pair", 4, 8, 1, k_pair_4_8},
     {"lut_pair", 4, 10, 1, k_pair_4_10}, {"lut_pair", 4, 12, 1, k_pair_4_12},
+    {"lut_pair", 8, 8, 1, k_pair_8_8},   {"lut_pair", 8, 10, 1, k_pair_8_10},
     ASM_KERNELS
 };
 const int IQ_N_KERNELS = sizeof IQ_KERNELS / sizeof IQ_KERNELS[0];
