@@ -24,6 +24,28 @@ class EvidenceChecks(unittest.TestCase):
         (self.directory / 'frames.jsonl').write_text(self.frames)
         return analyze(self.directory, camera_only=camera_only)
 
+    def test_missing_session_end(self):
+        self.report['health'] = [x for x in self.report['health'] if x['type'] != 'session_end']
+        with self.assertRaisesRegex(ValueError, 'incomplete run'):
+            self.result()
+        self.assertFalse((self.directory / 'comparison.json').exists())
+
+    def test_missing_sender_summary(self):
+        self.report['sender'] = None
+        with self.assertRaisesRegex(ValueError, 'incomplete run'):
+            self.result()
+
+    def test_missing_frames(self):
+        self.frames = ''
+        with self.assertRaisesRegex(ValueError, 'too few timed frames'):
+            self.result()
+        self.assertFalse((self.directory / 'telemetry.csv').exists())
+
+    def test_missing_health(self):
+        self.report['health'] = [x for x in self.report['health'] if x['type'] != 'health']
+        with self.assertRaisesRegex(ValueError, 'incomplete run'):
+            self.result()
+
     def test_observed_run(self):
         result = self.result()
         self.assertEqual(result['failures'], [])

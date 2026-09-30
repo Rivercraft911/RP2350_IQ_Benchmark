@@ -23,7 +23,9 @@ def analyze(directory, camera_only=False):
     h, pv = (r['sender'], p['pv']) if not camera_only else (None, None)
     native = bool(h and h.get('implementation') == 'native')
     health = [x for x in r['health'] if x['type'] == 'health']
-    end = r['health'][-1]
+    end = next((x for x in reversed(r['health']) if x['type'] == 'session_end'), None)
+    if not health or end is None or not r.get('manifest') or (not camera_only and not h):
+        raise ValueError('incomplete run: missing health, session end, manifest or sender summary')
     frames = [json.loads(x) for x in (directory / 'frames.jsonl').read_text().splitlines()]
     manifest = r['manifest']
     origin = health[0]['timestamp_ns']
@@ -44,18 +46,21 @@ def analyze(directory, camera_only=False):
                                                        if cam['timing_us']['capture_queue_dwell']['samples'] else None),
                          'temperature_c': sample['temperature_c'], 'cpu_busy_percent': sample['cpu_busy_percent'],
                          'throttled_bits': sample['throttled_bits'], 'transport_bytes': sample['outputs']['transport']['wire_bytes']})
-    write_csv(directory / 'telemetry.csv', rows)
-    write_csv(directory / 'frames.csv', [{'camera': x['camera_id'], 'sequence': x['sequence'],
-        'pts_us': x['pts_us'], 'status': x['status'], 'drop_reason': x.get('drop_reason'),
-        'encoded_bytes': x.get('encoded_bytes'), 'keyframe': x.get('keyframe')} for x in frames])
+    # Write derived files only after validating enough evidence to compute rates.
     cams = []
     for cam in ('A', 'B'):
         all_frames = [x for x in frames if x['camera_id'] == cam]
         steady = [x for x in all_frames if x['pts_us'] is not None and x['pts_us'] >= 10_000_000]
         delivered = sorted(steady, key=lambda x: x['pts_us'])
-        encoded = [x for x in steady if x['status'] == 'encoded']
+        encoded = [x for x in delivered if x['status'] == 'encoded']
+        if len(encoded) < 2 or encoded[-1]['pts_us'] <= encoded[0]['pts_us']:
+            raise ValueError(f'incomplete run: too few timed frames after warm-up for camera {cam}')
         intervals = [(y['pts_us']-x['pts_us'])/1000 for x, y in zip(delivered, delivered[1:])]
         t = [x for x in rows if x['camera'] == cam and x['seconds'] >= 10]
+        encoder_times = [x['encoder_input_send_interval_ms'] for x in t
+                         if x['encoder_input_send_interval_ms'] is not None]
+        if not encoder_times:
+            raise ValueError(f'incomplete run: no encoder timing after warm-up for camera {cam}')
         cams.append({'camera': cam, 'encoded_frames_total': sum(x['status'] == 'encoded' for x in all_frames),
                      'steady_encoded_fps': (len(encoded)-1)*1e6/(encoded[-1]['pts_us']-encoded[0]['pts_us']),
                      'steady_h264_payload_mbps': sum(x['encoded_bytes'] for x in encoded[1:]) * 8 / (encoded[-1]['pts_us']-encoded[0]['pts_us']),
@@ -66,8 +71,10 @@ def analyze(directory, camera_only=False):
                      'all_drops': dict(Counter(x.get('drop_reason') for x in all_frames if x['status'] != 'encoded')),
                      'steady_drops': dict(Counter(x.get('drop_reason') for x in steady if x['status'] != 'encoded')),
                      'untimed_drops': dict(Counter(x.get('drop_reason') for x in all_frames if x['pts_us'] is None)),
-                     'mean_interval_encoder_ms': statistics.mean(x['encoder_input_send_interval_ms'] for x in t if x['encoder_input_send_interval_ms'] is not None)})
+                     'mean_interval_encoder_ms': statistics.mean(encoder_times)})
     steady_health = [x for x in health if (x['timestamp_ns']-origin)/1e9 >= 10]
+    if len(steady_health) < 2 or steady_health[-1]['timestamp_ns'] <= steady_health[0]['timestamp_ns']:
+        raise ValueError('incomplete run: too few health samples after warm-up')
     a, b = steady_health[0], steady_health[-1]
     rate = 8*(b['outputs']['transport']['wire_bytes']-a['outputs']['transport']['wire_bytes'])/(b['timestamp_ns']-a['timestamp_ns'])*1000
     duration = (end['timestamp_ns'] - manifest['clock_origin_ns']) / 1e9
@@ -103,7 +110,7 @@ def analyze(directory, camera_only=False):
                 faults.append('unread UDP datagrams at shutdown')
         if h['ts_packets'] != pv['ts_packets']:
             faults.append('TS packet count mismatch')
-        received=h['payload_bytes'] if native else h['udp']['bytes_received']
+        received = h['payload_bytes'] if native else h['udp']['bytes_received']
         if not h['payload_bytes'] == received == end['outputs']['transport']['wire_bytes']:
             faults.append('capture/UDP/SPI byte count mismatch')
         for keys, data in [(['bad_hdr','bad_crc','bad_sync','lost','short','long','overflows'], pv),
@@ -135,6 +142,10 @@ def analyze(directory, camera_only=False):
                'mean_cpu_busy_percent_after_10s': statistics.mean(x['cpu_busy_percent'] for x in steady_health),
                'throttled_bits_observed': sorted(set(x['throttled_bits'] for x in health)),
                'scope': ('Camera-only local UDP control, no SPI. ' if camera_only else 'Real-camera wired digital test, no RF. ') + 'Steady camera statistics exclude the first 10 seconds.'}
+    write_csv(directory / 'telemetry.csv', rows)
+    write_csv(directory / 'frames.csv', [{'camera': x['camera_id'], 'sequence': x['sequence'],
+        'pts_us': x['pts_us'], 'status': x['status'], 'drop_reason': x.get('drop_reason'),
+        'encoded_bytes': x.get('encoded_bytes'), 'keyframe': x.get('keyframe')} for x in frames])
     (directory / 'comparison.json').write_text(json.dumps(summary, indent=2)+'\n')
     return summary
 
@@ -146,7 +157,12 @@ if __name__ == '__main__':
     args = p.parse_args()
     failed = False
     for directory in args.directories:
-        result = analyze(directory, camera_only=args.camera_only)
+        try:
+            result = analyze(directory, camera_only=args.camera_only)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(json.dumps({'label': directory.name, 'error': str(exc)}), file=sys.stderr)
+            failed = True
+            continue
         print(json.dumps(result, indent=2))
         failed |= bool(result['failures'])
     sys.exit(int(failed))

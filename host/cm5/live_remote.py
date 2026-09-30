@@ -9,6 +9,43 @@ import subprocess
 import time
 
 
+def validate_options(a):
+    if (Path(a.label).name != a.label or a.label in ('.', '..')
+            or not 10 <= a.seconds <= 1200 or not 1 <= a.threads <= 8
+            or not -20 <= a.sender_nice <= 19):
+        raise ValueError('invalid label, duration, thread count or priority')
+    for cpus in (a.sender_cpus, a.capture_cpus):
+        if cpus and not re.fullmatch(r'[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*', cpus):
+            raise ValueError('invalid CPU list')
+    if a.native_spi and (a.sender_cpus or a.sender_nice or a.profile_sender
+                         or a.udp_mode != 'threaded' or a.transfer != 'duplex'):
+        raise ValueError('native SPI does not use Python sender options')
+
+
+def configure_capture(config, a, session):
+    config = dict(config)
+    config.update(duration_seconds=a.seconds, session_dir=str(session),
+                  udp_destination=None if a.native_spi else '127.0.0.1:1234',
+                  capture_allocator=a.allocator, encoder_threads=a.threads,
+                  encoder_input=a.encoder_input)
+    config.pop('spi', None)
+    if a.native_spi:
+        config['spi'] = {'device': '/dev/spidev0.0', 'gpiochip': '',
+                         'hz': 20000000, 'ready_line': 25}
+    return config
+
+
+def native_summary(final, error, capture_exit):
+    if not final or not final['outputs']['transport'].get('spi'):
+        return None
+    summary = dict(final['outputs']['transport']['spi'])
+    summary['crc_chain'] = f"0x{summary['crc_chain']:08x}"
+    summary.update(implementation='native', error=error,
+                   status='complete' if not error and capture_exit == 0
+                   and not final['failed'] and not final.get('signal') else 'error')
+    return summary
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--root', type=Path, default=Path('/home/pigeon/pigeonvision'))
@@ -27,11 +64,10 @@ def main():
     p.add_argument('--capture-cpus', help='taskset CPU list for capture/encoders')
     p.add_argument('--sender-nice', type=int, default=0)
     a = p.parse_args()
-    if Path(a.label).name != a.label or a.label in ('.', '..') or not 10 <= a.seconds <= 1200 or not 1 <= a.threads <= 8 or not -20 <= a.sender_nice <= 19:
-        p.error('invalid label, duration or thread count')
-    for cpus in (a.sender_cpus, a.capture_cpus):
-        if cpus and not re.fullmatch(r'[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*', cpus):
-            p.error('invalid CPU list')
+    try:
+        validate_options(a)
+    except ValueError as exc:
+        p.error(str(exc))
     root = a.root.resolve()
     os.chdir(root)
     out = root / 'output/spi-bringup' / a.label
@@ -40,14 +76,7 @@ def main():
     if session.exists():
         raise RuntimeError('session already exists')
     config = json.loads((root / a.capture_config).read_text())
-    config.update(duration_seconds=a.seconds, session_dir=str(session),
-                  udp_destination='127.0.0.1:1234', capture_allocator=a.allocator,
-                  encoder_threads=a.threads, encoder_input=a.encoder_input)
-    if a.native_spi:
-        if a.sender_cpus or a.sender_nice or a.profile_sender:
-            p.error('native SPI runs inside capture, without a separate sender')
-        config['udp_destination']=None
-        config['spi']={'device':'/dev/spidev0.0','gpiochip':'','hz':20000000,'ready_line':25}
+    config = configure_capture(config, a, session)
     config_file = out / 'capture.json'
     config_file.write_text(json.dumps(config, indent=2) + '\n')
     binary = (root / a.binary).resolve()
@@ -57,16 +86,19 @@ def main():
                   'sender_nice': a.sender_nice, 'binary': str(binary), 'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
                   'source_sha256': {str(f.relative_to(root)): hashlib.sha256(f.read_bytes()).hexdigest()
                                     for f in sorted((root / 'software/flight').rglob('*'))
-                                    if f.is_file() and f.suffix in ('.cpp', '.hpp', '.txt')},
-                  'sender_sha256': hashlib.sha256((root / 'software/python/pigeonvision/spi_transport.py').read_bytes()).hexdigest(),
-                  'rmem_before': Path('/proc/sys/net/core/rmem_max').read_text().strip()}
+                                    if f.is_file() and f.suffix in ('.cpp', '.hpp', '.txt')}}
+    if not a.native_spi:
+        provenance.update(
+            sender_sha256=hashlib.sha256((root / 'software/python/pigeonvision/spi_transport.py').read_bytes()).hexdigest(),
+            rmem_before=Path('/proc/sys/net/core/rmem_max').read_text().strip())
     (out / 'provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
-    subprocess.run(['sudo', '-n', '/usr/sbin/sysctl', '-w', 'net.core.rmem_max=4194304'], check=True, stdout=subprocess.DEVNULL)
+    if not a.native_spi:
+        subprocess.run(['sudo', '-n', '/usr/sbin/sysctl', '-w', 'net.core.rmem_max=4194304'], check=True, stdout=subprocess.DEVNULL)
 
     def bound():
         return any(line.split()[1] == '0100007F:04D2' for line in Path('/proc/net/udp').read_text().splitlines()[1:])
 
-    if bound():
+    if not a.native_spi and bound():
         raise RuntimeError('UDP 127.0.0.1:1234 already bound')
     sender = capture = None
     profiles = []
@@ -127,7 +159,8 @@ def main():
                     last_progress = elapsed
                 time.sleep(1)
             capture.wait()
-            if sender: sender.wait(timeout=15)
+            if sender:
+                sender.wait(timeout=15)
     except Exception as exc:
         error = str(exc)
     finally:
@@ -152,19 +185,19 @@ def main():
               'session_dir': str(session),
               'manifest': json.loads((session / 'session.json').read_text()) if (session / 'session.json').exists() else None}
     if a.native_spi:
-        final=next((h for h in reversed(report['health']) if h['type']=='session_end'),None)
-        native=final['outputs']['transport'].get('spi') if final else None
-        if native:
-            native['crc_chain']=f"0x{native['crc_chain']:08x}"
-            native.update(implementation='native', status='complete' if not error and report['capture_exit']==0 and not final['failed'] else 'error',error=error)
-            report['sender']=native
-            report['sender_exit']=report['capture_exit']
-        (out/'sender.json').write_text(json.dumps(native,indent=2)+'\n')
+        final = next((h for h in reversed(report['health']) if h['type'] == 'session_end'), None)
+        report['sender'] = native_summary(final, error, report['capture_exit'])
+        report['sender_exit'] = report['capture_exit']
+        if report['sender'] is None:
+            report['error'] = error or 'capture ended without native SPI summary'
+        (out / 'sender.json').write_text(json.dumps(report['sender'], indent=2) + '\n')
     (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({'capture_exit': report['capture_exit'], 'sender_exit': report['sender_exit'],
-                      'error': error, 'messages': report['sender']['messages'] if report['sender'] else None,
+                      'error': report['error'], 'messages': report['sender']['messages'] if report['sender'] else None,
                       'remote_output': str(out)}), flush=True)
-    return int(bool(error or report['capture_exit'] or report['sender_exit']))
+    return int(bool(report['error'] or report['capture_exit'] != 0
+                    or report['sender_exit'] != 0 or not report['sender']
+                    or report['sender']['status'] != 'complete'))
 
 
 if __name__ == '__main__':

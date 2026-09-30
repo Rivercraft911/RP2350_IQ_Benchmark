@@ -12,6 +12,7 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'host'))
 from iqbench import Board
+from live_remote import validate_options
 
 
 def main():
@@ -35,8 +36,10 @@ def main():
     p.add_argument('--ssh-config', required=True)
     p.add_argument('--ssh-host', required=True)
     a = p.parse_args()
-    if Path(a.label).name != a.label or a.label in ('.', '..') or not 10 <= a.seconds <= 1200 or not 1 <= a.threads <= 8 or not -20 <= a.sender_nice <= 19:
-        p.error('invalid label or duration')
+    try:
+        validate_options(a)
+    except ValueError as exc:
+        p.error(str(exc))
     out = ROOT / 'results/cm5-spi' / a.label
     out.mkdir(parents=True, exist_ok=False)
     program = Path(__file__).with_name('live_remote.py').read_text()
@@ -71,17 +74,23 @@ def main():
         files = {f: f'{a.remote_root}/output/spi-bringup/{a.label}/{f}'
                  for f in ['report.json', 'profile.json', 'provenance.json', 'capture.json', 'capture.stderr', 'sender.stderr', 'sender.json', 'sender-command.json']}
         if a.native_spi:
-            for name in ('sender.stderr','sender-command.json'):
+            for name in ('sender.stderr', 'sender-command.json'):
                 files.pop(name)
         if a.profile_sender:
             files['sender-profile.txt'] = f'{a.remote_root}/output/spi-bringup/{a.label}/sender-profile.txt'
         files.update({f: f'{a.remote_root}/output/sessions/spi-{a.label}/{f}'
                       for f in ['frames.jsonl', 'segments.jsonl', 'session.json']})
+        missing = []
         for name, remote_path in files.items():
-            with (out / name).open('wb') as target:
-                subprocess.run(ssh + ['cat ' + shlex.quote(remote_path)], stdout=target, check=True)
-        print(json.dumps({'label': a.label, 'remote_exit': remote.returncode, 'pico': pico['pv']}, indent=2))
-        return remote.returncode
+            result = subprocess.run(ssh + ['cat ' + shlex.quote(remote_path)], capture_output=True)
+            if result.returncode:
+                missing.append({'file': name, 'error': result.stderr.decode(errors='replace').strip()})
+            else:
+                (out / name).write_bytes(result.stdout)
+        (out / 'collection.json').write_text(json.dumps({'missing': missing}, indent=2) + '\n')
+        print(json.dumps({'label': a.label, 'remote_exit': remote.returncode,
+                          'pico': pico['pv'], 'missing': missing}, indent=2))
+        return remote.returncode or int(bool(missing))
     finally:
         board.s.close()
 
