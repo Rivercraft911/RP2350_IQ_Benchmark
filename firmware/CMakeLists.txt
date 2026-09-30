@@ -6,12 +6,17 @@ include(pico_sdk_import.cmake)
 project(iqbench C CXX ASM)
 pico_sdk_init()
 
-execute_process(COMMAND git describe --always --dirty --abbrev=10
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                OUTPUT_VARIABLE GIT_REV OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 add_executable(iqbench src/main.c src/iqgen.c src/iqasm.S src/iqout.c src/link.c src/dvbs2.c)
-target_compile_definitions(iqbench PRIVATE IQ_ON_DEVICE=1 GIT_REV="${GIT_REV}"
+# git_rev.h is rewritten on every build (only when the revision changes), so logged firmware
+# revisions are current. Records made before 2026-09-30 could carry a stale configure-time value.
+add_custom_target(git_rev ALL
+    COMMAND ${CMAKE_COMMAND} -DSRC=${CMAKE_CURRENT_SOURCE_DIR} -DOUT=${CMAKE_BINARY_DIR}/git_rev.h
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/git_rev.cmake
+    BYPRODUCTS ${CMAKE_BINARY_DIR}/git_rev.h)
+add_dependencies(iqbench git_rev)
+target_include_directories(iqbench PRIVATE ${CMAKE_BINARY_DIR})
+target_compile_definitions(iqbench PRIVATE IQ_ON_DEVICE=1
                            PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1)
 target_compile_options(iqbench PRIVATE -O3 -Wall -Wextra -Wno-unused-parameter)
 set(IQ_KERNEL_OPT "-O3" CACHE STRING "optimisation flag for the C kernels (iqgen.c), for A/B runs")

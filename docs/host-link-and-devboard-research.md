@@ -68,7 +68,7 @@ Why this is primary:
 **Scaffold clock tree (a proposal, not a selection; [EST]):**
 - A 40 MHz TCXO feeds a 1:4 LVCMOS fan-out buffer (e.g. LMK1C1104). Its outputs go to:
   - **LO synthesizer reference.** The LMX2572 covers 1.28 GHz and 2.2–2.3 GHz. The LMX2572LP covers 1.28 GHz only, and is the LO TI recommends for AFE7070 in SLOA313.
-  - **DACCLK generator** (e.g. CDCE6214 integer mode: 40 MHz × 64 = 2560 MHz VCO → 32 or 64 MHz differential), or a fixed LVDS/LVPECL oscillator if the reference is not shared.
+  - **DACCLK generator** (e.g. CDCE6214 integer mode: 40 MHz × 64 = 2560 MHz VCO → 32 or 64 MHz differential). A standalone DACCLK oscillator is acceptable only if the RP2350 clock is derived from it too (e.g. its output divided to ≤ 50 MHz into XIN): dual-input mode requires CLK_IO and DACCLK to be frequency-locked (SLOS789C p.25). An independent oscillator would walk the FIFO pointers off within milliseconds. *(Corrected 2026-09-30; an earlier draft offered an unshared oscillator.)*
   - **RP2350 XIN** as 3.3 V CMOS.
 - RP2350 clock plan from 40 MHz: 40 × 32 = 1280 MHz → 128 MHz clk_sys, exactly 4 × 32 MHz. 40 × 30 = 1200 MHz → 48 MHz USB. clk_ref must be divided to ≤ 25 MHz [DS].
 - USB BOOTSEL with a non-12 MHz clock needs the OTP BOOTSEL_XOSC_CFG / BOOTSEL_PLL_CFG entries [DS: RP2350 §5.2.8.1, p. 375].

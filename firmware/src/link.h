@@ -15,6 +15,10 @@ extern volatile uint32_t link_overruns;   // polls that found unconsumed data ov
 // minimum). src must be 16 KiB aligned.
 void link_init(int lanes, int half, const uint32_t *src);
 void link_start(void);
-void link_stop(void);
-// Core 0 only. consumed = index of the oldest word still needed. Updates link_total and READY.
+void link_stop(void);                   // also stops the poll timer
+// Updates link_total and READY. Called from a 50 us repeating-timer interrupt while the link
+// runs, so the poll interval stays bounded regardless of foreground work: at the fastest link
+// (4 lanes x 32 MHz = 128 Mb/s) 50 us is 200 words, inside READY_MARGIN, and 40x shorter than
+// one ring wrap (2 ms), so no wrap is lost. *consumed_word is the oldest word still needed.
 void link_poll(uint32_t consumed);
+void link_autopoll(volatile uint32_t *consumed_blocks, uint32_t words_per_block);

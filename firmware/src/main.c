@@ -27,9 +27,7 @@
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 
-#ifndef GIT_REV
-#define GIT_REV "unknown"
-#endif
+#include "git_rev.h"                               // regenerated on every build
 
 #define SEED 0x1234ABCDu
 
@@ -198,10 +196,7 @@ static inline bool expired(void) { return (int32_t)(time_us_32() - run.end_us) >
 
 static void __not_in_flash_func(monitor)(void) {   // core 0 only
     if (iqout_take_txstall()) run.txstalls++;
-    if (run.lanes) {                                // oldest needed word: history of block `done`
-        const uint32_t d = ring.done * run.biw;
-        link_poll(d ? d - 1 : 0);
-    }
+
     if (run.cap_words && !run.cap_started && time_us_32() >= run.cap_at_us) {
         iqout_capture_start(cap_buf, run.cap_words);
         run.cap_started = true;
@@ -304,14 +299,18 @@ static void cmd_stream(const iq_kernel_info_t *k, const char *cores, int cpw, in
     if (lanes) {                                          // fill enough input for the prefill
         link_init(lanes, half, in_buf);
         link_start();
+        link_autopoll(&ring.done, run.biw);            // ring.done = 0 until the output starts
         while (link_total < (N_BLOCKS + 1) * run.biw && time_us_32() - tl < 100000)
-            link_poll(0);
+            tight_loop_contents();
     }
     if (s2 >= 0) {                                        // first frame on core 0, then core 1
         enc = (typeof(enc)){.s = {.out = link_ring, .mask = IN_WORDS - 1}, .min_ahead = 1 << 30,
                             .fw = (dvbs2_plframe_symbols() + 31) / 16};
-        dvbs2_frame(bb_buf, &enc.s);
-        enc.total = enc.s.n, enc.frames = 1;
+        while (enc.s.n < (N_BLOCKS + 1) * run.biw) {      // short frames: ~511 words each
+            dvbs2_frame(bb_buf, &enc.s);
+            enc.frames++;
+        }
+        enc.total = enc.s.n;
     }
     for (uint32_t s = 0; s < N_BLOCKS; s++) produce(s);   // prefill
     const uint32_t t0 = time_us_32();
@@ -402,7 +401,8 @@ static void dispatch(char *line) {
         if (!select_variant(sps, L, &tables_ok)) return error("no coefficient set");
         const iq_kernel_info_t *k = iq_find_kernel(argv[3], sps, L);
         if (!k) return error("no such kernel");
-        if (cpw < 2 || cpw > 33 || ms <= 0 || cap < 0 || cap > CAP_WORDS_MAX) return error("bad args");
+        if (cpw < 2 || cpw > IQOUT_MAX_CPW || ms <= 0 || cap < 0 || cap > CAP_WORDS_MAX)
+            return error("bad args");
         s2_setup(ci, atoi(argv[2]) != 0);
         return cmd_stream(k, "0", cpw, ms, cap, 0, 0, ci, tables_ok);
     }
@@ -426,7 +426,8 @@ static void dispatch(char *line) {
     if (bench) return cmd_bench(k, argc > 4 ? atoi(argv[4]) : 4, tables_ok);
     const int cpw = atoi(argv[5]), ms = atoi(argv[6]), cap = argc > 7 ? atoi(argv[7]) : 0;
     const int lanes = argc > 8 ? atoi(argv[8]) : 0, half = argc > 9 ? atoi(argv[9]) : 6;
-    if (cpw < 2 || cpw > 33 || ms <= 0 || cap < 0 || cap > CAP_WORDS_MAX) return error("bad args");
+    if (cpw < 2 || cpw > IQOUT_MAX_CPW || ms <= 0 || cap < 0 || cap > CAP_WORDS_MAX)
+        return error("bad args");
     if (lanes && ((lanes != 1 && lanes != 2 && lanes != 4) || half < 2 || half > 16))
         return error("bad link args");
     cmd_stream(k, argv[4], cpw, ms, cap, lanes, half, -1, tables_ok);

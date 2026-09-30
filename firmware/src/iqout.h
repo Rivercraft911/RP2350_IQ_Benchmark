@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #define SEQ_IDLE 0xFFFFFFFFu
+#define IQOUT_MAX_CPW 32        // PIO delay-field limit, see iqout.c
 
 typedef struct {
     uint32_t *buf;                   // n_blocks * block_words

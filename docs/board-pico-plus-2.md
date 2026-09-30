@@ -10,8 +10,11 @@ Checked 2026-09-29 against Pimoroni and Raspberry Pi sources only (listed at the
 |---|---|---|
 | D0 (LSB) … D13 (MSB) | GPIO0 … GPIO13 | 1, 2, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 17 |
 | IQ_FLAG | GPIO14 | 19 |
-| CLK (to AFE7071 CLK_IO) | GPIO15 | 20 |
-| optional 17th pin (e.g. SYNC_SLEEP) | GPIO16 | 21 (other row, directly across from pin 20) |
+| spare bus bit 15 (block marker; currently always 0) | GPIO15 | 20 |
+| CLK (to AFE7071 CLK_IO), PIO side-set | GPIO16 | 21 (other row, directly across from pin 20) |
+
+The firmware's `firmware/src/config.h` is the authority for pin use. This table was corrected on
+2026-09-30: an earlier draft put CLK on GPIO15.
 
 Why this block:
 - All 16 signals sit in order on one 1×20 row (pins 1–20). Four GND pins (3, 8, 13, 18) sit between them. Every other 16-pin block in 0–22 splits across both rows (S2 sh3, S3).

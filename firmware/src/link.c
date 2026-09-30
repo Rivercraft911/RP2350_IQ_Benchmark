@@ -4,6 +4,7 @@
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
+#include "pico/time.h"
 
 uint32_t link_ring[LINK_RING_WORDS] __attribute__((aligned(4 * LINK_RING_WORDS)));
 volatile uint32_t link_total, link_overruns;
@@ -13,6 +14,9 @@ static uint sm_rx, sm_tx, off_rx, off_tx;
 static int ch_rx = -1, ch_tx = -1;
 static uint16_t prog_rx[3], prog_tx[4];
 static uint32_t last_idx;
+static repeating_timer_t poll_timer;
+static volatile uint32_t *poll_done, poll_bw;
+static bool poll_on;
 // READY is re-evaluated only between blocks (<= ~100 us apart). At 4 lanes x 10.7 MHz = 42.7 Mb/s
 // up to ~135 words can arrive after the ring should have closed; 1024 words covers that with the
 // conservative consumed pointer (history of the oldest untransmitted block).
@@ -96,7 +100,20 @@ void link_start(void) {
     gpio_put(PIN_IN_READY, 1);
 }
 
+static bool __not_in_flash_func(poll_cb)(repeating_timer_t *t) {
+    (void)t;
+    const uint32_t d = *poll_done * poll_bw;
+    link_poll(d ? d - 1 : 0);
+    return true;
+}
+
+void link_autopoll(volatile uint32_t *consumed_blocks, uint32_t words_per_block) {
+    poll_done = consumed_blocks, poll_bw = words_per_block;
+    poll_on = add_repeating_timer_us(-50, poll_cb, 0, &poll_timer);
+}
+
 void link_stop(void) {
+    if (poll_on) cancel_repeating_timer(&poll_timer), poll_on = false;
     gpio_put(PIN_IN_READY, 0);
     pio_set_sm_mask_enabled(pio, (1u << sm_rx) | (1u << sm_tx), false);
     dma_channel_abort(ch_tx);

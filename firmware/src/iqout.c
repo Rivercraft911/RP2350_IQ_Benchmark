@@ -23,8 +23,10 @@ static uint32_t idle_block[BLOCK_WORDS];
 // and one with CLK_IO high (side 1), so CLK_IO rises floor(cpw/2) cycles after the data and
 // falls with the next change. AFE7071 needs >= 1 ns setup and hold at CLK_IO (SLOS789C p.5).
 // PACKED: FIFO word = I | Q << 16.   PAIRS: FIFO words [I0|I1] [Q0|Q1]; X holds I1.
+// Delay fields: 4 bits with one side-set bit (output SM), 5 bits without (capture SM), so
+// 2 <= cpw <= IQOUT_MAX_CPW = 32 (d0, d1 <= 15; capture delay cpw - 1 <= 31). RP2350 §11.4.
 static void build_programs(int cpw, int layout) {
-    const uint d0 = (uint)cpw / 2 - 1, d1 = (uint)cpw - 2 - d0;   // cpw >= 2; odd cpw allowed
+    const uint d0 = (uint)cpw / 2 - 1, d1 = (uint)cpw - 2 - d0;   // odd cpw allowed
 #define LO(i) ((i) | pio_encode_sideset(1, 0) | pio_encode_delay(d0))
 #define HI(i) ((i) | pio_encode_sideset(1, 1) | pio_encode_delay(d1))
     const uint out16 = pio_encode_out(pio_pins, 16), nop = pio_encode_nop();
@@ -71,8 +73,12 @@ static void __not_in_flash_func(dma_isr)(void) {
 }
 
 void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw, int layout) {
+    hard_assert(cpw >= 2 && cpw <= IQOUT_MAX_CPW);
     ring = (ring_t){.buf = buf, .block_words = block_words, .n_blocks = n_blocks};
-    for (uint32_t i = 0; i < block_words; i++) idle_block[i] = 1u << 14;  // zero, IQ_FLAG on I
+    // Idle filler: zero samples with IQ_FLAG on I words only, in the layout the PIO expects.
+    // PACKED: I | Q << 16 per word. PAIRS: [I0|I1] then [Q0|Q1].
+    for (uint32_t i = 0; i < block_words; i++)
+        idle_block[i] = layout == IQ_LAYOUT_PACKED ? 1u << 14 : (i & 1) ? 0 : (1u << 14 | 1u << 30);
 
     if (ch[0] < 0) {
         ch[0] = dma_claim_unused_channel(true);
