@@ -2,7 +2,7 @@
 
 Experiment: can an RP2350 replace the FPGA as the baseband waveform generator (framed, coded bits in; pulse-shaped QPSK I/Q samples out to a TI AFE7071) for the IREC PigeonVision video downlink or a SATS picture/file downlink? The goal is an honest answer, not a forced positive result.
 
-Instructions below are collected from `../IREC/AGENTS.md` and `../SATS/AGENTS.md` (handbook-specific items omitted). Project context lives in `../IREC/Pigeon_Vision/DESIGN.md` (section 4, AFE7071 comparison), `../SATS/Next Satellite/architecture.md` (TT&C allocation) and `../SATS/Next Satellite/research/mcu-qpsk-feasibility.json`.
+Project context lives in `../IREC/Pigeon_Vision/DESIGN.md` (section 4, AFE7071 comparison), `../SATS/Next Satellite/architecture.md` (TT&C allocation) and `../SATS/Next Satellite/research/mcu-qpsk-feasibility.json`.
 
 ## Engineering
 - Reason from first principles. Start with the physical behavior, requirements, and constraints; then derive the equations. Check units, signs, current paths, and limiting cases.

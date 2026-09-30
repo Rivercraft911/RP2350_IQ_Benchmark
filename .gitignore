@@ -7,3 +7,6 @@ __pycache__/
 # large downloaded datasheets: see docs/sources/SOURCES.md for URLs and hashes
 docs/sources/*.pdf
 docs/sources/*.txt
+
+# DVB-S2 cross-check build output (fetched reference programs)
+reference/dvbs2/crosscheck/build/

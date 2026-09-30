@@ -1,109 +1,146 @@
 # RP2350 I/Q waveform benchmark
 
-Can an RP2350 replace the FPGA that generates pulse-shaped QPSK for a TI AFE7071 transmitter?
-It would serve the IREC PigeonVision video downlink (8 Msym/s) or the SATS image downlink
+Can an RP2350 replace the FPGA that generates a DVB-S2 QPSK waveform for a TI AFE7071 transmitter?
+Target uses: the IREC PigeonVision video downlink (8 Msym/s) or the SATS image downlink
 (≤ 1 Msym/s).
 
-**Digital result so far: yes on the benchmark board, with margin.** On a Pimoroni Pico Plus 2
-(RP2350B rev A2, stock clocks), one core generates 8 Msym/s QPSK at 4 samples/symbol with
-RRC α = 0.20. It streams continuously through DMA and PIO onto a 16-bit bus at 64 M words/s
-while receiving the 16 Mb/s input over a PIO link, using 69 % of one 128 MHz core. Output at
-the pins is bit-exact with the Python model. This says nothing yet about RF spectrum, EVM
-after the AFE, clock jitter, or link closure. The AFE7071, clocks and LO are not built.
+**Digital result: yes, with margin, on the benchmark board.** A Pimoroni Pico Plus 2 (RP2350B
+rev A2, 128 MHz, stock voltage) runs a complete DVB-S2 transmitter baseband:
+- core 1 encodes: BB scrambling, BCH, LDPC, QPSK, PLHEADER, pilots, PL scrambling;
+- core 0 pulse-shapes (RRC α = 0.20, 4 samples/symbol) and streams through DMA and PIO onto the
+  AFE7071's 16-bit interleaved bus at 64 M words/s.
+
+At 8 Msym/s the load is 70 % of core 1 and 72 % of core 0. A 60 s run had no underruns, and the
+pins match the reference bit for bit. At 1 Msym/s (SATS) the whole transmitter uses about 26 % of
+one core.
+
+None of this shows RF performance: spectrum and EVM after the AFE, clock jitter, LO leakage, PA
+behaviour and link closure are untested. The AFE7071, its clocks and the LO are not built.
 
 ## Measured (Pico Plus 2, 128 MHz, SDK 2.2.0, GCC 14.2)
 
 | test | result |
 |---|---|
-| LUT kernel, N = 4 samples/symbol, L = 10 (`lut_asm`) | **11.05 cycles/symbol** = 11.6 Msym/s per core; CRC-exact |
-| same, N = 2 (`lut_pair`) | 7.0 cycles/symbol |
-| same, N = 8 (`lut_asm`, `iqasm.S`) | 20.9 cycles/symbol |
-| stream 8 Msym/s, N = 4, 1 core, 4-lane input link | 69.2 % busy, 0 underruns, 0 TX stalls, 8 176 bus words captured at the pins with 0 mismatches |
-| same, 2 cores alternating blocks | 34.8 % + 36.4 % |
-| soak: 20 s, L = 12 | 156 249 blocks, 0 faults, 32 752 words exact |
-| stream at 150 MHz, PIO limit (2 clocks/word = 75 MW/s) | 9.375 Msym/s, 72.5 % busy, clean |
-| SATS rate: 1 Msym/s, N = 8, 1-lane link | 16.6 % busy, clean |
-| input link, 1 lane × 10.7 MHz (below the 16 Mb/s need) | **fails as expected**: 7 884 underruns flagged |
+| **full TX, DVB-S2 normal QPSK 2/3 + pilots, 8 Msym/s, N = 4** | encoder 70.3 % (core 1), shaper 71.5 % (core 0); 14 426 frames in 60 s; 0 underruns; 32 752 bus words captured, 0 mismatches |
+| full TX, normal 1/2 + pilots, 1 Msym/s, N = 8 | encoder 9.2 %, shaper 17.2 %; clean, capture exact |
+| full TX, short 1/2 + pilots, 1 Msym/s, N = 8 | encoder 9.3 %, shaper 17.2 %; clean, capture exact |
+| shaper kernel, N = 4, L = 10 (`lut_asm_p`) | 10.80 cycles/symbol; 11.9 Msym/s per core |
+| shaper kernel, N = 8 (`lut_asm`) | 20.9 cycles/symbol |
+| DVB-S2 encoder, normal 2/3 + pilots | 353 k cycles/frame: BCH 110 k, LDPC 127 k, framing 116 k |
+| DVB-S2 encoder, short 1/2 + pilots | 93.5 k cycles/frame |
+| shaper streaming with PIO input link (4 lanes, READY flow control) | 67.8 % of one core at 8 Msym/s; 16.0 Mb/s received |
+| input link limit (1 lane, on-chip loopback) | 21.3 and 32 MHz SCK clean; 16 MHz flagged as short of the 16 Mb/s coded need |
+| streaming at 150 MHz, PIO limit (2 clocks/word = 75 MW/s) | 9.375 Msym/s, clean |
 
-Optimization steps at N = 4, L = 10, all bit-exact (`results/plots/progress_kernels.png`):
+Correctness chain:
+- The firmware encoder is bit-exact against the Python DVB-S2 reference (`reference/dvbs2/`) for
+  all 21 QPSK codes, with and without pilots. That was checked natively; on device, CRCs were
+  checked for 4 codes.
+- The Python reference is bit-exact against GNU Radio gr-dtv (commit aee9fd3) at five stages in
+  all 42 configurations (`reference/dvbs2/README.md`).
+- The shaper is bit-exact against the Python LUT model, which matches direct convolution within
+  0.52 LSB.
+- Stream checks capture the actual output pins with a PIO state machine running in sync with the
+  output SM.
+- No real receiver has decoded this output yet.
 
-| step | cycles/symbol | change |
+## Optimization log
+
+Every measurement is appended to `results/optimization-log.jsonl` with git revision, clock,
+parameters and verification. `make plots` draws `results/plots/progress_*.png`.
+
+Shaper, N = 4, L = 10 (cycles/symbol; budget 16 per core at 8 Msym/s):
+
+| step | cyc/sym | change |
 |---|---|---|
-| v0 `conv`: direct convolution | 917.7 | – |
-| v1 `lut_shift`: table, shift-register history | 58.6 | table lookup replaces L·N MACs |
-| v2 `lut_win`: 16-symbol windows, UBFX, compiled C | 29.1 | GCC spills and packs with UXTH/ORR |
-| v3 `lut_pair`: PIO does the I/Q interleave | 13.8 | CPU stores table words unmodified |
-| v4 `lut_asm`: hand-written Thumb-2 | 11.55 | 8 instructions/symbol; predicted 11.5 |
-| v4 + placement: tables SRAM4–7, ring SRAM0–3, code SRAM8 | 11.05 kernel; stream busy 73.3 → 69.2 % | bank collisions with DMA removed |
-| v5 `lut_asm_p`: software-pipelined `.S` | **10.80**; stream busy 67.8 % | next UBFX hides load-use stall; floor ≈ 10 |
+| v0 `conv` | 917.7 | direct convolution |
+| v1 `lut_shift` | 58.6 | lookup table, shift-register history |
+| v2 `lut_win` | 29.1 | 16-symbol windows; GCC spills and packs with UXTH/ORR |
+| v3 `lut_pair` | 13.8 | PIO does the I/Q interleave; CPU stores table words unmodified |
+| v4 `lut_asm` | 11.55 | hand-written Thumb-2, 8 instructions/symbol; predicted 11.5 |
+| v4 + placement | 11.05; stream 73.3 → 69.2 % | tables in SRAM4–7, DMA ring in SRAM0–3, code in SRAM8 |
+| v5 `lut_asm_p` | **10.80**; stream 67.8 % | software pipelining; floor about 10 |
 
-Every run is appended to `results/optimization-log.jsonl` (git revision, clock, parameters,
-verification). `make plots` regenerates the figures.
+DVB-S2 encoder, normal 2/3 + pilots (k cycles/frame; one core at 8 Msym/s = 533 k):
+
+| step | frame | BCH | LDPC | framing | change |
+|---|---|---|---|---|---|
+| serial | – | 1 356 | 2 771 | – | bit-serial as the standard states it |
+| v1 | 777 | 204 | 172 | 401 | byte-table BCH, 360-bit group LDPC |
+| v2 | 465 | 110 | 163 | 192 | slicing-by-4 BCH, 32-bit symbol stream |
+| v3 | 370 | 110 | 144 | 116 | unrolled transpose, scrambling folded into the bit-interleaved domain |
+| v4 | **353** | 110 | 127 | 116 | LDPC rotate-XOR in streaming asm (GCC hoisted 24 loads and spilled) |
+
+Compiler flags: `lut_pair` at -O2 / -Os / -O3 measures 6.98 / 7.66 / 6.98 cycles/symbol (N = 2)
+and 13.17 / 13.24 / 13.17 (N = 4). Flags are not the lever; data movement and register pressure are.
 
 ## Findings that change the plan
 
-1. **2 samples/symbol is not usable with the AFE7071.** Nothing filters between its DAC and
-   modulator except a ZOH sinc and a 4th-order filter whose widest setting is 18 dB down only at
-   20 MHz. At 16 MS/s the modelled images are −19 dBc and ACLR −25 dB. At 32 MS/s they are
-   −49 dBc (`docs/derivations.md` §2). This doubles the bus rate to 64 MW/s.
-2. **Load scales with the DAC rate, not the symbol rate**, at about 2.4–2.8 cycles per complex
-   sample. Low SATS symbol rates need the narrow filter (tune 8) and N = 8–32 to keep images down
-   (`docs/sats-self-contained.md` §1).
-3. **Memory placement and data movement matter more than compiler flags.** The RP2350 has no data
-   cache on SRAM; the SRAM banks are the shared resource. Keep instruction fetch off the banks the
-   DMA reads. `lut_pair` at -O2 / -Os / -O3 measures 6.98 / 7.66 / 6.98 cycles/symbol at N = 2 and
-   13.17 / 13.24 / 13.17 at N = 4. Hand scheduling gives 10.80 (`-DIQ_KERNEL_OPT=` selects the
-   flag for A/B runs).
-4. Input: RP2350 USB (≤ 9.7 Mb/s) and the hardware SPI slave (≤ 12.5 Mb/s) cannot carry
-   16 Mb/s. A PIO receiver with READY flow control can
-   (`docs/host-link-and-devboard-research.md`).
+1. **2 samples/symbol cannot meet a clean spectrum with the AFE7071.** Nothing filters between its
+   DAC and modulator except a ZOH sinc and a 4th-order filter, and the widest setting is only
+   18 dB down at 20 MHz. At 16 MS/s the modelled images are −19 dBc and ACLR −25 dB; at 32 MS/s,
+   −49 dBc (`docs/derivations.md` §2).
+2. **Shaper load scales with the DAC rate, not the symbol rate:** about 2.6–2.7 cycles per complex
+   sample. Low SATS symbol rates use the narrow filter (tune 8) with N = 8
+   (`docs/sats-self-contained.md`).
+3. **Do the FEC on the RP2350, then one SPI lane is enough.** The host (CM5 or CM4) sends
+   information bits, ≤ 10.3 Mb/s for PigeonVision, instead of 16 Mb/s of coded symbols, and never
+   needs to be real-time. The RP2350 owns the symbol clock and sends dummy PLFRAMEs when starved
+   (`docs/spi-protocol.md`).
+4. **On this chip, "cache" means SRAM bank placement.** There is no data cache on SRAM; keep
+   instruction fetch and CPU tables off the banks the DMA reads.
+5. RP2350 USB (≤ 9.7 Mb/s) and the hardware SPI slave (≤ 12.5 Mb/s) are too slow for coded
+   symbols at 8 Msym/s; a PIO receiver is not.
 
 ## Estimates, not measured
 
-- DVB-S2 BCH + LDPC + PL framing on-chip: ≈ 0.2 M cycles per normal frame, which is ≈ 5 % of a
-  core at 1 Msym/s and ≈ 38 % at 8 Msym/s (`docs/sats-self-contained.md` §2). The reference
-  encoder is in progress in `reference/dvbs2/`.
-- Parallel-bus timing margin ≈ 5.7 ns setup and hold at 64 MW/s against 1 ns required, from
-  QMI-table pad data rather than a PIO figure (`hardware/devboard/README.md`).
+- Parallel-bus setup/hold margin ≈ 5.7 ns at 64 MW/s against 1 ns required, from RP2350 QMI pad
+  data rather than a PIO figure (`hardware/devboard/README.md`).
+- The external SPI master is asynchronous. Plan on about 20 MHz until a real CM5/CM4 link is
+  measured.
 
 ## Resources (current firmware)
 
-SRAM: 22 KB .data (hot code copied to RAM) + 184 KB .bss + 128 KB SRAM4–7 (tables, capture)
-+ 1.2 KB SRAM8, out of 520 KB. PIO0 uses SM0 (output) and SM1 (capture, verification only);
-PIO1 uses SM0 (link receiver) and SM1 (host emulator, test only). DMA uses 2 channels for output,
-1 for capture and 2 for the link. GPIO0–16 carry the AFE bus (D0–13, IQ_FLAG, spare, CLK_IO);
-GPIO17–22 the input link.
+| resource | used |
+|---|---|
+| SRAM0–3 (256 KB) | 28.7 KB .data (hot code) + 217 KB .bss (DMA ring 128 KB, input rings 2 × 32 KB, idle block) |
+| SRAM4–7 (256 KB) | 261.8 KB: shaper tables 64 KB, capture 64 KB, DVB-S2 buffers and tables. **Full**: trim the capture buffer or table sizes before adding features |
+| SRAM8 | 1.2 KB hot kernels (plus core-1 stack) |
+| PIO | PIO0: output SM, capture SM (verification). PIO1: link receiver, host emulator (test) |
+| DMA | 2 output, 1 capture, 2 link |
+| GPIO | 0–16 AFE bus (D0–13, IQ_FLAG, spare, CLK_IO); 17–22 input link |
 
 ## Reproduce
 
 ```sh
-make test          # host-native kernels vs Python model, bit-exact
-make analyze       # filter/image analysis -> results/plots
-make build flash   # needs ~/.pico-sdk (VS Code extension install); board in BOOTSEL or running iqbench
-make bench         # kernel sweep on the board, appended to the log
-python3 host/iqbench.py stream lut_asm 4 10 --cores 0 --cpw 2 --ms 3000 --cap 4096 --lanes 4
+make test                               # host-native shaper kernels vs Python model
+python3 host/test_dvbs2_native.py       # C DVB-S2 encoder vs Python reference, 21 codes x pilots
+python3 reference/dvbs2/test_dvbs2.py   # Python reference self-checks and gr-dtv/leansdr digests
+make analyze                            # filter/image analysis -> results/plots
+make build flash                        # ~/.pico-sdk (VS Code extension); BOOTSEL or running iqbench
+make bench                              # shaper kernel sweep
+python3 host/iqbench.py dvbs2 3 5 6 14                                          # encoder stages
+python3 host/iqbench.py txs2 5 lut_asm_p 4 10 --cpw 2 --ms 60000 --cap 16384   # full TX, 8 Msym/s
+python3 host/iqbench.py txs2 3 lut_asm 8 10 --cpw 8 --ms 5000 --cap 8192       # full TX, 1 Msym/s
 make plots
 ```
-
-`python3 host/iqbench.py -h` lists the commands. The firmware speaks line commands over USB CDC
-(`firmware/src/main.c` header).
 
 ## Layout
 
 ```
-reference/   Python model (iqlut.py), filter analysis, coefficient generator, dvbs2/ (in progress)
-firmware/    Pico SDK project: kernels (iqgen.c, iqasm.S), PIO/DMA output (iqout.c), input link
-host/        board driver + verification (iqbench.py), native test, progress plots
-results/     optimization log (jsonl), reference analysis, plots
-docs/        derivations, board/RP2350/host-link research, SATS feasibility; sources/ (not tracked)
+reference/   iqlut.py (shaper model), analyze.py, gen_coeffs.py, gen_dvbs2_codes.py, dvbs2/ (DVB-S2 reference)
+firmware/    Pico SDK project: iqgen.c / iqasm.S (shaper), dvbs2.c (encoder), iqout.c (PIO/DMA), link.c
+host/        iqbench.py (board driver + verification), native tests, plot_progress.py
+results/     optimization-log.jsonl, reference analysis, plots
+docs/        derivations, SATS feasibility, SPI protocol, board/RP2350/host-link research, sources/
 hardware/    dev-board requirements draft and gates
 ```
 
 ## Next steps
 
-1. DVB-S2 encoder in firmware (BCH, LDPC group form, PL framing), bit-exact against the
-   reference, then streamed through the shaper at 1 and 8 Msym/s.
-2. Real input: a Pi 5/CM5 RP1-PIO or SPI master into GPIO17–22, with external pulls (E9 on A2).
-3. Logic analyzer on GPIO0–16 at 64 MW/s: setup/hold, skew, CLK_IO duty.
-4. AFE7071 breakout with a locked DACCLK and an external LO: spectrum, images, QMC calibration.
-5. Kernel: 2-word unrolling would remove about half the remaining 0.8 cycles/symbol of loop overhead (≈ 4 %).
+1. SPI message receiver (PIO + CRC + queue) and BBFRAME builder from TS packets or file segments,
+   with dummy PLFRAMEs when the queue is empty. Then a real CM5/Pi 5 master at 20 MHz.
+2. Logic analyzer on GPIO0–16 at 64 MW/s: setup/hold, skew, CLK_IO duty.
+3. Decode the captured baseband with gr-dvbs2rx, which exercises the receiver chain.
+4. AFE7071 breakout with a frequency-locked DACCLK and an LO: spectrum, images, QMC calibration.
+5. Free SRAM4–7 headroom; BCH in streaming asm (about −25 k cycles/frame).
