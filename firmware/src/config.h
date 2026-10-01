@@ -9,6 +9,7 @@
 // CLK_IO on GPIO16 (side-set). GP0/1 are the default UART: stdio uses USB only.
 #define PIN_D0 0
 #define PIN_CLKIO 16
+#define BUS_DRIVE GPIO_DRIVE_STRENGTH_8MA     // fast slew; G5 checks the edges (8 or 12 mA)
 
 // Input link (stage 4): clock, 4 data lanes, ready. Reserved, GPIO17-22.
 #define PIN_IN_CLK 17

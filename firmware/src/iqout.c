@@ -72,6 +72,12 @@ static void __not_in_flash_func(dma_isr)(void) {
     }
 }
 
+static void bus_pin(uint pin) {
+    pio_gpio_init(pio, pin);
+    gpio_set_slew_rate(pin, GPIO_SLEW_RATE_FAST);           // pads reset to slow, 4 mA
+    gpio_set_drive_strength(pin, BUS_DRIVE);
+}
+
 void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw, int layout) {
     hard_assert(cpw >= 2 && cpw <= IQOUT_MAX_CPW);
     ring = (ring_t){.buf = buf, .block_words = block_words, .n_blocks = n_blocks};
@@ -97,8 +103,8 @@ void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw,
     off_out = pio_add_program(pio, &po);
     off_cap = pio_add_program(pio, &pc);
 
-    for (uint p = PIN_D0; p < PIN_D0 + 16; p++) pio_gpio_init(pio, p);
-    pio_gpio_init(pio, PIN_CLKIO);
+    for (uint p = PIN_D0; p < PIN_D0 + 16; p++) bus_pin(p);
+    bus_pin(PIN_CLKIO);
     pio_sm_set_consecutive_pindirs(pio, sm_out, PIN_D0, 16, true);
     pio_sm_set_consecutive_pindirs(pio, sm_out, PIN_CLKIO, 1, true);
 
