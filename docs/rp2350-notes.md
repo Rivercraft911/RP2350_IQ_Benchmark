@@ -22,9 +22,9 @@ means arithmetic here; "unverified" means no source states it.
 5. **Clock locking for the AFE7071:** the PLL reference is XOSC/XIN only. Feed a common CMOS
    reference (≤ 50 MHz) into XIN. GPIN can clock clk_sys only directly, not through the PLL
    (§8.1.2.4 p517, Fig. 40 p575).
-6. **GPIO:** SLEWFAST, 8–12 mA, IOVDD equal to the AFE IOVDD. Worst-case clk→pad ≤ 4.1 ns at
-   3.3 V and Bank-0 skew ≤ 2.1 ns (QMI tables, not PIO-specific) against 15.6 ns at 64 MW/s
-   (Tables 1291–1292 p1233–1234).
+6. **GPIO:** fast slew and 8 mA on the bus (`BUS_DRIVE` in config.h; G5 picks 8 or 12 mA), IOVDD
+   equal to the AFE IOVDD. Worst-case clk→pad ≤ 4.1 ns at 3.3 V and Bank-0 skew ≤ 2.1 ns (QMI
+   tables, not PIO-specific) against 15.6 ns at 64 MW/s (Tables 1291–1292 p1233–1234).
 
 ## Board: Pimoroni Pico Plus 2 (PIM724)
 

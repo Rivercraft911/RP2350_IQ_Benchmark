@@ -72,10 +72,10 @@ because the I table carries IQ_FLAG in bit 14).
 Scaling: the exact worst case over all histories is max_p Σ_a |g[aN+p]|. It is scaled to
 (2^13 − 1)·10^(−1/20), so no input sequence can clip.
 
-Exactness: integer coefficients c = round(g·2^8). With floor rounding after the sum, the error
-against float convolution is at most 0.5 + L·2^−9 LSB. Measured: 0.497–0.507 LSB (bound
-0.512–0.523). Firmware, host-native C and Python produce identical CRCs for all 6 variants and all
-kernels.
+Exactness: integer coefficients c = round(g·2^8). The sum is rounded to nearest (add 2^(F−1),
+then shift right), so the error against float convolution is at most 0.5 + L·2^−9 LSB. Measured:
+0.497–0.507 LSB (bound 0.512–0.523). Firmware, host-native C and Python produce identical CRCs
+for all 6 variants and all kernels.
 
 EVM is not the binding constraint. With EVM ε and channel SNR ρ, the effective SNR is
 1/(1/ρ + ε²). At Es/N0 = 3 dB (roughly QPSK 2/3 threshold) and ε = −40 dB the loss is
@@ -105,6 +105,9 @@ Moving the I/Q interleave into the PIO removed 4 pack instructions per symbol. T
 I(2k+1) in X while emitting Q(2k) (8 instructions per 4 bus words, 2 cycles per word).
 
 ## 5. Streaming (measured, 128 MHz, 8.000 Msym/s, N = 4, L = 10)
+
+Measured with v4 `lut_asm` (11.55 cycles/symbol) and the earlier 64 KiB capture buffer; v5
+`lut_asm_p` streams at 67.8 % of core 0.
 
 | configuration | core 0 busy | core 1 busy | underruns | pin capture |
 |---|---|---|---|---|

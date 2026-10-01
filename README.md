@@ -22,7 +22,7 @@ behaviour and so much more. This is purely the waveform generation.
 
 | test | result |
 |---|---|
-| **full TX, DVB-S2 normal QPSK 2/3 + pilots, 8 Msym/s, N = 4** | encoder 70.3 % (core 1), shaper 71.5 % (core 0); 14 426 frames in 60 s; 0 underruns; 32 752 bus words captured, 0 mismatches |
+| **full TX, DVB-S2 normal QPSK 2/3 + pilots, 8 Msym/s, N = 4** | encoder 70.3 % (core 1), shaper 71.5 % (core 0); 14 426 frames in 60 s; 0 underruns; 32 752 bus words captured (64 KiB buffer then), 0 mismatches |
 | full TX, normal 1/2 + pilots, 1 Msym/s, N = 8 | encoder 9.2 %, shaper 17.2 %; clean, capture exact |
 | full TX, short 1/2 + pilots, 1 Msym/s, N = 8 | encoder 9.3 %, shaper 17.2 %; clean, capture exact |
 | shaper kernel, N = 4, L = 10 (`lut_asm_p`) | 10.80 cycles/symbol; 11.9 Msym/s per core |
@@ -104,8 +104,8 @@ internally. Details are in `docs/derivations.md` §2.
 
 | resource | used |
 |---|---|
-| SRAM0–3 (256 KB) | 28.7 KB .data (hot code) + 217 KB .bss (DMA ring 128 KB, input rings 2 × 32 KB, idle block) |
-| SRAM4–7 (256 KB) | 261.8 KB: shaper tables 64 KB, capture 64 KB, DVB-S2 buffers and tables. **Full**: trim the capture buffer or table sizes before adding features |
+| SRAM0–3 (256 KB) | 30.8 KB .data (hot code) + 213 KB .bss (DMA ring 128 KB, input rings 2 × 32 KB, idle block) |
+| SRAM4–7 (256 KB) | 251.6 KB: shaper tables 64 KB, capture 56 KB, DVB-S2 buffers and tables. 4.4 KB free |
 | SRAM8 | 1.2 KB hot kernels (plus core-1 stack) |
 | PIO | PIO0: output SM, capture SM (verification). PIO1: 4-lane link (test). PIO2: PV-SPI receiver, CS watcher, emulator (test) |
 | DMA | 2 output, 1 capture, 1 PV-SPI (+2 for the emulator) or 2 link |
@@ -119,9 +119,10 @@ python3 host/test_dvbs2_native.py       # C DVB-S2 encoder vs Python reference, 
 python3 reference/dvbs2/test_dvbs2.py   # Python reference self-checks and gr-dtv/leansdr digests
 make analyze                            # filter/image analysis -> results/plots
 make build flash                        # ~/.pico-sdk (VS Code extension); BOOTSEL or running iqbench
+make smoke                              # every command once on the board, about 1 s each
 make bench                              # shaper kernel sweep
 python3 host/iqbench.py dvbs2 3 5 6 14                                          # encoder stages
-python3 host/iqbench.py txs2 5 lut_asm_p 4 10 --cpw 2 --ms 60000 --cap 16384   # full TX, 8 Msym/s
+python3 host/iqbench.py txs2 5 lut_asm_p 4 10 --cpw 2 --ms 60000 --cap 14336   # full TX, 8 Msym/s
 python3 host/iqbench.py txs2 3 lut_asm 8 10 --cpw 8 --ms 5000 --cap 8192       # full TX, 1 Msym/s
 make plots
 ```
@@ -130,7 +131,8 @@ make plots
 
 ```
 reference/   iqlut.py (shaper model), analyze.py, gen_coeffs.py, gen_dvbs2_codes.py, dvbs2/ (DVB-S2 reference)
-firmware/    Pico SDK project: iqgen.c / iqasm.S (shaper), dvbs2.c (encoder), iqout.c (PIO/DMA), link.c
+firmware/    Pico SDK project: tx.c (transmit path), bench.c, iqgen.c / iqasm.S (shaper), dvbs2.c
+             (encoder), iqout.c (PIO/DMA), pvspi.c (PV-SPI), link.c, main.c (command line)
 host/        iqbench.py (board driver + verification), native tests, plot_progress.py
 host/cm5/    PV-SPI reference sender and the CM5 camera-run harness
 results/     optimization-log.jsonl, reference analysis, plots, cm5-spi/ (real CM5 runs)
@@ -142,7 +144,12 @@ hardware/    dev-board requirements, AFE7071 and clocking notes, gates
 ## Next steps
 
 1. CM5 sender in C inside the capture process, to win back the camera frame rate.
-2. Logic analyzer on GPIO0–16 at 64 MW/s: setup/hold, skew, CLK_IO duty.
-3. Decode the captured baseband with gr-dvbs2rx, which exercises the receiver chain.
-4. AFE7071 breakout with a frequency-locked DACCLK and an LO: spectrum, images, QMC calibration.
-5. Free SRAM4–7 headroom; BCH in streaming asm (about −25 k cycles/frame).
+2. Logic analyzer and scope on GPIO0–16 at 64 MW/s: setup/hold, skew, CLK_IO duty, edges.
+3. Decode with gr-dvbs2rx: capture encoder symbols on the board (about 6 frames fit) and shape
+   them with the bit-exact host model.
+4. Encoder load for all 21 codes at 8 Msym/s; normal 3/4 already costs 10 % more than 2/3.
+   BCH in streaming asm would save about 25 k cycles/frame.
+5. Soak: hours of `pvtx`, warm, with USB traffic during streaming.
+6. Production build: boots straight into `pvtx`, without the command line, benchmarks or
+   capture, with a watchdog.
+7. AFE7071 breakout with a frequency-locked DACCLK and an LO: spectrum, images, QMC calibration.
