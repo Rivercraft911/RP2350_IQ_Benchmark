@@ -139,18 +139,21 @@ host/cm5/    PV-SPI reference sender and the CM5 camera-run harness
 results/     optimization-log.jsonl, reference analysis, plots, cm5-spi/ (real CM5 runs)
 docs/        pv-spi-spec.md, derivations.md, host-link.md, rp2350-notes.md, sats-self-contained.md,
              sources/SOURCES.md (all references)
-hardware/    dev-board requirements, AFE7071 and clocking notes, gates
+hardware/    transmitter hardware draft: interfaces, shared RF core, IREC and SATS modules
 ```
 
 ## Next steps
 
 1. CM5 sender in C inside the capture process, to win back the camera frame rate.
 2. Logic analyzer and scope on GPIO0–16 at 64 MW/s: setup/hold, skew, CLK_IO duty, edges.
-3. Decode with gr-dvbs2rx: capture encoder symbols on the board (about 6 frames fit) and shape
+3. Shaper at L = 12 with a Kaiser window (β ≈ 1): at L = 10 the spectrum exceeds the DVB-S2 mask by
+   1.3 dB at 6.8 MHz (`hardware/devboard/README.md`).
+4. Decode with gr-dvbs2rx: capture encoder symbols on the board (about 6 frames fit) and shape
    them with the bit-exact host model.
-4. Encoder load for all 21 codes at 8 Msym/s; normal 3/4 already costs 10 % more than 2/3.
+5. Encoder load for all 21 codes at 8 Msym/s; normal 3/4 already costs 10 % more than 2/3.
    BCH in streaming asm would save about 25 k cycles/frame.
-5. Soak: hours of `pvtx`, warm, with USB traffic during streaming.
-6. Production build: boots straight into `pvtx`, without the command line, benchmarks or
+6. Soak: hours of `pvtx`, warm, with USB traffic during streaming.
+7. Production build: boots straight into `pvtx`, without the command line, benchmarks or
    capture, with a watchdog.
-7. AFE7071 breakout with a frequency-locked DACCLK and an LO: spectrum, images, QMC calibration.
+8. RF daughterboard on the Pico Plus 2 (`hardware/devboard/README.md`): spectrum, mask, images, LO
+   leakage.

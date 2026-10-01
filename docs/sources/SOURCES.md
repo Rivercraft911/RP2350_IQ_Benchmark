@@ -42,7 +42,7 @@ generator uses `pdftotext -raw`.
 | PIOLIB | piolib, https://github.com/raspberrypi/utils/tree/master/piolib |
 | USB2 | USB 2.0 specification, Table 5-9 (full-speed bulk limit), https://www.usb.org/document-library/usb-20-specification |
 
-## TI parts and application notes
+## RF parts and application notes
 
 | tag | what |
 |---|---|
@@ -54,12 +54,41 @@ generator uses `pdftotext -raw`.
 | CDCE6214 | SNAS811A, https://www.ti.com/lit/ds/symlink/cdce6214.pdf |
 | LMK1C1104 | SNAS791D, https://www.ti.com/lit/ds/symlink/lmk1c1104.pdf |
 | ADF4351 | ADI ADF4351 Rev. A, https://www.analog.com/media/en/technical-documentation/data-sheets/ADF4351.pdf |
+| LMK1D1204 | TI SNAS815C, https://www.ti.com/lit/ds/symlink/lmk1d1204.pdf |
+| AD9117 | ADI AD9114/5/6/7 Rev. A, https://www.analog.com/media/en/technical-documentation/data-sheets/ad9114_9115_9116_9117.pdf |
+| ADL5375 | ADI ADL5375, https://www.analog.com/media/en/technical-documentation/data-sheets/adl5375.pdf |
+| GRF5613 | Guerrilla RF GRF5613 Release /0, https://www.guerrilla-rf.com/includes/prodFiles/5613/GRF5613DS.pdf |
+| GRF5613-EVB184 | GRF5613 EVB184, 1240–1420 MHz tune, https://www.guerrilla-rf.com/includes/prodFiles/5613/GRF5613%20EVB184%201240-1420%20MHz.pdf |
+| GRF5526 | Guerrilla RF GRF5526 Release A, https://www.guerrilla-rf.com/includes/prodFiles/5526/GRF5526DS.pdf |
+| LFCN-1500 | Mini-Circuits LFCN-1500+, https://www.minicircuits.com/pdfs/LFCN-1500+.pdf |
+| CBP-1280C | Mini-Circuits CBP-1280C+, https://www.minicircuits.com/pdfs/CBP-1280C+.pdf |
 
-Prices and lifecycle status are from ti.com product pages on 2026-09-29 and change over time.
+Prices and lifecycle status are from ti.com product pages on 2026-09-29 and change over time. The
+AFE7071 DigiKey stock and lead time (about 80 units, 18–26 weeks) were seen on 2026-10-01 in search
+results that disagreed with each other.
+
+## Spectrum and licensing
+
+Retrieved 2026-10-01.
+
+| tag | what |
+|---|---|
+| CFR97 | 47 CFR Part 97 (amateur): 97.207, 97.303, 97.307, https://www.ecfr.gov/current/title-47/part-97 |
+| CFR2.106 | 47 CFR 2.106 table of allocations, footnote US96, https://www.ecfr.gov/current/title-47/section-2.106 |
+| RR | ITU Radio Regulations, No. 5.340 (passive bands, including 1400–1427 MHz), https://www.itu.int/pub/R-REG-RR |
+| M2164 | ITU-R M.2164-0 (2023-11), amateur use of 1240–1300 MHz and RNSS, https://www.itu.int/dms_pubrec/itu-r/rec/m/R-REC-M.2164-0-202311-I!!PDF-E.pdf |
+| DA26-706 | FCC DA 26-706 (2026), S-band downlink grant, 1.16 MHz, https://docs.fcc.gov/public/attachments/DA-26-706A1.pdf |
+| IARU-2609 | IARU satellite coordination outcomes, Sept 2026 (AMSAT-SE summary), https://www.amsat.se/2026/09/27/iaru-frequency-coordination-september-2026/ |
+| AWS-GS | AWS Ground Station locations and capabilities, https://docs.aws.amazon.com/ground-station/latest/ug/locations.capabilities.html |
 
 ## Project context
 
 Paths are relative to the repo root.
 
-- `../IREC/Pigeon_Vision/DESIGN.md` §4: 1.28 GHz design point, E200 profile, AFE7071 comparison.
+- `../IREC/Pigeon_Vision/DESIGN.md` §4: 1.28 GHz design point, E200 profile, AFE7071 comparison,
+  link budget.
+- IREC-BP: `../IREC/Pigeon_Vision/research/references/2026-band-plan.txt`, IREC 2026 band plan Rev D
+  (2026-04-14).
+- IREC-PA: `../IREC/Pigeon_Vision/research/notes/` (`grf5613_direct_drive_2026-09-27.md`,
+  `on_carrier_pa_parts.md`), GRF2011 and GRF5613 notes.
 - `../SATS/Next Satellite/research/mcu-qpsk-feasibility.json`: SATS rate assumptions.
