@@ -1,7 +1,6 @@
 # RP2350B + AFE7071 transmitter dev board: requirements draft
 
-Status: **proposal**. No schematic, parts are candidates only, nothing ordered. Start the KiCad
-project only after the gates below pass on the Pico Plus 2. Datasheet tags are in
+Status: **proposal**. No schematic, or any parts chosen. This is just a super preliminary doc as I think through this. 
 [`docs/sources/SOURCES.md`](../../docs/sources/SOURCES.md); estimates are marked [EST].
 
 ## Gates before layout

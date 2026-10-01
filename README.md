@@ -2,7 +2,7 @@
 
 Can an RP2350 through the power of PIO replace the FPGA that generates a DVB-S2 QPSK waveform for a TI AFE7071 transmitter?
 
-**Digital result: yes! With margin, on the benchmark board.** A Pimoroni Pico Plus 2 (RP2350B
+**Digital result: Yes, with margin!!!** A Pimoroni Pico Plus 2 (RP2350B
 rev A2, 128 MHz, stock voltage) runs a complete DVB-S2 transmitter baseband:
 - core 1 encodes: BB scrambling, BCH, LDPC, QPSK, PLHEADER, pilots, PL scrambling;
 - core 0 pulse-shapes (RRC α = 0.20, 4 samples/symbol) and streams through DMA and PIO onto the
