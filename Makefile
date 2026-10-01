@@ -6,7 +6,7 @@ BUILD := firmware/build
 UF2 := $(BUILD)/iqbench.uf2
 export PICO_SDK_PATH PICO_TOOLCHAIN_PATH
 
-.PHONY: build flash bootsel test analyze coeffs bench plots clean
+.PHONY: build flash bootsel test analyze coeffs bench smoke plots clean
 
 build: $(BUILD)/build.ninja
 	ninja -C $(BUILD)
@@ -32,6 +32,9 @@ coeffs:
 
 bench:                 ## run the default sweep on the board and append to the optimization log
 	python3 host/iqbench.py sweep
+
+smoke:                 ## every command once on the board, briefly; not logged
+	python3 host/iqbench.py smoke
 
 plots:
 	python3 host/plot_progress.py

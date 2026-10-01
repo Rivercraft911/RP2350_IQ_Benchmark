@@ -9,6 +9,7 @@
   python3 host/iqbench.py txs2 5 lut_asm_p 4 10 --cpw 2 --ms 3000 --cap 4096   (full transmitter)
   python3 host/iqbench.py pvtx --selftest --cap 4096      (PigeonVision SPI TX; drop --selftest for the CM5)
   python3 host/iqbench.py raw "clock 150000"
+  python3 host/iqbench.py smoke                          (every command once, briefly; not logged)
 
 Every measurement is appended to results/optimization-log.jsonl with the host git revision,
 the firmware revision it reported, the verification outcome and an optional note.
@@ -34,6 +35,7 @@ import gen_coeffs  # noqa: E402
 import iqlut as m  # noqa: E402
 
 LOG = ROOT / "results" / "optimization-log.jsonl"
+LOGGING = True                                  # smoke runs are not logged
 RPI_VID = 0x2E8A
 FAILURES: list[str] = []                        # any entry -> exit status 1
 
@@ -135,6 +137,8 @@ def stream_faults(r: dict, cap: int) -> list[str]:
 def log(rec: dict, note: str | None):
     rec = dict(time=dt.datetime.now().isoformat(timespec="seconds"), host_git=git_rev(),
                note=note, **rec)
+    if not LOGGING:
+        return rec
     LOG.parent.mkdir(parents=True, exist_ok=True)
     with LOG.open("a") as f:
         f.write(json.dumps(rec) + "\n")
@@ -310,6 +314,35 @@ def sweep(b: Board, note: str | None):
                 run_bench(b, k, sps, L, 1 if k == "conv" else 4, note)
 
 
+def smoke(b: Board):
+    """Every command path once, about 1 s each, at the limits the firmware reports. The bench
+    after pvtx checks that the PRBS input survived PV-SPI borrowing its buffer."""
+    global LOGGING
+    LOGGING = False
+    info = b.cmd("info")[0]
+    cap, cap_st = info["cap_words_max"], info["cap_words_max_selftest"]
+    steps = [
+        lambda: run_bench(b, "lut_asm_p", 4, 10, 1, None),
+        lambda: run_stream(b, "lut_asm_p", 4, 10, "0", 2, 1000, 4096, None),
+        lambda: run_stream(b, "lut_asm_p", 4, 10, "01", 2, 1000, 4096, None),
+        lambda: run_stream(b, "lut_asm_p", 4, 10, "0", 2, 1000, 4096, None, lanes=4, half=6),
+        lambda: run_dvbs2(b, 5, 1, 1, None),
+        lambda: run_txs2(b, 5, 1, "lut_asm_p", 4, 10, 2, 1000, cap, None),
+        lambda: run_txs2(b, 3, 1, "lut_asm", 8, 10, 8, 1000, 8192, None),
+        lambda: run_pvtx(b, 2, 1000, True, cap_st, 20, None),
+        lambda: run_bench(b, "lut_asm_p", 4, 10, 1, None),
+    ]
+    for step in steps:
+        try:
+            step()
+        except Exception as e:                       # keep going; report every failure
+            fail(f"{type(e).__name__}: {e}")
+    r = b.cmd(f"txs2 5 1 lut_asm_p 4 10 2 1000 {cap + 1}")[0]
+    if "cap_words" not in r.get("error", ""):
+        fail(f"cap_words {cap + 1} not rejected: {r}")
+    print(f"smoke: {len(FAILURES)} failures")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port")
@@ -332,6 +365,7 @@ def main():
     p.add_argument("--lanes", type=int, default=0, help="input over the PIO link (1, 2, 4)")
     p.add_argument("--half", type=int, default=6, help="link SCK half period, system clocks")
     sub.add_parser("sweep")
+    sub.add_parser("smoke", help="every command once, briefly; not logged")
     p = sub.add_parser("txs2", help="full on-chip transmitter: DVB-S2 encode + shape + stream")
     p.add_argument("index", type=int)
     for a in ("kernel", "sps", "L"):
@@ -363,6 +397,8 @@ def main():
         run_stream(b, a.kernel, a.sps, a.L, a.cores, a.cpw, a.ms, a.cap, a.note, a.lanes, a.half)
     elif a.cmd == "sweep":
         sweep(b, a.note)
+    elif a.cmd == "smoke":
+        smoke(b)
     elif a.cmd == "pvtx":
         run_pvtx(b, a.cpw, a.ms, a.selftest, a.cap, a.cap_ms, a.note)
     elif a.cmd == "txs2":
