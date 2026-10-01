@@ -1,7 +1,8 @@
 # RP2350B + AFE7071 transmitter dev board: requirements draft
 
-Status: **proposal**. No schematic, or any parts chosen. This is just a super preliminary doc as I think through this. 
-[`docs/sources/SOURCES.md`](../../docs/sources/SOURCES.md); estimates are marked [EST].
+Status: **proposal**. No schematic, or any parts chosen. This is just a super preliminary doc as I
+think through this. Datasheet tags are in [`docs/sources/SOURCES.md`](../../docs/sources/SOURCES.md);
+estimates are marked [EST].
 
 ## Gates before layout
 
@@ -11,7 +12,7 @@ Status: **proposal**. No schematic, or any parts chosen. This is just a super pr
 | G2 | Continuous DMA/PIO output, 0 underruns, pin capture exact | **passed**: 60 s, capture exact |
 | G3 | Concurrent host input with G2 still clean | **passed**: real CM5 over PV-SPI at 20 MHz, 210 s |
 | G4 | DVB-S2 encode on-chip at the target rate, bit-exact vs reference | **passed**: 8 Msym/s, encoder 80 %, shaper 72 % |
-| G5 | Logic-analyzer check of setup/hold and CLK_IO at the header, 64 MW/s | pending (needs equipment) |
+| G5 | Logic analyzer and scope at the header, 64 MW/s: setup/hold, CLK_IO duty, edges at the final drive | pending (needs equipment) |
 | G6 | AFE7071 bring-up on a breakout: spectrum, images, LO leakage after QMC | pending (needs RF bench) |
 
 ## Functional blocks
@@ -20,12 +21,11 @@ Status: **proposal**. No schematic, or any parts chosen. This is just a super pr
 |---|---|---|
 | MCU | RP2350B (QFN-80), 16 MB QSPI flash, optional PSRAM | 48 GPIO |
 | TX DAC/modulator | TI AFE7071IRGZ | dual-input clock mode; f_s ≤ 65 MS/s |
-| reference | one TCXO (12 or 40 MHz) + 1:4 LVCMOS buffer (e.g. LMK1C1104) | feeds LO synth, DAC clock and RP2350 XIN |
-| DAC clock | clock generator, e.g. CDCE6214 integer mode, at 2 f_s = 64 MHz | locked to the shared reference |
+| reference | one 12 MHz TCXO + 1:4 LVCMOS buffer (e.g. LMK1C1104) | feeds LO synth, DAC clock and RP2350 XIN |
+| DAC clock | buffered copy of CLK_IO, or a clock generator (e.g. CDCE6214) | exactly 2 f_s = 64 MHz, locked to the reference |
 | LO | LMX2572LP (1.28 GHz) or LMX2572 (also 2.2–2.3 GHz) + harmonic LPF | AFE LO input −5 to +5 dBm; about +4 dBm nominal |
 | PA (IREC) | GRF5613, default-off | `IREC/Pigeon_Vision/research/notes/grf5613_direct_drive_2026-09-27.md` |
-| host link | PV-SPI from the CM5 | [`docs/host-link.md`](../../docs/host-link.md) |
-| SATS command bus | CAN transceiver + can2040, or CAN FD controller on SPI | open; [`docs/sats-self-contained.md`](../../docs/sats-self-contained.md) |
+| host link | PV-SPI from the CM5 | [`docs/host-link.md`](../../docs/host-link.md); SATS: open, probably SPI |
 
 ## AFE7071 facts that constrain the board [AFE7071]
 
@@ -40,7 +40,8 @@ Status: **proposal**. No schematic, or any parts chosen. This is just a super pr
   0.4–1 V is peak or peak-to-peak is not stated. TI's EVM feeds LVPECL levels through a
   transformer into 100 Ω [SLOU337A]. Provide AC coupling, 100 Ω termination and a pad footprint.
 - CMOS inputs at IOVDD 3.3 V: VIH ≥ 2.3 V, VIL ≤ 1.0 V. RP2350 VOH ≥ 2.62 V, VOL ≤ 0.5 V:
-  compatible.
+  compatible. VOH is specified at the pad's rated current and the AFE inputs draw almost none, so
+  edge speed is the concern; the firmware sets fast slew and 8 mA.
 - Serial config port ≤ 10 MHz (t_SCLK ≥ 100 ns).
 - Power (p.4, typical): 1.8 V domains about 22–36 mA, 3.3 V domains about 101–102 mA; 334 mW at
   65 MS/s. Use separate low-noise LDOs for the analog rails.
@@ -55,14 +56,18 @@ One reference for everything. Clock the RP2350 PLL from it so CLK_IO, an integer
 clk_sys, is locked to DACCLK by construction. An independent DACCLK oscillator would walk the FIFO
 pointers off within milliseconds.
 
-- From 40 MHz: REFDIV 5, FBDIV 192, VCO 1536 MHz, ÷6÷2 = 128 MHz; USB 48 MHz from VCO 960 ÷5÷4.
-  A non-12 MHz XIN needs OTP boot settings for USB BOOTSEL; a 12 MHz reference avoids that.
-  Decision open.
+- Reference: 12 MHz. The current PLL setting (VCO 1536 MHz, ÷6÷2 = 128 MHz) and USB BOOTSEL carry
+  over unchanged; any other XIN frequency needs OTP boot settings.
+- DACCLK must be exactly 64 MHz: a fractional error walks the FIFO's ±4 cycles off (1 ppb takes
+  about 60 s). A generator needs a setting that makes exactly 16/3 × 12 MHz: integer-N, or an
+  exact fractional ratio. A buffered copy of CLK_IO avoids that, if its jitter is low enough (G5).
 - Jitter is not demanding [EST]: jitter-limited SNR = −20 log10(2π f σ). At 5 MHz baseband and
   σ = 1.7 ps that is 85.5 dB, about ideal 14-bit SNR. A fractional-N generator is adequate.
-- LO phase noise [EST]: an in-band floor near −108 dBc/Hz (ADF4351 class) over 100 kHz gives
-  ≈ 1.8 mrad rms, negligible for QPSK. Choose the synthesizer by coverage, harmonics, spurs and
-  output-power stability instead.
+- LO phase noise [EST]: integrate from the receiver's carrier-loop bandwidth to about R_s/2 = 4 MHz;
+  the carrier loop tracks lower offsets. Even a flat −108 dBc/Hz (ADF4351-class in-band floor) over
+  that band is ≈ 11 mrad rms (0.65°), negligible for QPSK, and real synthesizers roll off beyond
+  their loop bandwidth. Choose the synthesizer by coverage, harmonics, spurs and output-power
+  stability instead.
 
 | LO candidate | covers 1.28 / 2.25 GHz | notes |
 |---|---|---|
@@ -85,7 +90,6 @@ pointers off within milliseconds.
 | 28 | AFE ALARM_SDO | FIFO pointer alarms |
 | 29–32 | LO synth SPI + lock detect | |
 | 33–34 | DAC clock generator I2C/SPI | |
-| 35–36 | CAN TX/RX (can2040) | SATS variant |
 | 37 | PA enable (default off by pull) | never enabled by reset state |
 | 40–43 | ADC: rail and temperature telemetry | |
 | 44 | status LED | |
