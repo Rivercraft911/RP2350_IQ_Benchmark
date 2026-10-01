@@ -20,7 +20,7 @@
 #define BLOCK_IN(sps) (BLOCK_SYMS(sps) / 16)  // input words per block
 #define N_BLOCKS 8                            // output ring depth
 #define IN_WORDS 8192                         // input ring: 131072 symbols (32 KiB)
-#define CAP_WORDS_MAX 14336                   // capture buffer, 56 KiB (pvtx self-test uses the top 21 KiB)
+#define CAP_WORDS_MAX 14336                   // capture buffer, 56 KiB (tx.h: what else uses it)
 #define MAX_L 12
 #define TABLE_WORDS 8192                      // max 2^L * sps / 2 over COEF_SETS (32 KiB)
 

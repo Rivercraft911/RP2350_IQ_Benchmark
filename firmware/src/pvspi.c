@@ -154,7 +154,8 @@ void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half) {
 
     emu_on = selftest;
     if (selftest) {
-        for (uint32_t m = 0; m < 16; m++) pv_pattern_message((uint8_t *)(emu + m * PV_MSG_WORDS), m, 16);
+        for (uint32_t m = 0; m < PV_EMU_MSGS; m++)
+            pv_pattern_message((uint8_t *)(emu + m * PV_MSG_WORDS), m, PV_EMU_MSGS);
         pio_sm_set_consecutive_pindirs(pio, sm_emu, PIN_SCK, 3, true);
         pio_sm_set_pins_with_mask(pio, sm_emu, 1u << PIN_CS, 1u << PIN_CS);
         c = pio_get_default_sm_config();
@@ -180,7 +181,7 @@ void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half) {
         channel_config_set_bswap(&d, true);
         channel_config_set_dreq(&d, pio_get_dreq(pio, sm_emu, true));
         channel_config_set_chain_to(&d, ch_ctl);
-        dma_channel_configure(ch_emu, &d, &pio->txf[sm_emu], emu, 16 * PV_MSG_WORDS, false);
+        dma_channel_configure(ch_emu, &d, &pio->txf[sm_emu], emu, PV_EMU_WORDS, false);
         d = dma_channel_get_default_config(ch_ctl);
         channel_config_set_transfer_data_size(&d, DMA_SIZE_32);
         channel_config_set_read_increment(&d, false);

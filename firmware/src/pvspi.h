@@ -6,7 +6,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "pvproto.h"
+
 #define PV_SLOTS 24                          // 24 x 1332 B = 31 968 B, about 25 ms at 10.33 Mb/s
+#define PV_EMU_MSGS 16                       // self-test: pattern messages, sent in a loop
+#define PV_EMU_WORDS (PV_EMU_MSGS * PV_MSG_WORDS)
 
 typedef struct {
     volatile uint32_t head, tail;            // messages closed / consumed (monotonic)
@@ -15,7 +19,7 @@ typedef struct {
 
 extern pvspi_stats_t pvspi;
 
-// slots: PV_SLOTS * PV_MSG_WORDS words. emu: 16 pattern messages when selftest (else unused).
+// slots: PV_SLOTS * PV_MSG_WORDS words. emu: PV_EMU_WORDS when selftest (else unused).
 void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half);
 void pvspi_stop(void);
 uint8_t *pvspi_next_packet(void);            // consumer (one core): next accepted TS packet or NULL
