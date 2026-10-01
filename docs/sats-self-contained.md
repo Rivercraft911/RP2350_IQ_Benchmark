@@ -1,29 +1,29 @@
 # SATS: self-contained RP2350 downlink (feasibility)
 
-User request (2026-09-29): payload data arrives over CAN, or directly over SPI, is stored in
-RP2350-side memory, and is downlinked with a standard protocol such as DVB-S2, all on the
-RP2350. Status: **analysis and estimates only**, except where a line cites a measurement. SATS
-rates come from `../SATS/Next Satellite/research/mcu-qpsk-feasibility.json`: 0.25–1 Mb/s
-information, 5 MB images, 100 images/day, 600 s passes. These are illustrative assumptions, not
-requirements.
+User request (2026-09-29): payload data arrives over a host link, is stored in RP2350-side memory,
+and is downlinked with a standard protocol such as DVB-S2, all on the RP2350. As of 2026-10-01 CAN
+is not the baseline; the host link is open, probably SPI or SPI-like. Status: **analysis and
+estimates only**, except where a line cites a measurement. SATS rates come from
+`../SATS/Next Satellite/research/mcu-qpsk-feasibility.json`: 0.25–1 Mb/s information, 5 MB images,
+100 images/day, 600 s passes. These are illustrative assumptions, not requirements.
 
 ## Pipeline
 
 ```
 payload ──SPI (PIO slave, DMA)──► RP2350 SRAM/PSRAM file store ──► DVB-S2 BBFRAME/BCH/LDPC/PL
-   └──CAN (commands, can2040 or CAN FD controller)                    framing (core 1)
+                                                                      framing (core 1)
                                         LUT pulse shaper (core 0) ──► DMA ──► PIO ──► AFE7071
 ```
 
 ## 1. Pulse-shaping cost is set by the DAC rate, not the symbol rate
 
-The kernel moves about 2 words and does about 2.4 cycles of work per complex output sample
-(measured 11.55 cycles/symbol at N = 4). CPU load ≈ 2.4 f_s / f_clk. The DAC rate f_s must place
+The kernel moves about 2 words and does about 2.7 cycles of work per complex output sample
+(measured 10.80 cycles/symbol at N = 4). CPU load ≈ 2.7 f_s / f_clk. The DAC rate f_s must place
 the first image, at f_s − R_s(1+α)/2, where the AFE7071 filter and the ZOH sinc reject it:
 
 | R_s | filter tune | f_s | N | image edge | ZOH + filter (typ.) | load at 128 MHz |
 |---|---|---|---|---|---|---|
-| 8 Msym/s (IREC) | 0 | 32 MS/s | 4 | 27.2 MHz | 15 + 29 = 44 dB at the edge; worst image PSD −49 dBc | 72 % measured |
+| 8 Msym/s (IREC) | 0 | 32 MS/s | 4 | 27.2 MHz | 15 + 29 = 44 dB at the edge; worst image PSD −49 dBc | 67.8 % measured |
 | 1 Msym/s (SATS) | 8 | 8 MS/s | 8 | 7.4 MHz | 22 + 32 = 54 dB | 16.6 % measured (streaming, link on) |
 | 1 Msym/s | 0 | 4 MS/s | 4 | 3.4 MHz | 15 + 0 = 15 dB | inadequate |
 | 0.25 Msym/s | 8 | 4 MS/s | 16 | 3.85 MHz | 28 + 12 = 40 dB | marginal; N = 32 at 8 MS/s gives 68 dB |
@@ -61,13 +61,11 @@ Measured load of the full transmitter (encoder on core 1, shaper on core 0, capt
 
 | link | raw | payload goodput (est.) | 5 MB image | notes |
 |---|---|---|---|---|
-| classic CAN 1 Mb/s (can2040, PIO) | 1 Mb/s | 0.47–0.58 Mb/s × bus share | ≥ 70–85 s | 64 data bits per 111–135-bit frame incl. stuffing |
-| CAN FD 0.5/2 Mb/s, 64 B frames | – | ≈ 1.5 Mb/s | ≈ 27 s | RP2350 has no CAN FD: needs e.g. MCP2518FD on SPI |
 | direct SPI, PIO slave, 20 MHz | 20 Mb/s | ≈ 18 Mb/s | ≈ 2.2 s | point-to-point, READY flow control; external pulls (E9 on A2) |
 
-Recommendation (proposal): CAN for commands and housekeeping, point-to-point SPI for bulk data.
-The RP2350 PL022 SPI slave is limited to 12.5 Mb/s; a PIO receiver has no clock-ratio limit
-below about f_clk/6.
+One point-to-point link would carry both data and commands. PV-SPI v1 carries TS only, so commands
+and status need new message types. The RP2350 PL022 SPI slave is limited to 12.5 Mb/s; a PIO
+receiver has no clock-ratio limit below about f_clk/6.
 
 ## 4. Storage
 
@@ -92,5 +90,5 @@ DVB-S2 streamed through the shaper at 1 and 8 Msym/s (`txs2`); PIO SPI slave wit
 
 Open:
 1. File store: SPI segments into SRAM/PSRAM, then GCS BBFRAMEs on demand.
-2. can2040 command path running concurrently; CPU and latency cost.
+2. Commands and status over the host link.
 3. Ground decode with gr-dvbs2rx, from captured I/Q first, then from the AFE output.
