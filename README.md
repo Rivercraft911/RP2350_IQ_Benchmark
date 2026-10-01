@@ -10,8 +10,9 @@ rev A2, 128 MHz, stock voltage) runs a complete DVB-S2 transmitter baseband:
 
 At 8 Msym/s the load is 70 % of core 1 and 72 % of core 0. A 60 s run had no underruns, and the
 pins match the reference bit for bit. At 1 Msym/s (SATS) the whole transmitter uses about 26 % of
-one core. Fed with camera TS from a real CM5 over one SPI lane (PV-SPI, 20 MHz), it ran 210 s with
-no errors.
+one core. Fed with camera TS from a real CM5 over one SPI lane at 20 MHz, it ran 210 s with no
+errors. The link is [PV-SPI](docs/pv-spi-spec.md), our own small protocol on plain SPI: fixed
+1332-byte messages of up to 7 TS packets plus a CRC-32, and a READY line for flow control.
 
 ![Transmitter load per core](results/plots/progress_full_tx.png)
 
