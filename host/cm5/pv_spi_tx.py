@@ -20,6 +20,7 @@ import zlib
 
 MAGIC, VERSION, NOP, TS_DATA = 0x5650, 1, 0, 1
 MSG_BYTES, PAYLOAD = 1332, 1316
+GAP_S = 10e-6                     # CS_N high time, and READY valid after CS_N rises (spec)
 
 
 def message(seq: int, payload: bytes, mtype: int = TS_DATA) -> bytes:
@@ -145,15 +146,19 @@ def main():
     spi.mode, spi.bits_per_word, spi.max_speed_hz = 0, 8, int(a.hz)
     ready = Ready(a.ready, a.gpiochip)
     seq, crc, waits, max_wait, t0 = 0, 0, 0, 0.0, time.monotonic()
+    t_end = 0.0
     try:
         for payload in sources(a):
             if not payload:
                 continue
+            while time.perf_counter() - t_end < GAP_S:          # CS_N high and READY valid
+                pass
             w = ready.wait(1.0)
             waits += w > 0
             max_wait = max(max_wait, w)
             msg = message(seq, payload)
             spi.writebytes2(msg)
+            t_end = time.perf_counter()
             crc = zlib.crc32(msg[-4:], crc)
             seq += 1
     except KeyboardInterrupt:
