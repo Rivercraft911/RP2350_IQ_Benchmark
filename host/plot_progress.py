@@ -153,7 +153,7 @@ def full_tx(rows):
     def tx(code, rate, sps, pv):
         runs = [r for r in rows if r["cmd"] == "stream" and r.get("s2_code") == code and ("pv" in r) == pv
                 and abs(r["sym_rate"] - rate) < 1 and r["sps"] == sps and clean(r)]
-        return max(runs, key=lambda r: r["ms"]) if runs else None
+        return max(runs, key=lambda r: (r["ms"], r["time"])) if runs else None   # newest of the longest
     cases = [("PigeonVision, SPI input", tx("normal 2/3", 8e6, 4, True)),
              ("PigeonVision", tx("normal 2/3", 8e6, 4, False)),
              ("Short frames", tx("short 1/2", 8e6, 4, False)),
@@ -171,8 +171,8 @@ def full_tx(rows):
         ax.set_title(head)
     axes[0].set_yticks(range(len(cases)), [n for n, _ in cases])
     title(fig, "Transmitter load")
-    save(fig, "progress_full_tx.png", "128 MHz; 8 Msym/s at 4 samples/symbol, except SATS (1 Msym/s, 8 samples/symbol).\n"
-         "SPI self-test uses an on-chip master. Longest clean run per configuration; encoding includes TS assembly when used.")
+    save(fig, "progress_full_tx.png", "128 MHz; 8 Msym/s at 4 samples/symbol, except SATS (1 Msym/s, 8 samples/symbol). SPI input uses the\n"
+         "L = 12 windowed shaper, the others L = 10. Newest of the longest clean runs; encoding includes TS assembly when used.")
 
 
 if __name__ == "__main__":
