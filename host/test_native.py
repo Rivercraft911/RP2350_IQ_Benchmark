@@ -21,7 +21,7 @@ rows = [json.loads(l) for l in subprocess.run([str(exe)], check=True, capture_ou
 fail = 0
 for r in rows:
     words = m.xorshift32(r["seed"], r["nwords"])
-    lut = m.Lut(gen_coeffs.ALPHA, r["sps"], r["L"], 0.0, gen_coeffs.HEADROOM_DB)
+    lut = m.Lut(gen_coeffs.ALPHA, r["sps"], r["L"], gen_coeffs.KAISER_BETA, gen_coeffs.HEADROOM_DB)
     want = zlib.crc32(m.to_layout(m.generate(words, lut), r["layout"]).tobytes())
     ok = r["tables_ok"] and r["crc"] == want
     fail += not ok

@@ -25,6 +25,28 @@ NWORDS = 2048         # 32768 symbols per axis
 SEED = 0x1234ABCD
 
 
+# EN 302 307-1 Table A.1, alpha = 0.20: (f / fN, upper dB, lower dB). Beyond 1.7 fN the
+# upper limit stays at -40 dB.
+ETSI_MASK = [(0.2, .25, -.40), (0.4, .25, -.40), (0.89, .15, -1.10), (0.94, -.50, None),
+             (1.0, -2.0, -4.0), (1.11, -8.0, -11.0), (1.23, -16.0, None), (1.4, -24.0, None),
+             (1.5, -35.0, None), (1.7, -40.0, None)]
+
+
+def etsi_mask_margins(lut):
+    """Worst margin (dB; negative = violation) of the tap response with ZOH against the template,
+    relative to 0 Hz: at the listed points, and for the far sidelobes from 1.7 to 6 fN."""
+    fs, fn, n = RS * lut.sps, RS / 2, np.arange(len(lut.taps))
+
+    def db(f):
+        h = np.sum(lut.taps * np.exp(-2j * np.pi * f / fs * n)) * np.sinc(f / fs)
+        return 20 * np.log10(abs(h))
+    ref = db(0.0)
+    rel = {r: db(r * fn) - ref for r, _, _ in ETSI_MASK}
+    points = min([up - rel[r] for r, up, _ in ETSI_MASK] + [rel[r] - lo for r, _, lo in ETSI_MASK if lo])
+    far = -40.0 - max(db(f) - ref for f in np.linspace(1.7 * fn, 6 * fn, 2000))
+    return points, far
+
+
 def symbols_and_words():
     w = m.xorshift32(SEED, NWORDS)
     ib, qb = m.unpack_bits(w)
@@ -88,13 +110,20 @@ def main():
         print(f"{r['sps']:>3} {r['kaiser_beta']:>4.0f} {r['L']:>3} {r['evm_db']:>7.1f} "
               f"{r['aclr_db']:>8.1f} {r['worst_image_dbc']:>9.1f} {r['table_bytes_per_axis']:>8}")
 
+    mask = []
+    for L, beta in ((10, 0.0), (10, 2.0), (10, 3.0), (12, 0.0), (12, 1.0)):
+        points, far = etsi_mask_margins(m.Lut(ALPHA, 4, L, beta))
+        mask.append(dict(sps=4, L=L, kaiser_beta=beta, points_margin_db=round(points, 2),
+                         far_sidelobe_margin_db=round(far, 2)))
+        print(f"ETSI mask  sps=4 L={L:2d} beta={beta}: points {points:+.2f} dB, far sidelobes {far:+.2f} dB")
+
     meta = dict(alpha=ALPHA, symbol_rate=RS, seed=SEED, nwords=NWORDS,
                 frac_bits=m.FRAC_BITS, full_scale=m.FULL_SCALE, afe_filter_tune=0,
                 afe_filter_model="SLOS789C p.6 typical points, log-f interpolation",
                 aclr_definition="adjacent channel width Rs(1+a) at offset Rs(1+a), analog model",
                 image_definition="max PSD beyond fs/2 after ZOH sinc and AFE filter, dBc to peak")
     (OUT / "filter_sweep.json").write_text(json.dumps(
-        dict(meta=meta, lut_vs_convolution=checks, sweep=sweep), indent=1))
+        dict(meta=meta, lut_vs_convolution=checks, etsi_mask=mask, sweep=sweep), indent=1))
     plot_sweep(sweep)
 
 

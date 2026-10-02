@@ -12,7 +12,7 @@
 //        code: index into DVBS2_CODES (dvbs2_codes.h)
 //   pvtx <cpw> <ms> <selftest> [cap_words] [cap_ms]
 //        PigeonVision TX: TS over PV-SPI v1 (docs/pv-spi-spec.md) -> DVB-S2 normal QPSK 2/3 with
-//        pilots -> shaper (N = 4, L = 10). selftest 1 = on-chip emulated CM5 master.
+//        pilots -> shaper (N = 4, L = 12). selftest 1 = on-chip emulated CM5 master.
 //   snifftest                                     DMA sniffer CRC modes
 //   bootsel                                       reboot to the USB bootloader
 #include <limits.h>
@@ -31,7 +31,7 @@
 #include "git_rev.h"
 
 // The PigeonVision downlink: TS from the CM5, 8 Msym/s. pvtx overrides cpw, ms, pv and capture.
-static const tx_run_t PVTX = {.kernel = "lut_asm_p", .sps = 4, .L = 10, .cores = "0", .cpw = 2,
+static const tx_run_t PVTX = {.kernel = "lut_asm_p", .sps = 4, .L = 12, .cores = "0", .cpw = 2,
                               .cap_ms = -1, .code = S2_N2_3, .pilots = 1, .pv = 0};
 
 static char err[64];

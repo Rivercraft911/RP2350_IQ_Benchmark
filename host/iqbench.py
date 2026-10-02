@@ -89,7 +89,7 @@ def git_rev() -> str:
 def model_words(sps: int, L: int, seed: int, nwords: int, periodic: bool) -> np.ndarray:
     """Expected output words: whole input from zero history, or one steady-state period."""
     words = m.xorshift32(seed, nwords)
-    lut = m.Lut(gen_coeffs.ALPHA, sps, L, 0.0, gen_coeffs.HEADROOM_DB)
+    lut = m.Lut(gen_coeffs.ALPHA, sps, L, gen_coeffs.KAISER_BETA, gen_coeffs.HEADROOM_DB)
     if not periodic:
         return m.generate(words, lut)
     return m.generate(np.concatenate([words, words]), lut)[nwords * 16 * sps:]
@@ -226,7 +226,7 @@ def run_txs2(b: Board, index: int, pilots: int, kernel: str, sps: int, L: int, c
     if cap:
         bI, bQ = dvbs2_ref_symbols(r["s2_code"], pilots, 0x9E3779B9 ^ index)
         words = pack_symbols(np.tile(bI, 3), np.tile(bQ, 3))
-        lut = m.Lut(gen_coeffs.ALPHA, sps, L, 0.0, gen_coeffs.HEADROOM_DB)
+        lut = m.Lut(gen_coeffs.ALPHA, sps, L, gen_coeffs.KAISER_BETA, gen_coeffs.HEADROOM_DB)
         r.update(check_capture(r, lines, 0, 0, ref=m.generate(words, lut).view(np.uint16)))
     r["faults"] = stream_faults(r, cap)
     if r["faults"]:
@@ -290,7 +290,7 @@ def run_pvtx(b: Board, cpw: int, ms: int, selftest: bool, cap: int, cap_ms: int,
         if cap:
             sym = [ref.plframe(ref.fecframe(x, "2/3"), "2/3", pilots=True) for x in bbs]
             words = pack_symbols(np.concatenate([s_[0] for s_ in sym]), np.concatenate([s_[1] for s_ in sym]))
-            lut = m.Lut(gen_coeffs.ALPHA, 4, 10, 0.0, gen_coeffs.HEADROOM_DB)
+            lut = m.Lut(gen_coeffs.ALPHA, r["sps"], r["L"], gen_coeffs.KAISER_BETA, gen_coeffs.HEADROOM_DB)
             r.update(check_capture(r, lines, 0, 0, ref=m.generate(words, lut).view(np.uint16)))
             faults = [f for f in faults if "capture" not in f] + [f for f in stream_faults(r, cap) if "capture" in f]
     r["faults"] = faults

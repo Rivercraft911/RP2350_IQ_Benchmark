@@ -45,6 +45,43 @@
    "ok": true
   }
  ],
+ "etsi_mask": [
+  {
+   "sps": 4,
+   "L": 10,
+   "kaiser_beta": 0.0,
+   "points_margin_db": -1.28,
+   "far_sidelobe_margin_db": -1.28
+  },
+  {
+   "sps": 4,
+   "L": 10,
+   "kaiser_beta": 2.0,
+   "points_margin_db": -0.02,
+   "far_sidelobe_margin_db": 6.8
+  },
+  {
+   "sps": 4,
+   "L": 10,
+   "kaiser_beta": 3.0,
+   "points_margin_db": -0.28,
+   "far_sidelobe_margin_db": 14.71
+  },
+  {
+   "sps": 4,
+   "L": 12,
+   "kaiser_beta": 0.0,
+   "points_margin_db": 0.29,
+   "far_sidelobe_margin_db": 5.28
+  },
+  {
+   "sps": 4,
+   "L": 12,
+   "kaiser_beta": 1.0,
+   "points_margin_db": 0.28,
+   "far_sidelobe_margin_db": 7.57
+  }
+ ],
  "sweep": [
   {
    "sps": 2,
