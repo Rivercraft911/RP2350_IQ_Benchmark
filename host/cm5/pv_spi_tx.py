@@ -5,6 +5,7 @@
   pv_spi_tx.py --pattern --count 10000 --hz 1e6  deterministic test stream
   pv_spi_tx.py --file capture.ts --hz 20e6       a TS file, 7 packets per message
   pv_spi_tx.py --udp 230.10.0.1:1234 --hz 20e6   forward the E200 TS feed
+  pv_spi_tx.py --faults 200 --hz 20e6            malformed messages between good ones
 
 Needs spidev (dtparam=spi=on) and gpiod v1 or v2 (or gpiozero) for READY. Prints a JSON summary
 with crc_chain (CRC-32 over the CRC fields of all messages sent); the RP2350 reports the same value
@@ -95,6 +96,50 @@ class Ready:
         return time.monotonic() - t0
 
 
+# --faults: each is sent once, between runs of good messages. Messages the RP2350 drops reuse the
+# next sequence number, so only seq_skip counts as lost.
+FAULTS = ("long+1", "long+4", "short-1", "bad_crc", "bad_hdr", "nop", "seq_skip")
+FAULT_EXPECT = dict(bad_hdr=1, bad_crc=1, bad_sync=0, lost=1, short=1, long=1, overflows=0, nop=1)
+
+
+def fault_frames(k: int):
+    """Yield (bytes to send, accepted as TS): k good messages, then each fault and k more."""
+    seq = m = 0
+    for fault in (None,) + FAULTS:
+        msg = message(seq, pattern_payload(m))
+        if fault == "long+1":              # 8 extra bits: accepted, and must not shift later messages
+            yield msg + bytes(1), True
+            seq, m = seq + 1, m + 1
+        elif fault == "long+4":
+            yield msg + bytes(4), False
+        elif fault == "short-1":
+            yield msg[:-1], False
+        elif fault == "bad_crc":
+            yield msg[:20] + bytes([msg[20] ^ 1]) + msg[21:], False
+        elif fault == "bad_hdr":
+            yield bytes(2) + msg[2:], False
+        elif fault == "nop":
+            yield message(seq, b"", NOP), False
+            seq += 1
+        elif fault == "seq_skip":
+            seq += 1
+        for _ in range(k):
+            yield message(seq, pattern_payload(m)), True
+            seq, m = seq + 1, m + 1
+
+
+def frames(a):
+    """Yield (bytes to send, accepted as TS by the RP2350)."""
+    if a.faults is not None:
+        yield from fault_frames(a.faults)
+        return
+    seq = 0
+    for payload in sources(a):
+        if payload:
+            yield message(seq, payload), True
+            seq += 1
+
+
 def sources(a):
     """Yield TS payloads of n x 188 bytes, n <= 7."""
     if a.pattern:
@@ -125,6 +170,7 @@ def main():
     src.add_argument("--pattern", action="store_true")
     src.add_argument("--file")
     src.add_argument("--udp", help="multicast group:port, e.g. 230.10.0.1:1234")
+    src.add_argument("--faults", type=int, metavar="K", help="K good messages around each fault")
     ap.add_argument("--count", type=int, default=10000, help="pattern messages")
     ap.add_argument("--hz", type=float, default=1e6, help="SCK frequency")
     ap.add_argument("--bus", type=int, default=0)
@@ -145,29 +191,28 @@ def main():
     spi.open(a.bus, a.cs)
     spi.mode, spi.bits_per_word, spi.max_speed_hz = 0, 8, int(a.hz)
     ready = Ready(a.ready, a.gpiochip)
-    seq, crc, waits, max_wait, t0 = 0, 0, 0, 0.0, time.monotonic()
+    sent, ts, crc, waits, max_wait, t0 = 0, 0, 0, 0, 0.0, time.monotonic()
     t_end = 0.0
     try:
-        for payload in sources(a):
-            if not payload:
-                continue
+        for frame, accepted in frames(a):
             while time.perf_counter() - t_end < GAP_S:          # CS_N high and READY valid
                 pass
             w = ready.wait(1.0)
             waits += w > 0
             max_wait = max(max_wait, w)
-            msg = message(seq, payload)
-            spi.writebytes2(msg)
+            spi.writebytes2(frame)
             t_end = time.perf_counter()
-            crc = zlib.crc32(msg[-4:], crc)
-            seq += 1
+            if accepted:
+                crc = zlib.crc32(frame[MSG_BYTES - 4:MSG_BYTES], crc)
+                sent, ts = sent + 1, ts + struct.unpack_from("<H", frame, 6)[0] // 188
     except KeyboardInterrupt:
         pass
     dt = time.monotonic() - t0
-    print(json.dumps(dict(messages=seq, seconds=round(dt, 3), msg_per_s=round(seq / dt, 1),
-                          ts_mbps=round(seq * PAYLOAD * 8 / dt / 1e6, 3) if a.pattern else None,
+    print(json.dumps(dict(messages=sent, ts_packets=ts, seconds=round(dt, 3), msg_per_s=round(sent / dt, 1),
+                          ts_mbps=round(ts * 188 * 8 / dt / 1e6, 3),
                           ready_waits=waits, max_ready_wait_ms=round(max_wait * 1e3, 3),
-                          crc_chain=f"0x{crc:08x}", sck_hz=int(a.hz))))
+                          crc_chain=f"0x{crc:08x}", sck_hz=int(a.hz),
+                          expect=FAULT_EXPECT if a.faults is not None else None)))
 
 
 if __name__ == "__main__":

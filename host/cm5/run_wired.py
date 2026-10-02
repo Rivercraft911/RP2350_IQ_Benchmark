@@ -1,7 +1,8 @@
 """Run one external-CM5 PV-SPI case and preserve both endpoints' reports.
 
 The Pico never drives the SPI input pins in this harness (selftest=0).
-Run each case separately and inspect it before increasing the clock.
+Run each case separately and inspect it before increasing the clock. --faults copies the
+reference sender (pv_spi_tx.py) to the CM5 and checks the Pico's error counters against it.
 """
 from __future__ import annotations
 
@@ -34,9 +35,11 @@ def main():
     p.add_argument('--remote-root', default='/home/pigeon/pigeonvision')
     p.add_argument('--hz', required=True, type=int)
     p.add_argument('--pico-seconds', required=True, type=float)
+    p.add_argument('--cpw', type=int, default=2, help='2 = 8 Msym/s, 4 = 4, 8 = 2, 16 = 1')
     group = p.add_mutually_exclusive_group(required=True)
     group.add_argument('--count', type=int)
     group.add_argument('--seconds', type=float)
+    group.add_argument('--faults', type=int, metavar='K', help='K good messages around each fault')
     a = p.parse_args()
     if not a.label or Path(a.label).name != a.label:
         p.error('label must be one directory name')
@@ -50,14 +53,21 @@ def main():
     if a.ssh_config:
         ssh += ['-F', str(a.ssh_config)]
     ssh += [a.ssh_host]
-    sender = ['software/.venv-spi/bin/python', '-m', 'pigeonvision.spi_transport',
-              '--pattern', '--hz', str(a.hz), '--transfer', a.transfer, '--ready-timeout', '2']
-    sender += ['--count', str(a.count)] if a.count is not None else ['--duration', str(a.seconds)]
+    if a.faults is not None:
+        subprocess.run(['scp'] + (['-F', str(a.ssh_config)] if a.ssh_config else []) +
+                       [str(ROOT / 'host/cm5/pv_spi_tx.py'), f'{a.ssh_host}:/tmp/pv_spi_tx.py'], check=True)
+        sender = ['software/.venv-spi/bin/python', '/tmp/pv_spi_tx.py', '--faults', str(a.faults),
+                  '--hz', str(a.hz)]
+    else:
+        sender = ['software/.venv-spi/bin/python', '-m', 'pigeonvision.spi_transport',
+                  '--pattern', '--hz', str(a.hz), '--transfer', a.transfer, '--ready-timeout', '2']
+        sender += ['--count', str(a.count)] if a.count is not None else ['--duration', str(a.seconds)]
     command = 'cd ' + shlex.quote(a.remote_root) + ' && PYTHONPATH=software/python ' + shlex.join(sender)
     metadata = {'time_utc': datetime.now(timezone.utc).isoformat(),
                 'host_git': subprocess.check_output(['git', 'describe', '--always', '--dirty'], cwd=ROOT, text=True).strip(),
                 'command': command, 'requested_sck_hz': a.hz,
-                'pico_seconds': a.pico_seconds, 'source': 'deterministic TS pattern',
+                'pico_seconds': a.pico_seconds, 'cpw': a.cpw,
+                'source': 'fault injection' if a.faults is not None else 'deterministic TS pattern',
                 'scope': 'wired digital link; no RF hardware, clock not scope-measured'}
     write_json(out / 'metadata.json', metadata)
     board = Board(a.port)
@@ -65,7 +75,8 @@ def main():
         info, _ = board.cmd('info')
         write_json(out / 'pico-info.json', info)
         with ThreadPoolExecutor(max_workers=1) as workers:
-            receive = workers.submit(board.cmd, f'pvtx 2 {int(a.pico_seconds * 1000)} 0 0 20', a.pico_seconds + 10)
+            receive = workers.submit(board.cmd, f'pvtx {a.cpw} {int(a.pico_seconds * 1000)} 0 0 20',
+                                     a.pico_seconds + 10)
             time.sleep(.5)
             sent = subprocess.run(ssh + [command], capture_output=True, text=True,
                                   timeout=a.pico_seconds - 1)
@@ -78,9 +89,11 @@ def main():
         host = json.loads(sent.stdout.strip().splitlines()[-1])
         write_json(out / 'sender.json', host)
         pv = pico.get('pv', {})
-        faults = {key: pv.get(key) for key in ('bad_hdr', 'bad_crc', 'bad_sync', 'lost', 'short', 'long', 'overflows')}
+        expect = host.get('expect') or {key: 0 for key in
+                                        ('bad_hdr', 'bad_crc', 'bad_sync', 'lost', 'short', 'long', 'overflows', 'nop')}
+        faults = {key: pv.get(key) for key in expect}
         errors = []
-        if sent.returncode or host.get('status') != 'complete':
+        if sent.returncode or host.get('status', 'complete') != 'complete':
             errors.append('sender did not complete cleanly')
         if pv.get('selftest') != 0:
             errors.append('receiver was not in external-input mode')
@@ -92,10 +105,8 @@ def main():
             errors.append('sent/accepted CRC chains differ')
         if host.get('ts_packets') != pv.get('ts_packets'):
             errors.append('TS packet counts differ')
-        if any(value is None or value != 0 for value in faults.values()):
-            errors.append('receiver error counters nonzero or missing')
-        if pv.get('nop') != 0:
-            errors.append('unexpected NOP messages')
+        if faults != expect:
+            errors.append(f'receiver counters {faults} differ from expected {expect}')
         if pico.get('tables_ok') != 1:
             errors.append('coefficient table verification missing or failed')
         for key in ('underruns', 'own_errors', 'txstalls', 'link_overruns'):
