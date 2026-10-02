@@ -48,6 +48,17 @@ camera. Pico's later null output is not additional camera video.
 the review fixes (PV-SPI pin release, per-message realign). 58,860 messages and CRC
 `0x793a718a` matched, with zero protocol errors or underruns; READY waits peaked at 1.8 ms.
 
+Link checks on the same firmware, reference sender for the fault runs:
+
+| Run | SCK | Result |
+| --- | ---: | --- |
+| `faults-20mhz` | 20 MHz | 1,601 good messages accepted; each injected fault counted once |
+| `faults-25mhz` | 25 MHz | 16,001 good messages at 982 msg/s; each fault counted once |
+| `pattern-1msym-20s` | 20 MHz | `pvtx --cpw 16`: 2,476 messages, 1.30 Mb/s (full capacity), READY waits ≤ 32 ms |
+
+Faults: one message 1 byte long (accepted; the next messages must not shift), 4 bytes long,
+1 byte short, bad CRC, bad header, a NOP and a sequence gap. CRC chains matched in every run.
+
 `native-t3-60s` failed GPIO discovery before capture. `native-t3-600s` was cancelled
 and has no Pico report. `profile-sender-30s` includes profiler overhead and failed
 on UDP overflow. All are retained as failed or incomplete runs.

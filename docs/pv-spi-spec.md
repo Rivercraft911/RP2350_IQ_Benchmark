@@ -73,7 +73,7 @@ Fixed 1332 bytes. Multi-byte fields are little-endian.
 
 **READY** (Pico → CM5, active high) means the RP2350 has room for at least one more message.
 Check it immediately before starting each message. If it is low, wait, polling or on an edge
-event; normal waits are about 1 ms. A message started while READY is low may be dropped and
+event; normal waits are about 1 ms at 8 Msym/s and up to one PLFRAME (33 ms) at 1 Msym/s. A message started while READY is low may be dropped and
 counted as an overflow. READY stays low at boot until the transmitter runs.
 
 | Quantity | Value |
@@ -133,8 +133,12 @@ start the sender. At the end the RP2350 reports:
 | 3 | 20 MHz, real TS from the video mux, 10 min | 0 errors or gaps; null packets = unused capacity |
 | 4 | later: AFE7071 + LO, ground E200 decode | per the IREC modem plan |
 
-Done so far: steps 0–1; step 2 at 5, 10 and 20 MHz for 1–10 s each; step 3 for 210 s, stopped by
-the CM5's 80 °C limit, not by the link.
+Done so far: steps 0–1; step 2 at 5, 10 and 20 MHz, and 60 s at 20 MHz on firmware `f51d833`;
+1 Msym/s (`--cpw 16`) at full capacity; step 3 for 210 s (stopped by the CM5's 80 °C limit) and
+120 s from the native sender. Fault injection (`run_wired.py --faults`: one message 1 byte long,
+4 bytes long, 1 byte short, bad CRC, bad header, NOP and a sequence gap) at 20 and 25 MHz: each
+counted once, every good message around them accepted, CRC chains equal
+([results](../results/cm5-spi/README.md)).
 
 ## Not in v1
 

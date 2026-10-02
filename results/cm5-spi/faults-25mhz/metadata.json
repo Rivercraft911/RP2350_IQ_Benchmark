@@ -1,0 +1,10 @@
+{
+  "time_utc": "2026-10-02T01:23:59.117400+00:00",
+  "host_git": "4ddddf6-dirty",
+  "command": "cd /home/pigeon/pigeonvision && PYTHONPATH=software/python software/.venv-spi/bin/python /tmp/pv_spi_tx.py --faults 2000 --hz 25000000",
+  "requested_sck_hz": 25000000,
+  "pico_seconds": 40.0,
+  "cpw": 2,
+  "source": "fault injection",
+  "scope": "wired digital link; no RF hardware, clock not scope-measured"
+}

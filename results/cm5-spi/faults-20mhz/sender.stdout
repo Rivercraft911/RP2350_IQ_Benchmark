@@ -1,0 +1,1 @@
+{"messages": 1601, "ts_packets": 11207, "seconds": 1.611, "msg_per_s": 994.0, "ts_mbps": 10.465, "ready_waits": 379, "max_ready_wait_ms": 1.965, "crc_chain": "0xb6140f83", "sck_hz": 20000000, "expect": {"bad_hdr": 1, "bad_crc": 1, "bad_sync": 0, "lost": 1, "short": 1, "long": 1, "overflows": 0, "nop": 1}}

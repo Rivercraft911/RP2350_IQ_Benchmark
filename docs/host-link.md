@@ -32,7 +32,8 @@ CRC chains equal, 0 protocol errors, 0 underruns. A pattern at full channel rate
 
 The PIO receiver waits for SCK edges, so SCK need not be continuous. Its limit is edge detection:
 about 3 clk_sys per SCK half-period (estimate), i.e. roughly 20–25 MHz at 128 MHz. Measured clean
-at 21.3 MHz from the on-chip emulator and at 20 MHz from the CM5; above that is untested.
+at 21.3 MHz from the on-chip emulator and at 20 and 25 MHz from the CM5 (25 MHz with the reference
+sender; the team's sender caps at 20 MHz), over bench jumpers. Above 25 MHz is untested.
 
 ## Open
 
