@@ -48,7 +48,7 @@ RP2350 ──I1 bus──► AFE7071 ──I5 RF──► mission module (PA, fi
 | | interface | requirement |
 |---|---|---|
 | I1 | data bus | D13:0 + IQ_FLAG, SYNC_SLEEP, CLK_IO 64 MHz SDR; 3.3 V CMOS; setup and hold ≥ 1 ns at the AFE pins [AFE7071 p.5] |
-| I2 | control | SPI for AFE and LO, I2C for the CDCE6214, PA_EN; AFE ALARM and LO lock read over SPI |
+| I2 | control | SPI for AFE and LO; I2C for the CDCE6214 and a GPIO expander (LO CE, AFE RESETB); PA_EN on its own GPIO; AFE ALARM and LO lock read over SPI |
 | I3 | DAC clock | 64 MHz differential (2 f_s), AC-coupled with a bias footprint, locked to CLK_IO; target 0.45 V peak, the only level that meets both readings of the 0.4–1 V spec; jitter ≤ 13 ps rms |
 | I4 | LO port | 50 Ω into LO_P single-ended, LO_N terminated; +4 dBm ± 0.5 dB; H3 ≤ −50 dBc |
 | I5 | core RF out | 50 Ω SMA; average −3.3 dBm at 1.28 GHz [SIM], PAPR 5.0 dB at 10⁻⁴ [SIM] |
@@ -60,8 +60,8 @@ RP2350 ──I1 bus──► AFE7071 ──I5 RF──► mission module (PA, fi
 |---|---|---|---|
 | DAC/modulator | AFE7071, dual-input clock mode | full-scale Pout 0.3 dBm (850 MHz), −1.5 dBm (2.1 GHz); OIP3 17–19 dBm; LO leakage and sideband 36–45 dBc uncalibrated [AFE7071 pp.5–7], which costs < 0.01 dB for QPSK 2/3 [EST] | AD9117 + ADL5375: 0.4–6 GHz, needs a DDR PIO program [AD9117, ADL5375] |
 | DAC clock | CDCE6214 | 12 MHz ÷ 3 × 640 = 2560 MHz VCO, ÷ 4 ÷ 10 = 64.000 MHz exact [CDCE6214]; jitter that reaches the AFE noise floor: 40–81 ps rms [EST] | LMK1D1204 buffering CLK_IO (bench fallback) [LMK1D1204] |
-| LO | LMX2572 (LMX2572LP as an IREC-only cost-down; it stops at 2 GHz) | PFD 20 MHz (12 MHz × 5 ÷ 3) keeps 5 MHz-grid channels integer-N; LO phase error 1.6–2.2 mrad, 1 kHz–4 MHz [EST] | ADF4351 (5 V rail) |
-| LO network | LFCN-1500+ (23 cm) or LFCN-2500+ (S-band), 2 dB pad | about 40 dB at 3 × 1.28 GHz, so H3 about −50 dBc [LFCN-1500] | |
+| LO | LMX2572 (LMX2572LP as an IREC-only cost-down; it stops at 2 GHz) | PFD 20 MHz (12 MHz × 5 ÷ 3) keeps 5 MHz-grid channels integer-N; LO phase error 1.6–2.2 mrad, 1 kHz–4 MHz [EST] | ADF4351 |
+| LO network | LFCN-1500+ (23 cm) or LFCN-2500+ (S-band), 2 dB pad | about 40 dB at 3 × 1.28 GHz, so H3 about −50 dBc [LFCN-1500]; LFCN-2500+ gives only about 26 dB at 3 × 2.4 GHz, so S-band may need a second stage | |
 | reference | 12 MHz TCXO, ≤ 1 ppb/g specified at purchase | at 1 ppb/g and 10 grms, DVB-S2 pilots leave 8 mrad [EST] | SiT7201 (0.009 ppb/g, 80 mA) |
 | power | one LDO per analog rail from 5 V | Pico 3V3 (600 mA max) for logic only [PPP2-PAGE] | |
 | test | SMA at RF out and LO; test points on DACCLK, CLK_IO, SYNC; logic-analyzer header | optional AD8318 detector + RP2350 ADC for field QMC calibration [EST] | |
@@ -80,9 +80,12 @@ stays and whether 5 W is conducted or EIRP. Part 97 has no numeric spurious limi
 the coordinator:
 - 1254.0 MHz: in the 9.15 MHz gap between GLONASS L2 and Galileo E6 / BeiDou B3, overlapping their
   edges by 0.5–1 MHz; integer-N with a 24 MHz PFD. ITU-R M.2164 is strictest here for broadband
-  amateur use [M2164].
+  amateur use: below 5° elevation it allows only about 7 mW in total [M2164].
 - A centre in 1263–1295 MHz at ≤ −17 dBW/MHz EIRP (M.2164), on top of Galileo E6 and QZSS L6.
-  That limit is about 0.2 W conducted into a 0 dBi antenna. M.2164 is ITU guidance, not FCC law.
+  The densest 1 MHz holds 1/8 of the power, so that is about 0.16 W EIRP: enough for 10k ft,
+  not for 30k ft.
+
+M.2164 is ITU guidance, not FCC law, but a coordinator may apply it.
 
 Avoid 1260–1270 MHz (amateur-satellite uplink).
 
@@ -122,8 +125,9 @@ wideband noise at L1 [EST], plus a GPS preselector and antenna isolation: a syst
 ## SATS module
 
 **Band.** Two paths, both slow; decide before layout.
-- 2200–2290 MHz under Part 5 or Part 25 with NTIA coordination [CFR2.106 US96]. Precedent: a 1.16 MHz
-  downlink grant in 2026 [DA26-706]. Plan for over 6 months.
+- 2200–2290 MHz under Part 5 or Part 25 with NTIA coordination [CFR2.106 US96]. Plan for over 6
+  months. The 2026 Part 25 grant [DA26-706] is a narrow precedent: 1.16 MHz of S-band telemetry,
+  to stations outside the US only, with payload data on X-band.
 - 2400–2450 MHz amateur-satellite [CFR97 97.207(c)] with IARU coordination. The mission must be
   educational and non-commercial; a 1 Mb/s S-band downlink was coordinated in Sept 2026, while
   commercial and Earth-exploration requests were declined [IARU-2609].
@@ -162,8 +166,8 @@ SP/CE [PPP2-SCH]:
 | 17–20, 22 | PV-SPI, unchanged |
 | 21 | GPOUT0 = XOSC 12 MHz → CDCE6214 reference (the 4-lane link test cannot run with it) |
 | 26–28 | SPI1 to AFE and LO |
-| 32–33 | I2C0 to CDCE6214 |
-| 34–36 | chip selects, PA_EN |
+| 32–33 | I2C0: CDCE6214 and a GPIO expander for LO CE and AFE RESETB, pulled down so both power up off |
+| 34–36 | CS_AFE, CS_LO, PA_EN |
 
 Fit 22 Ω series-resistor footprints at the daughterboard end of every bus line, a GND via at every
 header GND pin and a solid plane under the bus. Ground bounce from up to 15 bits switching at once is

@@ -34,7 +34,8 @@ behaviour and so much more. This is purely the waveform generation.
 | input link limit (1 lane, on-chip loopback) | 21.3 and 32 MHz SCK clean; 16 MHz flagged as short of the 16 Mb/s coded need |
 | streaming at 150 MHz, PIO limit (2 clocks/word = 75 MW/s) | 9.375 Msym/s, clean |
 | **PigeonVision TX (`pvtx`)**: TS over PV-SPI v1 → DVB-S2 normal 2/3 + pilots, 8 Msym/s, on-chip emulated master at 21 MHz, 60 s | 58 866 messages (981/s), 0 errors; BBFRAMEs match the gr-dtv-checked reference; encoder 79.8 %, shaper 72.1 %; capture exact |
-| **`pvtx` from a real CM5**: two IMX900 cameras, 9 Mb/s TS, PV-SPI at 20 MHz, 210 s | 179 818 messages, CRC chains equal, 0 errors, 0 underruns. The Python sender costs the CM5 about 1.5 fps per camera (28.4 vs 30.0) (`results/cm5-spi`) |
+| **`pvtx` from a real CM5**: two IMX900 cameras, 9 Mb/s TS, PV-SPI at 20 MHz, 210 s | 179 818 messages, CRC chains equal, 0 errors, 0 underruns. The Python sender cost about 1.5 fps per camera (28.4 vs 30.0) |
+| `pvtx` from the native sender in the CM5 capture process, 120 s | 102 801 messages, CRCs matched, 0 errors, 0 underruns; 29.99 fps per camera (`results/cm5-spi`) |
 
 Correctness chain:
 - The firmware encoder is bit-exact against the Python DVB-S2 reference (`reference/dvbs2/`) for
@@ -144,16 +145,15 @@ hardware/    transmitter hardware draft: interfaces, shared RF core, IREC and SA
 
 ## Next steps
 
-1. CM5 sender in C inside the capture process, to win back the camera frame rate.
-2. Logic analyzer and scope on GPIO0–16 at 64 MW/s: setup/hold, skew, CLK_IO duty, edges.
-3. Shaper at L = 12 with a Kaiser window (β ≈ 1): at L = 10 the spectrum exceeds the DVB-S2 mask by
+1. Logic analyzer and scope on GPIO0–16 at 64 MW/s: setup/hold, skew, CLK_IO duty, edges.
+2. Shaper at L = 12 with a Kaiser window (β ≈ 1): at L = 10 the spectrum exceeds the DVB-S2 mask by
    1.3 dB at 6.8 MHz (`hardware/devboard/README.md`).
-4. Decode with gr-dvbs2rx: capture encoder symbols on the board (about 6 frames fit) and shape
+3. Decode with gr-dvbs2rx: capture encoder symbols on the board (about 6 frames fit) and shape
    them with the bit-exact host model.
-5. Encoder load for all 21 codes at 8 Msym/s; normal 3/4 already costs 10 % more than 2/3.
+4. Encoder load for all 21 codes at 8 Msym/s; normal 3/4 already costs 10 % more than 2/3.
    BCH in streaming asm would save about 25 k cycles/frame.
-6. Soak: hours of `pvtx`, warm, with USB traffic during streaming.
-7. Production build: boots straight into `pvtx`, without the command line, benchmarks or
+5. Soak: hours of `pvtx` from the native sender, warm, with USB traffic during streaming.
+6. Production build: boots straight into `pvtx`, without the command line, benchmarks or
    capture, with a watchdog.
-8. RF daughterboard on the Pico Plus 2 (`hardware/devboard/README.md`): spectrum, mask, images, LO
+7. RF daughterboard on the Pico Plus 2 (`hardware/devboard/README.md`): spectrum, mask, images, LO
    leakage.

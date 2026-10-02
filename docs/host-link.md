@@ -36,6 +36,7 @@ at 21.3 MHz from the on-chip emulator and at 20 MHz from the CM5; above that is 
 
 ## Open
 
-- CM5 CPU cost: the Python sender costs the camera pipeline about 1–1.5 fps per camera. A C sender
-  inside the capture process is the fix to try.
+- CM5 CPU cost: the Python sender cost about 1–1.5 fps per camera. The native sender in the capture
+  process holds 29.99 fps per camera over 120 s ([results](../results/cm5-spi/README.md)). Longer,
+  warm runs remain.
 - SCK frequency and edges are not yet checked on a scope.
