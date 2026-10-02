@@ -11,3 +11,7 @@ docs/sources/*.html
 
 # DVB-S2 cross-check build output (fetched reference programs)
 reference/dvbs2/crosscheck/build/
+
+# local editor and assistant config
+.vscode/
+CLAUDE.md
