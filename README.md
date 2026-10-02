@@ -20,6 +20,38 @@ flow control.
 Of course, none of this shows RF performance: spectrum and EVM after the AFE, clock jitter, LO leakage, PA
 behaviour and so much more. This is purely the waveform generation.
 
+## Autonomous digital startup
+
+The flight transmitter targets the RP2350B chip. The current firmware build and
+bench pin assignments use the Pimoroni Pico Plus 2 development board.
+
+`make build` produces both `firmware/build/iqbench.uf2` (existing USB command bench)
+and `firmware/build/pvflight.uf2` (autonomous digital transmitter). The latter starts
+without USB: stored profile is 128 MHz, 8 Msym/s, normal QPSK 2/3, pilots, 4 samples/symbol,
+L=12, `lut_asm_p`, cpw=2. It runs until stopped, sending TS null packets when input is absent.
+PV-SPI v1 is unchanged. External-input startup fills the rings with nulls, starts digital
+output, then arms reception. GP22 READY means a free receive slot is armed while digital
+output runs; it says nothing about RF readiness. Shutdown withdraws READY before stopping output.
+No AFE, LO or PA configuration/enable is added; analog operation remains untested.
+
+During autonomous TX, USB accepts only `status` and `stop` lines. Status is a bounded,
+non-atomic live counter snapshot, at most once per second, with one buffered reply and no
+wait for the host. Excess status requests are ignored; USB disconnect can lose a reply.
+`stop` is checked once per millisecond, then exits at a shaping boundary and drains the
+in-progress encoder frame (normally about 3 ms); these timings require board verification.
+The ordinary final `stream` JSON includes complete per-run PV-SPI and pipeline counters.
+`pvflight` disables the 1200-baud USB reset and vendor reset interface. There is no
+USB BOOTSEL command during active transmission; `bootsel` is available after `stop`.
+Physical BOOTSEL recovery (hold the button while resetting or powering up) remains available.
+`iqbench` keeps its existing USB reset behavior.
+
+After stop, `start` restarts the stored profile and the existing bench commands are available.
+For a 120 s autonomous test, collect `status`, send CM5 SPI traffic, then `stop` for final
+counters. `iqbench` still accepts `pvtx 2 120000 0` unchanged. This target has compiled and
+passed host model/protocol tests; USB-free boot, disconnect/reconnect and 120 s continuity
+have not yet been measured on the board. The companion CM5 state/data-flow source is
+[PigeonVision architecture](https://github.com/stanford-ssi/PigeonVision/blob/main/software/architecture.drawio).
+
 ## Measured (Pico Plus 2, 128 MHz, SDK 2.2.0, GCC 14.2)
 
 | test | result |

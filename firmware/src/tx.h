@@ -24,11 +24,12 @@ typedef struct {
     const char *kernel;          // shaper kernel (iqgen.c)
     int sps, L;                  // samples/symbol, filter span in symbols
     const char *cores;           // shaping cores: "0", "1" or "01" (alternate blocks)
-    int cpw, ms;                 // PIO system clocks per bus word, run time
+    int cpw, ms;                 // PIO clocks/bus word; ms=0 runs until stop
     int cap_words, cap_ms;       // pin capture length and start (-1 = mid-run)
     int lanes, half;             // > 0: PRBS over the PIO input link, SCK half period
     int code, pilots;            // DVB-S2 code index on core 1, -1 = PRBS input
     int pv;                      // TS over PV-SPI: -1 off, 0 from the CM5, 1 on-chip emulator
+    void (*service)(void);       // optional bounded core-0 service, at most once per ms
 } tx_run_t;
 
 #define TX_CAP_SELFTEST_MAX (CAP_WORDS_MAX - PV_EMU_WORDS)
@@ -46,3 +47,7 @@ static inline void enable_cyccnt(void) {
     m33_hw->demcr |= M33_DEMCR_TRCENA_BITS;
     m33_hw->dwt_ctrl |= M33_DWT_CTRL_CYCCNTENA_BITS;
 }
+
+void tx_request_stop(void);                        // core-0 service: stop at next block boundary
+void tx_status(void);                              // compact live, non-atomic counter snapshot
+int tx_status_json(char *buffer, unsigned size);   // caller-owned bounded JSON snapshot
