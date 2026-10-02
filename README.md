@@ -50,7 +50,7 @@ For a 120 s autonomous test, collect `status`, send CM5 SPI traffic, then `stop`
 counters. `iqbench` still accepts `pvtx 2 120000 0` unchanged. This target has compiled and
 passed host model/protocol tests; USB-free boot, disconnect/reconnect and 120 s continuity
 have not yet been measured on the board. The companion CM5 state/data-flow source is
-[software/architecture.drawio](../IREC/Pigeon_Vision/PigeonVision-website/software/architecture.drawio).
+[PigeonVision architecture](https://github.com/stanford-ssi/PigeonVision/blob/main/software/architecture.drawio).
 
 ## Measured (Pico Plus 2, 128 MHz, SDK 2.2.0, GCC 14.2)
 
