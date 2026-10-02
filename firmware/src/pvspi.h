@@ -21,5 +21,6 @@ extern pvspi_stats_t pvspi;
 
 // slots: PV_SLOTS * PV_MSG_WORDS words. emu: PV_EMU_WORDS when selftest (else unused).
 void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half);
+void pvspi_pause(void);                    // withdraw READY; prevents consumer reassertion
 void pvspi_stop(void);
 uint8_t *pvspi_next_packet(void);            // consumer (one core): next accepted TS packet or NULL

@@ -49,6 +49,9 @@ static void core1_run(void (*fn)(uint32_t), uint32_t arg) {
 }
 
 void tx_init(void) {
+    gpio_init(PIN_IN_READY);
+    gpio_put(PIN_IN_READY, false);
+    gpio_set_dir(PIN_IN_READY, GPIO_OUT);
     enable_cyccnt();
     fill_prbs();
     multicore_launch_core1(core1_entry);
@@ -115,6 +118,10 @@ static struct {
     uint64_t t_run_us;
     bool ready_output, ready_latch, ready_input;   // READY pin state at the end of a pvtx run
     uint ready_function;
+    void (*service)(void);
+    uint64_t service_at_us, started_us, elapsed_us;
+    volatile bool stop_requested;
+    bool active;
 } run;
 
 // time_us_64() runs from flash; the loops below stay in SRAM, so read the 64-bit timer inline.
@@ -127,7 +134,7 @@ static inline __attribute__((always_inline)) uint64_t now_us(void) {
     }
 }
 
-static inline bool expired(void) { return now_us() >= run.end_us; }
+static inline bool expired(void) { return run.stop_requested || now_us() >= run.end_us; }
 
 // Input for block s is complete. Word counters wrap (after about 2.4 h at 8 Msym/s), so compare the
 // signed distance, never the raw values.
@@ -135,6 +142,10 @@ static inline bool input_ready(uint32_t s) { return (int32_t)(*run.avail - (s + 
 
 static void __not_in_flash_func(monitor)(void) {   // core 0 only
     if (iqout_take_txstall()) run.txstalls++;
+    if (run.service && now_us() >= run.service_at_us) {
+        run.service_at_us = now_us() + 1000;
+        run.service();
+    }
 
     if (run.cap_words && !run.cap_started && now_us() >= run.cap_at_us) {
         iqout_capture_start(cap_buf, run.cap_words);
@@ -200,6 +211,8 @@ static struct {
     symstream_t s;
 } enc;
 
+static uint8_t *no_packet(void) { return NULL; }
+
 // One PLFRAME. In TS mode the BBFRAME is built from queued packets (nulls when none), as bytes,
 // then turned into the encoder's MSB-first words.
 static void __not_in_flash_func(enc_frame)(void) {
@@ -207,7 +220,7 @@ static void __not_in_flash_func(enc_frame)(void) {
         const uint32_t t0 = cycles();
         uint8_t *b = (uint8_t *)bb_buf;
         const uint32_t nb = s2c->kbch / 8u, nw = (nb + 3) / 4;
-        pv_bbframe(b, s2c->kbch, 0xF2, pvspi_next_packet);   // MATYPE-1: TS, SIS, CCM, RO 0.20
+        pv_bbframe(b, s2c->kbch, 0xF2, (run.active ? pvspi_next_packet : no_packet));   // MATYPE-1: TS, SIS, CCM, RO 0.20
         for (uint32_t i = nb; i < 4 * nw; i++) b[i] = 0;
         if (enc.frames < 4) enc.bb_crc[enc.frames] = pv_crc32(0, b, nb);
         for (uint32_t i = 0; i < nw; i++) bb_buf[i] = __builtin_bswap32(bb_buf[i]);
@@ -248,7 +261,7 @@ const char *tx_run(const tx_run_t *r) {
     run = (typeof(run)){.k = k, .src = r->lanes || r->code >= 0 ? link_ring : in_buf,
                         .avail = r->lanes ? &link_total : r->code >= 0 ? &enc.total : 0,
                         .biw = BLOCK_IN(cfg.sps), .cap_words = (uint32_t)r->cap_words,
-                        .c0 = c0, .c1 = c1, .tables_ok = tables_ok};
+                        .c0 = c0, .c1 = c1, .tables_ok = tables_ok, .service = r->service};
     iqout_init(ring_buf, BLOCK_WORDS, N_BLOCKS, r->cpw, k->layout);
     const uint64_t tl = time_us_64();
     if (r->lanes) {                                       // fill enough input for the prefill
@@ -260,7 +273,10 @@ const char *tx_run(const tx_run_t *r) {
     }
     if (r->pv >= 0) {
         pv_init(r->pv ? PV_EMU_MSGS : 65536);
-        pvspi_start(in_buf, r->pv == 1, cap_buf + CAP_WORDS_MAX - PV_EMU_WORDS, 3);
+        if (r->pv == 1) {
+            pvspi_start(in_buf, true, cap_buf + CAP_WORDS_MAX - PV_EMU_WORDS, 3);
+            run.active = true;
+        }
         // self-test: the first BBFRAME needs 28.6 packets (> 4 messages); queue 8 so no null
         // packet makes frame 0 differ from the reference
         while (r->pv == 1 && pvspi.head < 8 && time_us_64() - tl < 100000) tight_loop_contents();
@@ -276,9 +292,12 @@ const char *tx_run(const tx_run_t *r) {
     }
     for (uint32_t s = 0; s < N_BLOCKS; s++) produce(s);   // prefill
     const uint64_t t0 = time_us_64();
-    run.end_us = t0 + (uint64_t)r->ms * 1000u;
+    run.started_us = t0;
+    run.end_us = r->ms ? t0 + (uint64_t)r->ms * 1000u : UINT64_MAX;
     run.cap_at_us = t0 + (r->cap_ms >= 0 ? (uint64_t)r->cap_ms * 1000u : (uint64_t)r->ms * 500u);
     iqout_start();
+    if (r->pv == 0) pvspi_start(in_buf, false, NULL, 3);
+    run.active = true;
     const uint32_t stride = (c0 && c1) ? 2 : 1;
     run.stride = stride;
     if (c1) core1_run(task_producer1, c0 ? N_BLOCKS + 1 : N_BLOCKS);
@@ -287,21 +306,25 @@ const char *tx_run(const tx_run_t *r) {
     else while (!expired()) monitor();
     // Stop the output as soon as production ends, before waiting for core 1 (whose last DVB-S2
     // frame can take ~3 ms): otherwise the drained ring is counted as underruns.
-    while (run.cap_started && iqout_capture_busy()) tight_loop_contents();
-    iqout_stop();
-    if (c1 || r->code >= 0) multicore_fifo_pop_blocking();
-    run.link_words = link_total, run.t_run_us = time_us_64() - tl;
-    if (r->pv >= 0) {                     // sample READY before pvspi_stop() drives it low
+    if (r->pv >= 0) {                     // sample running READY before shutdown withdraws it
         run.ready_output = gpio_get_dir(PIN_IN_READY) == GPIO_OUT;
         run.ready_latch = gpio_get_out_level(PIN_IN_READY);
         run.ready_input = gpio_get(PIN_IN_READY);
         run.ready_function = gpio_get_function(PIN_IN_READY);
     }
+    if (r->pv >= 0) pvspi_pause();
+    while (run.cap_started && iqout_capture_busy()) tight_loop_contents();
+    iqout_stop();
+    if (c1 || r->code >= 0) multicore_fifo_pop_blocking();
+    run.link_words = link_total, run.t_run_us = time_us_64() - tl;
+    run.elapsed_us = now_us() - run.started_us;
+    run.active = false;
     if (r->lanes) link_stop();
     if (r->pv >= 0) {
         pvspi_stop();
         fill_prbs();                                      // PV-SPI used in_buf for its slots
     }
+    if (r->service) printf("\n");  // delimit a partial live reply after host disconnect/stop
     print_result(r);
     return NULL;
 }
@@ -366,4 +389,25 @@ static void print_result(const tx_run_t *r) {
         printf("\n");
     }
     if (n) printf("@capend\n");
+}
+
+void tx_request_stop(void) { run.stop_requested = true; }
+
+int tx_status_json(char *buffer, unsigned size) {
+    return snprintf(buffer, size, "@{\"cmd\":\"status\",\"active\":%u,\"elapsed_ms\":%llu,"
+           "\"blocks_out\":%lu,\"underruns\":%lu,\"own_errors\":%lu,\"txstalls\":%lu,"
+           "\"msgs_ok\":%lu,\"bad_crc\":%lu,\"lost\":%lu,\"crc_chain\":%lu,"
+           "\"null_packets\":%lu,\"ready\":%u}\n",
+           run.active, (unsigned long long)((run.active ? now_us() - run.started_us : run.elapsed_us) / 1000),
+           (unsigned long)ring.done, (unsigned long)ring.underruns,
+           (unsigned long)ring.own_errors, (unsigned long)run.txstalls,
+           (unsigned long)pv_stats.ok, (unsigned long)pv_stats.bad_crc,
+           (unsigned long)pv_stats.lost, (unsigned long)pv_stats.crc_chain,
+           (unsigned long)pv_stats.null_packets, gpio_get(PIN_IN_READY));
+}
+
+void tx_status(void) {
+    char buffer[512];
+    tx_status_json(buffer, sizeof buffer);
+    printf("%s", buffer);
 }

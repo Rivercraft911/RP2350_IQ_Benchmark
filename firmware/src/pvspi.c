@@ -14,6 +14,7 @@
 #define PIN_READY PIN_IN_READY               // GP22
 
 pvspi_stats_t pvspi;
+static volatile bool admitting;
 static uint8_t *msg;                                 // consumer: slot being read (reset per run)
 static int npk, ipk;
 
@@ -63,7 +64,7 @@ static void __not_in_flash_func(arm_locked)(void) {         // caller holds lock
         dma_channel_transfer_to_buffer_now(ch_rx, slot(pvspi.head), PV_MSG_WORDS);
         armed = true;
     }
-    gpio_put(PIN_READY, armed);
+    gpio_put(PIN_READY, armed && admitting);
 }
 
 static void __not_in_flash_func(rx_reset)(void) {           // drop partial bits and FIFO words
@@ -197,12 +198,20 @@ void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half) {
     pio_sm_set_enabled(pio, sm_cs, true);
     pio_sm_set_enabled(pio, sm_rx, true);
     const uint32_t s = spin_lock_blocking(lock);
+    admitting = true;
     arm_locked();
     spin_unlock(lock, s);
     if (selftest) {
         dma_channel_start(ch_emu);
         pio_sm_set_enabled(pio, sm_emu, true);
     }
+}
+
+void pvspi_pause(void) {
+    const uint32_t s = spin_lock_blocking(lock);
+    admitting = false;
+    gpio_put(PIN_READY, 0);
+    spin_unlock(lock, s);
 }
 
 void pvspi_stop(void) {

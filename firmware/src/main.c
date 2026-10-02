@@ -27,12 +27,66 @@
 #include "pico/bootrom.h"
 #include "pico/stdlib.h"
 #include "tx.h"
+#ifdef PV_AUTONOMOUS
+#include "tusb.h"
+#include "hardware/sync.h"
+#endif
 
 #include "git_rev.h"
 
 // The PigeonVision downlink: TS from the CM5, 8 Msym/s. pvtx overrides cpw, ms, pv and capture.
 static const tx_run_t PVTX = {.kernel = "lut_asm_p", .sps = 4, .L = 12, .cores = "0", .cpw = 2,
                               .cap_ms = -1, .code = S2_N2_3, .pilots = 1, .pv = 0};
+
+#ifdef PV_AUTONOMOUS
+// Only stop/status are serviced during transmission. Bounded input work; no USB wait.
+static void flight_service(void) {
+    static char line[16];
+    static unsigned n;
+    static bool overflow;
+    static uint64_t next_status;
+    static char reply[512];
+    static unsigned sent, length;
+    // IRQ background USB task is the only other USB user during autonomous TX.
+    // Copy only bytes that fit; retain the rest for later service calls.
+    if (sent < length) {
+        uint32_t irq = save_and_disable_interrupts();
+        unsigned available = tud_cdc_write_available();
+        unsigned remaining = length - sent;
+        if (available > remaining) available = remaining;
+        if (available) sent += tud_cdc_write(reply + sent, available);
+        restore_interrupts(irq);
+    }
+    for (unsigned i = 0; i < 16; ++i) {
+        int c = getchar_timeout_us(0);
+        if (c == PICO_ERROR_TIMEOUT) break;
+        if (c == '\n' || c == '\r') {
+            line[n] = 0;
+            if (!overflow && !strcmp(line, "stop")) {
+                sent = length;  // discard an unsent snapshot tail; final result starts a fresh line
+                tx_request_stop();
+            } else if (!overflow && !strcmp(line, "status") && time_us_64() >= next_status) {
+                next_status = time_us_64() + 1000000;
+                if (sent == length) {
+                    int count = tx_status_json(reply, sizeof reply);
+                    length = count > 0 && count < (int)sizeof reply ? (unsigned)count : 0;
+                    sent = 0;
+                }
+            }
+            n = 0;
+            overflow = false;
+        } else if (n < sizeof line - 1) line[n++] = (char)c;
+        else overflow = true;
+    }
+}
+
+static const char *flight_start(void) {
+    tx_run_t r = PVTX;
+    r.ms = 0;
+    r.service = flight_service;
+    return tx_run(&r);
+}
+#endif
 
 static char err[64];
 
@@ -88,6 +142,11 @@ static const char *dispatch(char *line) {
     tx_run_t r = {.code = -1, .pv = -1, .cap_ms = -1};
     int code, pilots, reps, khz;
 
+#ifdef PV_AUTONOMOUS
+    if (!strcmp(cmd, "start")) return flight_start();
+    if (!strcmp(cmd, "status")) { tx_status(); return NULL; }
+    if (!strcmp(cmd, "stop")) return NULL;
+#endif
     if (!strcmp(cmd, "info")) {
         cmd_info();
     } else if (!strcmp(cmd, "bootsel")) {
@@ -153,6 +212,10 @@ int main(void) {
     set_sys_clock_khz(DEFAULT_SYS_KHZ, true);
     stdio_init_all();
     tx_init();
+#ifdef PV_AUTONOMOUS
+    const char *startup_error = flight_start();
+    if (startup_error) printf("@{\"error\":\"%s\"}\n", startup_error);
+#endif
     char line[128];
     size_t n = 0;
     for (;;) {
