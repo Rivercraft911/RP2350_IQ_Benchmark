@@ -55,6 +55,8 @@ static void flight_service(void) {
         unsigned remaining = length - sent;
         if (available > remaining) available = remaining;
         if (available) sent += tud_cdc_write(reply + sent, available);
+        // Start short packets too; a busy endpoint returns immediately.
+        tud_cdc_write_flush();
         restore_interrupts(irq);
     }
     for (unsigned i = 0; i < 16; ++i) {

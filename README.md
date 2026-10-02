@@ -22,6 +22,9 @@ behaviour and so much more. This is purely the waveform generation.
 
 ## Autonomous digital startup
 
+The flight transmitter targets the RP2350B chip. The current firmware build and
+bench pin assignments use the Pimoroni Pico Plus 2 development board.
+
 `make build` produces both `firmware/build/iqbench.uf2` (existing USB command bench)
 and `firmware/build/pvflight.uf2` (autonomous digital transmitter). The latter starts
 without USB: stored profile is 128 MHz, 8 Msym/s, normal QPSK 2/3, pilots, 4 samples/symbol,
