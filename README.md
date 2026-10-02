@@ -145,13 +145,10 @@ hardware/    transmitter hardware draft: interfaces, shared RF core, IREC and SA
 
 ## Next steps
 
-1. Logic analyzer and scope on GPIO0–16 at 64 MW/s: setup/hold, skew, CLK_IO duty, edges.
-2. Decode with gr-dvbs2rx: capture encoder symbols on the board (about 6 frames fit) and shape
+1. Decode with gr-dvbs2rx: capture encoder symbols on the board (about 6 frames fit) and shape
    them with the bit-exact host model.
-3. Encoder load for all 21 codes at 8 Msym/s; normal 3/4 already costs 10 % more than 2/3.
-   BCH in streaming asm would save about 25 k cycles/frame.
-4. Soak: hours of `pvtx` from the native sender, warm, with USB traffic during streaming.
-5. Production build: boots straight into `pvtx`, without the command line, benchmarks or
-   capture, with a watchdog.
-6. RF daughterboard on the Pico Plus 2 (`hardware/devboard/README.md`): spectrum, mask, images, LO
+2. Encoder load for all 21 codes at 8 Msym/s; normal 3/4 already costs 10 % more than 2/3.
+   BCH in streaming asm would save about 25 k cycles/frame?
+3. Extra long soak test
+5. RF daughterboard on the Pico Plus 2 (`hardware/devboard/README.md`): spectrum, mask, images, LO
    leakage.
