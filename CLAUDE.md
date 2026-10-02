@@ -18,6 +18,7 @@ Project context lives in `../IREC/Pigeon_Vision/DESIGN.md` (section 4, AFE7071 c
 - Lead with the finding or result. Clear, short sentences, concrete technical language.
 - Avoid filler, flattery, sales language and stock AI phrasing.
 - State what was checked and what remains unverified. A digital benchmark does not prove RF performance or link closure.
+- Ask clarifying questions if something is not clear.
 
 ## Files and changes
 - Keep this experiment small and organized: `reference/` (Python model, vectors), `firmware/` (Pico SDK), `host/` (validation), `results/` (measured logs), `docs/` (sources, notes).
