@@ -24,7 +24,7 @@ parts they need: a **shared RF core** (DAC/modulator, DAC clock, LO) behind the 
 5. **IREC PA: GRF2011 → pad → GRF5613** (EVB184 tune), rated 0.5 W average, 0.75 W ceiling. Fly the
    lowest power that closes the link: 0.25 W at 10k ft.
 6. **Mute is three independent layers**: LO off, PA rail off, AFE in sleep or reset.
-7. **Firmware**: the shaper must change to pass the DVB-S2 spectrum mask (see Firmware).
+7. **Firmware** passes the DVB-S2 spectrum mask: L = 12 with a Kaiser window (see Firmware).
 
 ## Gates before layout
 
@@ -184,10 +184,10 @@ the main signal-integrity risk, more than rise time [EST].
 
 ## Firmware the hardware depends on
 
-1. **Spectrum mask.** The shaper (L = 10, no window) exceeds the ETSI α = 0.20 mask by 1.3 dB at
-   6.8 MHz (point S, −40 dB) [SIM with ZOH, EN302307 Annex A]. Kaiser β = 2–3 at L = 10 fixes that but droops
-   0.89 f_N below its −1.1 dB limit. **L = 12 with β ≈ 1 passes every point**, with the far
-   sidelobe at −47.6 dB. Measure `lut_asm_p` at L = 12 on the board.
+1. **Spectrum mask: done.** L = 10 without a window exceeded the ETSI α = 0.20 mask by 1.3 dB at
+   6.8 MHz [SIM with ZOH, EN302307 Annex A]. `pvtx` now uses L = 12 with a Kaiser window (β = 1),
+   which passes every point with the far sidelobes 7.6 dB under. On the board it is bit-exact and
+   costs the shaper 75.6 % instead of 72 % of its core; drive level and PAPR move by < 0.05 dB.
 2. Set CONFIG1 `twos` = 1 before enabling the LO or PA: the power-on default is offset binary, so
    code 0 is full-scale DC, a carrier [AFE7071 CONFIG1].
 3. SYNC_SLEEP on GP15 from bit 15 of chosen DMA words; call-sign ID in the TS.

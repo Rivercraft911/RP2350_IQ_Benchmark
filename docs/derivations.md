@@ -69,6 +69,11 @@ s = ±1. The sum depends only on the L most recent bits h of that axis, so T[h][
 precomputed. Memory per axis is 2^L · N · 2 bytes (L = 10, N = 4: 8 KiB; I and Q tables are separate
 because the I table carries IQ_FLAG in bit 14).
 
+Window: a Kaiser window (β = 1) on the truncated RRC. With it, L = 12 passes the EN 302 307-1
+Annex A mask at every point, with the far sidelobes 7.6 dB under the −40 dB line; L = 10 without a
+window fails by 1.3 dB at 6.8 MHz, and β = 2–3 at L = 10 droops below the limit at 0.89 f_N
+(`reference/analyze.py`, `etsi_mask` in `results/reference/filter_sweep.json`). `pvtx` uses L = 12.
+
 Scaling: the exact worst case over all histories is max_p Σ_a |g[aN+p]|. It is scaled to
 (2^13 − 1)·10^(−1/20), so no input sequence can clip.
 
