@@ -34,7 +34,7 @@ parts they need: a **shared RF core** (DAC/modulator, DAC clock, LO) behind the 
 | G2 | Continuous DMA/PIO output, 0 underruns, pin capture exact | **passed**: 60 s, capture exact |
 | G3 | Concurrent host input with G2 still clean | **passed**: real CM5 over PV-SPI at 20 MHz, 210 s |
 | G4 | DVB-S2 encode on-chip at the target rate, bit-exact vs reference | **passed**: 8 Msym/s, encoder 80 %, shaper 72 % |
-| G5 | Logic analyzer and scope at the header, 64 MW/s: setup/hold, edges, CLK_IO jitter and spurs with the kernel running | pending (needs equipment) |
+| G5 | Scope at 64 MW/s: setup/hold, edges, ground bounce, CLK_IO jitter with the kernel running | pending: on the daughterboard's test points (probing the Pico header kept shorting the probe ground) |
 | G6 | AFE7071 bring-up: spectrum, mask, images, LO leakage, DACCLK swing sweep | pending (needs the daughterboard) |
 
 ## Interfaces (the reuse boundary)
@@ -64,7 +64,7 @@ RP2350 ──I1 bus──► AFE7071 ──I5 RF──► mission module (PA, fi
 | LO network | LFCN-1500+ (23 cm) or LFCN-2500+ (S-band), 2 dB pad | about 40 dB at 3 × 1.28 GHz, so H3 about −50 dBc [LFCN-1500]; LFCN-2500+ gives only about 26 dB at 3 × 2.4 GHz, so S-band may need a second stage | |
 | reference | 12 MHz TCXO, ≤ 1 ppb/g specified at purchase | at 1 ppb/g and 10 grms, DVB-S2 pilots leave 8 mrad [EST] | SiT7201 (0.009 ppb/g, 80 mA) |
 | power | one LDO per analog rail from 5 V | Pico 3V3 (600 mA max) for logic only [PPP2-PAGE] | |
-| test | SMA at RF out and LO; test points on DACCLK, CLK_IO, SYNC; logic-analyzer header | optional AD8318 detector + RP2350 ADC for field QMC calibration [EST] | |
+| test | SMA at RF out and LO; test points on DACCLK, CLK_IO, SYNC, D0 and IQ_FLAG, each with its own GND pad beside it for a probe ground spring; logic-analyzer header | optional AD8318 detector + RP2350 ADC for field QMC calibration [EST] | |
 
 SLOA313: sideband suppression moves 15–30 dB per 1 dB of LO drive, and QMC drifts with temperature,
 so the LO level matters more than LO phase noise.
