@@ -5,14 +5,15 @@ Can an RP2350 through the power of PIO replace the FPGA that generates a DVB-S2 
 **Digital result: Yes, with margin!!!** A Pimoroni Pico Plus 2 (RP2350B
 rev A2, 128 MHz, stock voltage) runs a complete DVB-S2 transmitter baseband:
 - core 1 encodes: BB scrambling, BCH, LDPC, QPSK, PLHEADER, pilots, PL scrambling;
-- core 0 pulse-shapes (RRC α = 0.20, 4 samples/symbol) and streams through DMA and PIO onto the
-  AFE7071's 16-bit interleaved bus at 64 M words/s.
+- core 0 pulse-shapes (RRC α = 0.20 over 12 symbols, 4 samples/symbol) and streams through DMA
+  and PIO onto the AFE7071's 16-bit interleaved bus at 64 M words/s.
 
-At 8 Msym/s the load is 70 % of core 1 and 72 % of core 0. A 60 s run had no underruns, and the
-pins match the reference bit for bit. At 1 Msym/s (SATS) the whole transmitter uses about 26 % of
-one core. Fed with camera TS from a real CM5 over one SPI lane at 20 MHz, it ran 210 s with no
-errors. The link is [PV-SPI](docs/pv-spi-spec.md), our own small protocol on plain SPI: fixed
-1332-byte messages of up to 7 TS packets plus a CRC-32, and a READY line for flow control.
+At 8 Msym/s, with TS arriving over SPI, the load is 79 % of core 1 and 76 % of core 0. A 60 s run
+had no underruns, and the pins match the reference bit for bit. At 1 Msym/s (SATS) the whole
+transmitter uses about 26 % of one core. Fed with camera TS from a real CM5 over one SPI lane at 20
+MHz, it ran 210 s with no errors. The link is [PV-SPI](docs/pv-spi-spec.md), our own small protocol
+on plain SPI: fixed 1332-byte messages of up to 7 TS packets plus a CRC-32, and a READY line for
+flow control.
 
 ![Transmitter load per core](results/plots/progress_full_tx.png)
 
@@ -23,7 +24,7 @@ behaviour and so much more. This is purely the waveform generation.
 
 | test | result |
 |---|---|
-| **full TX, DVB-S2 normal QPSK 2/3 + pilots, 8 Msym/s, N = 4** | encoder 70.4 % (core 1), shaper 72.0 % (core 0); 14 426 frames in 60 s; 0 underruns; 28 656 bus words captured, 0 mismatches |
+| **full TX, DVB-S2 normal QPSK 2/3 + pilots, 8 Msym/s, N = 4, L = 10** | encoder 70.4 % (core 1), shaper 72.0 % (core 0); 14 426 frames in 60 s; 0 underruns; 28 656 bus words captured, 0 mismatches |
 | full TX, normal 1/2 + pilots, 1 Msym/s, N = 8 | encoder 9.2 %, shaper 17.2 %; clean, capture exact |
 | full TX, short 1/2 + pilots, 1 Msym/s, N = 8 | encoder 9.3 %, shaper 17.2 %; clean, capture exact |
 | shaper kernel, N = 4, L = 10 or 12 (`lut_asm_p`) | 10.80 cycles/symbol; 11.9 Msym/s per core |
@@ -33,9 +34,14 @@ behaviour and so much more. This is purely the waveform generation.
 | shaper streaming with PIO input link (4 lanes, READY flow control) | 67.8 % of one core at 8 Msym/s; 16.0 Mb/s received |
 | input link limit (1 lane, on-chip loopback) | 21.3 and 32 MHz SCK clean; 16 MHz flagged as short of the 16 Mb/s coded need |
 | streaming at 150 MHz, PIO limit (2 clocks/word = 75 MW/s) | 9.375 Msym/s, clean |
-| **PigeonVision TX (`pvtx`)**: TS over PV-SPI v1 → DVB-S2 normal 2/3 + pilots, 8 Msym/s, shaper L = 12 with a Kaiser window (β = 1), on-chip emulated master at 21 MHz, 60 s | 58 866 messages (981/s), 0 errors; BBFRAMEs match the gr-dtv-checked reference; encoder 78.9 %, shaper 75.6 % (72.1 % at L = 10); capture exact |
+| **PigeonVision TX (`pvtx`)**: TS over PV-SPI v1 → DVB-S2 normal 2/3 + pilots, 8 Msym/s, shaper L = 12 with a Kaiser window (β = 1), on-chip emulated master at 21 MHz, 60 s | 58 866 messages (981/s), 0 errors; BBFRAMEs match the gr-dtv-checked reference; encoder 78.9 %, shaper 75.6 %; capture exact |
 | **`pvtx` from a real CM5**: two IMX900 cameras, 9 Mb/s TS, PV-SPI at 20 MHz, 210 s | 179 818 messages, CRC chains equal, 0 errors, 0 underruns. The Python sender cost about 1.5 fps per camera (28.4 vs 30.0) |
 | `pvtx` from the native sender in the CM5 capture process, 120 s | 102 801 messages, CRCs matched, 0 errors, 0 underruns; 29.99 fps per camera (`results/cm5-spi`) |
+
+L is the shaper's filter length in symbols. The transmitter (`pvtx`) uses L = 12 with a Kaiser
+window, which passes the DVB-S2 spectrum mask. The optimization and full-TX runs used L = 10; the
+kernel runs at the same speed either way, but the shaper's share of its core rises from 72 % to
+76 % in the full transmitter.
 
 Correctness chain:
 - The firmware encoder is bit-exact against the Python DVB-S2 reference (`reference/dvbs2/`) for
