@@ -1,0 +1,9 @@
+{
+  "time_utc": "2026-10-02T01:07:50.394015+00:00",
+  "host_git": "aadca21",
+  "command": "cd /home/pigeon/pigeonvision && PYTHONPATH=software/python software/.venv-spi/bin/python -m pigeonvision.spi_transport --pattern --hz 20000000 --transfer duplex --ready-timeout 2 --duration 60.0",
+  "requested_sck_hz": 20000000,
+  "pico_seconds": 65.0,
+  "source": "deterministic TS pattern",
+  "scope": "wired digital link; no RF hardware, clock not scope-measured"
+}

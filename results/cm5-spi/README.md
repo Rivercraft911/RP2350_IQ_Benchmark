@@ -44,6 +44,10 @@ The thermal-stop run's 179,818 messages matched the Pico, CRC `0x465758f0`, with
 zero protocol errors or underruns. Eight recordings decoded, 5,975 frames per
 camera. Pico's later null output is not additional camera video.
 
+`pattern-20mhz-60s` reran the pattern at full channel rate on firmware `f51d833`, after
+the review fixes (PV-SPI pin release, per-message realign). 58,860 messages and CRC
+`0x793a718a` matched, with zero protocol errors or underruns; READY waits peaked at 1.8 ms.
+
 `native-t3-60s` failed GPIO discovery before capture. `native-t3-600s` was cancelled
 and has no Pico report. `profile-sender-30s` includes profiler overhead and failed
 on UDP overflow. All are retained as failed or incomplete runs.
