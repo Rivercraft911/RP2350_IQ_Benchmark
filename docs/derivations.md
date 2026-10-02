@@ -106,19 +106,19 @@ I(2k+1) in X while emitting Q(2k) (8 instructions per 4 bus words, 2 cycles per 
 
 ## 5. Streaming (measured, 128 MHz, 8.000 Msym/s, N = 4, L = 10)
 
-Measured with v4 `lut_asm` (11.55 cycles/symbol) and the earlier 64 KiB capture buffer; v5
-`lut_asm_p` streams at 67.8 % of core 0.
+Kernel `lut_asm_p` (v5), 20 s per row, firmware f51d833. Each row: 156 249 blocks, 0 underruns,
+28 656 captured bus words exact.
 
-| configuration | core 0 busy | core 1 busy | underruns | pin capture |
-|---|---|---|---|---|
-| core 0 only | 75.3 % | – | 0 | 8 176 words exact |
-| cores 0+1 alternating blocks | 38.1 % | 38.2 % | 0 | exact |
-| core 1 only (core 0 free) | – | 75.9 % | 0 | exact |
-| core 0 only, 20 s, L = 12 | 73.5 % | – | 0 in 156 249 blocks | 32 752 words exact |
+| configuration | core 0 busy | core 1 busy |
+|---|---|---|
+| core 0 only | 67.7 % | – |
+| cores 0+1 alternating blocks | 34.7 % | 35.4 % |
+| core 1 only (core 0 free) | – | 69.7 % |
+| core 0 only, L = 12 | 68.3 % | – |
 
-The extra ~3.5 % over the kernel-only 72 % is the DMA ISR and bus contention. Alternating blocks
-needs no shared filter state: block k reads input word k·64 − 1 for history, which is already in
-memory.
+The kernel alone needs 10.80 / 16 = 67.5 %, so the DMA ISR and bus contention add about 0.2 %.
+Alternating blocks needs no shared filter state: block k reads input word k·64 − 1 for history,
+which is already in memory.
 
 Block period: 2 · 1024 · N · cpw = 16 384 cycles (128 µs). Ring: 8 blocks, 128 KiB.
 

@@ -23,12 +23,12 @@ behaviour and so much more. This is purely the waveform generation.
 
 | test | result |
 |---|---|
-| **full TX, DVB-S2 normal QPSK 2/3 + pilots, 8 Msym/s, N = 4** | encoder 70.3 % (core 1), shaper 71.5 % (core 0); 14 426 frames in 60 s; 0 underruns; 32 752 bus words captured (64 KiB buffer then), 0 mismatches |
+| **full TX, DVB-S2 normal QPSK 2/3 + pilots, 8 Msym/s, N = 4** | encoder 70.4 % (core 1), shaper 72.0 % (core 0); 14 426 frames in 60 s; 0 underruns; 28 656 bus words captured, 0 mismatches |
 | full TX, normal 1/2 + pilots, 1 Msym/s, N = 8 | encoder 9.2 %, shaper 17.2 %; clean, capture exact |
 | full TX, short 1/2 + pilots, 1 Msym/s, N = 8 | encoder 9.3 %, shaper 17.2 %; clean, capture exact |
-| shaper kernel, N = 4, L = 10 (`lut_asm_p`) | 10.80 cycles/symbol; 11.9 Msym/s per core |
+| shaper kernel, N = 4, L = 10 or 12 (`lut_asm_p`) | 10.80 cycles/symbol; 11.9 Msym/s per core |
 | shaper kernel, N = 8 (`lut_asm`) | 20.9 cycles/symbol |
-| DVB-S2 encoder, normal 2/3 + pilots | 353 k cycles/frame: BCH 110 k, LDPC 127 k, framing 116 k |
+| DVB-S2 encoder, normal 2/3 + pilots | 353 k cycles/frame: BCH 110 k, LDPC 127 k, framing 116 k (357 k on the current build) |
 | DVB-S2 encoder, short 1/2 + pilots | 93.5 k cycles/frame |
 | shaper streaming with PIO input link (4 lanes, READY flow control) | 67.8 % of one core at 8 Msym/s; 16.0 Mb/s received |
 | input link limit (1 lane, on-chip loopback) | 21.3 and 32 MHz SCK clean; 16 MHz flagged as short of the 16 Mb/s coded need |
