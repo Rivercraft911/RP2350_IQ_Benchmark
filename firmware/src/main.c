@@ -58,6 +58,13 @@ static bool cores_ok(const char *s) {
     return false;
 }
 
+// The first IQOUT_CAP_SKIP captured words are discarded, so a shorter capture would be empty.
+static bool cap_ok(int cap_words) {
+    if (cap_words == 0 || cap_words > IQOUT_CAP_SKIP) return true;
+    snprintf(err, sizeof err, "cap_words: expected 0 or more than %d", IQOUT_CAP_SKIP);
+    return false;
+}
+
 static void cmd_info(void) {
     printf("@{\"cmd\":\"info\",\"git\":\"%s\",\"built\":\"%s %s\",\"clk_hz\":%lu,\"board\":\"%s\","
            "\"pin_d0\":%d,\"pin_clkio\":%d,\"block_words\":%d,\"n_blocks\":%d,\"in_words\":%d,"
@@ -111,7 +118,8 @@ static const char *dispatch(char *line) {
             !cores_ok(a[4]) || !num(a[5], "cpw", REQUIRED, 2, IQOUT_MAX_CPW, &r.cpw) ||
             !num(a[6], "ms", REQUIRED, 1, INT_MAX, &r.ms) ||
             !num(a[7], "cap_words", 0, 0, CAP_WORDS_MAX, &r.cap_words) ||
-            !num(a[8], "lanes", 0, 0, 4, &r.lanes) || !num(a[9], "half", 6, 2, 16, &r.half))
+            !num(a[8], "lanes", 0, 0, 4, &r.lanes) || !num(a[9], "half", 6, 2, 16, &r.half) ||
+            !cap_ok(r.cap_words))
             return err;
         if (r.lanes == 3) return "lanes: expected 0, 1, 2 or 4";
         return tx_run(&r);
@@ -122,7 +130,7 @@ static const char *dispatch(char *line) {
             !num(a[4], "sps", REQUIRED, 1, 16, &r.sps) || !num(a[5], "L", REQUIRED, 1, MAX_L, &r.L) ||
             !num(a[6], "cpw", REQUIRED, 2, IQOUT_MAX_CPW, &r.cpw) ||
             !num(a[7], "ms", REQUIRED, 1, INT_MAX, &r.ms) ||
-            !num(a[8], "cap_words", 0, 0, CAP_WORDS_MAX, &r.cap_words))
+            !num(a[8], "cap_words", 0, 0, CAP_WORDS_MAX, &r.cap_words) || !cap_ok(r.cap_words))
             return err;
         return tx_run(&r);
     } else if (!strcmp(cmd, "pvtx")) {
@@ -131,8 +139,9 @@ static const char *dispatch(char *line) {
             !num(a[2], "ms", REQUIRED, 1, INT_MAX, &r.ms) ||
             !num(a[3], "selftest", REQUIRED, 0, 1, &r.pv) ||
             !num(a[4], "cap_words", 0, 0, r.pv ? TX_CAP_SELFTEST_MAX : CAP_WORDS_MAX, &r.cap_words) ||
-            !num(a[5], "cap_ms", -1, -1, INT_MAX, &r.cap_ms))
+            !num(a[5], "cap_ms", -1, -1, r.ms - 1, &r.cap_ms))
             return err;
+        if (!cap_ok(r.cap_words)) return err;
         return tx_run(&r);
     } else {
         return "unknown command";

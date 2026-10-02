@@ -26,6 +26,7 @@ void iqout_stop(void);
 bool iqout_take_txstall(void);       // PIO TX FIFO ran dry since last call
 
 // Capture the output pins with a second SM started in sync with the output SM. Discard the
-// first 8 words (stale FIFO contents). Each word holds two consecutive 16-bit bus words.
+// first IQOUT_CAP_SKIP words (stale FIFO contents). Each word holds two consecutive 16-bit bus words.
+#define IQOUT_CAP_SKIP 8
 void iqout_capture_start(uint32_t *dst, uint32_t nwords);
 bool iqout_capture_busy(void);

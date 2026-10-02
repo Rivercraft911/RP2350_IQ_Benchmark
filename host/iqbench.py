@@ -101,6 +101,8 @@ def check_capture(r: dict, cap_lines: list[str], seed: int, in_words: int,
     mismatches."""
     got = np.array([int(x, 16) for l in cap_lines for x in l.split()[2:]], dtype=np.uint32)
     err = r.get("cap_error")
+    if not err and not r["cap_words"]:
+        err = "no capture words (capture never started, or too short)"
     if not err and len(got) != r["cap_words"]:
         err = f"received {len(got)} of {r['cap_words']} capture words"
     if not err and zlib.crc32(got.tobytes()) != r["cap_crc"]:
@@ -116,9 +118,10 @@ def check_capture(r: dict, cap_lines: list[str], seed: int, in_words: int,
     hits = np.flatnonzero((win == key).all(axis=1))
     if not len(hits):
         return dict(cap_aligned=False, cap_bus_words=int(len(bus)))
-    o = int(hits[0])
-    exp = ref[(o + np.arange(len(bus))) % len(ref)]
-    bad = np.flatnonzero(bus != exp)
+    # A 16-word key can match more than one offset: keep the one that explains the whole capture.
+    def mismatches(o):
+        return np.flatnonzero(bus != ref[(o + np.arange(len(bus))) % len(ref)])
+    o, bad = min(((int(o), mismatches(int(o))) for o in hits[:64]), key=lambda c: len(c[1]))
     return dict(cap_aligned=True, cap_bus_words=int(len(bus)), cap_offset=o,
                 cap_mismatches=int(len(bad)), cap_first_bad=int(bad[0]) if len(bad) else None)
 

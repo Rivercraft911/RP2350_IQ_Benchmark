@@ -111,7 +111,8 @@ static struct {
     volatile bool cap_started;
     core_stats_t st[2];
     bool c0, c1, tables_ok;                        // shaping cores; table CRCs match
-    uint32_t link_words, t_run_us;                 // for the result
+    uint32_t link_words;                           // for the result
+    uint64_t t_run_us;
     bool ready_output, ready_latch, ready_input;   // READY pin state at the end of a pvtx run
     uint ready_function;
 } run;
@@ -127,6 +128,10 @@ static inline __attribute__((always_inline)) uint64_t now_us(void) {
 }
 
 static inline bool expired(void) { return now_us() >= run.end_us; }
+
+// Input for block s is complete. Word counters wrap (after about 2.4 h at 8 Msym/s), so compare the
+// signed distance, never the raw values.
+static inline bool input_ready(uint32_t s) { return (int32_t)(*run.avail - (s + 1) * run.biw) >= 0; }
 
 static void __not_in_flash_func(monitor)(void) {   // core 0 only
     if (iqout_take_txstall()) run.txstalls++;
@@ -155,9 +160,9 @@ static void __not_in_flash_func(producer)(uint32_t first, uint32_t stride, bool 
             if (mon) monitor();
             if (expired()) goto out;
         }
-        if (run.avail && *run.avail < (s + 1) * run.biw) {
+        if (run.avail && !input_ready(s)) {
             st->input_waits++;
-            while (*run.avail < (s + 1) * run.biw) {
+            while (!input_ready(s)) {
                 if (mon) monitor();
                 if (expired()) goto out;
             }
@@ -245,12 +250,12 @@ const char *tx_run(const tx_run_t *r) {
                         .biw = BLOCK_IN(cfg.sps), .cap_words = (uint32_t)r->cap_words,
                         .c0 = c0, .c1 = c1, .tables_ok = tables_ok};
     iqout_init(ring_buf, BLOCK_WORDS, N_BLOCKS, r->cpw, k->layout);
-    const uint32_t tl = time_us_32();
+    const uint64_t tl = time_us_64();
     if (r->lanes) {                                       // fill enough input for the prefill
         link_init(r->lanes, r->half, in_buf);
         link_start();
         link_autopoll(&ring.done, run.biw);            // ring.done = 0 until the output starts
-        while (link_total < (N_BLOCKS + 1) * run.biw && time_us_32() - tl < 100000)
+        while (link_total < (N_BLOCKS + 1) * run.biw && time_us_64() - tl < 100000)
             tight_loop_contents();
     }
     if (r->pv >= 0) {
@@ -258,7 +263,7 @@ const char *tx_run(const tx_run_t *r) {
         pvspi_start(in_buf, r->pv == 1, cap_buf + CAP_WORDS_MAX - PV_EMU_WORDS, 3);
         // self-test: the first BBFRAME needs 28.6 packets (> 4 messages); queue 8 so no null
         // packet makes frame 0 differ from the reference
-        while (r->pv == 1 && pvspi.head < 8 && time_us_32() - tl < 100000) tight_loop_contents();
+        while (r->pv == 1 && pvspi.head < 8 && time_us_64() - tl < 100000) tight_loop_contents();
     }
     if (r->code >= 0) {                                   // first frames on core 0, then core 1
         enc = (typeof(enc)){.s = {.out = link_ring, .mask = IN_WORDS - 1}, .min_ahead = 1 << 30,
@@ -285,7 +290,7 @@ const char *tx_run(const tx_run_t *r) {
     while (run.cap_started && iqout_capture_busy()) tight_loop_contents();
     iqout_stop();
     if (c1 || r->code >= 0) multicore_fifo_pop_blocking();
-    run.link_words = link_total, run.t_run_us = time_us_32() - tl;
+    run.link_words = link_total, run.t_run_us = time_us_64() - tl;
     if (r->pv >= 0) {                     // sample READY before pvspi_stop() drives it low
         run.ready_output = gpio_get_dir(PIN_IN_READY) == GPIO_OUT;
         run.ready_latch = gpio_get_out_level(PIN_IN_READY);
@@ -350,7 +355,9 @@ static void print_result(const tx_run_t *r) {
                (long)pv_stats.first_bad_at, (unsigned long)pv_stats.first_bad_info,
                PIN_IN_READY, run.ready_function, run.ready_output, run.ready_latch,
                run.ready_input);
-    const uint32_t skip = 8, n = r->cap_words > (int)skip ? (uint32_t)r->cap_words - skip : 0;
+    // No words if the capture never started (cap_ms past the end of the run).
+    const uint32_t skip = IQOUT_CAP_SKIP;
+    const uint32_t n = run.cap_started && r->cap_words > (int)skip ? (uint32_t)r->cap_words - skip : 0;
     printf(",\"cap_words\":%lu,\"cap_crc\":%lu}\n", (unsigned long)n,
            (unsigned long)crc32_update(0, cap_buf + skip, n * 4));
     for (uint32_t i = 0; i < n; i += 16) {                 // raw capture for host alignment

@@ -17,7 +17,8 @@
 // the timing; the timed passes run with interrupts off.
 void bench_kernel(const iq_kernel_info_t *k, int reps, bool tables_ok) {
     const uint32_t bw = BLOCK_WORDS, biw = BLOCK_IN(cfg.sps), nblk = IN_WORDS / biw;
-    uint32_t crc = 0, cyc = 0, worst = 0;
+    uint32_t crc = 0, worst = 0;
+    uint64_t cyc = 0;                                // conv overflows 32 bits after 36 reps
     for (uint32_t b = 0; b < nblk; b++) {
         uint32_t *o = ring_buf + (b % N_BLOCKS) * bw;
         k->fn(o, in_buf + b * biw, biw, b ? in_buf[b * biw - 1] : 0, &cfg);
