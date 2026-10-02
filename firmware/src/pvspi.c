@@ -72,7 +72,9 @@ static void __not_in_flash_func(rx_reset)(void) {           // drop partial bits
     pio_sm_exec(pio, sm_rx, pio_encode_jmp(off_rx));
 }
 
-// CS_N rose: a whole message is exactly PV_MSG_WORDS words with nothing left in the FIFO.
+// CS_N rose: a whole message is exactly PV_MSG_WORDS words with nothing left in the FIFO. The RX SM
+// is reset every time, so up to 31 extra bits (one stray SCK edge is enough) cannot stay in its
+// shift register and misalign every later message.
 static void __not_in_flash_func(cs_isr)(void) {
     pio_interrupt_clear(pio, 0);
     const uint32_t s = spin_lock_blocking(lock);
@@ -87,13 +89,12 @@ static void __not_in_flash_func(cs_isr)(void) {
             if (got == PV_MSG_WORDS) pvspi.long_msgs++;
             else pvspi.short_msgs++;
             dma_channel_abort(ch_rx);
-            rx_reset();
         }
         armed = false;
     } else {
         pvspi.overflows++;                                   // arrived with no slot (READY low)
-        rx_reset();
     }
+    rx_reset();
     arm_locked();
     spin_unlock(lock, s);
 }
@@ -124,6 +125,9 @@ void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half) {
     gpio_put(PIN_READY, 0);
     for (uint p = PIN_SCK; p <= PIN_CS; p++) pio_gpio_init(pio, p);
     gpio_pull_up(PIN_CS);                                    // idle high if the master is absent
+    // PIO output enables outlive the SM that set them: after a self-test PIO2 would still drive
+    // SCK/MOSI/CS against the CM5. Start every run with them as inputs.
+    pio_sm_set_consecutive_pindirs(pio, sm_rx, PIN_SCK, 3, false);
 
     pio_sm_config c = pio_get_default_sm_config();
     sm_config_set_wrap(&c, off_rx + 1, off_rx + 3);
@@ -215,6 +219,7 @@ void pvspi_stop(void) {
         dma_channel_abort(ch_emu);
         pio_sm_set_pins_with_mask(pio, sm_emu, 1u << PIN_CS, 1u << PIN_CS);
     }
+    pio_sm_set_consecutive_pindirs(pio, sm_rx, PIN_SCK, 3, false);
     for (uint p = PIN_SCK; p <= PIN_CS; p++) gpio_set_dir(p, GPIO_IN), gpio_set_function(p, GPIO_FUNC_SIO);
 }
 
