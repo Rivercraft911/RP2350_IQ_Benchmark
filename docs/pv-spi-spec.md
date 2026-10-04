@@ -12,29 +12,6 @@ E200. The RP2350 builds and transmits DVB-S2 with the E200 profile, so the groun
 | Firmware | `RP2350_IQ_Benchmark/firmware`, command `pvtx` (see Bring-up) |
 | Status | Working with a real CM5 at 20 MHz: 179 818 messages of camera TS in 210 s, 0 errors, CRC chains equal ([results](../results/cm5-spi/README.md)) |
 
-The CM5 has no real-time duty: the RP2350 owns the symbol clock. When the CM5 sends less than
-the channel rate, the RP2350 inserts TS null packets (PID 0x1FFF), so the RF stream never gaps.
-
-## Pinout
-
-Both sides are 3.3 V CMOS. Pico Plus 2 pin numbers follow the standard Pico header; CM5 pins
-are the CM5 IO Board 40-pin header (RP1 SPI0).
-
-| Signal | Dir | Pico Plus 2 | CM5 |
-|---|---|---|---|
-| SCK | CM5 → Pico | GP17 (pin 22) | GPIO11 (pin 23) |
-| MOSI | CM5 → Pico | GP18 (pin 24) | GPIO10 (pin 19) |
-| CS_N | CM5 → Pico | GP19 (pin 25) | GPIO8 / CE0 (pin 24) |
-| MISO | Pico → CM5 | GP20 (pin 26), not driven in v1 | GPIO9 (pin 21) |
-| READY | Pico → CM5 | GP22 (pin 29) | any GPIO, e.g. GPIO25 (pin 22) |
-| RUN (reset, optional) | CM5 → Pico | RUN (pin 30), open-drain low = reset | e.g. GPIO24 (pin 18) |
-| GND | | pins 23, 28 | pins 20, 25 |
-
-- Pull-ups/downs to the rails: 4.7 kΩ CS_N to 3.3 V, 4.7–6.8 kΩ READY to GND. READY stays low
-  while the Pico is off or resetting (≤ 8.2 kΩ also covers A2 erratum E9).
-- Power the Pico before the CM5 drives the SPI pins, so the RP2350 is not back-fed through them.
-- Keep jumpers short (≤ 15 cm at 20 MHz), with a ground wire next to SCK.
-
 ## SPI settings
 
 - Mode 0 (CPOL 0, CPHA 0), MSB first, 8-bit words.
@@ -114,31 +91,6 @@ bytes 1328-1331: 8d 32 be 51          (crc32 = 0x51be328d)
 ```
 
 Regenerate it with `python3 host/cm5/pv_spi_tx.py --vector`.
-
-## Bring-up
-
-Start the RP2350 first, from a PC or the CM5 on its USB port:
-`python3 host/iqbench.py pvtx --ms 600000` (10 min; add `--cpw 4/8/16` for 4/2/1 Msym/s). Then
-start the sender. At the end the RP2350 reports:
-- messages OK, header/CRC/sync errors, lost (sequence gaps), short/long transfers and overflows;
-- TS and null packet counts;
-- `crc_chain`, the CRC-32 over the CRC fields of the accepted messages. It must equal the
-  sender's `crc_chain`.
-
-| Step | Setup | Pass |
-|---|---|---|
-| 0 | Pico alone: `iqbench.py pvtx --selftest --cap 4096` (on-chip emulated master, 21 MHz) | PASS: 0 errors, BBFRAMEs and output capture match the reference |
-| 1 | Wired, 1 MHz, `pv_spi_tx.py --pattern --count 10000` | 10 000 OK, 0 errors, `crc_chain` equal on both sides |
-| 2 | 5 → 10 → 16 → 20 MHz, pattern at full rate, 60 s each | 0 errors, ≥ 981 msg/s accepted, READY throttling the sender |
-| 3 | 20 MHz, real TS from the video mux, 10 min | 0 errors or gaps; null packets = unused capacity |
-| 4 | later: AFE7071 + LO, ground E200 decode | per the IREC modem plan |
-
-Done so far: steps 0–1; step 2 at 5, 10 and 20 MHz, and 60 s at 20 MHz on firmware `f51d833`;
-1 Msym/s (`--cpw 16`) at full capacity; step 3 for 210 s (stopped by the CM5's 80 °C limit) and
-120 s from the native sender. Fault injection (`run_wired.py --faults`: one message 1 byte long,
-4 bytes long, 1 byte short, bad CRC, bad header, NOP and a sequence gap) at 20 and 25 MHz: each
-counted once, every good message around them accepted, CRC chains equal
-([results](../results/cm5-spi/README.md)).
 
 ## Not in v1
 
