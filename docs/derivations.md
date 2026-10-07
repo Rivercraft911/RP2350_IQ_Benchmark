@@ -20,15 +20,9 @@ In dual-input clock mode DACCLK = 2 f_s, CLK_IO = 2 f_s, and the two must be fre
 
 ## 2. Samples per symbol at the AFE7071
 
-**What N means here.** N is the DAC's own rate divided by the symbol rate. Through the E200 the
-host also sends "2 samples/symbol", but its AD9363 interpolates digitally before its DAC (TX FIR
-and half-band stages; ADI UG-570, not re-checked here), so its DAC runs far faster. The AFE7071
-has no interpolation: the bus rate *is* the DAC rate, f_s = N R_s.
-
-**Why that matters.** A DAC's output repeats the baseband spectrum at every multiple of f_s
-(images). The zero-order hold weights them by |sinc(f/f_s)|. Between the DAC and the modulator
-there is only the integrated 4th-order low-pass. Signal half-width B = R_s(1+α)/2 = 4.8 MHz, and
-the first image starts at f_s − B:
+The AFE7071 has no interpolation: the bus rate *is* the DAC rate, f_s = N R_s.
+A DAC's output repeats the baseband spectrum at every multiple of f_s. The zero-order hold weights them by |sinc(f/f_s)|. Between the DAC and the modulator
+there is only the integrated 4th-order low-pass. Signal half-width B = R_s(1+α)/2 = 4.8 MHz, and the first image starts at f_s − B:
 
 | N | f_s | first image | frequency ratio image/edge | ideal 4th-order at edge corner |
 |---|---|---|---|---|

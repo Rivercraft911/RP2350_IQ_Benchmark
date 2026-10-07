@@ -1,11 +1,10 @@
 # SATS: self-contained RP2350 downlink (feasibility)
 
-User request (2026-09-29): payload data arrives over a host link, is stored in RP2350-side memory,
+Payload data arrives over a host link, is stored in RP2350-side memory,
 and is downlinked with a standard protocol such as DVB-S2, all on the RP2350. As of 2026-10-01 CAN
 is not the baseline; the host link is open, probably SPI or SPI-like. Status: **analysis and
-estimates only**, except where a line cites a measurement. SATS rates come from
-`../SATS/Next Satellite/research/mcu-qpsk-feasibility.json`: 0.25–1 Mb/s information, 5 MB images,
-100 images/day, 600 s passes. These are illustrative assumptions, not requirements.
+estimates only**, except where a line cites a measurement. SATS rates come from 5 MB raw images,
+100 images/day, 600 s passes. These are random assumptions.
 
 ## Pipeline
 
