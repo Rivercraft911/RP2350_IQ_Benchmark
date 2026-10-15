@@ -164,8 +164,10 @@ The earlier [qualified QPSK campaign](results/dual-dma/2026-10-15/README.md),
 [benchmark history](docs/benchmark-history.md) preserve previous results.
 The experiments are consolidated on `experiment/yapogee-limits`; the earlier
 qualified QPSK checkpoint `4b779c0` remains in its history.
-[Filter derivations](docs/derivations.md) explain reconstruction images and SPS;
-[hardware notes](hardware/devboard/README.md) cover the proposed interface.
+[Filter derivations](docs/derivations.md) explain reconstruction images and SPS.
+The transmitter hardware is designed in [Yapogee](https://github.com/Rivercraft911/yapogee);
+the benchmark's own [hardware requirements draft](hardware/devboard/README.md) is superseded
+and kept as history.
 
 | Area | Files |
 |---|---|

@@ -1,7 +1,16 @@
-# RP2350 transmitter hardware: requirements draft
+# RP2350 transmitter hardware: requirements draft (superseded)
 
-Status: **proposal**. No schematic, nothing bought, no RF hardware measured. Parts are candidates
-from desk research (2026-10-01). Tags are in [`docs/sources/SOURCES.md`](../../docs/sources/SOURCES.md);
+> **Superseded, kept as history.** This is the 2026-10-01 desk-research proposal. The hardware
+> is now designed in [Yapogee](https://github.com/Rivercraft911/yapogee) (`hardware/devboard/`),
+> which changed these decisions: RP2350B directly on the transmitter PCB instead of a Pico Plus 2
+> daughterboard; no CDCE6214; DAC clock from a GPIO28 continuous PIO clock through an
+> SN65LVDM31DR into the AFE7071's differential DDR input (32/64 MHz for 8/16 Msym/s at four
+> samples/symbol), with dual-input CLK_IO kept only as a bring-up fallback; 12 MHz TCXO with
+> LMK1C1104 reference fanout; optional GRF2013 driver with the mission PA off-board. The pin plan,
+> gates and interface table below are not current. Check Yapogee before relying on any of it.
+
+Status at the time: **proposal**. No schematic, nothing bought, no RF hardware measured. Parts are
+candidates from desk research (2026-10-01). Tags are in [`docs/sources/SOURCES.md`](../../docs/sources/SOURCES.md);
 [EST] marks estimates, [SIM] results from the repo's Python model.
 
 The design is blocks with fixed interfaces: a **shared RF core** (DAC/modulator, DAC clock, LO)
