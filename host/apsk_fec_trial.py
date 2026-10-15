@@ -563,6 +563,7 @@ def main():
     p.add_argument('--expect-deadline-fault', action='store_true')
     p.add_argument('--split', action='store_true', help='BB scrambling + BCH on core 0 (benchapskfec split 1)')
     p.add_argument('--ldpc-pack', type=int, choices=(0, 1), help='send ldpcpack N before each case')
+    p.add_argument('--bch-bank', type=int, choices=(0, 1), help='send bchbank N (frontend BCH code copy) before each case')
     p.add_argument('--self-test', action='store_true')
     p.add_argument('--port'); p.add_argument('--expected-git')
     p.add_argument('--build', type=Path, default=iq.ROOT/'firmware/build-limits')
@@ -601,7 +602,7 @@ def main():
                     cpu='Timed producer/encoder stage work; credit wait excluded from encoder map work; polling is separate',
                     normalization='ETSI-admitted outer-radius1 data and unit-radius PL header/pilots',
                     standard=STANDARD, expect_deadline_fault=a.expect_deadline_fault,
-                    split_bch=a.split, ldpc_pack=a.ldpc_pack,
+                    split_bch=a.split, ldpc_pack=a.ldpc_pack, bch_bank=a.bch_bank,
                     provenance='Runner archives sources/images; external verified flashing binds them to the board')
     (a.out/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')
     first_fec_crcs(); dual_spi.first_crcs(gcs=True, rate=RATE)
@@ -625,6 +626,10 @@ def main():
                 packed, _ = board.cmd(f'ldpcpack {a.ldpc_pack}'); record('ldpcpack', packed)
                 if packed.get('pack') != a.ldpc_pack:
                     raise RuntimeError('LDPC packer selection failed')
+            if a.bch_bank is not None:
+                bank, _ = board.cmd(f'bchbank {a.bch_bank}'); record('bchbank', bank)
+                if bank.get('bank') != a.bch_bank:
+                    raise RuntimeError('BCH frontend bank selection failed')
             result, lines = board.cmd(f'benchapskfec {mod} {cpw} {a.ms} {int(a.split)}', timeout=a.ms/1000+60)
             filename = f'capture-{mod}-{clock}-cpw{cpw}.txt'
             (a.out/filename).write_text('\n'.join(lines)+'\n')
@@ -634,6 +639,8 @@ def main():
                       stream_faults(result, mod, clock, cpw, a.ms, a.expected_git, int(a.split)))
             if a.ldpc_pack is not None and result.get('ldpc_pack') != a.ldpc_pack and not result.get('error'):
                 faults.append('record LDPC packer differs from selection')
+            if a.bch_bank is not None and result.get('bch_bank') != a.bch_bank and not result.get('error'):
+                faults.append('record BCH frontend bank differs from selection')
             result.update(faults=faults, passed=not faults, capture_file=filename,
                           classification='failed' if faults else 'expected-deadline-fault' if a.expect_deadline_fault else 'clean')
             record(f'{mod}apsk-fec-{clock}-cpw{cpw}', result)
