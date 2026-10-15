@@ -152,19 +152,26 @@ def build_evidence(folder, manifest):
     for name, value in binary_hashes.items():
         if name.startswith('firmware/'):
             require(actual_sources.get(name) == value, 'campaign/source build mismatch: '+name)
+    absent = []
     for name in ('iqbench.uf2', 'iqbench.elf'):
         binary = folder/name
-        require(binary.is_file() and sha(binary) == binary_hashes.get(name), 'binary hash mismatch: '+name)
+        if not binary.is_file():
+            # Images are gitignored local copies; a fresh clone records them as unchecked.
+            absent.append(name)
+            continue
+        require(sha(binary) == binary_hashes.get(name), 'binary hash mismatch: '+name)
         files.append(binary)
     flash = files[2].read_text()
     require('Verifying Flash:' in flash and '\n  OK\n' in flash and
             'The device was rebooted to start the application.' in flash, 'verified flash record missing')
     return dict(source_files=len(actual_sources), path=relative(path.parent),
-                sha256={relative(p): sha(p) for p in files},
+                sha256={relative(p): sha(p) for p in files}, absent_local_binaries=absent,
                 archived_firmware_sha256=actual_sources)
 
 
-def load_campaign(folder, modulation):
+def load_campaign(folder, modulation, strict_references=True):
+    # Rendering requires the exact recorded reference sources. The self-test instead
+    # re-validates the archived captures with the current sources and reports drift.
     folder = folder.resolve()
     if folder.is_file():
         require(folder.name == 'runs.jsonl', 'source file must be runs.jsonl')
@@ -189,10 +196,12 @@ def load_campaign(folder, modulation):
         require(manifest.get('placements') == [1], '32APSK requires recorded per-core SRAM placement')
     git = manifest.get('expected_firmware_git')
     require(type(git) is str and bool(git), 'expected firmware identity missing')
-    references = {}
+    references, drift = {}, []
     for name in REFERENCE_FILES:
         path = ROOT/name
-        require(manifest['sha256'].get(name) == sha(path), 'independent reference source drift: '+name)
+        if manifest['sha256'].get(name) != sha(path):
+            require(not strict_references, 'independent reference source drift: '+name)
+            drift.append(name)
         references[name] = sha(path)
     evidence = build_evidence(folder, manifest)
     selected = []
@@ -215,12 +224,12 @@ def load_campaign(folder, modulation):
                  'cores[].shaper_address'] if legacy16 else [],
                 manifest=dict(path=relative(manifest_path), sha256=sha(manifest_path)),
                 summary=dict(path=relative(summary_path), sha256=sha(summary_path)), build=evidence,
-                reference_sha256=references,
+                reference_sha256=references, reference_drift=drift,
                 recorded_driver_sha256=manifest['sha256']['host/apsk_live_trial.py'])
 
 
 def self_test():
-    selected = load_campaign(SOURCE16, 16)
+    selected = load_campaign(SOURCE16, 16, strict_references=False)
     original = selected['runs'][0]['row']
     cases = 0
     for field, value in (('ms', 3000), ('modulation', '32APSK'), ('mapper', 1), ('errors', 1),
@@ -273,6 +282,7 @@ def self_test():
         except ValueError: cases += 1
         else: raise AssertionError('accepted source/binary drift '+field)
     print(json.dumps(dict(self_test='passed', negative_controls=cases,
+                          reference_drift_since_campaign=selected['reference_drift'],
                           real_legacy_runs_revalidated=2, synthetic_modern_metadata_only=True,
                           capture_observations_per_run=8192)))
 
