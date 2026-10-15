@@ -1,0 +1,249 @@
+python3 host/test_native.py
+ok  conv       sps=2 L=8  crc=497b1217 want=497b1217 tables_ok=1
+ok  lut_shift  sps=2 L=8  crc=497b1217 want=497b1217 tables_ok=1
+ok  lut_win    sps=2 L=8  crc=497b1217 want=497b1217 tables_ok=1
+ok  lut_pair   sps=2 L=8  crc=46ffe040 want=46ffe040 tables_ok=1
+ok  conv       sps=2 L=10 crc=856a9c72 want=856a9c72 tables_ok=1
+ok  lut_shift  sps=2 L=10 crc=856a9c72 want=856a9c72 tables_ok=1
+ok  lut_win    sps=2 L=10 crc=856a9c72 want=856a9c72 tables_ok=1
+ok  lut_pair   sps=2 L=10 crc=1a0de223 want=1a0de223 tables_ok=1
+ok  conv       sps=2 L=12 crc=8b2ac56b want=8b2ac56b tables_ok=1
+ok  lut_shift  sps=2 L=12 crc=8b2ac56b want=8b2ac56b tables_ok=1
+ok  lut_win    sps=2 L=12 crc=8b2ac56b want=8b2ac56b tables_ok=1
+ok  lut_pair   sps=2 L=12 crc=ca724386 want=ca724386 tables_ok=1
+ok  conv       sps=4 L=8  crc=772bad9f want=772bad9f tables_ok=1
+ok  lut_shift  sps=4 L=8  crc=772bad9f want=772bad9f tables_ok=1
+ok  lut_win    sps=4 L=8  crc=772bad9f want=772bad9f tables_ok=1
+ok  lut_pair   sps=4 L=8  crc=620d1592 want=620d1592 tables_ok=1
+ok  conv       sps=4 L=10 crc=238381c1 want=238381c1 tables_ok=1
+ok  lut_shift  sps=4 L=10 crc=238381c1 want=238381c1 tables_ok=1
+ok  lut_win    sps=4 L=10 crc=238381c1 want=238381c1 tables_ok=1
+ok  lut_pair   sps=4 L=10 crc=1476b853 want=1476b853 tables_ok=1
+ok  conv       sps=4 L=12 crc=dad6a444 want=dad6a444 tables_ok=1
+ok  lut_shift  sps=4 L=12 crc=dad6a444 want=dad6a444 tables_ok=1
+ok  lut_win    sps=4 L=12 crc=dad6a444 want=dad6a444 tables_ok=1
+ok  lut_pair   sps=4 L=12 crc=0d865ce5 want=0d865ce5 tables_ok=1
+ok  conv       sps=8 L=8  crc=0cd21bf9 want=0cd21bf9 tables_ok=1
+ok  lut_shift  sps=8 L=8  crc=0cd21bf9 want=0cd21bf9 tables_ok=1
+ok  lut_pair   sps=8 L=8  crc=14092bed want=14092bed tables_ok=1
+ok  conv       sps=8 L=10 crc=96fa332e want=96fa332e tables_ok=1
+ok  lut_shift  sps=8 L=10 crc=96fa332e want=96fa332e tables_ok=1
+ok  lut_pair   sps=8 L=10 crc=33f82fc3 want=33f82fc3 tables_ok=1
+python3 host/test_dvbs2_native.py
+ok  normal 1/4  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 1/4  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 1/3  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 1/3  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 2/5  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 2/5  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 1/2  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 1/2  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 3/5  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 3/5  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 2/3  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 2/3  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 3/4  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 3/4  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 4/5  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 4/5  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 5/6  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 5/6  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 8/9  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 8/9  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 9/10 pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 9/10 pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  short 1/4   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 1/4   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 1/3   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 1/3   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 2/5   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 2/5   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 1/2   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 1/2   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 3/5   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 3/5   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 2/3   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 2/3   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 3/4   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 3/4   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 4/5   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 4/5   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 5/6   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 5/6   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 8/9   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 8/9   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+python3 host/test_dvbs2_buffers.py
+ok normal 1/4  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 1/4  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 1/3  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 1/3  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 2/5  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 2/5  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 1/2  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 1/2  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 3/5  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 3/5  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 2/3  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 2/3  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 3/4  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 3/4  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 4/5  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 4/5  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 5/6  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 5/6  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 8/9  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 8/9  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 9/10 pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 9/10 pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok short 1/4   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 1/4   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 1/3   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 1/3   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 2/5   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 2/5   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 1/2   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 1/2   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 3/5   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 3/5   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 2/3   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 2/3   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 3/4   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 3/4   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 4/5   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 4/5   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 5/6   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 5/6   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 8/9   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 8/9   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+Passed 42 configurations ×3 varied frames ×3 BCH selectors; continuous words match independent Python reference; degree160 chunk sizes1/7/128/511 also match bit-serial parity.
+python3 host/test_dvbs2_fec.py
+FEC native: transpose1152 matrices=PASS; q60 parity8 patterns/minimum buffer=PASS; mapping16 partial fills/ring wrap=PASS
+python3 host/test_pv_native.py
+ok  pattern messages == pv_spi_tx.py
+ok  30 good accepted
+ok  bad CRC / header / sync counted
+ok  sequence gap = 2 lost
+ok  BBFRAMEs 1-4 == ts_bbframes()
+ok  BBFRAME 5 with null stuffing == reference
+ok  TS packet count
+python3 host/test_pvspi_rx.py
+SPI close: PASS (late retirement, true shorts, long FIFO, BUSY/AHB, late CS, CRC, READY)
+python3 host/test_startup.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.002s
+
+OK
+python3 host/test_flight_service.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.204s
+
+OK
+python3 host/test_iqdesc.py
+{"seed": 0, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 2899733160, "crc_q": 3512283321, "waveform_crc": 349754166}
+{"seed": 0, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 2899733160, "crc_q": 3512283321, "waveform_crc": 349754166}
+{"seed": 0, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 2899733160, "crc_q": 3512283321, "waveform_crc": 349754166}
+{"seed": 0, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 2899733160, "crc_q": 3512283321, "waveform_crc": 349754166}
+{"seed": 0, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 2717952205, "crc_q": 3358169377, "waveform_crc": 349754166}
+{"seed": 0, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 2717952205, "crc_q": 3358169377, "waveform_crc": 349754166}
+{"seed": 0, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 2717952205, "crc_q": 3358169377, "waveform_crc": 349754166}
+{"seed": 0, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 2717952205, "crc_q": 3358169377, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 3071534459, "crc_q": 3360430169, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 3071534459, "crc_q": 3360430169, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 3071534459, "crc_q": 3360430169, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 3071534459, "crc_q": 3360430169, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 3344340784, "crc_q": 3415191144, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 3344340784, "crc_q": 3415191144, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 3344340784, "crc_q": 3415191144, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 3344340784, "crc_q": 3415191144, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 1, "base_i": 537133056, "base_q": 537133056, "crc_i": 3071534459, "crc_q": 3071534459, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 7, "base_i": 537133056, "base_q": 537133056, "crc_i": 3071534459, "crc_q": 3071534459, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 64, "base_i": 537133056, "base_q": 537133056, "crc_i": 3071534459, "crc_q": 3071534459, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 137, "base_i": 537133056, "base_q": 537133056, "crc_i": 3071534459, "crc_q": 3071534459, "waveform_crc": 349754166}
+{"seed": 1, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 4054740607, "crc_q": 4174170060, "waveform_crc": 190229004}
+{"seed": 1, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 4054740607, "crc_q": 4174170060, "waveform_crc": 190229004}
+{"seed": 1, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 4054740607, "crc_q": 4174170060, "waveform_crc": 190229004}
+{"seed": 1, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 4054740607, "crc_q": 4174170060, "waveform_crc": 190229004}
+{"seed": 1, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 1281256364, "crc_q": 2934121318, "waveform_crc": 190229004}
+{"seed": 1, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 1281256364, "crc_q": 2934121318, "waveform_crc": 190229004}
+{"seed": 1, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 1281256364, "crc_q": 2934121318, "waveform_crc": 190229004}
+{"seed": 1, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 1281256364, "crc_q": 2934121318, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 1088763554, "crc_q": 2870812697, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 1088763554, "crc_q": 2870812697, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 1088763554, "crc_q": 2870812697, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 1088763554, "crc_q": 2870812697, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 3142956214, "crc_q": 535425048, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 3142956214, "crc_q": 535425048, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 3142956214, "crc_q": 535425048, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 3142956214, "crc_q": 535425048, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 1, "base_i": 537133056, "base_q": 537133056, "crc_i": 1088763554, "crc_q": 1815273372, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 7, "base_i": 537133056, "base_q": 537133056, "crc_i": 1088763554, "crc_q": 1815273372, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 64, "base_i": 537133056, "base_q": 537133056, "crc_i": 1088763554, "crc_q": 1815273372, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 137, "base_i": 537133056, "base_q": 537133056, "crc_i": 1088763554, "crc_q": 1815273372, "waveform_crc": 190229004}
+{"seed": 305441741, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 4081415655, "crc_q": 187681189, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 4081415655, "crc_q": 187681189, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 4081415655, "crc_q": 187681189, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 4081415655, "crc_q": 187681189, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 447934319, "crc_q": 1810552238, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 447934319, "crc_q": 1810552238, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 447934319, "crc_q": 1810552238, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 447934319, "crc_q": 1810552238, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 1594566689, "crc_q": 3489336445, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 1594566689, "crc_q": 3489336445, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 1594566689, "crc_q": 3489336445, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 1594566689, "crc_q": 3489336445, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 980900951, "crc_q": 2560498396, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 980900951, "crc_q": 2560498396, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 980900951, "crc_q": 2560498396, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 980900951, "crc_q": 2560498396, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 1, "base_i": 537133056, "base_q": 537133056, "crc_i": 1594566689, "crc_q": 683871737, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 7, "base_i": 537133056, "base_q": 537133056, "crc_i": 1594566689, "crc_q": 683871737, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 64, "base_i": 537133056, "base_q": 537133056, "crc_i": 1594566689, "crc_q": 683871737, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 137, "base_i": 537133056, "base_q": 537133056, "crc_i": 1594566689, "crc_q": 683871737, "waveform_crc": 1288592553}
+{"seed": 4294967295, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 2194969733, "crc_q": 1515896841, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 2194969733, "crc_q": 1515896841, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 2194969733, "crc_q": 1515896841, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 2194969733, "crc_q": 1515896841, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 1124845958, "crc_q": 1141754099, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 1124845958, "crc_q": 1141754099, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 1124845958, "crc_q": 1141754099, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 1124845958, "crc_q": 1141754099, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 1291658380, "crc_q": 4209293618, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 1291658380, "crc_q": 4209293618, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 1291658380, "crc_q": 4209293618, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 1291658380, "crc_q": 4209293618, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 2623279664, "crc_q": 4251499508, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 2623279664, "crc_q": 4251499508, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 2623279664, "crc_q": 4251499508, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 2623279664, "crc_q": 4251499508, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 1, "base_i": 537133056, "base_q": 537133056, "crc_i": 1291658380, "crc_q": 1539372246, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 7, "base_i": 537133056, "base_q": 537133056, "crc_i": 1291658380, "crc_q": 1539372246, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 64, "base_i": 537133056, "base_q": 537133056, "crc_i": 1291658380, "crc_q": 1539372246, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 137, "base_i": 537133056, "base_q": 537133056, "crc_i": 1291658380, "crc_q": 1539372246, "waveform_crc": 1500795857}
+python3 host/test_iqpair.py
+{"seed": 0, "symbols": 2192, "waveform_crc": 349754166}
+{"seed": 1, "symbols": 2192, "waveform_crc": 190229004}
+{"seed": 305441741, "symbols": 2192, "waveform_crc": 1288592553}
+{"seed": 4294967295, "symbols": 2192, "waveform_crc": 1500795857}
+{"rows": 8192, "bytes": 131072, "paired_crc": 1500707190}
+python3 host/test_dual_pio.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.108s
+
+OK
+python3 host/test_dual_faults.py
+dual fault snapshots: PASS (65536 IRQ masks,256 TX flag sets,capture latching,late faults,released queries)
+python3 host/test_dual_spi.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.162s
+
+OK
+python3 host/test_ptrprog.py
+{"instruction_model_cases": 200, "model_cyc_per_sym": 3.5625, "expected_device_crc": [2456767275, 1773279408, 2149571791, 1670686239]}
+python3 host/dual_trial.py --self-test
+dual_trial self-test: five waveform periods, integer/fractional capture, corruption, serial CRC, capture ordering and fault classification checked; no hardware accessed
+python3 host/plot_dual.py --self-test
+plot_dual self-test: configuration, capture, negative-control and longest-run selection checked

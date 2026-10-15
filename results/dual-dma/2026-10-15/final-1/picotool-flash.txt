@@ -1,0 +1,88 @@
+Tracking device serial number D7304C6F543390D2 for reboot
+The device was asked to reboot into BOOTSEL mode so the command can be executed.
+
+Family ID 'rp2350-arm-s' can be downloaded in absolute space:
+  00000000->02000000
+Loading into Flash:   [                              ]  0%
+Loading into Flash:   [                              ]  2%
+Loading into Flash:   [=                             ]  5%
+Loading into Flash:   [==                            ]  7%
+Loading into Flash:   [===                           ]  10%
+Loading into Flash:   [===                           ]  13%
+Loading into Flash:   [====                          ]  15%
+Loading into Flash:   [=====                         ]  18%
+Loading into Flash:   [======                        ]  20%
+Loading into Flash:   [======                        ]  23%
+Loading into Flash:   [=======                       ]  26%
+Loading into Flash:   [========                      ]  28%
+Loading into Flash:   [=========                     ]  31%
+Loading into Flash:   [=========                     ]  33%
+Loading into Flash:   [==========                    ]  36%
+Loading into Flash:   [===========                   ]  39%
+Loading into Flash:   [============                  ]  41%
+Loading into Flash:   [=============                 ]  44%
+Loading into Flash:   [=============                 ]  46%
+Loading into Flash:   [==============                ]  49%
+Loading into Flash:   [===============               ]  52%
+Loading into Flash:   [================              ]  54%
+Loading into Flash:   [=================             ]  57%
+Loading into Flash:   [=================             ]  59%
+Loading into Flash:   [==================            ]  62%
+Loading into Flash:   [===================           ]  65%
+Loading into Flash:   [====================          ]  67%
+Loading into Flash:   [=====================         ]  70%
+Loading into Flash:   [=====================         ]  72%
+Loading into Flash:   [======================        ]  75%
+Loading into Flash:   [=======================       ]  78%
+Loading into Flash:   [========================      ]  80%
+Loading into Flash:   [========================      ]  83%
+Loading into Flash:   [=========================     ]  85%
+Loading into Flash:   [==========================    ]  88%
+Loading into Flash:   [===========================   ]  91%
+Loading into Flash:   [===========================   ]  93%
+Loading into Flash:   [============================  ]  96%
+Loading into Flash:   [============================= ]  98%
+Loading into Flash:   [==============================]  100%
+Verifying Flash:      [                              ]  0%
+Verifying Flash:      [                              ]  2%
+Verifying Flash:      [=                             ]  5%
+Verifying Flash:      [==                            ]  7%
+Verifying Flash:      [===                           ]  10%
+Verifying Flash:      [===                           ]  13%
+Verifying Flash:      [====                          ]  15%
+Verifying Flash:      [=====                         ]  18%
+Verifying Flash:      [======                        ]  20%
+Verifying Flash:      [======                        ]  23%
+Verifying Flash:      [=======                       ]  26%
+Verifying Flash:      [========                      ]  28%
+Verifying Flash:      [=========                     ]  31%
+Verifying Flash:      [=========                     ]  33%
+Verifying Flash:      [==========                    ]  36%
+Verifying Flash:      [===========                   ]  39%
+Verifying Flash:      [============                  ]  41%
+Verifying Flash:      [=============                 ]  44%
+Verifying Flash:      [=============                 ]  46%
+Verifying Flash:      [==============                ]  49%
+Verifying Flash:      [===============               ]  52%
+Verifying Flash:      [================              ]  54%
+Verifying Flash:      [=================             ]  57%
+Verifying Flash:      [=================             ]  59%
+Verifying Flash:      [==================            ]  62%
+Verifying Flash:      [===================           ]  65%
+Verifying Flash:      [====================          ]  67%
+Verifying Flash:      [=====================         ]  70%
+Verifying Flash:      [=====================         ]  72%
+Verifying Flash:      [======================        ]  75%
+Verifying Flash:      [=======================       ]  78%
+Verifying Flash:      [========================      ]  80%
+Verifying Flash:      [========================      ]  83%
+Verifying Flash:      [=========================     ]  85%
+Verifying Flash:      [==========================    ]  88%
+Verifying Flash:      [===========================   ]  91%
+Verifying Flash:      [===========================   ]  93%
+Verifying Flash:      [============================  ]  96%
+Verifying Flash:      [============================= ]  98%
+Verifying Flash:      [==============================]  100%
+  OK
+
+The device was rebooted to start the application.

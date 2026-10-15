@@ -1,0 +1,7 @@
+{
+  "head": "c6714d76abe0b0d95ec58ba167fe34d79927c468",
+  "sha256": "5d20a410f1cb537cd2d64a30c19ae256094da4038d3c86b71c29a6b00575c991",
+  "verified_flash": true,
+  "board_serial": "D7304C6F543390D2",
+  "flash_log": "picotool-flash.txt"
+}

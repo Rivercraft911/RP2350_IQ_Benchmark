@@ -1,0 +1,5 @@
+# Keep measured data available while focusing reviews on code and reports.
+results/**/*.json linguist-generated=true
+results/**/*.jsonl linguist-generated=true
+results/**/*.txt linguist-generated=true
+results/plots/** linguist-generated=true

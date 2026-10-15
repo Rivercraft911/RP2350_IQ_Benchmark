@@ -1,0 +1,8 @@
+{
+  "code_commit": "8373e88662457f9292012845ab967d43c6f27e68",
+  "board_serial": "D7304C6F543390D2",
+  "flash_command": "picotool load -v -f firmware/build-limits/iqbench.uf2 -x",
+  "picotool_verified": true,
+  "firmware_git": "8373e88662",
+  "uf2_sha256": "2f239935a8595a483d00266dee2f68e22d7aea3c7d7424d5c55ea987a1c57c67"
+}
