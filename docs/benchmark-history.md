@@ -122,3 +122,20 @@ Preserve the corresponding ELF map when comparing memory layouts.
 The source snapshot mixed KB and KiB labels in this resource table; the original values and
 labels are retained here rather than silently reinterpreted. They should not be summed as a
 new allocation or used to infer current free memory.
+
+## Complete APSK integration, 2026-10-15
+
+The [full APSK campaign](../results/apsk-fec/2026-10-15/README.md) adds live
+on-chip SPI input, BB framing, BCH/LDPC and standard PL mapping to the earlier
+native-coordinate shapers. Both modes pass 60 seconds at both supported clocks.
+
+| Normal 5/6 + pilots, two cores | 128 MHz | 150 MHz | BB data capacity at 150 MHz |
+|---|---:|---:|---:|
+| 16APSK, L8 / 2 SPS | 3.556 Msym/s | 4.167 Msym/s | 13.424 Mb/s |
+| 32APSK, L8 / 2 SPS | 2.286 Msym/s | 2.679 Msym/s | 10.796 Mb/s |
+
+The previous 9.375-Msym/s APSK results measure mapping/shaping components.
+The complete path is limited by the encoder core, particularly PL mapping.
+The new report preserves the initial implementation, packing improvements,
+failed controls, exact captures, image/source hashes and a proposal for sharing
+PL work between cores. No AFE or RF receiver was attached.

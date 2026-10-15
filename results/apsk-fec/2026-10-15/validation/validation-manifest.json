@@ -1,0 +1,43 @@
+{
+  "snapshot": "/tmp/yapogee-apsk-fec-snapshot-4",
+  "build_manifest_sha256": "fa15de31247e0b40d71179126277e9e344d1c8ffa363e6ab219d39f82dbc302d",
+  "firmware_hashes_match": 107,
+  "snapshot_hashes_match": 112,
+  "failed_checks": [],
+  "full_check_observer": "Root directly observed session 5715 exit 0.",
+  "qualification_scope": "Hardware qualification campaigns are recorded separately; this archive covers source, native validation and static memory/stack review.",
+  "files": {
+    "host-proof.txt": {
+      "bytes": 556,
+      "sha256": "11859b4c22c86b20fc2dab93f143381b3a110daa790012df86ca7c25c2e1a6e2"
+    },
+    "integration-review.md": {
+      "bytes": 4390,
+      "sha256": "b366e5cf58e622c305b83527fd2d90f4e105d80a89c17531f7bcb97779e0c3bc"
+    },
+    "make-check-final-4.txt": {
+      "bytes": 47719,
+      "sha256": "ebea45ad58b200d3d85f708138a43d3d39dde825ffdf040408cbf8eb1f361a16"
+    },
+    "mapper-review.md": {
+      "bytes": 1118,
+      "sha256": "1b379b549017a1d54658f1f0e1580d8ab43235b79e454b2f3273b1f52eda8864"
+    },
+    "native-proofs.json": {
+      "bytes": 6954,
+      "sha256": "2d418a12e84a4f7810e814822bd3ea4d688ffef9f6fe25dbfd77e435479544c6"
+    },
+    "plot-self-test.txt": {
+      "bytes": 163,
+      "sha256": "923c99d1b22388697bbd3cef392195d317bfe7061d61f5e9d1e96ef8d9c9822e"
+    },
+    "source-elf-memory.json": {
+      "bytes": 18582,
+      "sha256": "b734c19f5c205f9e05d31295661b5ec229b3d92ac1ea8c6396793f2a3a6ab6ac"
+    },
+    "fresh-checkout.json": {
+      "bytes": 1158,
+      "sha256": "52d412e7b151f10c4f6523f84aa8cc5a3e431c8260b172fdfe11dc20385e6a82"
+    }
+  }
+}

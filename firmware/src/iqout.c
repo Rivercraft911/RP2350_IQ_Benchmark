@@ -25,8 +25,11 @@ static uint32_t idle_block[BLOCK_WORDS];
 // PACKED: FIFO word = I | Q << 16.   PAIRS: FIFO words [I0|I1] [Q0|Q1]; X holds I1.
 // Delay fields: 4 bits with one side-set bit (output SM), 5 bits without (capture SM), so
 // 2 <= cpw <= IQOUT_MAX_CPW = 32 (d0, d1 <= 15; capture delay cpw - 1 <= 31). RP2350 §11.4.
-// RAW_PAIRS uses three side-set bits, leaving two delay bits: cpw3..8.
+// RAW_PAIRS uses three side-set bits, leaving two delay bits: native cpw3..8.
+// Slower periods use four PIO ticks per word and an exact cpw/4 divider.
 // Its extra OUT into X shares the high half of the first slot without changing the bus.
+static uint32_t raw_divider(int cpw) { return cpw > 8 ? (uint32_t)cpw * 64u : 256u; }
+
 static void build_programs(int cpw, int layout) {
     const uint d0 = (uint)cpw / 2 - 1, d1 = (uint)cpw - 2 - d0;   // odd cpw allowed
 #define LO(i) ((i) | pio_encode_sideset(1, 0) | pio_encode_delay(d0))
@@ -36,7 +39,8 @@ static void build_programs(int cpw, int layout) {
         // Uniform bus periods; odd periods spend one extra cycle with CLK_IO high.
         // Side-set bits14..16 drive IQ, zero, CLK_IO.
         // OUT/MOV write only14 data bits; discard signed padding before I1/Q1.
-        const uint low = (uint)cpw / 2, high = (uint)cpw - low;
+        const uint period = cpw > 8 ? 4u : (uint)cpw;
+        const uint low = period / 2, high = period - low;
 #define SIDE(v) pio_encode_sideset(3, (v))
         const uint16_t p[] = {
             pio_encode_out(pio_pins, 14) | SIDE(1) | pio_encode_delay(low - 1),
@@ -101,7 +105,7 @@ static void bus_pin(uint pin) {
 
 void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw, int layout) {
     hard_assert(cpw >= 2 && cpw <= IQOUT_MAX_CPW);
-    hard_assert(layout != IQ_LAYOUT_RAW_PAIRS || (cpw >= 3 && cpw <= 8));
+    hard_assert(layout != IQ_LAYOUT_RAW_PAIRS || (cpw >= 3 && cpw <= 32));
     ring = (ring_t){.buf = buf, .block_words = block_words, .n_blocks = n_blocks};
     // Idle filler: zero samples with IQ_FLAG on I words only, in the layout the PIO expects.
     // PACKED: I | Q << 16 per word. PAIRS: [I0|I1] then [Q0|Q1].
@@ -138,7 +142,8 @@ void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw,
     sm_config_set_sideset_pins(&c, raw ? PIN_D0 + 14 : PIN_CLKIO);
     sm_config_set_out_shift(&c, true, true, 32);          // LSB (earlier) slot first
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
-    sm_config_set_clkdiv_int_frac8(&c, 1, 0);
+    const uint32_t divider = raw ? raw_divider(cpw) : 256u;
+    sm_config_set_clkdiv_int_frac8(&c, divider >> 8, divider & 255u);
     pio_sm_init(pio, sm_out, off_out, &c);
 
     c = pio_get_default_sm_config();

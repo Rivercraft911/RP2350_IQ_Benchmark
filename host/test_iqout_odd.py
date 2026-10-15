@@ -64,7 +64,7 @@ class IntegerSlots(raw.RawPairs):
 
     def test_raw_timing_range_and_pin_assignment(self):
         self.assertEqual([cpw for cpw in range(-2, 35) if self.lib.raw_valid(cpw)],
-                         list(range(3, 9)))
+                         list(range(3, 33)))
         config = (raw.ROOT / "firmware/src/config.h").read_text()
         self.assertRegex(config, r"#define\s+PIN_D0\s+0\b")
         self.assertRegex(config, r"#define\s+PIN_CLKIO\s+16\b")
@@ -83,7 +83,7 @@ class IntegerSlots(raw.RawPairs):
             self.assertEqual(self.program(cpw), expected)
 
     def test_capture_samples_keep_uniform_word_period(self):
-        for cpw in range(3, 9):
+        for cpw in range(3, 33):
             code = (ct.c_uint16 * 3)()
             self.capture_lib.capture_program(code, cpw)
             self.assertEqual([op >> 13 for op in code], [2, 2, 4])
@@ -96,6 +96,32 @@ class IntegerSlots(raw.RawPairs):
                     samples.append(clock)
                 clock += 1 + ((op >> 8) & 31)
             self.assertEqual(samples, [cpw * n for n in range(40)])
+
+    def test_wide_periods_use_exact_quarter_dividers(self):
+        rng = np.random.default_rng(7281)
+        i, q = rng.integers(0, 65536, (2, 1024), dtype=np.uint32)
+        expected = np.stack([(i & 0x3fff) | 0x4000, q & 0x3fff], axis=1).ravel()
+        bus, _ = self.trace(self.program(4), self.pair_words(i, q), len(expected) * 4)
+        for cpw in range(3, 9):
+            self.assertEqual(self.lib.raw_divider(cpw), 256)
+        for cpw in range(9, 33):
+            with self.subTest(cpw=cpw):
+                self.assertEqual(self.program(cpw), self.program(4))
+                divider = self.lib.raw_divider(cpw)
+                self.assertEqual(divider, cpw * 64)
+                # Every possible fractional phase gives exactly cpw system
+                # clocks per four PIO ticks; there is no word-period jitter.
+                phases = np.arange(256, dtype=np.int64)[:, None]
+                ends = (phases + np.arange(65) * divider) // 256
+                periods = np.diff(ends, axis=1).reshape(256, 16, 4).sum(axis=2)
+                np.testing.assert_array_equal(periods, np.full_like(periods, cpw))
+                for phase in (0, 63, 127, 191, 255):
+                    ticks = (phase + np.arange(len(bus) + 1) * divider) // 256
+                    physical = np.repeat(bus, np.diff(ticks))
+                    np.testing.assert_array_equal(physical, np.repeat(expected, cpw))
+        source = (raw.ROOT / "firmware/src/iqout.c").read_text()
+        self.assertIn("const uint32_t divider = raw ? raw_divider(cpw) : 256u;", source)
+        self.assertIn("sm_config_set_clkdiv_int_frac8(&c, divider >> 8, divider & 255u);", source)
 
 
 if __name__ == "__main__":

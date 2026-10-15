@@ -17,8 +17,9 @@ set(TX_SOURCES
     src/iq32native8.c src/iq32native8_asm.S src/bench32.c
     src/iq32keys.c src/iq32keys_asm.S src/iq32pairkey.c src/iq32pairkey_asm.S src/bench32out.c
     src/iq32mapkeys.c src/iq32mapkeys_pair.c src/iq16maplabels.c
-    src/iq32offsets.c src/iq32offsets_asm.S
+    src/iq32offsets.c src/iq32offsets_asm.S src/iq32offsets_native.c
     src/bench_apsk_live.c src/bench32map.c src/bench32bus.c
+    src/bench_apsk_fec.c src/dvbs2_apsk.c
     src/dvbs2.c src/dvbs2_8psk.c src/dvbs2_qpsk8.c src/dvbs2_asm.S src/dvbs2_map_asm.S
     src/pvproto.c src/pvspi.c
     src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c

@@ -26,6 +26,7 @@
 //   bench32native8 reps                          32APSK shaper components
 //   bench32out cpw ms kernel                     32APSK rolling-key output, no FEC
 //   benchapsklive cpw ms schedule mapper mod placement    runtimeAPSK, 1/2 cores
+//   benchapskfec mod cpw ms                     APSK with live SPI and FEC
 //   bench32map reps                              matched32APSK mapper components
 //   bench32bus mode group                        no-output bus contention diagnosis
 //   benchquadptr mode / quadlive cpw ms fault     finite / live PIO address generation
@@ -48,6 +49,7 @@
 #include "bench16planar.h"
 #include "bench32out.h"
 #include "bench_apsk_live.h"
+#include "bench_apsk_fec.h"
 #include "bench32map.h"
 #include "bench32bus.h"
 #include "bench_quadlive.h"
@@ -258,6 +260,12 @@ static const char *dispatch(char *line) {
             !num(a[5], "modulation", 32, 16, 32, &modulation) ||
             !num(a[6], "placement", 0, 0, 1, &placement)) return err;
         bench_apsk_live(r.cpw, r.ms, schedule, mapper, modulation, placement);
+    } else if (!strcmp(cmd, "benchapskfec")) {
+        int modulation;
+        if (!num(a[1], "modulation", 16, 16, 32, &modulation) ||
+            !num(a[2], "cpw", 12, 3, 32, &r.cpw) ||
+            !num(a[3], "ms", 3000, 100, 60000, &r.ms)) return err;
+        bench_apsk_fec(modulation, r.cpw, r.ms);
     } else if (!strcmp(cmd, "bench32bus")) {
         int mode, group;
         if (!num(a[1], "mode", 0, 0, 4, &mode) ||

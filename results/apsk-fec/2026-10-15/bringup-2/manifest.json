@@ -1,0 +1,7 @@
+{
+  "scope": "3s baseline component-accounted complete SPI/FEC pipeline; independent finite captures; later pinned runner qualification separate.",
+  "firmware_git": "1728eaafc3-dirty",
+  "clock_khz": 150000,
+  "reference_sha256": "36bf46c40e8334438d8f890aa1b58268bcef9dbabeae45015889192ee051e77a",
+  "build_manifest": "../build-1/manifest.json"
+}

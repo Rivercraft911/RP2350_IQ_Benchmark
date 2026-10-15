@@ -68,7 +68,8 @@ class RawPairs(unittest.TestCase):
                    "unsigned raw_program(uint16_t *out, int cpw) {" + match[1] +
                    "const uint16_t p[] = {" + match[2] + "};\n"
                    "memcpy(out, p, sizeof p); return sizeof p/sizeof p[0]; }\n"
-                   "int raw_valid(int cpw) { return " + valid[1] + "; }\n"
+                   "int raw_valid(int cpw) { return " + valid[1] + "; }\n" +
+                   function(source, "raw_divider").replace("static ", "", 1) + "\n" +
                    "#define OUT_WORDS 2048\n" + crc + "\n" + packed + "\n"
                    "uint32_t test_packed_crc(uint32_t crc, const uint32_t *p) { return packed_crc(crc,p); }\n")
         (temp / "test.c").write_text(wrapper)
@@ -79,6 +80,8 @@ class RawPairs(unittest.TestCase):
         cls.lib.raw_program.restype = ct.c_uint
         cls.lib.raw_valid.argtypes = [ct.c_int]
         cls.lib.raw_valid.restype = ct.c_int
+        cls.lib.raw_divider.argtypes = [ct.c_int]
+        cls.lib.raw_divider.restype = ct.c_uint32
         cls.lib.test_packed_crc.argtypes = [ct.c_uint32, ct.POINTER(ct.c_uint32)]
         cls.lib.test_packed_crc.restype = ct.c_uint32
 
@@ -157,7 +160,7 @@ class RawPairs(unittest.TestCase):
                 self.assertFalse(np.any(bus & 0x8000))
 
     def test_raw_timing_range_and_pin_assignment(self):
-        self.assertEqual([cpw for cpw in range(-2, 35) if self.lib.raw_valid(cpw)], list(range(3, 9)))
+        self.assertEqual([cpw for cpw in range(-2, 35) if self.lib.raw_valid(cpw)], list(range(3, 33)))
         config = (ROOT / "firmware/src/config.h").read_text()
         self.assertRegex(config, r"#define\s+PIN_D0\s+0\b")
         self.assertRegex(config, r"#define\s+PIN_CLKIO\s+16\b")

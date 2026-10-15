@@ -27,6 +27,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_dvbs2_native.py
 	python3 host/test_dvbs2_8psk.py
 	python3 host/test_dvbs2_qpsk8.py
+	python3 host/test_dvbs2_apsk.py
 	python3 host/test_dvbs2_map.py
 	python3 host/test_dvbs2_buffers.py
 	python3 host/test_dvbs2_fec.py
@@ -52,8 +53,11 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_iq32mapkeys.py
 	python3 host/test_iq32mapkeys_pair.py
 	python3 host/test_iq32offsets.py
+	python3 host/test_iq32offsets_native.py
 	python3 host/test_apsk_live.py
+	python3 host/test_apsk_fec_native.py
 	python3 host/apsk_live_trial.py --self-test
+	python3 host/apsk_fec_trial.py --self-test
 	python3 host/test_iq16out.py
 	python3 host/iq16out_trial.py --self-test
 	python3 host/test_iq16planar.py
@@ -79,6 +83,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/plot_waveforms.py --self-test
 	python3 host/plot_apsk_frontier.py --self-test
 	python3 host/plot_apsk_dual.py --self-test
+	python3 host/plot_apsk_fec.py --self-test
 
 analyze:               ## filter sweep and samples/symbol figures
 	python3 reference/analyze.py
@@ -96,6 +101,9 @@ smoke:                 ## every command once on the board, briefly; not logged
 plots:
 	python3 host/plot_progress.py
 	python3 host/plot_waveforms.py
+	python3 host/plot_apsk_frontier.py
+	python3 host/plot_apsk_dual.py
+	python3 host/plot_apsk_fec.py
 
 clean:
 	rm -rf $(BUILD) host/build

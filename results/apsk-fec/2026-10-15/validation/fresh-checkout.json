@@ -1,0 +1,37 @@
+{
+  "recorded_utc": "2026-10-15T21:51:47.492974+00:00",
+  "export": "git checkout-index -a to a new directory; only staged files, no ignored build products",
+  "loose_elf_or_uf2_files": 0,
+  "plot_script_sha256": "9d2c607b123bebeb5154e6db867a0a8f0c415f3a59f88d2132df9a1b818d1e7b",
+  "shared_image_archive_sha256": "fc439e52822042e098071cdcd16867ff62ebdf784505ad7b7c7911d9b3563cbe",
+  "self_test": {
+    "command": [
+      "python3",
+      "host/plot_apsk_fec.py",
+      "--self-test"
+    ],
+    "exit_code": 0,
+    "output": {
+      "self_test": "passed",
+      "synthetic_campaigns": 4,
+      "negative_controls": 29,
+      "capture_observations_per_run": 8192,
+      "source_archive_and_flash_binding_checked": true,
+      "shared_image_archive_fallback_checked": true
+    }
+  },
+  "render": {
+    "command": [
+      "python3",
+      "host/plot_apsk_fec.py"
+    ],
+    "exit_code": 0,
+    "qualified_runs": 4,
+    "figures": [
+      "apsk_fec.png",
+      "apsk_fec.svg",
+      "apsk_fec.pdf"
+    ]
+  },
+  "scope": "Revalidates all four real finite/header captures and source/image/flash provenance without USB, rebuild, or campaign-local ELF/UF2 files."
+}

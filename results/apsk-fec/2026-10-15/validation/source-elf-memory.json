@@ -1,0 +1,621 @@
+{
+  "snapshot": "/tmp/yapogee-apsk-fec-snapshot-4",
+  "manifest_sha256": "fa15de31247e0b40d71179126277e9e344d1c8ffa363e6ab219d39f82dbc302d",
+  "scope": "Read-only final build4 source/ELF/arena/credit/capture/PIO audit; no USB or builds.",
+  "firmware_sources_checked": 107,
+  "snapshot_files_checked": 112,
+  "snapshot_mismatches": [],
+  "archive_mismatches": [],
+  "current_source_differences": [],
+  "elfs": {
+    "iqbench": {
+      "elf_sha256": "f727a6f1e14c981b092d5fd9840f9618ba4c501dbfc7fdb7e19f51191b4ee6f9",
+      "low_ram": {
+        "total_from_bss_end_to_heap_limit_bytes": 1764,
+        "minimum_reserved_heap_bytes": 1024,
+        "extra_after_reserved_heap_bytes": 740,
+        "heap_limit": "0x20040000",
+        "note": "The total includes the 1024-byte heap reservation; extra_after_reserved_heap_bytes excludes it."
+      },
+      "high_ram": {
+        "bytes": 262144,
+        "used": 257680,
+        "unused": 4464
+      },
+      "scratch": {
+        "x": {
+          "code_end": "0x200807f0",
+          "stack_bottom": "0x20080800",
+          "stack_top": "0x20081000",
+          "stack_bytes": 2048,
+          "unused_code_to_stack_bytes": 16
+        },
+        "y": {
+          "code_end": "0x200815e0",
+          "stack_bottom": "0x20081800",
+          "stack_top": "0x20082000",
+          "stack_bytes": 2048,
+          "unused_code_to_stack_bytes": 544
+        }
+      },
+      "arenas": {
+        "native_input": {
+          "start": "0x20000000",
+          "end_exclusive": "0x20008000",
+          "bytes": 32768
+        },
+        "spi_slots": {
+          "start": "0x20008000",
+          "end_exclusive": "0x2000fce0",
+          "bytes": 31968
+        },
+        "output": {
+          "start": "0x20051fac",
+          "end_exclusive": "0x20059fac",
+          "bytes": 32768
+        },
+        "capture": {
+          "start": "0x20059fac",
+          "end_exclusive": "0x2005dfac",
+          "bytes": 16384
+        },
+        "context": {
+          "start": "0x2005dfb0",
+          "end_exclusive": "0x2005e0a8",
+          "bytes": 248,
+          "required_alignment": 8,
+          "actual_alignment": 0,
+          "alignment_padding_bytes": 4,
+          "unused_tail_after_context_bytes": 7940
+        },
+        "spi_emulator": {
+          "start": "0x20040000",
+          "end_exclusive": "0x20045340",
+          "bytes": 21312
+        },
+        "offset_scratch32": {
+          "start": "0x20045340",
+          "end_exclusive": "0x20046354",
+          "bytes": 4116
+        },
+        "gold32": {
+          "start": "0x20048000",
+          "end_exclusive": "0x20048cf8",
+          "bytes": 3320
+        },
+        "old_table16": {
+          "start": "0x20048000",
+          "end_exclusive": "0x2004a000",
+          "bytes": 8192
+        },
+        "gold16": {
+          "start": "0x2004a000",
+          "end_exclusive": "0x2004b040",
+          "bytes": 4160
+        },
+        "full_tables16": {
+          "start": "0x2001f8a0",
+          "end_exclusive": "0x2003f8a0",
+          "bytes": 131072
+        },
+        "all_tables32": {
+          "start": "0x2001f8a0",
+          "end_exclusive": "0x2003c538",
+          "bytes": 117912
+        },
+        "bb_frame": {
+          "start": "0x20050000",
+          "end_exclusive": "0x20051fac",
+          "bytes": 8108
+        }
+      },
+      "actual_elf_static_frames": {
+        "main": [
+          {
+            "address": "0x100003b4",
+            "max_cfa_offset": 336
+          }
+        ],
+        "bench_apsk_fec": [
+          {
+            "address": "0x1000de30",
+            "max_cfa_offset": 368
+          }
+        ],
+        "iq16native8_build": [
+          {
+            "address": "0x100080a0",
+            "max_cfa_offset": 648
+          }
+        ],
+        "iq32native8_build": [
+          {
+            "address": "0x10009a1c",
+            "max_cfa_offset": 176
+          }
+        ],
+        "core1_entry": [
+          {
+            "address": "0x10001704",
+            "max_cfa_offset": 8
+          }
+        ],
+        "encode_frame": [
+          {
+            "address": "0x1000db6c",
+            "max_cfa_offset": 48
+          },
+          {
+            "address": "0x10016eb4",
+            "max_cfa_offset": 40
+          }
+        ],
+        "encoder_task": [
+          {
+            "address": "0x1000dd4c",
+            "max_cfa_offset": 8
+          },
+          {
+            "address": "0x20018b20",
+            "max_cfa_offset": 8
+          }
+        ],
+        "mapper_service": [
+          {
+            "address": "0x1000daec",
+            "max_cfa_offset": 16
+          }
+        ],
+        "shape_block": [
+          {
+            "address": "0x1000ba04",
+            "max_cfa_offset": 24
+          },
+          {
+            "address": "0x1000dd7c",
+            "max_cfa_offset": 40
+          }
+        ],
+        "dvbs2_apsk_frame": [
+          {
+            "address": "0x1000f350",
+            "max_cfa_offset": 200
+          }
+        ],
+        "put16": [
+          {
+            "address": "0x1000ec3c",
+            "max_cfa_offset": 88
+          }
+        ],
+        "iq32offsets_from_native": [
+          {
+            "address": "0x1000b920",
+            "max_cfa_offset": 16
+          }
+        ],
+        "iq32offsets_kernel_c": [
+          {
+            "address": "0x1000b77c",
+            "max_cfa_offset": 72
+          }
+        ],
+        "__wrap_printf": [
+          {
+            "address": "0x1001f184",
+            "max_cfa_offset": 32
+          }
+        ],
+        "__wrap_vprintf": [
+          {
+            "address": "0x1001f0c0",
+            "max_cfa_offset": 160
+          }
+        ],
+        "vfctprintf": [
+          {
+            "address": "0x1001ecbc",
+            "max_cfa_offset": 32
+          }
+        ],
+        "_vsnprintf": [
+          {
+            "address": "0x1001e2ac",
+            "max_cfa_offset": 144
+          }
+        ],
+        "_etoa": [
+          {
+            "address": "0x1001dd38",
+            "max_cfa_offset": 160
+          }
+        ],
+        "_ftoa": [
+          {
+            "address": "0x1001d878",
+            "max_cfa_offset": 128
+          }
+        ],
+        "_ntoa_format": [
+          {
+            "address": "0x1001d690",
+            "max_cfa_offset": 36
+          }
+        ],
+        "_out_rev": [
+          {
+            "address": "0x1001d5f4",
+            "max_cfa_offset": 48
+          }
+        ]
+      },
+      "section_bytes": {
+        ".text": 141344,
+        ".rodata": 103952,
+        ".input_ring": 65536,
+        ".data": 40464,
+        ".bss": 154076,
+        ".sram_hi": 257680,
+        ".heap": 1024,
+        ".scratch_x": 2032,
+        ".scratch_y": 1504,
+        ".stack1_dummy": 2048,
+        ".stack_dummy": 2048
+      },
+      "known_stack_chains": {
+        "core0_setup16_bytes": 1352,
+        "core0_long_direct_formatting_chain_bytes": 1444,
+        "core1_mapper_plus_service_before_library_waits_bytes": 368,
+        "assembly_offset_kernel_own_frame_bytes": 48
+      },
+      "placed_offset_kernels": {
+        "iq32offsets_kernel_asm": {
+          "address": "0x1000b87c",
+          "bytes": 162,
+          "sha256": "adbe7f8c0aeb8e94db8fa71abd93e8d817509cb139e7bae27470859e23eddbd8"
+        },
+        "iq32offsets_kernel_sram_x": {
+          "address": "0x20080744",
+          "bytes": 162,
+          "sha256": "c9e3eeea1cfbe20b94da81caf4d1b808b8c73e4d414e39e55b8921f2a243221c"
+        },
+        "iq32offsets_kernel_sram_y": {
+          "address": "0x20081530",
+          "bytes": 162,
+          "sha256": "2b641252d6f0ccfbbd297631163fb3c3e12111b8e658042dd23c28caaa5f164f"
+        }
+      },
+      "placed_offset_kernels_identical_except_bl_relocation": true
+    },
+    "pvflight": {
+      "elf_sha256": "cb033f59d2f2cb2683de788302dc8f6ffdeb85b5f79171ab64540928345ee197",
+      "low_ram": {
+        "total_from_bss_end_to_heap_limit_bytes": 1220,
+        "minimum_reserved_heap_bytes": 1024,
+        "extra_after_reserved_heap_bytes": 196,
+        "heap_limit": "0x20040000",
+        "note": "The total includes the 1024-byte heap reservation; extra_after_reserved_heap_bytes excludes it."
+      },
+      "high_ram": {
+        "bytes": 262144,
+        "used": 257680,
+        "unused": 4464
+      },
+      "scratch": {
+        "x": {
+          "code_end": "0x200807f0",
+          "stack_bottom": "0x20080800",
+          "stack_top": "0x20081000",
+          "stack_bytes": 2048,
+          "unused_code_to_stack_bytes": 16
+        },
+        "y": {
+          "code_end": "0x200815e0",
+          "stack_bottom": "0x20081800",
+          "stack_top": "0x20082000",
+          "stack_bytes": 2048,
+          "unused_code_to_stack_bytes": 544
+        }
+      },
+      "arenas": {
+        "native_input": {
+          "start": "0x20000000",
+          "end_exclusive": "0x20008000",
+          "bytes": 32768
+        },
+        "spi_slots": {
+          "start": "0x20008000",
+          "end_exclusive": "0x2000fce0",
+          "bytes": 31968
+        },
+        "output": {
+          "start": "0x20051fac",
+          "end_exclusive": "0x20059fac",
+          "bytes": 32768
+        },
+        "capture": {
+          "start": "0x20059fac",
+          "end_exclusive": "0x2005dfac",
+          "bytes": 16384
+        },
+        "context": {
+          "start": "0x2005dfb0",
+          "end_exclusive": "0x2005e0a8",
+          "bytes": 248,
+          "required_alignment": 8,
+          "actual_alignment": 0,
+          "alignment_padding_bytes": 4,
+          "unused_tail_after_context_bytes": 7940
+        },
+        "spi_emulator": {
+          "start": "0x20040000",
+          "end_exclusive": "0x20045340",
+          "bytes": 21312
+        },
+        "offset_scratch32": {
+          "start": "0x20045340",
+          "end_exclusive": "0x20046354",
+          "bytes": 4116
+        },
+        "gold32": {
+          "start": "0x20048000",
+          "end_exclusive": "0x20048cf8",
+          "bytes": 3320
+        },
+        "old_table16": {
+          "start": "0x20048000",
+          "end_exclusive": "0x2004a000",
+          "bytes": 8192
+        },
+        "gold16": {
+          "start": "0x2004a000",
+          "end_exclusive": "0x2004b040",
+          "bytes": 4160
+        },
+        "full_tables16": {
+          "start": "0x2001fabc",
+          "end_exclusive": "0x2003fabc",
+          "bytes": 131072
+        },
+        "all_tables32": {
+          "start": "0x2001fabc",
+          "end_exclusive": "0x2003c754",
+          "bytes": 117912
+        },
+        "bb_frame": {
+          "start": "0x20050000",
+          "end_exclusive": "0x20051fac",
+          "bytes": 8108
+        }
+      },
+      "actual_elf_static_frames": {
+        "main": [
+          {
+            "address": "0x10000510",
+            "max_cfa_offset": 400
+          }
+        ],
+        "bench_apsk_fec": [
+          {
+            "address": "0x1000e198",
+            "max_cfa_offset": 368
+          }
+        ],
+        "iq16native8_build": [
+          {
+            "address": "0x10008408",
+            "max_cfa_offset": 648
+          }
+        ],
+        "iq32native8_build": [
+          {
+            "address": "0x10009d84",
+            "max_cfa_offset": 176
+          }
+        ],
+        "core1_entry": [
+          {
+            "address": "0x100018c8",
+            "max_cfa_offset": 8
+          }
+        ],
+        "encode_frame": [
+          {
+            "address": "0x1000ded4",
+            "max_cfa_offset": 48
+          },
+          {
+            "address": "0x1001721c",
+            "max_cfa_offset": 40
+          }
+        ],
+        "encoder_task": [
+          {
+            "address": "0x1000e0b4",
+            "max_cfa_offset": 8
+          },
+          {
+            "address": "0x20018b20",
+            "max_cfa_offset": 8
+          }
+        ],
+        "mapper_service": [
+          {
+            "address": "0x1000de54",
+            "max_cfa_offset": 16
+          }
+        ],
+        "shape_block": [
+          {
+            "address": "0x1000bd6c",
+            "max_cfa_offset": 24
+          },
+          {
+            "address": "0x1000e0e4",
+            "max_cfa_offset": 40
+          }
+        ],
+        "dvbs2_apsk_frame": [
+          {
+            "address": "0x1000f6b8",
+            "max_cfa_offset": 200
+          }
+        ],
+        "put16": [
+          {
+            "address": "0x1000efa4",
+            "max_cfa_offset": 88
+          }
+        ],
+        "iq32offsets_from_native": [
+          {
+            "address": "0x1000bc88",
+            "max_cfa_offset": 16
+          }
+        ],
+        "iq32offsets_kernel_c": [
+          {
+            "address": "0x1000bae4",
+            "max_cfa_offset": 72
+          }
+        ],
+        "__wrap_printf": [
+          {
+            "address": "0x1001f424",
+            "max_cfa_offset": 32
+          }
+        ],
+        "__wrap_vprintf": [
+          {
+            "address": "0x1001f368",
+            "max_cfa_offset": 160
+          }
+        ],
+        "vfctprintf": [
+          {
+            "address": "0x1001ef74",
+            "max_cfa_offset": 32
+          }
+        ],
+        "_vsnprintf": [
+          {
+            "address": "0x1001e564",
+            "max_cfa_offset": 144
+          }
+        ],
+        "_etoa": [
+          {
+            "address": "0x1001dff0",
+            "max_cfa_offset": 160
+          }
+        ],
+        "_ftoa": [
+          {
+            "address": "0x1001db30",
+            "max_cfa_offset": 128
+          }
+        ],
+        "_ntoa_format": [
+          {
+            "address": "0x1001d944",
+            "max_cfa_offset": 36
+          }
+        ],
+        "_out_rev": [
+          {
+            "address": "0x1001d8a8",
+            "max_cfa_offset": 48
+          }
+        ]
+      },
+      "section_bytes": {
+        ".text": 141768,
+        ".rodata": 103928,
+        ".input_ring": 65536,
+        ".data": 40464,
+        ".bss": 154620,
+        ".sram_hi": 257680,
+        ".heap": 1024,
+        ".scratch_x": 2032,
+        ".scratch_y": 1504,
+        ".stack1_dummy": 2048,
+        ".stack_dummy": 2048
+      },
+      "known_stack_chains": {
+        "core0_setup16_bytes": 1416,
+        "core0_long_direct_formatting_chain_bytes": 1508,
+        "core1_mapper_plus_service_before_library_waits_bytes": 368,
+        "assembly_offset_kernel_own_frame_bytes": 48
+      },
+      "placed_offset_kernels": {
+        "iq32offsets_kernel_asm": {
+          "address": "0x1000bbe4",
+          "bytes": 162,
+          "sha256": "adbe7f8c0aeb8e94db8fa71abd93e8d817509cb139e7bae27470859e23eddbd8"
+        },
+        "iq32offsets_kernel_sram_x": {
+          "address": "0x20080744",
+          "bytes": 162,
+          "sha256": "c9e3eeea1cfbe20b94da81caf4d1b808b8c73e4d414e39e55b8921f2a243221c"
+        },
+        "iq32offsets_kernel_sram_y": {
+          "address": "0x20081530",
+          "bytes": 162,
+          "sha256": "2b641252d6f0ccfbbd297631163fb3c3e12111b8e658042dd23c28caaa5f164f"
+        }
+      },
+      "placed_offset_kernels_identical_except_bl_relocation": true
+    }
+  },
+  "ring_contract": {
+    "words": 8192,
+    "publication_reservation": 64,
+    "retained_words": {
+      "16": 2,
+      "32": 4
+    },
+    "symbols_per_word": {
+      "16": 4,
+      "32": 2
+    },
+    "proof": "C0 only releases consumed=end-retained after all input/history loads. C1 publishes completed stores before waiting and reserves produced+64-consumed<=8192 before the next batch. Release/acquire DMBs bracket ownership."
+  },
+  "known_stack_bounds": {
+    "scope": "Per-target chains listed under elfs; CFI actual linked final binary, ASM48-byte frame checked from push/sub.",
+    "limitation": "Known static call chains only; indirect stdio/USB callbacks, interrupt/FPU exception frames and runtime high-water are not fully bounded. Scratch code gaps are not stack spare bytes."
+  },
+  "correctness_review": {
+    "blocking_findings": [],
+    "context_aligned": true,
+    "arena_ranges_disjoint_for_each_mode": true,
+    "partial_frame_stop": "mapper commits only emitted words; callback-stop preserves native partial carry. attempts-completed may be1; mapped symbol bound is inclusive at the next frame boundary. Output stops before worker join; SPI remains alive until encoder quiescence, then is stopped before arena restoration.",
+    "pio_wide": "CPW 9..32 uses exact cpw/4 with four PIO ticks per bus word. The fractional accumulator advances by integer cpw clocks each word at every initial phase; capture divider1 samples every cpw system clocks. Existing model tests cover all256 divider phases and actual opcodes. Setup/hold pad timing remains unmeasured.",
+    "observed_risks": [
+      "pvflight has only196 bytes beyond its1024-byte reserved heap",
+      "scratch X has16 bytes between code end and its existing2048-byte stack; this gap is not stack headroom",
+      "Full runtime stack high-water and external GPIO setup/hold were not measured"
+    ],
+    "bulk_mapper": "Independent final-source audit found no blocker: writes stop at credit64 or ring wrap; complete n is committed before callbacks, false callbacks do no new writes, and16 partial carry is preserved.",
+    "capture": "Boundary uses exact ceil(hz*ms/(8000*cpw*frame_symbols))*frame_symbols. Nominal timer trigger one1024-symbol block early avoids late DMA-observation quantization. Host still requires bounded exact8192 bus observations spanning the full90-symbol PLHEADER; no timing guarantee is inferred from the trigger alone.",
+    "crc": "pv_init initializes pv_crc32 before prefill; first4 FE CRCs retain the same zlib convention over8100 bytes excluding guards."
+  },
+  "iqbench_uf2_sha256": "8fbbb2d05aeffebd5517ff10ad44ec6cec2445eee1172ee1939d1964b33c7da1",
+  "generated_asm": {
+    "transformation": "Only section placement and exported symbol change; the linked BL at byte offsets32..35 is relocated through a veneer for scratch copies. All other162-byte function bytes match.",
+    "source": {
+      "x": {
+        "exact_expected_text": true,
+        "sha256": "c27e794a86a9457d6683e6511171c8c94d0cc66264c3adca33496d08a096ba34"
+      },
+      "y": {
+        "exact_expected_text": true,
+        "sha256": "d886b4fccd844e10e8b325dde7b3aff2641ebfec38aadc1503cc96574ee65ac7"
+      }
+    }
+  },
+  "validation_observation": {
+    "make_check": "Root directly observed session5715 exit0 for final build4; logfile archived separately.",
+    "host_selftest": "Self-test log reports12 capture cases,24 metadata profiles, full90-symbol header and finite source bound.",
+    "qualification": "Four60-second hardware runs were still in progress during this audit; no final throughput conclusion is made here."
+  }
+}

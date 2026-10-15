@@ -1,0 +1,8 @@
+ninja: Entering directory `firmware/build-limits'
+[1/45] cd /Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/build-limits && /opt/homebrew/bin/cmake -DSRC=/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware -DOUT=/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/build-limits/git_rev.h -P /Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/git_rev.cmake
+[2/7] Building C object CMakeFiles/pvflight.dir/src/dvbs2_apsk.c.o
+[3/7] Building C object CMakeFiles/iqbench.dir/src/dvbs2_apsk.c.o
+[4/7] Building C object CMakeFiles/pvflight.dir/src/bench_apsk_fec.c.o
+[5/7] Building C object CMakeFiles/iqbench.dir/src/bench_apsk_fec.c.o
+[6/7] Linking CXX executable pvflight.elf
+[7/7] Linking CXX executable iqbench.elf

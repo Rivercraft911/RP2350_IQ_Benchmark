@@ -1,0 +1,246 @@
+{
+  "scope": "Native proofs extracted verbatim as JSON from root-observed final make check; no new hardware run or SDK build performed by auditor.",
+  "make_check_observation": {
+    "session": 5715,
+    "exit_code": 0,
+    "observer": "root agent directly observed completion"
+  },
+  "tests": {
+    "host/test_dvbs2_apsk.py": {
+      "test_sha256": "e4933c1a677432caeb1c6ee7d0e3cf74a3f54dc1c0a09f77c0277c8247e318f0",
+      "result": {
+        "status": "PASS",
+        "configurations": 40,
+        "native_cases": 186,
+        "native_frames": 510,
+        "symbols_checked": 5298315,
+        "gold_codes": [
+          0,
+          1,
+          99999,
+          262142
+        ],
+        "all_partial_fills": {
+          "16": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "32": [
+            0,
+            1
+          ]
+        },
+        "progressive_credit_words": 64,
+        "invalid_init_controls": 108,
+        "real_gcs_fec_cases": [
+          {
+            "modulation": 16,
+            "rate": "5/6",
+            "short": false,
+            "pilots": true,
+            "gold": 0,
+            "prefix": 0,
+            "ring": 0,
+            "callback": false,
+            "cancel": 0,
+            "frames": 1,
+            "symbols": 16686,
+            "words": 4171,
+            "fill": 2,
+            "crc": 1813402982
+          },
+          {
+            "modulation": 16,
+            "rate": "5/6",
+            "short": false,
+            "pilots": true,
+            "gold": 0,
+            "prefix": 0,
+            "ring": 128,
+            "callback": true,
+            "cancel": 0,
+            "frames": 3,
+            "symbols": 50058,
+            "words": 12514,
+            "fill": 2,
+            "crc": 289751541
+          },
+          {
+            "modulation": 32,
+            "rate": "5/6",
+            "short": false,
+            "pilots": true,
+            "gold": 0,
+            "prefix": 0,
+            "ring": 0,
+            "callback": false,
+            "cancel": 0,
+            "frames": 1,
+            "symbols": 13338,
+            "words": 6669,
+            "fill": 0,
+            "crc": 4248357742
+          },
+          {
+            "modulation": 32,
+            "rate": "5/6",
+            "short": false,
+            "pilots": true,
+            "gold": 0,
+            "prefix": 0,
+            "ring": 128,
+            "callback": true,
+            "cancel": 0,
+            "frames": 3,
+            "symbols": 40014,
+            "words": 20007,
+            "fill": 0,
+            "crc": 4077841622
+          }
+        ],
+        "amplitude_policy": "outer_radius_one;unit_header_and_pilots"
+      }
+    },
+    "host/test_iq32offsets_native.py": {
+      "test_sha256": "329398c39da5958ca839e37840a6ca04328f36a8be611f3bf90293c0d9feb0fe",
+      "result": {
+        "status": "passed",
+        "scope": "portable C and independent integer model; no device timing",
+        "cases": 1265,
+        "current_symbols_compared": 513800,
+        "shaped_words_compared": 1027600,
+        "amplitude_rates": 5,
+        "exhaustive_radix17_triples": 4913,
+        "ignored_reserved_bits": true,
+        "null_pilot_history": true,
+        "arbitrary_partition_history": true,
+        "zero_blocks_no_access": true,
+        "immutable_inputs_and_canaries": true,
+        "files_sha256": {
+          "iq32offsets_native.c": "e7e2a8f1a6cf5f531a56fa8e3d99666d0d5b6592f802560add26b94091ff4554",
+          "iq32offsets_native.h": "041a40340d919ddd239faedcdc389e1bdd2c661b98486d541c8d749b65b17832"
+        }
+      }
+    },
+    "host/test_apsk_fec_native.py": {
+      "test_sha256": "5b6356c76efd8b4a7d653a7ecad7f309b7aa73d27c8681c83c2f289229a21b0c",
+      "result": {
+        "passed": true,
+        "real_gcs_fec_indices": [
+          0,
+          1,
+          2,
+          123
+        ],
+        "fec_crc": [
+          959981619,
+          244241716,
+          1072615687,
+          2589279846
+        ],
+        "cases": [
+          {
+            "modulation": 16,
+            "frames": 3,
+            "symbols": 50058,
+            "native_words": 12514,
+            "stream_fill": 2,
+            "native_crc": 289751541,
+            "gpio_halfwords": 200224,
+            "gpio_crc": 2551635997,
+            "partitions": [
+              1,
+              7,
+              256,
+              12514
+            ],
+            "progressive_ring_words": 256,
+            "cancellation_words": 128,
+            "offset_path": false,
+            "fused_native_offset_path": false
+          },
+          {
+            "modulation": 32,
+            "frames": 3,
+            "symbols": 40014,
+            "native_words": 20007,
+            "stream_fill": 0,
+            "native_crc": 4077841622,
+            "gpio_halfwords": 160056,
+            "gpio_crc": 2681337726,
+            "partitions": [
+              1,
+              7,
+              256,
+              20007
+            ],
+            "progressive_ring_words": 256,
+            "cancellation_words": 128,
+            "offset_path": true,
+            "fused_native_offset_path": true
+          }
+        ]
+      }
+    },
+    "host/apsk_fec_trial.py": {
+      "test_sha256": "a2784d51fe23e62825e20a4bdb9023327145e6f8d61940a35b0866e7124186c7",
+      "result": {
+        "self_test": "passed",
+        "capture_cases": 12,
+        "metadata_profiles": 24,
+        "captured_halfwords": 8192,
+        "finite_search_symbols": 4128,
+        "complete_plheader_required": true,
+        "prefill": {
+          "16": {
+            "prefill_frames": 1,
+            "prefill_words": 4171,
+            "prefill_fill": 2,
+            "prefill_crc": 1813402982
+          },
+          "32": {
+            "prefill_frames": 1,
+            "prefill_words": 6669,
+            "prefill_fill": 0,
+            "prefill_crc": 4248357742
+          }
+        },
+        "fec_crc": [
+          959981619,
+          244241716,
+          1072615687,
+          2589279846
+        ],
+        "bb_crc": [
+          1325498631,
+          2602267711,
+          3216247915,
+          1630859359
+        ],
+        "normalization": "outer_radius_one",
+        "header_pilot_radius": 1
+      }
+    },
+    "host/plot_apsk_fec.py": {
+      "test_sha256": "7dc171eff9141e306faeac14b60de0556f53285833ee7d14f2260af98b9610f1",
+      "result": {
+        "self_test": "passed",
+        "synthetic_campaigns": 4,
+        "negative_controls": 23,
+        "capture_observations_per_run": 8192,
+        "source_archive_and_flash_binding_checked": true
+      }
+    }
+  },
+  "isolated_arm_fused_helper": {
+    "status": "passed",
+    "compiler": "GCCArm14.2 -O3 SDK2.2.0 -Werror isolated/tmp compile",
+    "source_sha256": "e7e2a8f1a6cf5f531a56fa8e3d99666d0d5b6592f802560add26b94091ff4554",
+    "stack_bytes": 16,
+    "text_bytes": 228,
+    "static_global_data": [],
+    "scope": "Matching helper source only; the old isolated benchmark compilation is not used as final-build proof."
+  }
+}

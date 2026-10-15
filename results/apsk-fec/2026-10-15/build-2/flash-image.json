@@ -1,0 +1,19 @@
+{
+  "recorded_at_utc": "2026-10-15T21:23:26.597454+00:00",
+  "command_argv": [
+    "picotool",
+    "load",
+    "-v",
+    "-f",
+    "/tmp/yapogee-apsk-fec-snapshot-2/build/iqbench.uf2",
+    "-x"
+  ],
+  "exit_code": 0,
+  "exit_status_evidence": "directly observed root tool completion",
+  "uf2_sha256": "132c7f923a5ff84371b7fc1786e89cb1c35a3913fdf64cbbed1092a2c00704c7",
+  "build_manifest": "manifest.json",
+  "build_manifest_sha256": "d8ee73fb323b7e2b5707219137a3ef929d93382e2846f9daf4336605dc25121a",
+  "flash_log": "flash.txt",
+  "flash_log_sha256": "a890e53da105a28f872ff6dc1ccaacfa5197e930805f74c328dc120d713841c4",
+  "device_serial": "D7304C6F543390D2"
+}

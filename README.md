@@ -11,6 +11,8 @@ it does not generate the waveform or perform FEC.
 The experimental branch now supports **16-Msym/s QPSK**, **9.375-Msym/s 8PSK**, and
 **continuous QPSK/8PSK frame switching**. All three have 60-second digital results.
 The fastest tested BB data-field capacity is **25.844 Mb/s with QPSK 5/6**.
+Complete **16APSK and 32APSK SPI/FEC paths** now have 60-second results too:
+**4.167 and 2.679 Msym/s at 150 MHz**, respectively.
 The earlier autonomous startup profile remains QPSK 2/3 at 8 Msym/s.
 
 Tests use a Pimoroni Pico Plus 2, RP2350B rev A2, stock voltage, USB only and
@@ -26,15 +28,30 @@ still need measurement. The earlier external CM5 camera test is recorded separat
 | 8PSK 5/6 + pilots, L9 / 2 SPS | 128 MHz | 8 Msym/s | 19.378 Mb/s | 9.6 MHz |
 | 8PSK 5/6 + pilots, L9 / 2 SPS | 150 MHz | 9.375 Msym/s | **22.709 Mb/s** | 11.25 MHz |
 | Alternating QPSK/8PSK 5/6, common L9 / 2 SPS | 150 MHz | 9.375 Msym/s | 18.170 Mb/s mean | 11.25 MHz |
+| 16APSK 5/6 + pilots, L8 / 2 SPS | 128 MHz | 3.556 Msym/s | 11.456 Mb/s | 4.267 MHz |
+| 16APSK 5/6 + pilots, L8 / 2 SPS | 150 MHz | **4.167 Msym/s** | **13.424 Mb/s** | 5.000 MHz |
+| 32APSK 5/6 + pilots, L8 / 2 SPS | 128 MHz | 2.286 Msym/s | 9.213 Mb/s | 2.743 MHz |
+| 32APSK 5/6 + pilots, L8 / 2 SPS | 150 MHz | **2.679 Msym/s** | **10.796 Mb/s** | 3.214 MHz |
 
 The [waveform campaign](results/waveforms/2026-10-15/README.md) links exact
 configurations, immutable run logs, independent capture checks, failed controls,
-source archives and firmware hashes. Capacity includes header/pilot time and
+source archives and firmware hashes for QPSK/8PSK/VCM. The
+[complete APSK campaign](results/apsk-fec/2026-10-15/README.md) records the four
+new APSK modes. Capacity includes header/pilot time and
 subtracts BBHEADER bits; application throughput is lower. Width is calculated,
 not an RF measurement. The VCM experiment keeps the same symbol clock and pulse
 across frames; it does not switch to the separate 16-Msym/s QPSK engine.
 
 ![Qualified digital capacity and nominal bandwidth](results/plots/waveforms-2026-10-15/waveform_capacity.png)
+
+The full APSK pipeline receives an on-chip SPI source, builds BBFRAMEs, runs
+BCH/LDPC, and generates real PL headers, pilots and scrambled constellation
+symbols. At the 150 MHz limits, encoder work occupies **96.28% of core 1 for
+16APSK** and **94.35% for 32APSK**; core 0 uses about **57% and 59%** for preparation,
+shaping and publication. Sharing some PL mapping between cores is the next
+useful experiment. See the [measurements and review notes](results/apsk-fec/2026-10-15/README.md).
+
+![Complete APSK digital rates and BB capacity](results/plots/apsk-fec-2026-10-15/apsk_fec.png)
 
 Exact **16APSK and 32APSK output components** now sustain **8 Msym/s at 128 MHz**
 and **9.375 Msym/s at 150 MHz**, with 60-second results for both. Two cores build
@@ -73,6 +90,12 @@ kernel sums their precomputed contributions into small sample blocks. DMA and PI
 stream those blocks. A constant π/8 rotation represents QPSK, 8PSK, headers and
 pilots in the same engine, preserving filter history across mode changes.
 
+The complete APSK experiment assigns SPI consumption, FEC and PL mapping to
+core 1. It publishes compact native I/Q words in batches of 64. Core 0 retains
+eight symbols of history and shapes owned output blocks; 32APSK first converts
+native coordinates directly into byte-offset keys. Both use the existing DMA/PIO
+output service. These are fixed 5/6 profiles, with a continuous filter across frames.
+
 “Control” has two meanings in the measurements: **control DMA** transports LUT
 addresses, while **CPU supervision** checks progress, safe reuse and faults.
 CPU bars report instrumented work or active-loop time, as labeled. Waiting cores
@@ -106,6 +129,10 @@ python3 host/apsk_live_trial.py --ms 60000 --modulations 32 --mappers 3 \
   --placements 1 --schedules 2 --cpw 4 --build firmware/build \
   --out results/apsk-dual/local
 
+# Complete 16APSK SPI/FEC path, both clocks. For 32APSK use --modulations 32 --cpw 14.
+python3 host/apsk_fec_trial.py --ms 60000 --modulations 16 --cpw 9 \
+  --build firmware/build --out results/apsk-fec/local16
+
 # Hardware LUT-address generation; cyclic PRBS, without SPI/FEC.
 python3 host/quadlive_trial.py --ms 60000 --clocks 128000 --cpws 1 --faults 0 \
   --build firmware/build --out results/quad-pointers/local
@@ -131,8 +158,8 @@ lab commands and do not replace that startup profile.
 The earlier [qualified QPSK campaign](results/dual-dma/2026-10-15/README.md),
 [limits report](results/limits/2026-10-14/README.md) and
 [benchmark history](docs/benchmark-history.md) preserve previous results.
-The retained `experiment/yapogee-limits` checkpoint is `4b779c0`; current R&D is on
-`experiment/yapogee-next-waveforms`. Nothing has been merged or released from it.
+The experiments are consolidated on `experiment/yapogee-limits`; the earlier
+qualified QPSK checkpoint `4b779c0` remains in its history.
 [Filter derivations](docs/derivations.md) explain reconstruction images and SPS;
 [hardware notes](hardware/devboard/README.md) cover the proposed interface.
 
@@ -142,6 +169,7 @@ The retained `experiment/yapogee-limits` checkpoint is `4b779c0`; current R&D is
 | Direct LUT DMA and QPSK | `bench_dual.c`, `dual_dma.c`, `iqdesc.c`, `iqquad.c` |
 | Complete 8PSK / VCM experiment | `bench8live.c`, `dvbs2_8psk.c`, `dvbs2_qpsk8.c`, `iq8quad.c` |
 | APSK components | `bench_apsk_live.c`, `iq16fast_asm.S`, `iq32mapkeys_pair.c`, `iq32offsets_asm.S`, `bench32map.c`, `bench32bus.c` |
+| Complete APSK SPI/FEC experiment | `bench_apsk_fec.c`, `dvbs2_apsk.c`, `iq32offsets_native.c`, `host/apsk_fec_trial.py` |
 | DVB-S2 FEC / mapping | `dvbs2.c`, `dvbs2_asm.S`, `dvbs2_map_asm.S` |
 | SPI ingress | `pvspi.c`, `pvproto.c`, `bench_pvstress.c` |
 | PIO-generated LUT pointers | `iqquadptr.c`, `bench_quadptr.c`, `bench_quadlive.c` |

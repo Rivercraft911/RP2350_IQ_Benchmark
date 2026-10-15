@@ -1,0 +1,5 @@
+Independent final mapper review by /root/apsk_fused_mapper
+
+Read-only review of snapshot 4 dvbs2_apsk.c: no blocker found. Both bulk paths cap writes at the next 64-word credit boundary and ring end, update local n only for completed writes, and commit s->n before every service call and on normal exit. A false service performs no new writes; put16 restores the corresponding packed carry, while aligned 32 has no carry. put16 lane masks prevent I-to-Q spill for fills 1/2/3; fixed 32-symbol runs preserve fill, so 16APSK alternating frame fill 0/2 remains continuous. Standard 32APSK frame/header/pilot lengths are even; caller odd-prefix streams correctly take map32_carry. Frame-end service publishes the final partial batch; subsequent frame reservations are conservative. This matches service64’s publish-then-reserve semantics and the expanded cancellation/ring/continuous-frame proof.
+
+Review source SHA256: c6dae3279f5d61bfb5ba2dd3424253c20707bbbb9507c8b2cfb8121a02f89d32. Native coverage is 510 frames/5,298,315 symbols in native-proofs.json; this review adds source reasoning, not a device-timing result.

@@ -1,0 +1,9 @@
+{
+  "scope": "Initial100ms hardware bringup; full qualification uses later pinned runner. Source/build/flash in build-1.",
+  "firmware_git": "1728eaafc3-dirty",
+  "clock_khz": 128000,
+  "cpw": 16,
+  "ms": 100,
+  "reference_sha256": "81dabdea5768b6b54ebd5dc283b80333b75390dd6539469dab583efa9c20625f",
+  "build_manifest": "../build-1/manifest.json"
+}

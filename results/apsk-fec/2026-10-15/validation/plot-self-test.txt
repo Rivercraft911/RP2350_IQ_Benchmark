@@ -1,0 +1,1 @@
+{"self_test": "passed", "synthetic_campaigns": 4, "negative_controls": 23, "capture_observations_per_run": 8192, "source_archive_and_flash_binding_checked": true}

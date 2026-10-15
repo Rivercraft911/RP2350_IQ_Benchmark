@@ -1,0 +1,653 @@
+python3 host/test_native.py
+ok  conv       sps=2 L=8  crc=497b1217 want=497b1217 tables_ok=1
+ok  lut_shift  sps=2 L=8  crc=497b1217 want=497b1217 tables_ok=1
+ok  lut_win    sps=2 L=8  crc=497b1217 want=497b1217 tables_ok=1
+ok  lut_pair   sps=2 L=8  crc=46ffe040 want=46ffe040 tables_ok=1
+ok  conv       sps=2 L=10 crc=856a9c72 want=856a9c72 tables_ok=1
+ok  lut_shift  sps=2 L=10 crc=856a9c72 want=856a9c72 tables_ok=1
+ok  lut_win    sps=2 L=10 crc=856a9c72 want=856a9c72 tables_ok=1
+ok  lut_pair   sps=2 L=10 crc=1a0de223 want=1a0de223 tables_ok=1
+ok  conv       sps=2 L=12 crc=8b2ac56b want=8b2ac56b tables_ok=1
+ok  lut_shift  sps=2 L=12 crc=8b2ac56b want=8b2ac56b tables_ok=1
+ok  lut_win    sps=2 L=12 crc=8b2ac56b want=8b2ac56b tables_ok=1
+ok  lut_pair   sps=2 L=12 crc=ca724386 want=ca724386 tables_ok=1
+ok  conv       sps=4 L=8  crc=772bad9f want=772bad9f tables_ok=1
+ok  lut_shift  sps=4 L=8  crc=772bad9f want=772bad9f tables_ok=1
+ok  lut_win    sps=4 L=8  crc=772bad9f want=772bad9f tables_ok=1
+ok  lut_pair   sps=4 L=8  crc=620d1592 want=620d1592 tables_ok=1
+ok  conv       sps=4 L=10 crc=238381c1 want=238381c1 tables_ok=1
+ok  lut_shift  sps=4 L=10 crc=238381c1 want=238381c1 tables_ok=1
+ok  lut_win    sps=4 L=10 crc=238381c1 want=238381c1 tables_ok=1
+ok  lut_pair   sps=4 L=10 crc=1476b853 want=1476b853 tables_ok=1
+ok  conv       sps=4 L=12 crc=dad6a444 want=dad6a444 tables_ok=1
+ok  lut_shift  sps=4 L=12 crc=dad6a444 want=dad6a444 tables_ok=1
+ok  lut_win    sps=4 L=12 crc=dad6a444 want=dad6a444 tables_ok=1
+ok  lut_pair   sps=4 L=12 crc=0d865ce5 want=0d865ce5 tables_ok=1
+ok  conv       sps=8 L=8  crc=0cd21bf9 want=0cd21bf9 tables_ok=1
+ok  lut_shift  sps=8 L=8  crc=0cd21bf9 want=0cd21bf9 tables_ok=1
+ok  lut_pair   sps=8 L=8  crc=14092bed want=14092bed tables_ok=1
+ok  conv       sps=8 L=10 crc=96fa332e want=96fa332e tables_ok=1
+ok  lut_shift  sps=8 L=10 crc=96fa332e want=96fa332e tables_ok=1
+ok  lut_pair   sps=8 L=10 crc=33f82fc3 want=33f82fc3 tables_ok=1
+python3 host/test_dvbs2_native.py
+ok  normal 1/4  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 1/4  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 1/3  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 1/3  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 2/5  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 2/5  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 1/2  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 1/2  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 3/5  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 3/5  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 2/3  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 2/3  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 3/4  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 3/4  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 4/5  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 4/5  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 5/6  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 5/6  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 8/9  pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 8/9  pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  normal 9/10 pilots=0 syms=32490 (ref 32490) bch=1 ldpc=1 word mismatches=0
+ok  normal 9/10 pilots=1 syms=33282 (ref 33282) bch=1 ldpc=1 word mismatches=0
+ok  short 1/4   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 1/4   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 1/3   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 1/3   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 2/5   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 2/5   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 1/2   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 1/2   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 3/5   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 3/5   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 2/3   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 2/3   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 3/4   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 3/4   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 4/5   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 4/5   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 5/6   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 5/6   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+ok  short 8/9   pilots=0 syms= 8190 (ref 8190) bch=1 ldpc=1 word mismatches=0
+ok  short 8/9   pilots=1 syms= 8370 (ref 8370) bch=1 ldpc=1 word mismatches=0
+python3 host/test_dvbs2_8psk.py
+{"configurations": 22, "native_cases": 101, "native_frames": 459, "all_partial_fills": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], "rejected_codes": [0, 1, 2, 3, 7, 11, 12, 13, 14, 18], "gr_fixture_cases": 0, "gr_fixture_frames": 0, "fixtures": []}
+python3 host/test_dvbs2_qpsk8.py
+..{"mixed_frames": 6, "initial_fills": 16, "shared_ring_groups": 4096, "source_ring_wraps_at_least": 2, "raw_crc_by_fill": [4283291074, 1038085679, 224129034, 3932789318, 1127853629, 2064638858, 2961286292, 4253191078, 862446199, 2891818196, 138272149, 636615145, 101816788, 3232559668, 1514930555, 3533606209], "bb_matype": 98, "qpsk_modcod": 9, "psk8_modcod": 15}
+...
+----------------------------------------------------------------------
+Ran 5 tests in 1.712s
+
+OK
+python3 host/test_dvbs2_apsk.py
+{
+  "status": "PASS",
+  "configurations": 40,
+  "native_cases": 186,
+  "native_frames": 510,
+  "symbols_checked": 5298315,
+  "gold_codes": [
+    0,
+    1,
+    99999,
+    262142
+  ],
+  "all_partial_fills": {
+    "16": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "32": [
+      0,
+      1
+    ]
+  },
+  "progressive_credit_words": 64,
+  "invalid_init_controls": 108,
+  "real_gcs_fec_cases": [
+    {
+      "modulation": 16,
+      "rate": "5/6",
+      "short": false,
+      "pilots": true,
+      "gold": 0,
+      "prefix": 0,
+      "ring": 0,
+      "callback": false,
+      "cancel": 0,
+      "frames": 1,
+      "symbols": 16686,
+      "words": 4171,
+      "fill": 2,
+      "crc": 1813402982
+    },
+    {
+      "modulation": 16,
+      "rate": "5/6",
+      "short": false,
+      "pilots": true,
+      "gold": 0,
+      "prefix": 0,
+      "ring": 128,
+      "callback": true,
+      "cancel": 0,
+      "frames": 3,
+      "symbols": 50058,
+      "words": 12514,
+      "fill": 2,
+      "crc": 289751541
+    },
+    {
+      "modulation": 32,
+      "rate": "5/6",
+      "short": false,
+      "pilots": true,
+      "gold": 0,
+      "prefix": 0,
+      "ring": 0,
+      "callback": false,
+      "cancel": 0,
+      "frames": 1,
+      "symbols": 13338,
+      "words": 6669,
+      "fill": 0,
+      "crc": 4248357742
+    },
+    {
+      "modulation": 32,
+      "rate": "5/6",
+      "short": false,
+      "pilots": true,
+      "gold": 0,
+      "prefix": 0,
+      "ring": 128,
+      "callback": true,
+      "cancel": 0,
+      "frames": 3,
+      "symbols": 40014,
+      "words": 20007,
+      "fill": 0,
+      "crc": 4077841622
+    }
+  ],
+  "amplitude_policy": "outer_radius_one;unit_header_and_pilots"
+}
+python3 host/test_dvbs2_map.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.657s
+
+OK
+python3 host/test_dvbs2_buffers.py
+ok normal 1/4  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 1/4  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 1/3  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 1/3  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 2/5  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 2/5  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 1/2  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 1/2  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 3/5  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 3/5  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 2/3  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 2/3  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 3/4  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 3/4  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 4/5  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 4/5  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 5/6  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 5/6  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 8/9  pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 8/9  pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok normal 9/10 pilots=0 frames=3 syms=97470 kernels=3 partial=14
+ok normal 9/10 pilots=1 frames=3 syms=99846 kernels=3 partial=6
+ok short 1/4   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 1/4   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 1/3   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 1/3   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 2/5   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 2/5   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 1/2   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 1/2   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 3/5   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 3/5   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 2/3   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 2/3   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 3/4   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 3/4   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 4/5   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 4/5   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 5/6   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 5/6   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+ok short 8/9   pilots=0 frames=3 syms=24570 kernels=3 partial=10
+ok short 8/9   pilots=1 frames=3 syms=25110 kernels=3 partial=6
+Passed 42 configurations ×3 varied frames ×3 BCH selectors; continuous words match independent Python reference; degree160 chunk sizes1/7/128/511 also match bit-serial parity.
+python3 host/test_dvbs2_fec.py
+FEC native: transpose1152 matrices=PASS; q60 parity8 patterns/minimum buffer=PASS; mapping16 partial fills/ring wrap=PASS
+python3 host/test_pv_native.py
+ok  pattern messages == pv_spi_tx.py
+ok  30 good accepted
+ok  bad CRC / header / sync counted
+ok  sequence gap = 2 lost
+ok  BBFRAMEs 1-4 == ts_bbframes()
+ok  BBFRAME 5 with null stuffing == reference
+ok  TS packet count
+python3 host/test_gcs_native.py
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.688s
+
+OK
+python3 host/test_pvspi_rx.py
+SPI close: PASS (late retirement, true shorts, long FIFO, BUSY/AHB, late CS, CRC, READY)
+SPI gate: PASS (actual5 opcodes; IRQ delay0..1000us; old20us overlap; credit/pause)
+python3 host/test_startup.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.717s
+
+OK
+SPI close: PASS (late retirement, true shorts, long FIFO, BUSY/AHB, late CS, CRC, READY)
+SPI gate: PASS (actual5 opcodes; IRQ delay0..1000us; old20us overlap; credit/pause)
+python3 host/test_flight_service.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.202s
+
+OK
+python3 host/test_iqdesc.py
+{"seed": 0, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 2899733160, "crc_q": 3512283321, "waveform_crc": 349754166}
+{"seed": 0, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 2899733160, "crc_q": 3512283321, "waveform_crc": 349754166}
+{"seed": 0, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 2899733160, "crc_q": 3512283321, "waveform_crc": 349754166}
+{"seed": 0, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 2899733160, "crc_q": 3512283321, "waveform_crc": 349754166}
+{"seed": 0, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 2717952205, "crc_q": 3358169377, "waveform_crc": 349754166}
+{"seed": 0, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 2717952205, "crc_q": 3358169377, "waveform_crc": 349754166}
+{"seed": 0, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 2717952205, "crc_q": 3358169377, "waveform_crc": 349754166}
+{"seed": 0, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 2717952205, "crc_q": 3358169377, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 3071534459, "crc_q": 3360430169, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 3071534459, "crc_q": 3360430169, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 3071534459, "crc_q": 3360430169, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 3071534459, "crc_q": 3360430169, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 3344340784, "crc_q": 3415191144, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 3344340784, "crc_q": 3415191144, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 3344340784, "crc_q": 3415191144, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 3344340784, "crc_q": 3415191144, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 1, "base_i": 537133056, "base_q": 537133056, "crc_i": 3071534459, "crc_q": 3071534459, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 7, "base_i": 537133056, "base_q": 537133056, "crc_i": 3071534459, "crc_q": 3071534459, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 64, "base_i": 537133056, "base_q": 537133056, "crc_i": 3071534459, "crc_q": 3071534459, "waveform_crc": 349754166}
+{"paired": true, "seed": 0, "block": 137, "base_i": 537133056, "base_q": 537133056, "crc_i": 3071534459, "crc_q": 3071534459, "waveform_crc": 349754166}
+{"seed": 1, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 4054740607, "crc_q": 4174170060, "waveform_crc": 190229004}
+{"seed": 1, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 4054740607, "crc_q": 4174170060, "waveform_crc": 190229004}
+{"seed": 1, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 4054740607, "crc_q": 4174170060, "waveform_crc": 190229004}
+{"seed": 1, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 4054740607, "crc_q": 4174170060, "waveform_crc": 190229004}
+{"seed": 1, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 1281256364, "crc_q": 2934121318, "waveform_crc": 190229004}
+{"seed": 1, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 1281256364, "crc_q": 2934121318, "waveform_crc": 190229004}
+{"seed": 1, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 1281256364, "crc_q": 2934121318, "waveform_crc": 190229004}
+{"seed": 1, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 1281256364, "crc_q": 2934121318, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 1088763554, "crc_q": 2870812697, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 1088763554, "crc_q": 2870812697, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 1088763554, "crc_q": 2870812697, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 1088763554, "crc_q": 2870812697, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 3142956214, "crc_q": 535425048, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 3142956214, "crc_q": 535425048, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 3142956214, "crc_q": 535425048, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 3142956214, "crc_q": 535425048, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 1, "base_i": 537133056, "base_q": 537133056, "crc_i": 1088763554, "crc_q": 1815273372, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 7, "base_i": 537133056, "base_q": 537133056, "crc_i": 1088763554, "crc_q": 1815273372, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 64, "base_i": 537133056, "base_q": 537133056, "crc_i": 1088763554, "crc_q": 1815273372, "waveform_crc": 190229004}
+{"paired": true, "seed": 1, "block": 137, "base_i": 537133056, "base_q": 537133056, "crc_i": 1088763554, "crc_q": 1815273372, "waveform_crc": 190229004}
+{"seed": 305441741, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 4081415655, "crc_q": 187681189, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 4081415655, "crc_q": 187681189, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 4081415655, "crc_q": 187681189, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 4081415655, "crc_q": 187681189, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 447934319, "crc_q": 1810552238, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 447934319, "crc_q": 1810552238, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 447934319, "crc_q": 1810552238, "waveform_crc": 1288592553}
+{"seed": 305441741, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 447934319, "crc_q": 1810552238, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 1594566689, "crc_q": 3489336445, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 1594566689, "crc_q": 3489336445, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 1594566689, "crc_q": 3489336445, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 1594566689, "crc_q": 3489336445, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 980900951, "crc_q": 2560498396, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 980900951, "crc_q": 2560498396, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 980900951, "crc_q": 2560498396, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 980900951, "crc_q": 2560498396, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 1, "base_i": 537133056, "base_q": 537133056, "crc_i": 1594566689, "crc_q": 683871737, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 7, "base_i": 537133056, "base_q": 537133056, "crc_i": 1594566689, "crc_q": 683871737, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 64, "base_i": 537133056, "base_q": 537133056, "crc_i": 1594566689, "crc_q": 683871737, "waveform_crc": 1288592553}
+{"paired": true, "seed": 305441741, "block": 137, "base_i": 537133056, "base_q": 537133056, "crc_i": 1594566689, "crc_q": 683871737, "waveform_crc": 1288592553}
+{"seed": 4294967295, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 2194969733, "crc_q": 1515896841, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 2194969733, "crc_q": 1515896841, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 2194969733, "crc_q": 1515896841, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 2194969733, "crc_q": 1515896841, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 1124845958, "crc_q": 1141754099, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 1124845958, "crc_q": 1141754099, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 1124845958, "crc_q": 1141754099, "waveform_crc": 1500795857}
+{"seed": 4294967295, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 1124845958, "crc_q": 1141754099, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 1, "base_i": 537133056, "base_q": 537165824, "crc_i": 1291658380, "crc_q": 4209293618, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 7, "base_i": 537133056, "base_q": 537165824, "crc_i": 1291658380, "crc_q": 4209293618, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 64, "base_i": 537133056, "base_q": 537165824, "crc_i": 1291658380, "crc_q": 4209293618, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 137, "base_i": 537133056, "base_q": 537165824, "crc_i": 1291658380, "crc_q": 4209293618, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 1, "base_i": 4294967288, "base_q": 16, "crc_i": 2623279664, "crc_q": 4251499508, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 7, "base_i": 4294967288, "base_q": 16, "crc_i": 2623279664, "crc_q": 4251499508, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 64, "base_i": 4294967288, "base_q": 16, "crc_i": 2623279664, "crc_q": 4251499508, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 137, "base_i": 4294967288, "base_q": 16, "crc_i": 2623279664, "crc_q": 4251499508, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 1, "base_i": 537133056, "base_q": 537133056, "crc_i": 1291658380, "crc_q": 1539372246, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 7, "base_i": 537133056, "base_q": 537133056, "crc_i": 1291658380, "crc_q": 1539372246, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 64, "base_i": 537133056, "base_q": 537133056, "crc_i": 1291658380, "crc_q": 1539372246, "waveform_crc": 1500795857}
+{"paired": true, "seed": 4294967295, "block": 137, "base_i": 537133056, "base_q": 537133056, "crc_i": 1291658380, "crc_q": 1539372246, "waveform_crc": 1500795857}
+python3 host/test_iqpair.py
+{"seed": 0, "symbols": 2192, "waveform_crc": 349754166}
+{"seed": 1, "symbols": 2192, "waveform_crc": 190229004}
+{"seed": 305441741, "symbols": 2192, "waveform_crc": 1288592553}
+{"seed": 4294967295, "symbols": 2192, "waveform_crc": 1500795857}
+{"rows": 8192, "bytes": 131072, "paired_crc": 1500707190}
+python3 host/test_iqquad.py
+{"profile": "l9_quad", "L": 9, "filter_beta": 0.8, "rows": 4096, "bytes": 131072, "table_crc": 3502991711, "descriptor_cases": 80, "pio_slots_per_mode": 65536, "full_frame": {"frames": 3, "pilots": true, "symbols": 99846, "padded_symbols": 99856, "waveform_crc": 195875816}, "l8_profile": {"profile": "qpsk_l8_n4_both_m010_far2", "rows": 2048, "bytes": 65536, "table_crc": 629259652, "exact_peak": 7300, "scalar_samples": 32768, "stream_cases": 60, "mixed_plframes": 4, "waveform_crc": 1835477518}}
+python3 host/test_iq8quad.py
+{"profile": "iq8quad", "L": 9, "sps": 2, "symbols_per_row": 4, "bytes_per_table": 65536, "table_crcs": [3442296373, 324784978], "all_history_axis_peak_bound_lsb": 6745.53515625, "feedback_windows": 65536, "fixtures": [{"seed": 305441741, "symbols": 65536, "packed_no_flag_crc": 3803865361, "raw_pairs_crc": 850210923, "i_crc": 3417247612, "q_crc": 3777218023, "max_axis_error_lsb": 0.9961823331677806}, {"seed": 1, "symbols": 65536, "packed_no_flag_crc": 1481778256, "raw_pairs_crc": 1886301216, "i_crc": 158392449, "q_crc": 2731738490, "max_axis_error_lsb": 0.9969772542922328}, {"seed": 4294967295, "symbols": 65536, "packed_no_flag_crc": 1644046440, "raw_pairs_crc": 1537429903, "i_crc": 1835178648, "q_crc": 4168394588, "max_axis_error_lsb": 0.9969772542917781}]}
+python3 host/test_iq16chunk.py
+{"profile": "exact16apsk_chunks", "L": 9, "sps": 2, "bytes": 131072, "optional_reverse_bytes": 8192, "native_partition_cases": 168, "symmetry_samples_per_gamma": 32768, "fixtures": [{"gamma100": 315, "blocks": 8192, "symbols": 32768, "table_crcs": [3647566034, 3486480635], "all_history_partial_bound_lsb": 7052, "max_float_axis_error_lsb": 1.466014640450794, "raw_pairs_crc": 4017368020, "packed_no_flag_crc": 2517270692}, {"gamma100": 285, "blocks": 8192, "symbols": 32768, "table_crcs": [800861710, 3477061970], "all_history_partial_bound_lsb": 7052, "max_float_axis_error_lsb": 1.4786252096532735, "raw_pairs_crc": 3367003752, "packed_no_flag_crc": 1488730793}, {"gamma100": 275, "blocks": 8192, "symbols": 32768, "table_crcs": [3854711233, 3308853703], "all_history_partial_bound_lsb": 7052, "max_float_axis_error_lsb": 1.4758795702312, "raw_pairs_crc": 225054896, "packed_no_flag_crc": 2274187993}, {"gamma100": 270, "blocks": 8192, "symbols": 32768, "table_crcs": [481580077, 2475534367], "all_history_partial_bound_lsb": 7052, "max_float_axis_error_lsb": 1.466014640450794, "raw_pairs_crc": 2951358184, "packed_no_flag_crc": 606382727}, {"gamma100": 260, "blocks": 8192, "symbols": 32768, "table_crcs": [756587018, 173980306], "all_history_partial_bound_lsb": 7052, "max_float_axis_error_lsb": 1.4686018202742162, "raw_pairs_crc": 3385140577, "packed_no_flag_crc": 329489128}, {"gamma100": 257, "blocks": 8192, "symbols": 32768, "table_crcs": [3860732171, 2958809695], "all_history_partial_bound_lsb": 7052, "max_float_axis_error_lsb": 1.466014640450794, "raw_pairs_crc": 476192996, "packed_no_flag_crc": 3293840939}]}
+python3 host/test_iq16chunk_asm.py
+{"profile": "iq16chunk_burst_asm", "model": "actual_assembly_source_instruction_semantics", "cases": 91, "executed_instructions": 3287709, "all_axis_keys": 4096, "gamma_count": 6, "stack_frame_bytes": 48, "silicon_timing": false}
+python3 host/test_iq16native8.py
+{"profile": "L8_native_16APSK_3_4_4", "bytes": 139264, "reverse_bytes": 0, "partial_rows_per_gamma": 8704, "native_partition_cases": 192, "assembly_model_cases": 49, "executed_instructions": 3934116, "coefficient_sha256": "16936cb50f5de62e68b10367624b868afea4ad49f8dfc4481526de4712fda5ae", "stack_frame_bytes": 48, "silicon_execution": false, "fixtures": [{"gamma100": 315, "table_crc": [4159334972, 1886792033, 1039294440], "raw_crc": 3399959260, "packed_crc": 3637067770, "worst_history_sum_bound_lsb": 7052, "symmetric_rms_axis_difference_lsb": 0.5150179902425133}, {"gamma100": 285, "table_crc": [4164803844, 152050959, 52571734], "raw_crc": 4084019225, "packed_crc": 256082711, "worst_history_sum_bound_lsb": 7052, "symmetric_rms_axis_difference_lsb": 0.5484004951012934}, {"gamma100": 275, "table_crc": [1720050177, 4106579746, 422998423], "raw_crc": 3505510735, "packed_crc": 2226079011, "worst_history_sum_bound_lsb": 7052, "symmetric_rms_axis_difference_lsb": 0.5496372760775112}, {"gamma100": 270, "table_crc": [1009880281, 2648433961, 3030949170], "raw_crc": 2596089319, "packed_crc": 4290221674, "worst_history_sum_bound_lsb": 7052, "symmetric_rms_axis_difference_lsb": 0.5192595036481338}, {"gamma100": 260, "table_crc": [714341748, 3266510421, 2126718872], "raw_crc": 655722220, "packed_crc": 2274371835, "worst_history_sum_bound_lsb": 7052, "symmetric_rms_axis_difference_lsb": 0.516334738808072}, {"gamma100": 257, "table_crc": [3495047196, 2890105748, 515392906], "raw_crc": 3787754522, "packed_crc": 161893542, "worst_history_sum_bound_lsb": 7052, "symmetric_rms_axis_difference_lsb": 0.5242676486135803}]}
+python3 host/test_iq16fast.py
+{"profile": "native16_sparse_exact", "gamma_count": 6, "cases": 372, "executed_instructions": 5958096, "extra_ram_bytes": 0, "stack_frame_bytes": 48, "timed": false, "modeled_instructions_for_256_words": {"sparse": 12722, "pair": 12215, "baseline": 13230}}
+python3 host/test_iq16fast_planar.py
+{"profile": "native16_planar_exact", "cases": 133, "gamma_count": 6, "executed_model_steps": 2961564, "layout": "I01_I23_I45_I67_Q01_Q23_Q45_Q67", "zero_extra_ram": true, "stack_frame_bytes": 48, "stm_model": "ordered_scalar_stores", "silicon_timing": false}
+python3 host/test_iq32native8.py
+{
+  "status": "PASS",
+  "scope": "native component, no device/RF/fullmodem claim",
+  "coefficient_sha256": "16936cb50f5de62e68b10367624b868afea4ad49f8dfc4481526de4712fda5ae",
+  "table_bytes": 117912,
+  "symmetry_table_option_bytes": 78608,
+  "input_crc": 1106835987,
+  "fixture_blocks": 8192,
+  "fixture_symbols": 16384,
+  "checks": 3919779,
+  "rates": [
+    {
+      "rate_index": 0,
+      "gamma100": [
+        284,
+        527
+      ],
+      "table_crcs": [
+        2047914682,
+        919939530,
+        3325065507
+      ],
+      "raw_crc": 380059168,
+      "packed_crc": 2995323908,
+      "headroom_bound_lsb": 7301,
+      "max_float_q8_error_lsb": 1.4883454967175567
+    },
+    {
+      "rate_index": 1,
+      "gamma100": [
+        272,
+        487
+      ],
+      "table_crcs": [
+        3933650313,
+        1706628315,
+        1678293446
+      ],
+      "raw_crc": 2308523439,
+      "packed_crc": 1582080147,
+      "headroom_bound_lsb": 7301,
+      "max_float_q8_error_lsb": 1.4770050163442647
+    },
+    {
+      "rate_index": 2,
+      "gamma100": [
+        264,
+        464
+      ],
+      "table_crcs": [
+        3255586384,
+        916828675,
+        1817262751
+      ],
+      "raw_crc": 2048936984,
+      "packed_crc": 1960087962,
+      "headroom_bound_lsb": 7301,
+      "max_float_q8_error_lsb": 1.4539499645866272
+    },
+    {
+      "rate_index": 3,
+      "gamma100": [
+        254,
+        433
+      ],
+      "table_crcs": [
+        3639513968,
+        2519813736,
+        2074592395
+      ],
+      "raw_crc": 1496234863,
+      "packed_crc": 826956591,
+      "headroom_bound_lsb": 7301,
+      "max_float_q8_error_lsb": 1.4536648014250204
+    },
+    {
+      "rate_index": 4,
+      "gamma100": [
+        253,
+        430
+      ],
+      "table_crcs": [
+        2709227290,
+        481522570,
+        2264605869
+      ],
+      "raw_crc": 2073208423,
+      "packed_crc": 3708628852,
+      "headroom_bound_lsb": 7301,
+      "max_float_q8_error_lsb": 1.454969942451953
+    }
+  ]
+}
+python3 host/test_iq32native8_asm.py
+{
+  "status": "PASS",
+  "scope": "actual source ISA/AAPCS model, not device timing",
+  "cases": 180,
+  "instructions": 336555,
+  "asm_frame_bytes": 48,
+  "long_loop_instructions_per_two_symbols": 62
+}
+python3 host/test_iq32pairkey.py
+{"profile": "native32_radix17_pair9_last5", "cases": 705, "algebra_checks": 98260, "executed_instructions": 8702655, "input_bytes_per_symbol": 2, "tables_bytes": 117912, "stack_frame_bytes": 48, "silicon_timing": false, "long_loop_instructions_per_two_symbols": 52, "fixtures": [{"rate": 0, "native_input_crc": 1106835987, "pair_input_crc": 3117192176, "raw_crc": 380059168, "packed_crc": 2995323908}, {"rate": 1, "native_input_crc": 1106835987, "pair_input_crc": 3117192176, "raw_crc": 2308523439, "packed_crc": 1582080147}, {"rate": 2, "native_input_crc": 1106835987, "pair_input_crc": 3117192176, "raw_crc": 2048936984, "packed_crc": 1960087962}, {"rate": 3, "native_input_crc": 1106835987, "pair_input_crc": 3117192176, "raw_crc": 1496234863, "packed_crc": 826956591}, {"rate": 4, "native_input_crc": 1106835987, "pair_input_crc": 3117192176, "raw_crc": 2073208423, "packed_crc": 3708628852}]}
+python3 host/test_iq32keys.py
+{
+  "status": "PASS",
+  "scope": "native/ISA component, no device timing",
+  "cases": 190,
+  "instructions": 123200,
+  "fixture_key_crc": 189197925,
+  "input_bytes_per_symbol": 4,
+  "asm_frame_bytes": 48,
+  "loop_instructions_per_two_symbols": 33,
+  "output_fixture_raw_crc": 2048936984
+}
+python3 host/test_iq32mix.py
+{
+  "status": "PASS",
+  "scope": "native mixed-geometry component only",
+  "modes": [
+    "native QPSK",
+    "native8PSK",
+    "native32APSK R3=1"
+  ],
+  "fixed_gamma_profiles": 5,
+  "starting_partial_fills": 2,
+  "cases": 10,
+  "mode_boundaries": 360,
+  "checked_output_halfwords": 289960,
+  "same_sample_clock": true,
+  "history_flushed": false,
+  "complete_dvb_frames": false
+}
+python3 host/test_iq32mapkeys.py
+{
+  "status": "PASS",
+  "scope": "native exact geometric/key component; no device timing",
+  "coordinate_checks": 660,
+  "rolling_key_checks": 2906870,
+  "exhaustive_token_triples": 2299968,
+  "valid_tokens": 132,
+  "state_bytes": 8,
+  "const_table_bytes": 1584,
+  "fixture_symbols": 16384,
+  "fixture_label_crc": 2499330378,
+  "fixture_key_crc": 189197925,
+  "fixture_final_seed": 2226242452,
+  "fixture_history": "repeated unitpilot"
+}
+python3 host/test_iq32mapkeys_pair.py
+{
+  "status": "PASS",
+  "scope": "native exact pair-key component; no device timing",
+  "checked_values": 6964696,
+  "exhaustive_token_triples_per_leaf": 2299968,
+  "pair_table_bytes": 16384,
+  "canonical_table_bytes": 132,
+  "mutable_global_bytes": 0,
+  "pair_table_crc": 2680011457
+}
+python3 host/test_iq32offsets.py
+{
+  "status": "PASS",
+  "scope": "native C and actual-source ISA semantics; no timing",
+  "cases": 201,
+  "executed_semantic_operations": 204204,
+  "rate_profiles": 5,
+  "input_bytes_per_symbol": 4,
+  "input_offset_lane_max": 39296,
+  "address_keys_exhaustive": 4913,
+  "scaled_pair_symbols": 14336,
+  "pair_scaled_input_requires_even_count": true,
+  "asm_frame_bytes": 48,
+  "actual_loop_instructions_per_two_symbols": 27,
+  "previous_loop_instructions_per_two_symbols": 33
+}
+python3 host/test_iq32offsets_native.py
+{
+  "status": "passed",
+  "scope": "portable C and independent integer model; no device timing",
+  "cases": 1265,
+  "current_symbols_compared": 513800,
+  "shaped_words_compared": 1027600,
+  "amplitude_rates": 5,
+  "exhaustive_radix17_triples": 4913,
+  "ignored_reserved_bits": true,
+  "null_pilot_history": true,
+  "arbitrary_partition_history": true,
+  "zero_blocks_no_access": true,
+  "immutable_inputs_and_canaries": true,
+  "files_sha256": {
+    "iq32offsets_native.c": "e7e2a8f1a6cf5f531a56fa8e3d99666d0d5b6592f802560add26b94091ff4554",
+    "iq32offsets_native.h": "041a40340d919ddd239faedcdc389e1bdd2c661b98486d541c8d749b65b17832"
+  }
+}
+python3 host/test_apsk_live.py
+{"native_block_history": "passed", "independently_ordered_blocks": 720, "profiles": [{"modulation": 16, "mapper": 0}, {"modulation": 32, "mapper": 0}, {"modulation": 32, "mapper": 1}, {"modulation": 32, "mapper": 2}, {"modulation": 32, "mapper": 3}], "tested_schedules": ["sequential", "even_then_odd", "random"], "exact_bus_halfwords_per_block": 4096, "cyclic_source_wraps": 6, "exhaustive16_packing_combinations": 65536, "label_crcs": {"16": 3809491934, "32": 1233905124}}
+{"self_test": "passed", "capture_cases": 12, "checked_halfwords": 8192, "bounded_search_symbols": 4128, "source_words": 8192, "source_crc": 2091885109, "periodic_bus_crc": 2015101740, "metadata_profiles": 8, "negative_controls": ["missing_line", "duplicate_line", "truncation", "serial_crc", "sample_corruption", "outside_bounded_window", "history_reset", "wrong_input_or_table", "wrong_clock_mode", "work_accounting", "missing_fault_counter", "capture_time"]}
+{"self_test": "passed", "schedule_metadata_cases": 126, "capture_profiles": 6, "label_crcs": {"16": 3809491934, "32": 1233905124}, "period_bus_crcs": {"16": 3794241200, "32": 2015101740}, "independent_fir_capture_halfwords": 8192}
+python3 host/test_apsk_fec_native.py
+{"passed": true, "real_gcs_fec_indices": [0, 1, 2, 123], "fec_crc": [959981619, 244241716, 1072615687, 2589279846], "cases": [{"modulation": 16, "frames": 3, "symbols": 50058, "native_words": 12514, "stream_fill": 2, "native_crc": 289751541, "gpio_halfwords": 200224, "gpio_crc": 2551635997, "partitions": [1, 7, 256, 12514], "progressive_ring_words": 256, "cancellation_words": 128, "offset_path": false, "fused_native_offset_path": false}, {"modulation": 32, "frames": 3, "symbols": 40014, "native_words": 20007, "stream_fill": 0, "native_crc": 4077841622, "gpio_halfwords": 160056, "gpio_crc": 2681337726, "partitions": [1, 7, 256, 20007], "progressive_ring_words": 256, "cancellation_words": 128, "offset_path": true, "fused_native_offset_path": true}]}
+python3 host/apsk_live_trial.py --self-test
+{"self_test": "passed", "capture_cases": 12, "checked_halfwords": 8192, "bounded_search_symbols": 4128, "source_words": 8192, "source_crc": 2091885109, "periodic_bus_crc": 2015101740, "metadata_profiles": 8, "negative_controls": ["missing_line", "duplicate_line", "truncation", "serial_crc", "sample_corruption", "outside_bounded_window", "history_reset", "wrong_input_or_table", "wrong_clock_mode", "work_accounting", "missing_fault_counter", "capture_time"]}
+{"self_test": "passed", "schedule_metadata_cases": 126, "capture_profiles": 6, "label_crcs": {"16": 3809491934, "32": 1233905124}, "period_bus_crcs": {"16": 3794241200, "32": 2015101740}, "independent_fir_capture_halfwords": 8192}
+python3 host/apsk_fec_trial.py --self-test
+{"self_test": "passed", "capture_cases": 12, "metadata_profiles": 24, "captured_halfwords": 8192, "finite_search_symbols": 4128, "complete_plheader_required": true, "prefill": {"16": {"prefill_frames": 1, "prefill_words": 4171, "prefill_fill": 2, "prefill_crc": 1813402982}, "32": {"prefill_frames": 1, "prefill_words": 6669, "prefill_fill": 0, "prefill_crc": 4248357742}}, "fec_crc": [959981619, 244241716, 1072615687, 2589279846], "bb_crc": [1325498631, 2602267711, 3216247915, 1630859359], "normalization": "outer_radius_one", "header_pilot_radius": 1}
+python3 host/test_iq16out.py
+{"native_output_helper": "passed", "actual_cyclic_blocks": 106, "checked_gpio_halfwords": 434176, "source_wraps": 3, "sequence_u32_wrap_cases": 3, "arena_guards": true, "zero_history_used": false, "silicon_timing": false}
+python3 host/iq16out_trial.py --self-test
+{"self_test": "passed", "capture_cases": 12, "checked_halfwords": 8192, "bounded_search_symbols": 4128, "source_words": 8192, "source_crc": 787286031, "periodic_bus_crc": 3836689403, "metadata_profiles": 16, "negative_controls": ["missing_line", "duplicate_line", "truncation", "serial_crc", "sample_corruption", "outside_bounded_window", "history_reset", "wrong_input_or_table", "wrong_clock_mode", "work_accounting", "missing_fault_counter", "capture_time"]}
+python3 host/test_iq16planar.py
+{"planar_glue": "passed", "actual_descriptor_rows": 1024, "axis_descriptors": 2048, "cyclic_blocks": 22, "checked_bus_halfwords": 90112, "executed_isa_steps": 291764, "descriptor_guards": true, "immutable_descriptors": true, "source_boundary_cases": 6, "silicon_timing": false}
+python3 host/iq16planar_trial.py --self-test
+{"self_test": "passed", "capture_cases": 12, "checked_halfwords": 8192, "stride": 17, "one_offset": true, "physical_period_wrap": true, "negative_controls": ["corruption", "transport_crc", "missing_line", "invalid_bounds", "outside_bounded_window"]}
+python3 host/test_iq32out.py
+{"native_output_helper": "passed", "actual_cyclic_blocks": 106, "checked_gpio_halfwords": 434176, "source_wraps": 12, "sequence_u32_wrap_cases": 3, "arena_guards": true, "zero_history_used": false, "silicon_timing": false}
+python3 host/iq32out_trial.py --self-test
+{"self_test": "passed", "capture_cases": 12, "checked_halfwords": 8192, "bounded_search_symbols": 4128, "source_words": 8192, "source_crc": 2091885109, "periodic_bus_crc": 2015101740, "metadata_profiles": 8, "negative_controls": ["missing_line", "duplicate_line", "truncation", "serial_crc", "sample_corruption", "outside_bounded_window", "history_reset", "wrong_input_or_table", "wrong_clock_mode", "work_accounting", "missing_fault_counter", "capture_time"]}
+python3 host/test_8live_native.py
+{"vcm": false, "blocks": 512, "symbols": 524288, "source_ring_wraps": 8, "raw_words": 1048576, "raw_crc": 3539388180, "prefill_groups": 2774, "prefill_crc": 1685928093, "bb_crc": [1325498631, 2602267711, 3216247915, 1630859359], "encoded_frames": 26, "max_float_error_lsb": 0.9969772542922328}
+{"vcm": true, "blocks": 512, "symbols": 524288, "source_ring_wraps": 8, "raw_words": 1048576, "raw_crc": 355845684, "prefill_groups": 3467, "prefill_crc": 215158474, "bb_crc": [2430356946, 1153874154, 1617543358, 3202956426], "encoded_frames": 21, "max_float_error_lsb": 0.9969772542922328}
+python3 host/iq8live_trial.py --self-test
+{"self_test": "passed", "capture_halfwords": 8192, "finite_search_symbols": 4128, "prefill": {"prefill_frames": 2, "prefill_groups": 2774, "prefill_fill": 4, "prefill_crc": 1685928093}, "bb_crc": [1325498631, 2602267711, 3216247915, 1630859359], "table_crc": [3442296373, 324784978], "metadata_profiles": 2, "negative_controls": ["sample_corruption", "missing_line", "duplicate_line", "truncated_capture", "serial_crc", "outside_start_window", "cyclic_wrap", "clock", "BB_crc", "packet_loss", "byte_count", "stage_accounting", "publication", "capture_time"]}
+python3 host/vcm_trial.py --self-test
+{"self_test": "passed", "metadata_profiles": 4, "negative_metadata_controls": ["git", "missing_git", "nan_encoder", "infinite_shaper", "missing_stage", "stage_total", "stage_max", "cap_progress", "cap_publication", "cap_time", "BB_count", "clock", "publication", "BB_crc", "CCM_crc", "boundary", "frame_modes"], "capture": "both boundary directions, all8192 samples, corruption and false-boundary controls", "selectors": "BCH/map/clock failures rejected"}
+python3 host/test_iqquadptr.py
+{"pio_words": 10, "isa_cases": 144, "all_keys": 4096, "seeds": 65536, "cycles_per_symbol": 2.3125, "table_crc": 2644578769, "waveform_crc": [706986807, 1106589681, 889877115, 2297500368], "full_frame_waveform_crc": 195875816, "credit_stall_runs": 200, "longest_safe_stall_batch": 212, "max_axis_lead_batches": 14, "publication_microstep_cases": 10, "post_abort_stop_lifecycle_cases": 110, "dma_ring_wraps_per_case": 5, "credit_bytes": 64, "l8_profile": {"profile": "qpsk_l8_n4_both_m010_far2", "pio_words": 13, "isa_cases": 144, "all_keys": 2048, "prehistory_cases": 65536, "cycles_per_symbol": 3.0625, "table_crc": 3433922394, "full_frame_waveform_crc": 1130000433, "hardware_fixture": "/var/folders/5n/v21fhj5x1w14j2nz_jjtkfz80000gn/T/yapogee-l8-pointer-address-fixture.json", "fixture_address_crcs": [2426528632, 4016390544]}}
+python3 host/test_quadptr_trial.py
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.450s
+
+OK
+python3 host/test_quadlive_trial.py
+...........
+----------------------------------------------------------------------
+Ran 11 tests in 0.616s
+
+OK
+python3 host/test_iqout_raw.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 1.206s
+
+OK
+python3 host/test_iqout_odd.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 1.418s
+
+OK
+python3 host/test_dual_pio.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.113s
+
+OK
+python3 host/test_dual_faults.py
+dual fault snapshots: PASS (old descriptor faults/captures; both-source fault-only polling; FIFO progress rejection; released queries)
+python3 host/test_dual_fifo.py
+dual FIFO setup: PASS (fixed RX+BSWAP, exact DREQ/claims, old DMA configs/start validation, 36000 wrapped descriptor snapshots)
+dual DMA stop: PASS (both sources, running/halted, partial DMA/FIFO capture, AHB faults, external pointer ownership, no FIFO cursor reads)
+python3 host/test_dual_spi.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.301s
+
+OK
+python3 host/test_dual_codes.py
+{"code_index": 5, "rate": "2/3", "gcs": false, "bb_crc": [2911639276, 1620254821, 3198477323, 1207348087], "frames": 14, "checked_words": 29121, "partial_symbols": 12, "bb_words": 1345, "second_slot_bb_buf": false, "incremental_frames": 12}
+{"code_index": 5, "rate": "2/3", "gcs": true, "bb_crc": [2800996658, 1874568874, 2559296570, 665471369], "frames": 14, "checked_words": 29121, "partial_symbols": 12, "bb_words": 1345, "second_slot_bb_buf": false, "incremental_frames": 12}
+{"code_index": 6, "rate": "3/4", "gcs": false, "bb_crc": [2726578793, 2933811700, 747006126, 202690554], "frames": 14, "checked_words": 29121, "partial_symbols": 12, "bb_words": 1513, "second_slot_bb_buf": true, "incremental_frames": 0}
+{"code_index": 6, "rate": "3/4", "gcs": true, "bb_crc": [3214457604, 1754806693, 3512998226, 685316244], "frames": 14, "checked_words": 29121, "partial_symbols": 12, "bb_words": 1513, "second_slot_bb_buf": true, "incremental_frames": 0}
+{"code_index": 8, "rate": "5/6", "gcs": false, "bb_crc": [2219386136, 1658963694, 748819309, 3745739958], "frames": 14, "checked_words": 29121, "partial_symbols": 12, "bb_words": 1683, "second_slot_bb_buf": true, "incremental_frames": 12}
+{"code_index": 8, "rate": "5/6", "gcs": true, "bb_crc": [1325498631, 2602267711, 3216247915, 1630859359], "frames": 14, "checked_words": 29121, "partial_symbols": 12, "bb_words": 1683, "second_slot_bb_buf": true, "incremental_frames": 12}
+python3 host/test_ptrprog.py
+{"instruction_model_cases": 200, "model_cyc_per_sym": 3.5625, "expected_device_crc": [2456767275, 1773279408, 2149571791, 1670686239]}
+python3 host/dual_trial.py --self-test
+dual_trial self-test: L12/L9/L8 waveform periods, integer/fractional capture, corruption, serial CRC, capture ordering and fault classification checked; no hardware accessed
+python3 host/plot_dual.py --self-test
+plot_dual self-test: configuration, capture, negative-control and longest-run selection checked
+python3 host/plot_waveforms.py --self-test
+plot_waveforms self-test: failed/short/fault-injected/wrong-profile/NaN records, CRCs and pointer bound drift rejected; raw captures revalidated
+python3 host/plot_apsk_frontier.py --self-test
+{"self_test": "passed", "checked_clock_profiles": 4, "negative_controls": 16, "kernels": {"16": 5, "32": 4}, "clocks_hz": [128000000, 150000000], "performance_values": "read from CRC-checked raw JSON"}
+python3 host/plot_apsk_dual.py --self-test
+{"self_test": "passed", "negative_controls": 23, "real_legacy_runs_revalidated": 2, "synthetic_modern_metadata_only": true, "capture_observations_per_run": 8192}
+python3 host/plot_apsk_fec.py --self-test
+{"self_test": "passed", "synthetic_campaigns": 4, "negative_controls": 23, "capture_observations_per_run": 8192, "source_archive_and_flash_binding_checked": true}
