@@ -1,0 +1,810 @@
+{
+ "SYS_adopted": {
+  "value": 128000000.0,
+  "unit": "Hz",
+  "kind": "spec",
+  "src": "docs/rp2350-notes.md 'Design consequences' 1; ../notes/yapogee/docs/clocks.md line 12",
+  "note": "Yapogee adopted SYS128 with integer PIO dividers"
+ },
+ "SYS_stock_max": {
+  "value": 150000000.0,
+  "unit": "Hz",
+  "kind": "spec",
+  "src": "RP2350 datasheet \u00a78.6.3 p576 via docs/rp2350-notes.md",
+  "note": ""
+ },
+ "dma_transfers_per_cycle": {
+  "value": 1.0,
+  "unit": "transfer/cycle",
+  "kind": "spec",
+  "src": "docs/sources/rp2350.txt line 82501, RP2350 datasheet \u00a712.6 p1094: 'one read access and one write access, up to 32 bits ... every clock cycle' (all 16 channels share it)",
+  "note": ""
+ },
+ "sram_total": {
+  "value": 532480,
+  "unit": "B",
+  "kind": "spec",
+  "src": "docs/rp2350-notes.md 'Memory and bus' (2x256 KB + SRAM8/9 4 KB)",
+  "note": ""
+ },
+ "afe_fdac_max": {
+  "value": 65000000.0,
+  "unit": "S/s per axis",
+  "kind": "spec",
+  "src": "docs/sources/afe7071.txt line 285, SLOS789C p5 (fDAC 0-65 MSPS, interleaved)",
+  "note": ""
+ },
+ "afe_rf_bw_max": {
+  "value": 20000000.0,
+  "unit": "Hz",
+  "kind": "spec",
+  "src": "docs/sources/afe7071.txt line 23, SLOS789C p1 features",
+  "note": ""
+ },
+ "rolloff": {
+  "value": 0.2,
+  "unit": "-",
+  "kind": "spec",
+  "src": "docs/pv-spi-spec.md waveform; EN 302 307-1 Table A.1 alpha=0.20 column",
+  "note": ""
+ },
+ "afe_filter_tune0_typ": {
+  "value": [
+   [
+    10000000.0,
+    1.0
+   ],
+   [
+    20000000.0,
+    18.0
+   ],
+   [
+    40000000.0,
+    42.0
+   ],
+   [
+    55000000.0,
+    58.0
+   ]
+  ],
+  "unit": "(Hz, dB)",
+  "kind": "spec",
+  "src": "docs/sources/afe7071.txt lines 342-345, SLOS789C p6 (typical, Filtertune=0)",
+  "note": ""
+ },
+ "Kbch_normal": {
+  "value": {
+   "1/2": 32208,
+   "3/5": 38688,
+   "2/3": 43040,
+   "3/4": 48408,
+   "4/5": 51648,
+   "5/6": 53840,
+   "8/9": 57472,
+   "9/10": 58192
+  },
+  "unit": "bit",
+  "kind": "spec",
+  "src": "EN 302 307-1 Table 5a (en_30230701v010401p.txt line 1271)",
+  "note": ""
+ },
+ "bch_t_normal": {
+  "value": {
+   "1/2": 12,
+   "3/5": 12,
+   "2/3": 10,
+   "3/4": 12,
+   "4/5": 12,
+   "5/6": 10,
+   "8/9": 8,
+   "9/10": 8
+  },
+  "unit": "-",
+  "kind": "spec",
+  "src": "EN 302 307-1 Table 5a",
+  "note": ""
+ },
+ "ldpc_addr_entries": {
+  "value": {
+   "3/5": 648,
+   "2/3": 480,
+   "3/4": 540,
+   "4/5": 576,
+   "5/6": 600,
+   "8/9": 500,
+   "9/10": 504
+  },
+  "unit": "360-bit rotate-XOR ops/frame",
+  "kind": "spec",
+  "src": "firmware/src/dvbs2_codes.h addr_n* array lengths (generated from EN 302 307-1 annex B)",
+  "note": ""
+ },
+ "esn0_qef_awgn": {
+  "value": {
+   "QPSK|1/2": 1.0,
+   "QPSK|3/5": 2.23,
+   "QPSK|2/3": 3.1,
+   "QPSK|3/4": 4.03,
+   "QPSK|4/5": 4.68,
+   "QPSK|5/6": 5.18,
+   "QPSK|8/9": 6.2,
+   "QPSK|9/10": 6.42,
+   "8PSK|3/5": 5.5,
+   "8PSK|2/3": 6.62,
+   "8PSK|3/4": 7.91,
+   "8PSK|5/6": 9.35,
+   "8PSK|8/9": 10.69,
+   "8PSK|9/10": 10.98,
+   "16APSK|2/3": 8.97,
+   "16APSK|3/4": 10.21,
+   "16APSK|4/5": 11.03,
+   "16APSK|5/6": 11.61,
+   "16APSK|8/9": 12.89,
+   "16APSK|9/10": 13.13,
+   "32APSK|3/4": 12.73,
+   "32APSK|4/5": 13.64,
+   "32APSK|5/6": 14.28,
+   "32APSK|8/9": 15.69,
+   "32APSK|9/10": 16.05
+  },
+  "unit": "dB",
+  "kind": "spec",
+  "src": "EN 302 307-1 Table 13 (line 2117): ideal Es/N0 at QEF, AWGN, normal frames, no pilots; link context only",
+  "note": ""
+ },
+ "gamma_16apsk": {
+  "value": {
+   "2/3": 3.15,
+   "3/4": 2.85,
+   "4/5": 2.75,
+   "5/6": 2.7,
+   "8/9": 2.6,
+   "9/10": 2.57
+  },
+  "unit": "-",
+  "kind": "spec",
+  "src": "EN 302 307-1 Table 9 (line 1670)",
+  "note": ""
+ },
+ "gamma_32apsk": {
+  "value": {
+   "3/4": [
+    2.84,
+    5.27
+   ],
+   "4/5": [
+    2.72,
+    4.87
+   ],
+   "5/6": [
+    2.64,
+    4.64
+   ],
+   "8/9": [
+    2.54,
+    4.33
+   ],
+   "9/10": [
+    2.53,
+    4.3
+   ]
+  },
+  "unit": "-",
+  "kind": "spec",
+  "src": "EN 302 307-1 Table 10 (line 1734)",
+  "note": ""
+ },
+ "fec_stage_A": {
+  "value": {
+   "2/3": [
+    91907,
+    80794,
+    107834,
+    107834,
+    70603
+   ],
+   "3/4": [
+    139286,
+    127207,
+    144444,
+    114667,
+    70603
+   ],
+   "5/6": [
+    113948,
+    101103,
+    126800,
+    111314,
+    70603
+   ],
+   "9/10": [
+    166330,
+    152873,
+    111004,
+    100422,
+    70603
+   ]
+  },
+  "unit": "cycles/frame",
+  "kind": "measured",
+  "src": "results/optimizations/2026-10-15/runs.jsonl stage A (git 5e38990269), dvbs2 <code> 1 20, bchkernel 2, mapkernel 1",
+  "note": ""
+ },
+ "fec_stage_B": {
+  "value": {
+   "3/5": [
+    112433,
+    156330,
+    47948.2
+   ],
+   "2/3": [
+    92182,
+    107092,
+    47952.9
+   ],
+   "3/4": [
+    139717,
+    144044,
+    47948.4
+   ],
+   "5/6": [
+    114111,
+    126828,
+    47951.8
+   ],
+   "8/9": [
+    165280,
+    103122,
+    47951.0
+   ],
+   "9/10": [
+    166941,
+    110565,
+    47951.8
+   ]
+  },
+  "unit": "cycles/frame",
+  "kind": "measured",
+  "src": "results/higher-mapping/2026-10-15/fast-1/runs.jsonl bench8map pilots=1 (git b29d1a7ec2-dirty); image predates the LDPC packer, so ldpc is pack0",
+  "note": ""
+ },
+ "apsk_map_live": {
+  "value": {
+   "16APSK": 287864.6947081158,
+   "32APSK": 423593.07121007325
+  },
+  "unit": "cycles/frame",
+  "kind": "measured",
+  "src": "results/optimizations/2026-10-15/apsk{16,32}-split-soak/runs.jsonl, 150 MHz: encoder_stage_cycles.map / encoder_runtime_frames (PL interleave+constellation+Gold+native packing on core 1, live)",
+  "note": ""
+ },
+ "shaper_cost_per_N_doubling": {
+  "value": 1.8095238095238093,
+  "unit": "x",
+  "kind": "derived",
+  "src": "docs/benchmark-history.md: lut_asm N=4 11.55 -> N=8 20.9 cycles/symbol (same algorithm)",
+  "note": "used only to scale software shaping engines from N2 to N4"
+ },
+ "bch160_cycles_per_bit": {
+  "value": 1.8778417533432392,
+  "unit": "cycles/bit",
+  "kind": "derived",
+  "src": "results/optimizations/2026-10-15/runs.jsonl stage A (git 5e38990269), dvbs2 <code> 1 20, bchkernel 2, mapkernel 1: cyc_bch(5/6)/Kbch; 2/3 gives 1.877",
+  "note": ""
+ },
+ "bch_generic_cycles_per_bit": {
+  "value": 2.6274272038079585,
+  "unit": "cycles/bit",
+  "kind": "derived",
+  "src": "results/optimizations/2026-10-15/runs.jsonl stage A (git 5e38990269), dvbs2 <code> 1 20, bchkernel 2, mapkernel 1: t=12 (3/4) and t=8 (9/10) use the 8-word baseline kernel (firmware/src/dvbs2.c:224 uses bch160 only when bch_deg == 160)",
+  "note": ""
+ },
+ "bb_scramble_cycles_per_bit": {
+  "value": 0.24438888230174385,
+  "unit": "cycles/bit",
+  "kind": "derived",
+  "src": "results/optimizations/2026-10-15/runs.jsonl stage A (git 5e38990269), dvbs2 <code> 1 20, bchkernel 2, mapkernel 1: (f_bb_bch - cyc_bch)/Kbch averaged over 4 codes",
+  "note": ""
+ },
+ "bchT_cycles_per_bit": {
+  "value": {
+   "12": 2.253410104011887,
+   "10": 1.8778417533432392,
+   "8": 1.5022734026745914
+  },
+  "unit": "cycles/bit",
+  "kind": "derived",
+  "src": "hypothesis: specialised kernel cost scales with remainder words (160 bits = 5 words measured)",
+  "note": ""
+ },
+ "k_bch_live": {
+  "value": {
+   "bank0": 1.1465915961666726,
+   "bank1": 1.055929778495454
+  },
+  "unit": "x isolated",
+  "kind": "derived",
+  "src": "results/optimizations/2026-10-15/runs.jsonl stage B/C, dualstream QPSK 5/6 16 Msym/s 60 s, four writers, L8, git 5e38990269: split_bch_busy 0.4907 (gcs16-bank0-pack0) / 0.4519 (gcs16-bank1-pack1)",
+  "note": ""
+ },
+ "k_ldpc_map_live": {
+  "value": 1.0210160985504377,
+  "unit": "x isolated",
+  "kind": "derived",
+  "src": "results/optimizations/2026-10-15/runs.jsonl stage B/C, dualstream QPSK 5/6 16 Msym/s 60 s, four writers, L8, git 5e38990269: s2_busy 0.6976 (gcs16-bank1-pack1) vs isolated LDPC(pack1)+map",
+  "note": ""
+ },
+ "ingress_cycles_per_bb_bit": {
+  "value": {
+   "GCS": 0.6062078571428572,
+   "TS": 1.1831949107142858
+  },
+  "unit": "cycles/bit",
+  "kind": "derived",
+  "src": "results/optimizations/2026-10-15/runs.jsonl stage B/C, dualstream QPSK 5/6 16 Msym/s 60 s, four writers, L8, git 5e38990269: ts_busy 0.1224 (GCS, gcs16-bank1-pack1), 0.2389 (TS, ts16-bank1-pack1); PV-SPI parse + BBFRAME build on core 1",
+  "note": ""
+ },
+ "u_demonstrated": {
+  "value": 0.9628,
+  "unit": "fraction of a core",
+  "kind": "measured",
+  "src": "results/apsk-fec/2026-10-15/README.md: 16APSK 150 MHz core 1 96.28% passed 60 s; failures at >=99.2% (results/integration/2026-10-15/README.md 32APSK CPW8) and 99.8-99.9% (optimizations README)",
+  "note": ""
+ },
+ "u_planning": {
+  "value": 0.9,
+  "unit": "fraction of a core",
+  "kind": "assumed",
+  "src": "10% reserve: measured worst-frame excursion +4.3% (s2_max_frame_cyc 193,720 vs mean 185,740, gcs16-bank1-pack1) plus unmodelled placement contention (memory-placement A/B/A: up to 31% BCH)",
+  "note": ""
+ },
+ "supervision_desc_cps": {
+  "value": 15488000.0,
+  "unit": "cycles/s",
+  "kind": "measured",
+  "src": "results/optimizations/2026-10-15/runs.jsonl stage B/C, dualstream QPSK 5/6 16 Msym/s 60 s, four writers, L8, git 5e38990269: control_busy 0.121 at 16 Msym/s; 0.1209 at 8 Msym/s (results/gcs-ingress/2026-10-15/soak-four-1) -> fixed time-based cost (32 us polling)",
+  "note": ""
+ },
+ "supervision_ptr_cps": {
+  "value": 4326784.0,
+  "unit": "cycles/s",
+  "kind": "measured",
+  "src": "results/quad-pointers/2026-10-15/poll128-soak-1/runs.jsonl: supervision_busy 0.033803 @128 MHz, 0.028757 @150 MHz (same cycles/s); cyclic PRBS source, no SPI/FEC",
+  "note": ""
+ },
+ "pio_pointer_cycles_per_symbol_L8": {
+  "value": 3.0625,
+  "unit": "PIO cycles/symbol/axis",
+  "kind": "derived",
+  "src": "results/waveforms/2026-10-15/pulse-design.md: 49 non-stalled instructions per 16-symbol raw word",
+  "note": ""
+ },
+ "pio_pointer_cycles_per_symbol_4level": {
+  "value": 4.0,
+  "unit": "PIO cycles/symbol/axis",
+  "kind": "assumed",
+  "src": "no 4-level pointer program exists; assume <= 4 instructions/symbol (2-bit IN, MOV, PUSH)",
+  "note": ""
+ },
+ "engine.qpsk_desc_n4": {
+  "value": {
+   "N": 4,
+   "R": 4,
+   "hw_lut": true,
+   "chains": 1,
+   "c_shape": 2.0045,
+   "phi": 15488000.0,
+   "table": 65536,
+   "pio": null,
+   "status": "measured: complete SPI/FEC 60 s",
+   "src": "results/optimizations/2026-10-15/runs.jsonl stage B/C, dualstream QPSK 5/6 16 Msym/s 60 s, four writers, L8, git 5e38990269: gen_cyc_per_sym 2.0045 (interpolator descriptors, L8, 4-symbol rows)"
+  },
+  "unit": "mixed",
+  "kind": "measured",
+  "src": "results/optimizations/2026-10-15/runs.jsonl stage B/C, dualstream QPSK 5/6 16 Msym/s 60 s, four writers, L8, git 5e38990269: gen_cyc_per_sym 2.0045 (interpolator descriptors, L8, 4-symbol rows)",
+  "note": "measured: complete SPI/FEC 60 s"
+ },
+ "engine.qpsk_ptr_n4": {
+  "value": {
+   "N": 4,
+   "R": 4,
+   "hw_lut": true,
+   "chains": 1,
+   "c_shape": 0.0,
+   "phi": 4326784.0,
+   "table": 65536,
+   "pio": 3.0625,
+   "src_bits": 1,
+   "status": "measured: PRBS source only (A1 integrating live FEC)",
+   "src": "results/quad-pointers/2026-10-15/poll128-soak-1"
+  },
+  "unit": "mixed",
+  "kind": "measured",
+  "src": "results/quad-pointers/2026-10-15/poll128-soak-1",
+  "note": "measured: PRBS source only (A1 integrating live FEC)"
+ },
+ "engine.qpsk_ptr_n2": {
+  "value": {
+   "N": 2,
+   "R": 4,
+   "hw_lut": true,
+   "chains": 1,
+   "c_shape": 0.0,
+   "phi": 4326784.0,
+   "table": 32768,
+   "pio": 3.0625,
+   "src_bits": 1,
+   "status": "hypothetical: N2 variant of the pointer engine",
+   "src": "derived"
+  },
+  "unit": "mixed",
+  "kind": "assumed",
+  "src": "derived",
+  "note": "hypothetical: N2 variant of the pointer engine"
+ },
+ "engine.psk2plane_n2": {
+  "value": {
+   "N": 2,
+   "R": 4,
+   "hw_lut": false,
+   "c_shape": 12.0803,
+   "phi": 0.0,
+   "table": 131072,
+   "status": "measured: complete 8PSK SPI/FEC 60 s",
+   "src": "results/8psk-live/2026-10-15/bch-placement-soak-1/runs.jsonl gen_cyc_per_sym 12.0803 @128 (12.0996 @150); L9, two signed planes, 128 KiB"
+  },
+  "unit": "mixed",
+  "kind": "measured",
+  "src": "results/8psk-live/2026-10-15/bch-placement-soak-1/runs.jsonl gen_cyc_per_sym 12.0803 @128 (12.0996 @150); L9, two signed planes, 128 KiB",
+  "note": "measured: complete 8PSK SPI/FEC 60 s"
+ },
+ "engine.psk2plane_n4": {
+  "value": {
+   "N": 4,
+   "R": 4,
+   "hw_lut": false,
+   "c_shape": 21.859590476190473,
+   "phi": 0.0,
+   "table": 131072,
+   "status": "derived: N2 cost x K_N; L8 planes",
+   "src": "derived"
+  },
+  "unit": "mixed",
+  "kind": "derived",
+  "src": "derived",
+  "note": "derived: N2 cost x K_N; L8 planes"
+ },
+ "engine.hw4_L7R1_n4": {
+  "value": {
+   "N": 4,
+   "R": 1,
+   "hw_lut": true,
+   "chains": 1,
+   "c_shape": 0.0,
+   "phi": 4326784.0,
+   "table": 131072,
+   "pio": 4.0,
+   "src_bits": 2,
+   "status": "hypothetical: Codex B1 (4-level L7 full-history)",
+   "src": "strategy-report P2"
+  },
+  "unit": "mixed",
+  "kind": "assumed",
+  "src": "strategy-report P2",
+  "note": "hypothetical: Codex B1 (4-level L7 full-history)"
+ },
+ "engine.hw4_L7R1_n4_2ch": {
+  "value": {
+   "N": 4,
+   "R": 1,
+   "hw_lut": true,
+   "chains": 2,
+   "c_shape": 0.0,
+   "phi": 4326784.0,
+   "table": 131072,
+   "pio": 2.0,
+   "src_bits": 2,
+   "status": "hypothetical: B1 with two DMA chains/axis, 4 writers, 4 pointer SMs",
+   "src": "this note"
+  },
+  "unit": "mixed",
+  "kind": "assumed",
+  "src": "this note",
+  "note": "hypothetical: B1 with two DMA chains/axis, 4 writers, 4 pointer SMs"
+ },
+ "engine.hw4_L7R1_n2": {
+  "value": {
+   "N": 2,
+   "R": 1,
+   "hw_lut": true,
+   "chains": 1,
+   "c_shape": 0.0,
+   "phi": 4326784.0,
+   "table": 65536,
+   "pio": 4.0,
+   "src_bits": 2,
+   "status": "hypothetical: 4-level L7 at N2 (pulse_check: L7 N2 hold-model passes)",
+   "src": "this note"
+  },
+  "unit": "mixed",
+  "kind": "assumed",
+  "src": "this note",
+  "note": "hypothetical: 4-level L7 at N2 (pulse_check: L7 N2 hold-model passes)"
+ },
+ "engine.hw4_L7R1_n2_2ch": {
+  "value": {
+   "N": 2,
+   "R": 1,
+   "hw_lut": true,
+   "chains": 2,
+   "c_shape": 0.0,
+   "phi": 4326784.0,
+   "table": 65536,
+   "pio": 2.0,
+   "src_bits": 2,
+   "status": "hypothetical: 4-level L7 at N2, two DMA chains/axis",
+   "src": "this note"
+  },
+  "unit": "mixed",
+  "kind": "assumed",
+  "src": "this note",
+  "note": "hypothetical: 4-level L7 at N2, two DMA chains/axis"
+ },
+ "engine.apsk16_sw_n2": {
+  "value": {
+   "N": 2,
+   "R": 4,
+   "hw_lut": false,
+   "c_shape": 20.7828,
+   "phi": 0.0,
+   "table": 139264,
+   "status": "measured: complete SPI/FEC split 60 s",
+   "src": "results/optimizations/2026-10-15/apsk16-split-soak gen_cyc_per_sym 20.7828 @150; 136 KiB 3+4+4 chunk tables (results/apsk-dual/2026-10-15/README.md)"
+  },
+  "unit": "mixed",
+  "kind": "measured",
+  "src": "results/optimizations/2026-10-15/apsk16-split-soak gen_cyc_per_sym 20.7828 @150; 136 KiB 3+4+4 chunk tables (results/apsk-dual/2026-10-15/README.md)",
+  "note": "measured: complete SPI/FEC split 60 s"
+ },
+ "engine.apsk32_sw_n2": {
+  "value": {
+   "N": 2,
+   "R": 2,
+   "hw_lut": false,
+   "c_shape": 33.940200000000004,
+   "phi": 0.0,
+   "table": 117912,
+   "status": "measured: complete SPI/FEC split 60 s",
+   "src": "results/optimizations/2026-10-15/apsk32-split-soak gen 19.8991 + prepare 14.0411 cycles/symbol @150; 117,912 B rolling-key tables"
+  },
+  "unit": "mixed",
+  "kind": "measured",
+  "src": "results/optimizations/2026-10-15/apsk32-split-soak gen 19.8991 + prepare 14.0411 cycles/symbol @150; 117,912 B rolling-key tables",
+  "note": "measured: complete SPI/FEC split 60 s"
+ },
+ "engine.apsk16_sw_n4": {
+  "value": {
+   "N": 4,
+   "R": 4,
+   "hw_lut": false,
+   "c_shape": 37.60697142857143,
+   "phi": 0.0,
+   "table": 278528,
+   "status": "derived: N2 cost x K_N, tables x2",
+   "src": "derived"
+  },
+  "unit": "mixed",
+  "kind": "derived",
+  "src": "derived",
+  "note": "derived: N2 cost x K_N, tables x2"
+ },
+ "engine.apsk32_sw_n4": {
+  "value": {
+   "N": 4,
+   "R": 2,
+   "hw_lut": false,
+   "c_shape": 50.04899523809524,
+   "phi": 0.0,
+   "table": 235824,
+   "status": "derived: N2 shaping x K_N, tables x2",
+   "src": "derived"
+  },
+  "unit": "mixed",
+  "kind": "derived",
+  "src": "derived",
+  "note": "derived: N2 shaping x K_N, tables x2"
+ },
+ "engine.apsk16_hw_L7": {
+  "value": {
+   "N": null,
+   "R": 1,
+   "hw_lut": true,
+   "chains": 1,
+   "c_shape": 0.0,
+   "phi": 4326784.0,
+   "table": null,
+   "levels": 8,
+   "bits": 3,
+   "pio": 4.0,
+   "src_bits": 3,
+   "status": "hypothetical: full-history 8-level L7 (minimum mask span)",
+   "src": "this note"
+  },
+  "unit": "mixed",
+  "kind": "assumed",
+  "src": "this note",
+  "note": "hypothetical: full-history 8-level L7 (minimum mask span)"
+ },
+ "engine.apsk32_hw_L7": {
+  "value": {
+   "N": null,
+   "R": 1,
+   "hw_lut": true,
+   "chains": 1,
+   "c_shape": 0.0,
+   "phi": 4326784.0,
+   "table": null,
+   "levels": 17,
+   "bits": 5,
+   "pio": 4.0,
+   "src_bits": 5,
+   "status": "hypothetical: full-history 17-level L7 (minimum mask span)",
+   "src": "this note"
+  },
+  "unit": "mixed",
+  "kind": "assumed",
+  "src": "this note",
+  "note": "hypothetical: full-history 17-level L7 (minimum mask span)"
+ },
+ "min_mask_span": {
+  "value": 7,
+  "unit": "symbols",
+  "kind": "derived",
+  "src": "pulse_check.py/json (SciPy HiGHS LP on a grid; reproduces 5/5 pulse-design.md outcomes): L<=6 infeasible at N2 and N4 for digital, hold and both models; grid infeasibility implies continuous infeasibility for symmetric FIRs",
+  "note": ""
+ },
+ "dma_row_period_demonstrated": {
+  "value": 16,
+  "unit": "SYS cycles per row per axis chain",
+  "kind": "measured",
+  "src": "R1 rows at 8 Msym/s (16 cycles) and R2 rows at 16 Msym/s, 4 writers (16 cycles) pass 60 s: results/dual-dma/2026-10-14/README.md table, results/dual-dma/2026-10-15/README.md qualify-1",
+  "note": ""
+ },
+ "dma_row_period_failed": {
+  "value": 8,
+  "unit": "SYS cycles per row per axis chain",
+  "kind": "measured",
+  "src": "R1 rows at 16 Msym/s stall in every record, even with precomputed pointers: results/dac-clock/2026-10-15/README.md 'layout-coverage'; results/dual-dma/2026-10-14/README.md 'Retained failed probes'",
+  "note": ""
+ },
+ "dma_bandwidth_demonstrated": {
+  "value": 0.5703125,
+  "unit": "fraction of transfers/cycle",
+  "kind": "derived",
+  "src": "PIO-pointer QPSK at 16 Msym/s (results/quad-pointers/2026-10-15/poll128-soak-1): 4 data + 0.5 pointer + 0.0625 source transfers/symbol = 73 M/s of 128 M/s (credit DMAs not counted)",
+  "note": ""
+ },
+ "dma_channels_per_pointer_sm": {
+  "value": 2,
+  "unit": "channels",
+  "kind": "measured",
+  "src": "firmware/src/iqquadptr.c:209-264 (input_dma + credit_dma per pointer SM)",
+  "note": ""
+ },
+ "dma_channels_per_output_chain": {
+  "value": 2,
+  "unit": "channels",
+  "kind": "measured",
+  "src": "results/waveforms/2026-10-15/README.md 'Two control/sample-DMA pairs'; dual_dma.c",
+  "note": ""
+ },
+ "sram_items": {
+  "value": {
+   "hot code .data": [
+    40440,
+    "core"
+   ],
+   "scratch X+Y (code+stacks)": [
+    8192,
+    "core"
+   ],
+   "misc .bss/heap/vectors": [
+    7976,
+    "core"
+   ],
+   "PV-SPI queue link_ring": [
+    32768,
+    "core"
+   ],
+   "symbol source in_buf": [
+    32768,
+    "core"
+   ],
+   "ring_buf rings (non-table half)": [
+    65536,
+    "core"
+   ],
+   "idle_block": [
+    16384,
+    "core"
+   ],
+   "FEC buffers (bb_buf,lpar,fe,bb_prbs,bb_save,par_buf,flipm,swapm,r0,r1,P,a_off,a_row,bch_tab,crc_t,small)": [
+    135382,
+    "fec"
+   ],
+   "FE slot 2 (borrowed from cap_buf)": [
+    8108,
+    "fec"
+   ],
+   "QPSK table slot in ring_buf": [
+    65536,
+    "table_slot"
+   ],
+   "capture buffer cap_buf minus FE slot": [
+    49236,
+    "lab"
+   ],
+   "legacy iqout tables tab_i+tab_q": [
+    65536,
+    "legacy"
+   ],
+   "unallocated (SRAM0-3, SRAM4-7, scratch)": [
+    5448,
+    "free"
+   ]
+  },
+  "unit": "B",
+  "kind": "derived",
+  "src": "results/integration/2026-10-15/iqbench.elf (git 8014ed33b9), arm-none-eabi-readelf -S / nm -S; classes are assumptions about a single-profile flight image",
+  "note": ""
+ },
+ "sram_second_fec_context": {
+  "value": 48648,
+  "unit": "B",
+  "kind": "assumed",
+  "src": "frame-parallel FEC needs a second set of per-frame workspaces; ~6 frame-sized buffers (r0,r1,P,lpar,par_buf,fe ~ 8.1 KiB each); A1 will measure the real figure",
+  "note": ""
+ },
+ "pvspi_message": {
+  "value": [
+   1332,
+   1316
+  ],
+  "unit": "B",
+  "kind": "spec",
+  "src": "docs/pv-spi-spec.md message format",
+  "note": ""
+ },
+ "pvspi_cs_gap": {
+  "value": 1e-05,
+  "unit": "s",
+  "kind": "spec",
+  "src": "docs/pv-spi-spec.md 'CS_N must be high for >= 10 us'",
+  "note": ""
+ },
+ "sck_external_proven": {
+  "value": 25000000.0,
+  "unit": "Hz",
+  "kind": "measured",
+  "src": "results/cm5-spi/README.md faults-25mhz (CM5, 16,001 messages at 982 msg/s, not back-to-back)",
+  "note": ""
+ },
+ "onchip_master_cycles_per_message": {
+  "value": 43654,
+  "unit": "SYS cycles @128 MHz",
+  "kind": "derived",
+  "src": "results/waveforms/2026-10-15/three-sps.md (32 MHz on-chip master incl. 1,024-cycle gap)",
+  "note": ""
+ },
+ "spi_bb_caps": {
+  "value": {
+   "ext25": 24133504.492939666,
+   "onchip32": 30869656.84702433,
+   "ext20": 19395725.865880616
+  },
+  "unit": "bit/s",
+  "kind": "derived",
+  "src": "1316*8/(1332*8/SCK + gap) per lane",
+  "note": ""
+ }
+}

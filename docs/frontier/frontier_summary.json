@@ -1,0 +1,2323 @@
+{
+ "validation": [
+  {
+   "label": "QPSK 5/6 16M GCS pack1 bank1 (calibration run)",
+   "pred_c0": 0.8234625,
+   "pred_c1": 0.8199999999999998,
+   "meas_c0": 0.8234,
+   "meas_c1": 0.82,
+   "src": "results/optimizations/2026-10-15/runs.jsonl gcs16-bank1-pack1",
+   "err_c0_pts": 0.006249999999996536,
+   "err_c1_pts": -1.1102230246251565e-14
+  },
+  {
+   "label": "QPSK 5/6 16M TS pack1 bank1",
+   "pred_c0": 0.8234625,
+   "pred_c1": 0.9364999999999999,
+   "meas_c0": 0.8257,
+   "meas_c1": 0.9368,
+   "src": "results/optimizations/2026-10-15/runs.jsonl ts16-bank1-pack1",
+   "err_c0_pts": -0.22375000000000034,
+   "err_c1_pts": -0.030000000000007798
+  },
+  {
+   "label": "QPSK 5/6 16M GCS pack0 bank0",
+   "pred_c0": 0.8622625,
+   "pred_c1": 0.8793844093735055,
+   "meas_c0": 0.8558,
+   "meas_c1": 0.8834,
+   "src": "results/optimizations/2026-10-15/runs.jsonl gcs16-bank0-pack0",
+   "err_c0_pts": 0.6462500000000038,
+   "err_c1_pts": -0.4015590626494481
+  },
+  {
+   "label": "8PSK 5/6 8M (no split, pack0)",
+   "pred_c0": 0.75501875,
+   "pred_c1": 0.9330653043915765,
+   "meas_c0": 0.755,
+   "meas_c1": 0.9207,
+   "src": "results/8psk-live/2026-10-15/bch-placement-soak-1 (gen_busy, encoder_busy)",
+   "err_c0_pts": 0.0018749999999956302,
+   "err_c1_pts": 1.236530439157657
+  },
+  {
+   "label": "8PSK 5/6 9.375M @150",
+   "pred_c0": 0.75501875,
+   "pred_c1": 0.9330653043915764,
+   "meas_c0": 0.7562,
+   "meas_c1": 0.9209,
+   "src": "same, 150 MHz",
+   "err_c0_pts": -0.11812500000000226,
+   "err_c1_pts": 1.216530439157637
+  },
+  {
+   "label": "16APSK 5/6 split 4.6875M @150",
+   "pred_c0": 0.8748031418554477,
+   "pred_c1": 0.8130090628036962,
+   "meas_c0": 0.8808,
+   "meas_c1": 0.8007,
+   "src": "results/optimizations/2026-10-15/apsk16-split-soak",
+   "err_c0_pts": -0.5996858144552308,
+   "err_c1_pts": 1.2309062803696258
+  },
+  {
+   "label": "32APSK 5/6 split 3.125M @150",
+   "pred_c0": 0.8950234199280253,
+   "pred_c1": 0.8900575292461962,
+   "meas_c0": 0.8975,
+   "meas_c1": 0.8773,
+   "src": "results/optimizations/2026-10-15/apsk32-split-soak",
+   "err_c0_pts": -0.247658007197471,
+   "err_c1_pts": 1.275752924619622
+  },
+  {
+   "label": "16APSK 5/6 no-split 4.6875M @150 (FAILED, underrun)",
+   "pred_c0": 0.6494625,
+   "pred_c1": 1.038349704659144,
+   "meas_c0": "nan",
+   "meas_c1": 0.998,
+   "src": "results/optimizations/2026-10-15/README.md control row",
+   "err_c0_pts": "nan",
+   "err_c1_pts": 4.034970465914389
+  },
+  {
+   "label": "16APSK 5/6 no-split 4.1667M @150",
+   "pred_c0": 0.5773004618400001,
+   "pred_c1": 0.9229782536345845,
+   "meas_c0": "nan",
+   "meas_c1": 0.921,
+   "src": "results/optimizations/2026-10-15/README.md control row",
+   "err_c0_pts": "nan",
+   "err_c1_pts": 0.19782536345844814
+  }
+ ],
+ "levers": [
+  {
+   "group": "ref",
+   "lever": "QPSK 5/6 N4 16 Msym/s, measured (desc engine, split FEC)",
+   "bb_mbps": 25.844600685054985,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 25.844600685054985,
+   "gain_pct": 0.0,
+   "bb_ext25": 24.133504492939664,
+   "rs": 16.0,
+   "binding": "e_afe",
+   "load": [
+    0.823,
+    0.82
+   ],
+   "esn0": 5.18,
+   "flags": "",
+   "cost_risk": "-",
+   "experiment": "-"
+  },
+  {
+   "group": "i",
+   "lever": "QPSK 5/6 16 Msym/s with TS input (today)",
+   "bb_mbps": 25.844600685054985,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 25.844600685054985,
+   "gain_pct": 0.0,
+   "bb_ext25": 24.133504492939664,
+   "rs": 16.0,
+   "binding": "e_afe",
+   "load": [
+    0.823,
+    0.936
+   ],
+   "esn0": 5.18,
+   "flags": "core load 94% > planning 90%",
+   "cost_risk": "core 1 at ~94%",
+   "experiment": "-"
+  },
+  {
+   "group": "i",
+   "lever": "QPSK 5/6 16 Msym/s, TS input, A1 (pointers + frame-parallel)",
+   "bb_mbps": 25.844600685054985,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 25.844600685054985,
+   "gain_pct": 0.0,
+   "bb_ext25": 24.133504492939664,
+   "rs": 16.0,
+   "binding": "e_afe",
+   "load": [
+    0.711,
+    0.711
+   ],
+   "esn0": 5.18,
+   "flags": "",
+   "cost_risk": "A1 scope",
+   "experiment": "A1 60 s TS run"
+  },
+  {
+   "group": "i",
+   "lever": "QPSK 9/10, today's code (no t=8 frontend: BCH on core 1)",
+   "bb_mbps": 13.968391322636862,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 13.968391322636862,
+   "gain_pct": -45.95238095238094,
+   "bb_ext25": 13.968391322636862,
+   "rs": 8.0,
+   "binding": "ab_cpu",
+   "load": [
+    0.246,
+    0.724
+   ],
+   "esn0": 6.42,
+   "flags": "",
+   "cost_risk": "-",
+   "experiment": "-"
+  },
+  {
+   "group": "i",
+   "lever": "QPSK 9/10, t=8 BCH frontend kernel, today's descriptor engine",
+   "bb_mbps": 27.936782645273723,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 27.936782645273723,
+   "gain_pct": 8.09523809523811,
+   "bb_ext25": 24.133504492939664,
+   "rs": 16.0,
+   "binding": "e_afe",
+   "load": [
+    0.775,
+    0.788
+   ],
+   "esn0": 6.42,
+   "flags": "",
+   "cost_risk": "+1.24 dB Es/N0; ~300 B new kernel; SPI >= 29 MHz",
+   "experiment": "bench: bch128 kernel CRC vs dvbs2_bch on all t=8 frames; dualstream code 10, 60 s"
+  },
+  {
+   "group": "i",
+   "lever": "QPSK 9/10, PIO pointers + generic BCH sliced on core 0 (no frame-parallel, no faster kernel)",
+   "bb_mbps": 27.936782645273723,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 27.936782645273723,
+   "gain_pct": 8.09523809523811,
+   "bb_ext25": 24.133504492939664,
+   "rs": 16.0,
+   "binding": "e_afe",
+   "load": [
+    0.693,
+    0.788
+   ],
+   "esn0": 6.42,
+   "flags": "",
+   "cost_risk": "A1 pointer path + slice the generic BCH (<=256 us chunks) or IRQ supervision",
+   "experiment": "A1 pointer path at code index 10 with sliced generic BCH, before frame-parallel"
+  },
+  {
+   "group": "i",
+   "lever": "QPSK 9/10 via A1 alone (frame-parallel, existing BCH)",
+   "bb_mbps": 27.936782645273723,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 27.936782645273723,
+   "gain_pct": 8.09523809523811,
+   "bb_ext25": 24.133504492939664,
+   "rs": 16.0,
+   "binding": "e_afe",
+   "load": [
+    0.741,
+    0.741
+   ],
+   "esn0": 6.42,
+   "flags": "",
+   "cost_risk": "A1 scope; +49 KiB FEC context (est.)",
+   "experiment": "A1 run at code index 10"
+  },
+  {
+   "group": "i",
+   "lever": "QPSK 9/10 at SYS130 (16.25 Msym/s, 65.0 MS/s)",
+   "bb_mbps": 28.373294874106126,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 28.373294874106126,
+   "gain_pct": 9.784226190476208,
+   "bb_ext25": 24.133504492939664,
+   "rs": 16.25,
+   "binding": "e_afe",
+   "load": [
+    0.612,
+    0.612
+   ],
+   "esn0": 6.42,
+   "flags": "",
+   "cost_risk": "AFE at its 65 MSPS limit; PLL 12x130/(6x2); 7.69 ns DDR period",
+   "experiment": "PRBS writers + GP28 clock at SYS130"
+  },
+  {
+   "group": "ii",
+   "lever": "8PSK 2/3 N4 16 Msym/s: 4-level L7 R1, 2 chains/axis, frame-parallel FEC",
+   "bb_mbps": 30.970532576371994,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 30.86965684702433,
+   "gain_pct": 19.83366643494382,
+   "bb_ext25": 24.133504492939664,
+   "rs": 16.0,
+   "binding": "f_spi",
+   "load": [
+    0.811,
+    0.811
+   ],
+   "esn0": 6.62,
+   "flags": "DMA 77% > demonstrated 57%; needs 11 SMs / 17 DMA ch (limit 12/16); hypothetical",
+   "cost_risk": "DMA ~77% of slots and 16-cycle rows (unproven); 11 of 12 SMs; 128 KiB",
+   "experiment": "any 128 KiB table, R1 rows, 4 writers, 2 chains/axis, PRBS 16 Msym/s 60 s"
+  },
+  {
+   "group": "ii",
+   "lever": "8PSK 3/4 N4 16 Msym/s: 4-level L7 R1, 2 chains/axis, frame-parallel FEC",
+   "bb_mbps": 34.84040731729296,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 30.86965684702433,
+   "gain_pct": 34.80729589078126,
+   "bb_ext25": 24.133504492939664,
+   "rs": 16.0,
+   "binding": "f_spi",
+   "load": [
+    0.927,
+    0.927
+   ],
+   "esn0": 7.91,
+   "flags": "DMA 77% > demonstrated 57%; core load 93% > planning 90%; needs 11 SMs / 17 DMA ch (limit 12/16); hypothetical",
+   "cost_risk": "DMA ~77% of slots and 16-cycle rows (unproven); 11 of 12 SMs; 128 KiB",
+   "experiment": "any 128 KiB table, R1 rows, 4 writers, 2 chains/axis, PRBS 16 Msym/s 60 s"
+  },
+  {
+   "group": "ii",
+   "lever": "8PSK 5/6 N4 16 Msym/s: 4-level L7 R1, 2 chains/axis, frame-parallel FEC",
+   "bb_mbps": 38.75642065423087,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 30.86965684702433,
+   "gain_pct": 49.95944849959449,
+   "bb_ext25": 24.133504492939664,
+   "rs": 16.0,
+   "binding": "f_spi",
+   "load": [
+    0.905,
+    0.905
+   ],
+   "esn0": 9.35,
+   "flags": "DMA 77% > demonstrated 57%; core load 91% > planning 90%; needs 11 SMs / 17 DMA ch (limit 12/16); hypothetical",
+   "cost_risk": "DMA ~77% of slots and 16-cycle rows (unproven); 11 of 12 SMs; 128 KiB",
+   "experiment": "any 128 KiB table, R1 rows, 4 writers, 2 chains/axis, PRBS 16 Msym/s 60 s"
+  },
+  {
+   "group": "ii",
+   "lever": "8PSK 5/6 N4 via B1 as specified (1 chain/axis)",
+   "bb_mbps": 19.378210327115436,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 19.378210327115436,
+   "gain_pct": -25.020275750202757,
+   "bb_ext25": 19.378210327115436,
+   "rs": 8.0,
+   "binding": "c_dma_handoff",
+   "load": [
+    0.461,
+    0.461
+   ],
+   "esn0": 9.35,
+   "flags": "hypothetical",
+   "cost_risk": "B1 scope",
+   "experiment": "B1"
+  },
+  {
+   "group": "ii",
+   "lever": "8PSK 5/6 N2 today (2-plane software)",
+   "bb_mbps": 19.378210327115436,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 19.378210327115436,
+   "gain_pct": -25.020275750202757,
+   "bb_ext25": 19.378210327115436,
+   "rs": 8.0,
+   "binding": "ab_cpu",
+   "load": [
+    0.755,
+    0.889
+   ],
+   "esn0": 9.35,
+   "flags": "N2 image at 11.2 MHz (AFE tune0 ~4 dB), unqualified",
+   "cost_risk": "N2 images unqualified",
+   "experiment": "-"
+  },
+  {
+   "group": "ii",
+   "lever": "8PSK 5/6 N2 today at SYS150",
+   "bb_mbps": 22.7088402270884,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 22.7088402270884,
+   "gain_pct": -12.133135644768856,
+   "bb_ext25": 22.7088402270884,
+   "rs": 9.375,
+   "binding": "ab_cpu",
+   "load": [
+    0.755,
+    0.889
+   ],
+   "esn0": 9.35,
+   "flags": "N2 image at 13.1 MHz (AFE tune0 ~8 dB), unqualified",
+   "cost_risk": "150 MHz, fractional-free N2 grid",
+   "experiment": "-"
+  },
+  {
+   "group": "ii",
+   "lever": "16APSK 5/6 N2 today (split), SYS128",
+   "bb_mbps": 12.887450557353471,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 12.887450557353471,
+   "gain_pct": -50.13484358144552,
+   "bb_ext25": 12.887450557353471,
+   "rs": 4.0,
+   "binding": "ab_cpu",
+   "load": [
+    0.875,
+    0.813
+   ],
+   "esn0": 11.61,
+   "flags": "N2 image at 5.6 MHz (AFE tune0 ~0 dB), unqualified",
+   "cost_risk": "-",
+   "experiment": "-"
+  },
+  {
+   "group": "ii",
+   "lever": "16APSK 5/6 N2 today (split), SYS150",
+   "bb_mbps": 15.102481121898597,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 15.102481121898597,
+   "gain_pct": -41.56426982200647,
+   "bb_ext25": 15.102481121898597,
+   "rs": 4.6875,
+   "binding": "ab_cpu",
+   "load": [
+    0.875,
+    0.813
+   ],
+   "esn0": 11.61,
+   "flags": "N2 image at 6.6 MHz (AFE tune0 ~0 dB), unqualified",
+   "cost_risk": "-",
+   "experiment": "-"
+  },
+  {
+   "group": "ii",
+   "lever": "16APSK 5/6 N2 PL-job balance, SYS128",
+   "bb_mbps": 12.887450557353471,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 12.887450557353471,
+   "gain_pct": -50.13484358144552,
+   "bb_ext25": 12.887450557353471,
+   "rs": 4.0,
+   "binding": "ab_cpu",
+   "load": [
+    0.844,
+    0.844
+   ],
+   "esn0": 11.61,
+   "flags": "N2 image at 5.6 MHz (AFE tune0 ~0 dB), unqualified",
+   "cost_risk": "two FE slots + job ownership (next-experiments.md #1)",
+   "experiment": "next-experiments.md #1"
+  },
+  {
+   "group": "ii",
+   "lever": "16APSK 5/6 N2 PL-job balance, SYS150",
+   "bb_mbps": 15.102481121898597,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 15.102481121898597,
+   "gain_pct": -41.56426982200647,
+   "bb_ext25": 15.102481121898597,
+   "rs": 4.6875,
+   "binding": "ab_cpu",
+   "load": [
+    0.844,
+    0.844
+   ],
+   "esn0": 11.61,
+   "flags": "N2 image at 6.6 MHz (AFE tune0 ~0 dB), unqualified",
+   "cost_risk": "as above",
+   "experiment": "as above"
+  },
+  {
+   "group": "ii",
+   "lever": "32APSK 5/6 N2 today (split), SYS128",
+   "bb_mbps": 10.74823811665917,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 10.74823811665917,
+   "gain_pct": -58.412055780476834,
+   "bb_ext25": 10.74823811665917,
+   "rs": 2.6666666666666665,
+   "binding": "ab_cpu",
+   "load": [
+    0.895,
+    0.89
+   ],
+   "esn0": 14.28,
+   "flags": "N2 image at 3.7 MHz (AFE tune0 ~0 dB), unqualified",
+   "cost_risk": "-",
+   "experiment": "-"
+  },
+  {
+   "group": "ii",
+   "lever": "32APSK 5/6 N2 today (split), SYS150",
+   "bb_mbps": 12.595591542959964,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 12.595591542959964,
+   "gain_pct": -51.26412786774629,
+   "bb_ext25": 12.595591542959964,
+   "rs": 3.125,
+   "binding": "ab_cpu",
+   "load": [
+    0.895,
+    0.89
+   ],
+   "esn0": 14.28,
+   "flags": "N2 image at 4.4 MHz (AFE tune0 ~0 dB), unqualified",
+   "cost_risk": "-",
+   "experiment": "-"
+  },
+  {
+   "group": "ii",
+   "lever": "32APSK 5/6 N2 PL-job balance, SYS128",
+   "bb_mbps": 10.74823811665917,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 10.74823811665917,
+   "gain_pct": -58.412055780476834,
+   "bb_ext25": 10.74823811665917,
+   "rs": 2.6666666666666665,
+   "binding": "ab_cpu",
+   "load": [
+    0.893,
+    0.893
+   ],
+   "esn0": 14.28,
+   "flags": "N2 image at 3.7 MHz (AFE tune0 ~0 dB), unqualified",
+   "cost_risk": "two FE slots + job ownership (next-experiments.md #1)",
+   "experiment": "next-experiments.md #1"
+  },
+  {
+   "group": "ii",
+   "lever": "32APSK 5/6 N2 PL-job balance, SYS150",
+   "bb_mbps": 12.595591542959964,
+   "ref_mbps": 25.844600685054985,
+   "bb_onchip": 12.595591542959964,
+   "gain_pct": -51.26412786774629,
+   "bb_ext25": 12.595591542959964,
+   "rs": 3.125,
+   "binding": "ab_cpu",
+   "load": [
+    0.893,
+    0.893
+   ],
+   "esn0": 14.28,
+   "flags": "N2 image at 4.4 MHz (AFE tune0 ~0 dB), unqualified",
+   "cost_risk": "as above",
+   "experiment": "as above"
+  }
+ ],
+ "hw_apsk": {
+  "levels": {
+   "QPSK": 2,
+   "8PSK (native)": 5,
+   "8PSK/QPSK/headers, pi/8 rotated": 4,
+   "16APSK 2/3 (R2=1)": 8,
+   "16APSK 3/4 (R2=1)": 8,
+   "16APSK 4/5 (R2=1)": 8,
+   "16APSK 5/6 (R2=1)": 8,
+   "16APSK 8/9 (R2=1)": 8,
+   "16APSK 9/10 (R2=1)": 8,
+   "16APSK 5/6 (E=1, unit headers)": 10,
+   "32APSK 3/4 (R3=1)": 17,
+   "32APSK 4/5 (R3=1)": 17,
+   "32APSK 5/6 (R3=1)": 17,
+   "32APSK 8/9 (R3=1)": 17,
+   "32APSK 9/10 (R3=1)": 17
+  },
+  "full_history": [
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 5,
+    "R": 1,
+    "dense_bytes": 128,
+    "pio_bytes": 128
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 5,
+    "R": 2,
+    "dense_bytes": 512,
+    "pio_bytes": 512
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 5,
+    "R": 4,
+    "dense_bytes": 4096,
+    "pio_bytes": 4096
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 6,
+    "R": 1,
+    "dense_bytes": 256,
+    "pio_bytes": 256
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 6,
+    "R": 2,
+    "dense_bytes": 1024,
+    "pio_bytes": 1024
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 6,
+    "R": 4,
+    "dense_bytes": 8192,
+    "pio_bytes": 8192
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 7,
+    "R": 1,
+    "dense_bytes": 512,
+    "pio_bytes": 512
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 7,
+    "R": 2,
+    "dense_bytes": 2048,
+    "pio_bytes": 2048
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 7,
+    "R": 4,
+    "dense_bytes": 16384,
+    "pio_bytes": 16384
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 8,
+    "R": 1,
+    "dense_bytes": 1024,
+    "pio_bytes": 1024
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 8,
+    "R": 2,
+    "dense_bytes": 4096,
+    "pio_bytes": 4096
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 8,
+    "R": 4,
+    "dense_bytes": 32768,
+    "pio_bytes": 32768
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 9,
+    "R": 1,
+    "dense_bytes": 2048,
+    "pio_bytes": 2048
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 9,
+    "R": 2,
+    "dense_bytes": 8192,
+    "pio_bytes": 8192
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 2,
+    "L": 9,
+    "R": 4,
+    "dense_bytes": 65536,
+    "pio_bytes": 65536
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 5,
+    "R": 1,
+    "dense_bytes": 256,
+    "pio_bytes": 256
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 5,
+    "R": 2,
+    "dense_bytes": 1024,
+    "pio_bytes": 1024
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 5,
+    "R": 4,
+    "dense_bytes": 8192,
+    "pio_bytes": 8192
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 6,
+    "R": 1,
+    "dense_bytes": 512,
+    "pio_bytes": 512
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 6,
+    "R": 2,
+    "dense_bytes": 2048,
+    "pio_bytes": 2048
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 6,
+    "R": 4,
+    "dense_bytes": 16384,
+    "pio_bytes": 16384
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 7,
+    "R": 1,
+    "dense_bytes": 1024,
+    "pio_bytes": 1024
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 7,
+    "R": 2,
+    "dense_bytes": 4096,
+    "pio_bytes": 4096
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 7,
+    "R": 4,
+    "dense_bytes": 32768,
+    "pio_bytes": 32768
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 8,
+    "R": 1,
+    "dense_bytes": 2048,
+    "pio_bytes": 2048
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 8,
+    "R": 2,
+    "dense_bytes": 8192,
+    "pio_bytes": 8192
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 8,
+    "R": 4,
+    "dense_bytes": 65536,
+    "pio_bytes": 65536
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 9,
+    "R": 1,
+    "dense_bytes": 4096,
+    "pio_bytes": 4096
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 9,
+    "R": 2,
+    "dense_bytes": 16384,
+    "pio_bytes": 16384
+   },
+   {
+    "alphabet": "2-level (QPSK)",
+    "N": 4,
+    "L": 9,
+    "R": 4,
+    "dense_bytes": 131072,
+    "pio_bytes": 131072
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 5,
+    "R": 1,
+    "dense_bytes": 4096,
+    "pio_bytes": 4096
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 5,
+    "R": 2,
+    "dense_bytes": 32768,
+    "pio_bytes": 32768
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 5,
+    "R": 4,
+    "dense_bytes": 1048576,
+    "pio_bytes": 1048576
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 6,
+    "R": 1,
+    "dense_bytes": 16384,
+    "pio_bytes": 16384
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 6,
+    "R": 2,
+    "dense_bytes": 131072,
+    "pio_bytes": 131072
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 6,
+    "R": 4,
+    "dense_bytes": 4194304,
+    "pio_bytes": 4194304
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 7,
+    "R": 1,
+    "dense_bytes": 65536,
+    "pio_bytes": 65536
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 7,
+    "R": 2,
+    "dense_bytes": 524288,
+    "pio_bytes": 524288
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 7,
+    "R": 4,
+    "dense_bytes": 16777216,
+    "pio_bytes": 16777216
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 8,
+    "R": 1,
+    "dense_bytes": 262144,
+    "pio_bytes": 262144
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 8,
+    "R": 2,
+    "dense_bytes": 2097152,
+    "pio_bytes": 2097152
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 8,
+    "R": 4,
+    "dense_bytes": 67108864,
+    "pio_bytes": 67108864
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 9,
+    "R": 1,
+    "dense_bytes": 1048576,
+    "pio_bytes": 1048576
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 9,
+    "R": 2,
+    "dense_bytes": 8388608,
+    "pio_bytes": 8388608
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 2,
+    "L": 9,
+    "R": 4,
+    "dense_bytes": 268435456,
+    "pio_bytes": 268435456
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 5,
+    "R": 1,
+    "dense_bytes": 8192,
+    "pio_bytes": 8192
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 5,
+    "R": 2,
+    "dense_bytes": 65536,
+    "pio_bytes": 65536
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 5,
+    "R": 4,
+    "dense_bytes": 2097152,
+    "pio_bytes": 2097152
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 6,
+    "R": 1,
+    "dense_bytes": 32768,
+    "pio_bytes": 32768
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 6,
+    "R": 2,
+    "dense_bytes": 262144,
+    "pio_bytes": 262144
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 6,
+    "R": 4,
+    "dense_bytes": 8388608,
+    "pio_bytes": 8388608
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 7,
+    "R": 1,
+    "dense_bytes": 131072,
+    "pio_bytes": 131072
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 7,
+    "R": 2,
+    "dense_bytes": 1048576,
+    "pio_bytes": 1048576
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 7,
+    "R": 4,
+    "dense_bytes": 33554432,
+    "pio_bytes": 33554432
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 8,
+    "R": 1,
+    "dense_bytes": 524288,
+    "pio_bytes": 524288
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 8,
+    "R": 2,
+    "dense_bytes": 4194304,
+    "pio_bytes": 4194304
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 8,
+    "R": 4,
+    "dense_bytes": 134217728,
+    "pio_bytes": 134217728
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 9,
+    "R": 1,
+    "dense_bytes": 2097152,
+    "pio_bytes": 2097152
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 9,
+    "R": 2,
+    "dense_bytes": 16777216,
+    "pio_bytes": 16777216
+   },
+   {
+    "alphabet": "4-level (QPSK/8PSK pi/8)",
+    "N": 4,
+    "L": 9,
+    "R": 4,
+    "dense_bytes": 536870912,
+    "pio_bytes": 536870912
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 5,
+    "R": 1,
+    "dense_bytes": 131072,
+    "pio_bytes": 131072
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 5,
+    "R": 2,
+    "dense_bytes": 2097152,
+    "pio_bytes": 2097152
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 5,
+    "R": 4,
+    "dense_bytes": 268435456,
+    "pio_bytes": 268435456
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 6,
+    "R": 1,
+    "dense_bytes": 1048576,
+    "pio_bytes": 1048576
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 6,
+    "R": 2,
+    "dense_bytes": 16777216,
+    "pio_bytes": 16777216
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 6,
+    "R": 4,
+    "dense_bytes": 2147483648,
+    "pio_bytes": 2147483648
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 7,
+    "R": 1,
+    "dense_bytes": 8388608,
+    "pio_bytes": 8388608
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 7,
+    "R": 2,
+    "dense_bytes": 134217728,
+    "pio_bytes": 134217728
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 7,
+    "R": 4,
+    "dense_bytes": 17179869184,
+    "pio_bytes": 17179869184
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 8,
+    "R": 1,
+    "dense_bytes": 67108864,
+    "pio_bytes": 67108864
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 8,
+    "R": 2,
+    "dense_bytes": 1073741824,
+    "pio_bytes": 1073741824
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 8,
+    "R": 4,
+    "dense_bytes": 137438953472,
+    "pio_bytes": 137438953472
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 9,
+    "R": 1,
+    "dense_bytes": 536870912,
+    "pio_bytes": 536870912
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 9,
+    "R": 2,
+    "dense_bytes": 8589934592,
+    "pio_bytes": 8589934592
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 2,
+    "L": 9,
+    "R": 4,
+    "dense_bytes": 1099511627776,
+    "pio_bytes": 1099511627776
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 5,
+    "R": 1,
+    "dense_bytes": 262144,
+    "pio_bytes": 262144
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 5,
+    "R": 2,
+    "dense_bytes": 4194304,
+    "pio_bytes": 4194304
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 5,
+    "R": 4,
+    "dense_bytes": 536870912,
+    "pio_bytes": 536870912
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 6,
+    "R": 1,
+    "dense_bytes": 2097152,
+    "pio_bytes": 2097152
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 6,
+    "R": 2,
+    "dense_bytes": 33554432,
+    "pio_bytes": 33554432
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 6,
+    "R": 4,
+    "dense_bytes": 4294967296,
+    "pio_bytes": 4294967296
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 7,
+    "R": 1,
+    "dense_bytes": 16777216,
+    "pio_bytes": 16777216
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 7,
+    "R": 2,
+    "dense_bytes": 268435456,
+    "pio_bytes": 268435456
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 7,
+    "R": 4,
+    "dense_bytes": 34359738368,
+    "pio_bytes": 34359738368
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 8,
+    "R": 1,
+    "dense_bytes": 134217728,
+    "pio_bytes": 134217728
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 8,
+    "R": 2,
+    "dense_bytes": 2147483648,
+    "pio_bytes": 2147483648
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 8,
+    "R": 4,
+    "dense_bytes": 274877906944,
+    "pio_bytes": 274877906944
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 9,
+    "R": 1,
+    "dense_bytes": 1073741824,
+    "pio_bytes": 1073741824
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 9,
+    "R": 2,
+    "dense_bytes": 17179869184,
+    "pio_bytes": 17179869184
+   },
+   {
+    "alphabet": "8-level (16APSK)",
+    "N": 4,
+    "L": 9,
+    "R": 4,
+    "dense_bytes": 2199023255552,
+    "pio_bytes": 2199023255552
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 5,
+    "R": 1,
+    "dense_bytes": 5679428,
+    "pio_bytes": 134217728
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 5,
+    "R": 2,
+    "dense_bytes": 193100552,
+    "pio_bytes": 8589934592
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 5,
+    "R": 4,
+    "dense_bytes": 111612119056,
+    "pio_bytes": 17592186044416
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 6,
+    "R": 1,
+    "dense_bytes": 96550276,
+    "pio_bytes": 4294967296
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 6,
+    "R": 2,
+    "dense_bytes": 3282709384,
+    "pio_bytes": 274877906944
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 6,
+    "R": 4,
+    "dense_bytes": 1897406023952,
+    "pio_bytes": 562949953421312
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 7,
+    "R": 1,
+    "dense_bytes": 1641354692,
+    "pio_bytes": 137438953472
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 7,
+    "R": 2,
+    "dense_bytes": 55806059528,
+    "pio_bytes": 8796093022208
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 7,
+    "R": 4,
+    "dense_bytes": 32255902407184,
+    "pio_bytes": 18014398509481984
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 8,
+    "R": 1,
+    "dense_bytes": 27903029764,
+    "pio_bytes": 4398046511104
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 8,
+    "R": 2,
+    "dense_bytes": 948703011976,
+    "pio_bytes": 281474976710656
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 8,
+    "R": 4,
+    "dense_bytes": 548350340922128,
+    "pio_bytes": 576460752303423488
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 9,
+    "R": 1,
+    "dense_bytes": 474351505988,
+    "pio_bytes": 140737488355328
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 9,
+    "R": 2,
+    "dense_bytes": 16127951203592,
+    "pio_bytes": 9007199254740992
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 2,
+    "L": 9,
+    "R": 4,
+    "dense_bytes": 9321955795676176,
+    "pio_bytes": 18446744073709551616
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 5,
+    "R": 1,
+    "dense_bytes": 11358856,
+    "pio_bytes": 268435456
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 5,
+    "R": 2,
+    "dense_bytes": 386201104,
+    "pio_bytes": 17179869184
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 5,
+    "R": 4,
+    "dense_bytes": 223224238112,
+    "pio_bytes": 35184372088832
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 6,
+    "R": 1,
+    "dense_bytes": 193100552,
+    "pio_bytes": 8589934592
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 6,
+    "R": 2,
+    "dense_bytes": 6565418768,
+    "pio_bytes": 549755813888
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 6,
+    "R": 4,
+    "dense_bytes": 3794812047904,
+    "pio_bytes": 1125899906842624
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 7,
+    "R": 1,
+    "dense_bytes": 3282709384,
+    "pio_bytes": 274877906944
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 7,
+    "R": 2,
+    "dense_bytes": 111612119056,
+    "pio_bytes": 17592186044416
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 7,
+    "R": 4,
+    "dense_bytes": 64511804814368,
+    "pio_bytes": 36028797018963968
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 8,
+    "R": 1,
+    "dense_bytes": 55806059528,
+    "pio_bytes": 8796093022208
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 8,
+    "R": 2,
+    "dense_bytes": 1897406023952,
+    "pio_bytes": 562949953421312
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 8,
+    "R": 4,
+    "dense_bytes": 1096700681844256,
+    "pio_bytes": 1152921504606846976
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 9,
+    "R": 1,
+    "dense_bytes": 948703011976,
+    "pio_bytes": 281474976710656
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 9,
+    "R": 2,
+    "dense_bytes": 32255902407184,
+    "pio_bytes": 18014398509481984
+   },
+   {
+    "alphabet": "17-level (32APSK)",
+    "N": 4,
+    "L": 9,
+    "R": 4,
+    "dense_bytes": 18643911591352352,
+    "pio_bytes": 36893488147419103232
+   }
+  ],
+  "partial": [
+   {
+    "scheme": "16APSK measured (3+4+4)",
+    "chunks": [
+     3,
+     4,
+     4
+    ],
+    "bytes": 139264,
+    "adds_per_output_word": 2,
+    "words_per_symbol": 2,
+    "src": "results/apsk-dual/2026-10-15/README.md 139,264 B"
+   },
+   {
+    "scheme": "16APSK L7 R1 N2 (4+3)",
+    "chunks": [
+     4,
+     3
+    ],
+    "bytes": 18432,
+    "adds_per_output_word": 1,
+    "words_per_symbol": 2,
+    "src": "this note"
+   },
+   {
+    "scheme": "16APSK L7 R1 N4 (4+3)",
+    "chunks": [
+     4,
+     3
+    ],
+    "bytes": 36864,
+    "adds_per_output_word": 1,
+    "words_per_symbol": 4,
+    "src": "this note"
+   },
+   {
+    "scheme": "16APSK L8 R4 N4 (3+4+4)",
+    "chunks": [
+     3,
+     4,
+     4
+    ],
+    "bytes": 278528,
+    "adds_per_output_word": 2,
+    "words_per_symbol": 4,
+    "src": "this note"
+   },
+   {
+    "scheme": "32APSK measured (3+3+3)",
+    "chunks": [
+     3,
+     3,
+     3
+    ],
+    "bytes": 117912,
+    "adds_per_output_word": 2,
+    "words_per_symbol": 2,
+    "src": "results/apsk-frontier/2026-10-15/README.md 117,912 B"
+   },
+   {
+    "scheme": "32APSK L7 R1 N2 (3+2+2)",
+    "chunks": [
+     3,
+     2,
+     2
+    ],
+    "bytes": 21964,
+    "adds_per_output_word": 2,
+    "words_per_symbol": 2,
+    "src": "this note"
+   },
+   {
+    "scheme": "32APSK L8 R2 N4 (3+3+3)",
+    "chunks": [
+     3,
+     3,
+     3
+    ],
+    "bytes": 235824,
+    "adds_per_output_word": 2,
+    "words_per_symbol": 4,
+    "src": "this note"
+   }
+  ],
+  "sniffer": [
+   {
+    "S": 2,
+    "N": 2,
+    "transfers_per_output_word": 6,
+    "rs_bw_bound_msym": 10.666666666666666
+   },
+   {
+    "S": 2,
+    "N": 4,
+    "transfers_per_output_word": 6,
+    "rs_bw_bound_msym": 5.333333333333333
+   },
+   {
+    "S": 3,
+    "N": 2,
+    "transfers_per_output_word": 8,
+    "rs_bw_bound_msym": 8.0
+   },
+   {
+    "S": 3,
+    "N": 4,
+    "transfers_per_output_word": 8,
+    "rs_bw_bound_msym": 4.0
+   }
+  ],
+  "sniffer_src": "docs/sources/rp2350.txt line 85588 (SNIFF_CTRL.CALC 0xf SUM, p1135); one sniffer, observes one channel; PV-SPI already uses it for message CRC-32 (firmware/src/pvspi.c slot_crc, docs/pv-spi-spec.md)",
+  "sio_src": "docs/sources/rp2350.txt line 43724 (p596 'The DMA cannot access registers in the SIO') and line 83218 (\u00a712.6.7 p1104 'SIO is not visible from the DMA bus ports'): interpolator adders are CPU-only"
+ },
+ "apsk_mapper_sensitivity": [
+  {
+   "mod": "16APSK",
+   "map_cyc_per_sym": 17.25186951385088,
+   "rs": 4.0,
+   "bb": 12.887450557353471,
+   "binding": "ab_cpu",
+   "rs_limit": 4.563540883717872
+  },
+  {
+   "mod": "16APSK",
+   "map_cyc_per_sym": 12.0,
+   "rs": 4.571428571428572,
+   "bb": 14.728514922689682,
+   "binding": "ab_cpu",
+   "rs_limit": 5.05509225472101
+  },
+  {
+   "mod": "16APSK",
+   "map_cyc_per_sym": 8.0,
+   "rs": 5.333333333333333,
+   "bb": 17.18326740980463,
+   "binding": "ab_cpu",
+   "rs_limit": 5.5068620911483
+  },
+  {
+   "mod": "16APSK",
+   "map_cyc_per_sym": 4.0,
+   "rs": 5.333333333333333,
+   "bb": 17.18326740980463,
+   "binding": "ab_cpu",
+   "rs_limit": 6.04730526676837
+  },
+  {
+   "mod": "16APSK",
+   "map_cyc_per_sym": 2.2,
+   "rs": 5.333333333333333,
+   "bb": 17.18326740980463,
+   "binding": "ab_cpu",
+   "rs_limit": 6.326711695798568
+  },
+  {
+   "mod": "32APSK",
+   "map_cyc_per_sym": 31.75836491303593,
+   "rs": 2.6666666666666665,
+   "bb": 10.74823811665917,
+   "binding": "ab_cpu",
+   "rs_limit": 2.8765828999008445
+  },
+  {
+   "mod": "32APSK",
+   "map_cyc_per_sym": 12.0,
+   "rs": 3.5555555555555554,
+   "bb": 14.33098415554556,
+   "binding": "ab_cpu",
+   "rs_limit": 3.7387160174061473
+  },
+  {
+   "mod": "32APSK",
+   "map_cyc_per_sym": 8.0,
+   "rs": 3.5555555555555554,
+   "bb": 14.33098415554556,
+   "binding": "ab_cpu",
+   "rs_limit": 3.980213608597901
+  },
+  {
+   "mod": "32APSK",
+   "map_cyc_per_sym": 4.0,
+   "rs": 4.0,
+   "bb": 16.122357174988753,
+   "binding": "ab_cpu",
+   "rs_limit": 4.255064041644917
+  },
+  {
+   "mod": "32APSK",
+   "map_cyc_per_sym": 2.2,
+   "rs": 4.0,
+   "bb": 16.122357174988753,
+   "binding": "ab_cpu",
+   "rs_limit": 4.391528081294331
+  }
+ ],
+ "fec_caps": [
+  {
+   "mod": "QPSK",
+   "rate": "2/3",
+   "fec": "meas",
+   "c_sym": 9.172437872486128,
+   "c_per_bb_bit": 7.106077217692815,
+   "rs_cap": 26.871460284221484,
+   "bb_cap": 34.68535345863094
+  },
+  {
+   "mod": "QPSK",
+   "rate": "2/3",
+   "fec": "bchT",
+   "c_sym": 9.172437872486128,
+   "c_per_bb_bit": 7.106077217692815,
+   "rs_cap": 26.871460284221484,
+   "bb_cap": 34.68535345863094
+  },
+  {
+   "mod": "QPSK",
+   "rate": "3/4",
+   "fec": "meas",
+   "c_sym": 10.983014873684196,
+   "c_per_bb_bit": 7.563662908168296,
+   "rs_cap": 22.441633998927713,
+   "bb_cap": 32.586962559346745
+  },
+  {
+   "mod": "QPSK",
+   "rate": "3/4",
+   "fec": "bchT",
+   "c_sym": 10.40011363168522,
+   "c_per_bb_bit": 7.1622368376458265,
+   "rs_cap": 23.699433364754615,
+   "bb_cap": 34.41338307949825
+  },
+  {
+   "mod": "QPSK",
+   "rate": "4/5",
+   "fec": "meas",
+   "c_sym": 11.2670440503764,
+   "c_per_bb_bit": 7.271753026772948,
+   "rs_cap": 21.87590630674475,
+   "bb_cap": 33.89510054762975
+  },
+  {
+   "mod": "QPSK",
+   "rate": "4/5",
+   "fec": "bchT",
+   "c_sym": 10.65417091010583,
+   "c_per_bb_bit": 6.876204549917434,
+   "rs_cap": 23.1343013059992,
+   "bb_cap": 35.844890623993955
+  },
+  {
+   "mod": "QPSK",
+   "rate": "5/6",
+   "fec": "meas",
+   "c_sym": 10.175199999999998,
+   "c_per_bb_bit": 6.299311874999999,
+   "rs_cap": 24.223287994339184,
+   "bb_cap": 39.12757534329892
+  },
+  {
+   "mod": "QPSK",
+   "rate": "5/6",
+   "fec": "bchT",
+   "c_sym": 10.175199999999998,
+   "c_per_bb_bit": 6.299311874999999,
+   "rs_cap": 24.223287994339184,
+   "bb_cap": 39.12757534329892
+  },
+  {
+   "mod": "QPSK",
+   "rate": "8/9",
+   "fec": "meas",
+   "c_sym": 11.317059252465802,
+   "c_per_bb_bit": 6.562837434495519,
+   "rs_cap": 21.779226785111756,
+   "bb_cap": 37.55643842470806
+  },
+  {
+   "mod": "QPSK",
+   "rate": "8/9",
+   "fec": "bchT",
+   "c_sym": 9.258125465908572,
+   "c_per_bb_bit": 5.36884812789882,
+   "rs_cap": 26.622754347800505,
+   "bb_cap": 45.90869291295495
+  },
+  {
+   "mod": "QPSK",
+   "rate": "9/10",
+   "fec": "meas",
+   "c_sym": 11.582237524969148,
+   "c_per_bb_bit": 6.633398081394948,
+   "rs_cap": 21.280585851278037,
+   "bb_cap": 37.156943843202605
+  },
+  {
+   "mod": "QPSK",
+   "rate": "9/10",
+   "fec": "bchT",
+   "c_sym": 9.529890112149985,
+   "c_per_bb_bit": 5.45797430328634,
+   "rs_cap": 25.86355111123036,
+   "bb_cap": 45.15902536433564
+  },
+  {
+   "mod": "8PSK",
+   "rate": "3/5",
+   "fec": "meas",
+   "c_sym": 15.801605486843815,
+   "c_per_bb_bit": 9.083631169058528,
+   "rs_cap": 15.598212485763739,
+   "bb_cap": 27.13417084123486
+  },
+  {
+   "mod": "8PSK",
+   "rate": "3/5",
+   "fec": "bchT",
+   "c_sym": 15.049972612859033,
+   "c_per_bb_bit": 8.651551289105713,
+   "rs_cap": 16.377225815640667,
+   "bb_cap": 28.48931847752793
+  },
+  {
+   "mod": "8PSK",
+   "rate": "2/3",
+   "fec": "meas",
+   "c_sym": 12.71288805175262,
+   "c_per_bb_bit": 6.567733645730857,
+   "rs_cap": 19.38794701853921,
+   "bb_cap": 37.52844029541519
+  },
+  {
+   "mod": "8PSK",
+   "rate": "2/3",
+   "fec": "bchT",
+   "c_sym": 12.71288805175262,
+   "c_per_bb_bit": 6.567733645730857,
+   "rs_cap": 19.38794701853921,
+   "bb_cap": 37.52844029541519
+  },
+  {
+   "mod": "8PSK",
+   "rate": "3/4",
+   "fec": "meas",
+   "c_sym": 15.428019337409738,
+   "c_per_bb_bit": 7.085115485318484,
+   "rs_cap": 15.975919825453227,
+   "bb_cap": 34.787972124200394
+  },
+  {
+   "mod": "8PSK",
+   "rate": "3/4",
+   "fec": "bchT",
+   "c_sym": 14.55390384961079,
+   "c_per_bb_bit": 6.683689414796016,
+   "rs_cap": 16.935442376623328,
+   "bb_cap": 36.877356906256296
+  },
+  {
+   "mod": "8PSK",
+   "rate": "5/6",
+   "fec": "meas",
+   "c_sym": 14.216624607935222,
+   "c_per_bb_bit": 5.869117681333972,
+   "rs_cap": 17.337223623561478,
+   "bb_cap": 41.99554573320109
+  },
+  {
+   "mod": "8PSK",
+   "rate": "5/6",
+   "fec": "bchT",
+   "c_sym": 14.216624607935222,
+   "c_per_bb_bit": 5.869117681333972,
+   "rs_cap": 17.337223623561478,
+   "bb_cap": 41.99554573320109
+  },
+  {
+   "mod": "8PSK",
+   "rate": "8/9",
+   "fec": "meas",
+   "c_sym": 15.92895044557453,
+   "c_per_bb_bit": 6.159867685201442,
+   "rs_cap": 15.473511631676747,
+   "bb_cap": 40.013327005730915
+  },
+  {
+   "mod": "8PSK",
+   "rate": "8/9",
+   "fec": "bchT",
+   "c_sym": 12.84138469428149,
+   "c_per_bb_bit": 4.965878378604743,
+   "rs_cap": 19.19394254342063,
+   "bb_cap": 49.63407905073428
+  },
+  {
+   "mod": "8PSK",
+   "rate": "9/10",
+   "fec": "meas",
+   "c_sym": 16.3266103205613,
+   "c_per_bb_bit": 6.23542107403871,
+   "rs_cap": 15.096630296222214,
+   "bb_cap": 39.52849327629383
+  },
+  {
+   "mod": "8PSK",
+   "rate": "9/10",
+   "fec": "bchT",
+   "c_sym": 13.24892145900199,
+   "c_per_bb_bit": 5.059997295930104,
+   "rs_cap": 18.603536956778555,
+   "bb_cap": 48.71085607066394
+  },
+  {
+   "mod": "16APSK",
+   "rate": "2/3",
+   "fec": "meas",
+   "c_sym": 31.227074935529338,
+   "c_per_bb_bit": 12.128840139065234,
+   "rs_cap": 7.893047956264557,
+   "bb_cap": 20.321547417063726
+  },
+  {
+   "mod": "16APSK",
+   "rate": "2/3",
+   "fec": "bchT",
+   "c_sym": 31.227074935529338,
+   "c_per_bb_bit": 12.128840139065234,
+   "rs_cap": 7.893047956264557,
+   "bb_cap": 20.321547417063726
+  },
+  {
+   "mod": "16APSK",
+   "rate": "3/4",
+   "fec": "meas",
+   "c_sym": 34.838463150432496,
+   "c_per_bb_bit": 12.02852582619013,
+   "rs_cap": 7.074847100336002,
+   "bb_cap": 20.491023053160635
+  },
+  {
+   "mod": "16APSK",
+   "rate": "3/4",
+   "fec": "bchT",
+   "c_sym": 33.67580468607855,
+   "c_per_bb_bit": 11.62709975566766,
+   "rs_cap": 7.319106471177883,
+   "bb_cap": 21.19847641969824
+  },
+  {
+   "mod": "16APSK",
+   "rate": "4/5",
+   "fec": "meas",
+   "c_sym": 35.4049895233601,
+   "c_per_bb_bit": 11.456090117646344,
+   "rs_cap": 6.961640246705211,
+   "bb_cap": 21.514914553643433
+  },
+  {
+   "mod": "16APSK",
+   "rate": "4/5",
+   "fec": "bchT",
+   "c_sym": 34.18254892318719,
+   "c_per_bb_bit": 11.060541640790827,
+   "rs_cap": 7.210603298012289,
+   "bb_cap": 22.284333625308506
+  },
+  {
+   "mod": "16APSK",
+   "rate": "5/6",
+   "fec": "meas",
+   "c_sym": 33.227190549092604,
+   "c_per_bb_bit": 10.31303760234671,
+   "rs_cap": 7.417924775669334,
+   "bb_cap": 23.89953469615147
+  },
+  {
+   "mod": "16APSK",
+   "rate": "5/6",
+   "fec": "bchT",
+   "c_sym": 33.227190549092604,
+   "c_per_bb_bit": 10.31303760234671,
+   "rs_cap": 7.417924775669334,
+   "bb_cap": 23.89953469615147
+  },
+  {
+   "mod": "16APSK",
+   "rate": "8/9",
+   "fec": "meas",
+   "c_sym": 35.50475015837984,
+   "c_per_bb_bit": 10.322558216175182,
+   "rs_cap": 6.94207954993387,
+   "bb_cap": 23.87749188120608
+  },
+  {
+   "mod": "16APSK",
+   "rate": "8/9",
+   "fec": "bchT",
+   "c_sym": 31.397987945494926,
+   "c_per_bb_bit": 9.128568909578483,
+   "rs_cap": 7.850082636755875,
+   "bb_cap": 27.00059587011226
+  },
+  {
+   "mod": "16APSK",
+   "rate": "9/10",
+   "fec": "meas",
+   "c_sym": 36.0336763998671,
+   "c_per_bb_bit": 10.346536419468997,
+   "rs_cap": 6.840179094268302,
+   "bb_cap": 23.822155551127864
+  },
+  {
+   "mod": "16APSK",
+   "rate": "9/10",
+   "fec": "bchT",
+   "c_sym": 31.940051409249374,
+   "c_per_bb_bit": 9.171112641360393,
+   "rs_cap": 7.716856708897591,
+   "bb_cap": 26.87534322590536
+  },
+  {
+   "mod": "32APSK",
+   "rate": "3/4",
+   "fec": "meas",
+   "c_sym": 53.75940715475139,
+   "c_per_bb_bit": 14.837009034722607,
+   "rs_cap": 4.5848124643654256,
+   "bb_cap": 16.612296954404883
+  },
+  {
+   "mod": "32APSK",
+   "rate": "3/4",
+   "fec": "bchT",
+   "c_sym": 52.304907294486746,
+   "c_per_bb_bit": 14.435582964200137,
+   "rs_cap": 4.712307367495901,
+   "bb_cap": 17.07425329557219
+  },
+  {
+   "mod": "32APSK",
+   "rate": "4/5",
+   "fec": "meas",
+   "c_sym": 54.46813852817094,
+   "c_per_bb_bit": 14.088117275999535,
+   "rs_cap": 4.525155561769788,
+   "bb_cap": 17.4953682718057
+  },
+  {
+   "mod": "32APSK",
+   "rate": "4/5",
+   "fec": "bchT",
+   "c_sym": 52.938850489897945,
+   "c_per_bb_bit": 13.69256879914402,
+   "rs_cap": 4.655877445752887,
+   "bb_cap": 18.000771339225135
+  },
+  {
+   "mod": "32APSK",
+   "rate": "5/6",
+   "fec": "meas",
+   "c_sym": 51.74368556036262,
+   "c_per_bb_bit": 12.837746986683717,
+   "rs_cap": 4.763417938454879,
+   "bb_cap": 19.199381344379535
+  },
+  {
+   "mod": "32APSK",
+   "rate": "5/6",
+   "fec": "bchT",
+   "c_sym": 51.74368556036262,
+   "c_per_bb_bit": 12.837746986683717,
+   "rs_cap": 4.763417938454879,
+   "bb_cap": 19.199381344379535
+  },
+  {
+   "mod": "32APSK",
+   "rate": "8/9",
+   "fec": "meas",
+   "c_sym": 54.59294029424828,
+   "c_per_bb_bit": 12.687493686309653,
+   "rs_cap": 4.514810865132463,
+   "bb_cap": 19.426752524492603
+  },
+  {
+   "mod": "32APSK",
+   "rate": "8/9",
+   "fec": "bchT",
+   "c_sym": 49.45533088622625,
+   "c_per_bb_bit": 11.493504379712952,
+   "rs_cap": 4.983826729762028,
+   "bb_cap": 21.44487806826378
+  },
+  {
+   "mod": "32APSK",
+   "rate": "9/10",
+   "fec": "meas",
+   "c_sym": 55.254633446554195,
+   "c_per_bb_bit": 12.682170651675039,
+   "rs_cap": 4.460744459347614,
+   "bb_cap": 19.434906434368614
+  },
+  {
+   "mod": "32APSK",
+   "rate": "9/10",
+   "fec": "bchT",
+   "c_sym": 50.13345886314983,
+   "c_per_bb_bit": 11.506746873566431,
+   "rs_cap": 4.916413221613373,
+   "bb_cap": 21.420198315669243
+  }
+ ],
+ "cycle_budget": [
+  {
+   "mod": "QPSK",
+   "rate": "5/6",
+   "fec": "meas",
+   "fec_cyc": 10.175199999999998,
+   "map_cyc": 2.165939535062693,
+   "sw_shape": 2.0045,
+   "sw_shape_engine": "qpsk_desc_n4",
+   "hw_shape": 0.0,
+   "total_sw": 13.147699999999999,
+   "total_hw": 10.445623999999999
+  },
+  {
+   "mod": "QPSK",
+   "rate": "5/6",
+   "fec": "bchT",
+   "fec_cyc": 10.175199999999998,
+   "map_cyc": 2.165939535062693,
+   "sw_shape": 2.0045,
+   "sw_shape_engine": "qpsk_desc_n4",
+   "hw_shape": 0.0,
+   "total_sw": 13.147699999999999,
+   "total_hw": 10.445623999999999
+  },
+  {
+   "mod": "QPSK",
+   "rate": "9/10",
+   "fec": "meas",
+   "fec_cyc": 11.582237524969148,
+   "map_cyc": 2.165939535062693,
+   "sw_shape": 2.0045,
+   "sw_shape_engine": "qpsk_desc_n4",
+   "hw_shape": 0.0,
+   "total_sw": 14.554737524969148,
+   "total_hw": 11.852661524969148
+  },
+  {
+   "mod": "QPSK",
+   "rate": "9/10",
+   "fec": "bchT",
+   "fec_cyc": 9.529890112149985,
+   "map_cyc": 2.165939535062693,
+   "sw_shape": 2.0045,
+   "sw_shape_engine": "qpsk_desc_n4",
+   "hw_shape": 0.0,
+   "total_sw": 12.502390112149985,
+   "total_hw": 9.800314112149985
+  },
+  {
+   "mod": "8PSK",
+   "rate": "5/6",
+   "fec": "meas",
+   "fec_cyc": 14.216624607935222,
+   "map_cyc": 2.20598178581918,
+   "sw_shape": 12.0803,
+   "sw_shape_engine": "psk2plane_n2",
+   "hw_shape": 0.0,
+   "total_sw": 26.29692460793522,
+   "total_hw": 14.487048607935222
+  },
+  {
+   "mod": "8PSK",
+   "rate": "5/6",
+   "fec": "bchT",
+   "fec_cyc": 14.216624607935222,
+   "map_cyc": 2.20598178581918,
+   "sw_shape": 12.0803,
+   "sw_shape_engine": "psk2plane_n2",
+   "hw_shape": 0.0,
+   "total_sw": 26.29692460793522,
+   "total_hw": 14.487048607935222
+  },
+  {
+   "mod": "8PSK",
+   "rate": "9/10",
+   "fec": "meas",
+   "fec_cyc": 16.3266103205613,
+   "map_cyc": 2.20598178581918,
+   "sw_shape": 12.0803,
+   "sw_shape_engine": "psk2plane_n2",
+   "hw_shape": 0.0,
+   "total_sw": 28.406910320561302,
+   "total_hw": 16.5970343205613
+  },
+  {
+   "mod": "8PSK",
+   "rate": "9/10",
+   "fec": "bchT",
+   "fec_cyc": 13.24892145900199,
+   "map_cyc": 2.20598178581918,
+   "sw_shape": 12.0803,
+   "sw_shape_engine": "psk2plane_n2",
+   "hw_shape": 0.0,
+   "total_sw": 25.32922145900199,
+   "total_hw": 13.51934545900199
+  },
+  {
+   "mod": "16APSK",
+   "rate": "5/6",
+   "fec": "meas",
+   "fec_cyc": 33.227190549092604,
+   "map_cyc": 17.25186951385088,
+   "sw_shape": 20.7828,
+   "sw_shape_engine": "apsk16_sw_n2",
+   "hw_shape": null,
+   "total_sw": 54.009990549092606,
+   "total_hw": "nan"
+  },
+  {
+   "mod": "16APSK",
+   "rate": "5/6",
+   "fec": "bchT",
+   "fec_cyc": 33.227190549092604,
+   "map_cyc": 17.25186951385088,
+   "sw_shape": 20.7828,
+   "sw_shape_engine": "apsk16_sw_n2",
+   "hw_shape": null,
+   "total_sw": 54.009990549092606,
+   "total_hw": "nan"
+  },
+  {
+   "mod": "16APSK",
+   "rate": "9/10",
+   "fec": "meas",
+   "fec_cyc": 36.0336763998671,
+   "map_cyc": 17.25186951385088,
+   "sw_shape": 20.7828,
+   "sw_shape_engine": "apsk16_sw_n2",
+   "hw_shape": null,
+   "total_sw": 56.8164763998671,
+   "total_hw": "nan"
+  },
+  {
+   "mod": "16APSK",
+   "rate": "9/10",
+   "fec": "bchT",
+   "fec_cyc": 31.940051409249374,
+   "map_cyc": 17.25186951385088,
+   "sw_shape": 20.7828,
+   "sw_shape_engine": "apsk16_sw_n2",
+   "hw_shape": null,
+   "total_sw": 52.72285140924937,
+   "total_hw": NaN
+  },
+  {
+   "mod": "32APSK",
+   "rate": "5/6",
+   "fec": "meas",
+   "fec_cyc": 51.74368556036262,
+   "map_cyc": 31.75836491303593,
+   "sw_shape": 33.940200000000004,
+   "sw_shape_engine": "apsk32_sw_n2",
+   "hw_shape": null,
+   "total_sw": 85.68388556036263,
+   "total_hw": "nan"
+  },
+  {
+   "mod": "32APSK",
+   "rate": "5/6",
+   "fec": "bchT",
+   "fec_cyc": 51.74368556036262,
+   "map_cyc": 31.75836491303593,
+   "sw_shape": 33.940200000000004,
+   "sw_shape_engine": "apsk32_sw_n2",
+   "hw_shape": null,
+   "total_sw": 85.68388556036263,
+   "total_hw": "nan"
+  },
+  {
+   "mod": "32APSK",
+   "rate": "9/10",
+   "fec": "meas",
+   "fec_cyc": 55.254633446554195,
+   "map_cyc": 31.75836491303593,
+   "sw_shape": 33.940200000000004,
+   "sw_shape_engine": "apsk32_sw_n2",
+   "hw_shape": null,
+   "total_sw": 89.1948334465542,
+   "total_hw": "nan"
+  },
+  {
+   "mod": "32APSK",
+   "rate": "9/10",
+   "fec": "bchT",
+   "fec_cyc": 50.13345886314983,
+   "map_cyc": 31.75836491303593,
+   "sw_shape": 33.940200000000004,
+   "sw_shape_engine": "apsk32_sw_n2",
+   "hw_shape": null,
+   "total_sw": 84.07365886314983,
+   "total_hw": NaN
+  }
+ ],
+ "cycle_budget_available": {
+  "N2 d1": 7.7024,
+  "N2 d2": 15.4048,
+  "N2 d3": 23.1072,
+  "N2 d4": 30.8096,
+  "N4 d1": 15.4048,
+  "N4 d2": 30.8096,
+  "N4 d3": 46.2144,
+  "N4 d4": 61.6192
+ },
+ "spi_caps_bps": {
+  "ext25": 24133504.492939666,
+  "onchip32": 30869656.84702433,
+  "ext20": 19395725.865880616
+ },
+ "sram_budget_bytes": {
+  "lab_image": 70984,
+  "flight": 185756,
+  "flight_fp": 137108
+ },
+ "tool": {
+  "python": "3.13.2",
+  "numpy": "2.2.5"
+ }
+}

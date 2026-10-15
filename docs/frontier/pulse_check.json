@@ -1,0 +1,549 @@
+{
+ "tool": "pulse_check.py",
+ "numpy": "2.2.5",
+ "scipy": "1.17.1",
+ "python": "3.13.2",
+ "cases": [
+  {
+   "N": 4,
+   "L": 4,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 4,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 4,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 4,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 5,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 5,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 5,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 5,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 6,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 6,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 6,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 6,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 7,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 1.2925660330251922
+  },
+  {
+   "N": 4,
+   "L": 7,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 1.5048452428727952
+  },
+  {
+   "N": 4,
+   "L": 7,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 1.722478243146514
+  },
+  {
+   "N": 4,
+   "L": 7,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 4,
+   "L": 8,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 0.6673091847935136
+  },
+  {
+   "N": 4,
+   "L": 8,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 0.9181860247700697
+  },
+  {
+   "N": 4,
+   "L": 8,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 1.215181585544265
+  },
+  {
+   "N": 4,
+   "L": 8,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 1.6489369216929541
+  },
+  {
+   "N": 4,
+   "L": 9,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 0.2712275613090566
+  },
+  {
+   "N": 4,
+   "L": 9,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 0.34141404966293815
+  },
+  {
+   "N": 4,
+   "L": 9,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 0.3232543869416
+  },
+  {
+   "N": 4,
+   "L": 9,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 0.42067454378106883
+  },
+  {
+   "N": 2,
+   "L": 4,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 4,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 4,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 4,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 5,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 5,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 5,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 5,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 6,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 6,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 6,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 6,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 7,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 1.350927696271601
+  },
+  {
+   "N": 2,
+   "L": 7,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 1.5496023816466202
+  },
+  {
+   "N": 2,
+   "L": 7,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 7,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 8,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 1.0073162932535784
+  },
+  {
+   "N": 2,
+   "L": 8,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 1.247061825913313
+  },
+  {
+   "N": 2,
+   "L": 8,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 8,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 2,
+   "feasible": false
+  },
+  {
+   "N": 2,
+   "L": 9,
+   "model": "hold",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 0.4091732219921022
+  },
+  {
+   "N": 2,
+   "L": 9,
+   "model": "hold",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 0.4091978243668856
+  },
+  {
+   "N": 2,
+   "L": 9,
+   "model": "both",
+   "margin_db": 0.0,
+   "far_reserve_db": 0.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 1.8999796271408842
+  },
+  {
+   "N": 2,
+   "L": 9,
+   "model": "both",
+   "margin_db": 0.1,
+   "far_reserve_db": 2.0,
+   "grid_points": 3010,
+   "status": 0,
+   "feasible": true,
+   "isi_rms_pct_hold_rx": 2.185157075348259
+  }
+ ],
+ "repo_crosschecks": [
+  {
+   "N": 4,
+   "L": 8,
+   "model": "both",
+   "expected_feasible": true,
+   "got": true,
+   "ok": true
+  },
+  {
+   "N": 4,
+   "L": 7,
+   "model": "hold",
+   "expected_feasible": true,
+   "got": true,
+   "ok": true
+  },
+  {
+   "N": 4,
+   "L": 7,
+   "model": "both",
+   "expected_feasible": false,
+   "got": false,
+   "ok": true
+  },
+  {
+   "N": 2,
+   "L": 8,
+   "model": "hold",
+   "expected_feasible": true,
+   "got": true,
+   "ok": true
+  },
+  {
+   "N": 2,
+   "L": 8,
+   "model": "both",
+   "expected_feasible": false,
+   "got": false,
+   "ok": true
+  }
+ ]
+}
