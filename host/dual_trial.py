@@ -109,10 +109,11 @@ def validate_capture(r: dict, lines: list[str], source: int,
                     cap_checked_bus_words=0, cap_transport_ok=False, cap_reference_failed=False)
 
     bus = got.view("<u2")
-    if source == 5:
+    if source in (5, 6):
         from dual_spi import reference_window
         span, beta = pulse_parameters(int(r.get("row_symbols", 2)))
-        first_frame, ref = reference_window(int(r["cap_symbol_cursor"]), span=span, beta=beta)
+        first_frame, ref = reference_window(int(r["cap_symbol_cursor"]), span=span, beta=beta,
+                                            gcs=source == 6)
     else:
         first_frame = None
         ref = reference_bus(source, int(r.get("seed", SEED)), int(r.get("row_symbols", 1)), int(r.get("split_bb_stride_words", 0)))
@@ -131,7 +132,7 @@ def validate_capture(r: dict, lines: list[str], source: int,
         steps = ((np.arange(len(bus), dtype=np.int64) * 34 + phase) // 3
                  if divider == 384 else np.arange(len(bus), dtype=np.int64) * CAPTURE_STRIDE)
         candidates = np.flatnonzero(ref == bus[0])
-        if source == 5:
+        if source in (5, 6):
             candidates = candidates[(candidates >= 12 * 8) & (candidates + steps[-1] < len(ref))]
         for j in range(1, min(16, len(bus))):
             candidates = candidates[ref[(candidates + steps[j]) % len(ref)] == bus[j]]
@@ -183,11 +184,11 @@ def stream_faults(r: dict, capture: bool, source: int) -> list[str]:
     # axis_gap_max is a queue-lead diagnostic; a nonzero bounded lead is legitimate.
     if capture and not (r.get("cap_aligned") and r.get("cap_mismatches") == 0):
         faults.append(r.get("cap_error") or "strided capture mismatches")
-    if source in (2, 3, 4, 5) and not r.get("s2_runtime_frames"):
+    if source in (2, 3, 4, 5, 6) and not r.get("s2_runtime_frames"):
         faults.append("no complete DVB-S2 encoder frame during timed run")
-    if source in (4, 5) and not r.get("split_bch_frames"):
+    if source in (4, 5, 6) and not r.get("split_bch_frames"):
         faults.append("no runtime frontend BCH frame")
-    if source == 5:
+    if source in (5, 6):
         from dual_spi import packet_faults
         faults.extend(packet_faults(r))
     return list(dict.fromkeys(faults))
@@ -282,7 +283,7 @@ def self_test():
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("profile", nargs="?", choices=("quick", "soak", "priority", "onecore", "split", "spi", "qualify", "quad"), default="quick")
+    p.add_argument("profile", nargs="?", choices=("quick", "soak", "priority", "onecore", "split", "spi", "qualify", "quad", "gcs"), default="quick")
     p.add_argument("--out", type=Path)
     p.add_argument("--build", type=Path, default=Path("firmware/build-limits"))
     p.add_argument("--port")
@@ -294,8 +295,8 @@ def main():
     p.add_argument("--row-symbols", type=int, choices=(1, 2, 4), default=1)
     a = p.parse_args()
     if a.clocks is None:
-        a.clocks = [128000] if a.profile in ("spi", "quad") else [128000, 150000]
-    if a.profile == "quad":
+        a.clocks = [128000] if a.profile in ("spi", "quad", "gcs") else [128000, 150000]
+    if a.profile in ("quad", "gcs"):
         a.row_symbols = 4
     if a.profile == "spi":
         a.writers, a.row_symbols = 4, 2
@@ -496,6 +497,12 @@ def main():
                 dual(clock, 1, 2, 4)
                 if clock == 128000:
                     dual(clock, 1, 2, 5)
+            elif a.profile == "gcs":
+                if clock != 128000:
+                    p.error("the on-chip SPI source uses --clocks 128000")
+                for source in (5, 6):
+                    dual(clock, 2, 2, source)
+                    dual(clock, 1, 2, source)
             elif a.profile == "onecore":
                 record(f"legacy-onecore-{clock}", lambda: iq.run_txs2(
                     board, 5, 1, "lut_asm_p", 4, 12, 3, 3000, 4096, "dual-onecore", True))

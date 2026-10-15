@@ -18,6 +18,16 @@ class SpiReference(unittest.TestCase):
         for index in (1, 31, 10528, 123456):
             np.testing.assert_array_equal(spi.bbframe(index), spi.bbframe(index + 10528))
 
+    def test_gcs_bbframes(self):
+        stream = b"".join(spi.pv.pattern_packet(k % spi.PACKET_PERIOD) for k in range(350))
+        for index in range(len(stream) // spi.DATA_BYTES):
+            data = stream[index * spi.DATA_BYTES:(index + 1) * spi.DATA_BYTES]
+            expected = spi.ref.bbframe(np.unpackbits(np.frombuffer(data, np.uint8)), "2/3",
+                                       ro=0.20, sync=0xB9)
+            np.testing.assert_array_equal(spi.bbframe(index, gcs=True), expected)
+        for index in (0, 1, 31, 10528, 123456):
+            np.testing.assert_array_equal(spi.bbframe(index, gcs=True), spi.bbframe(index + 10528, gcs=True))
+
     def check_capture_and_corruption(self, rows, span, beta):
         cursor = 123 * spi.FRAME_SYMBOLS + 1000
         first, bus = spi.reference_window(cursor, span=span, beta=beta)
@@ -56,6 +66,21 @@ class SpiReference(unittest.TestCase):
         self.assertEqual(spi.packet_faults({"pv_spi": stats}), [])
         for field in ("drain_timeouts", "late_closes"):
             self.assertIn(f"pv_spi.{field}", spi.packet_faults({"pv_spi": dict(stats, **{field: 1})}))
+
+    def test_gcs_counters_and_reference_faults(self):
+        crc_fields = b"".join(spi.pv.message(k, spi.pv.pattern_payload(k))[-4:] for k in range(16))
+        stats = dict.fromkeys(("lost", "bad_hdr", "bad_crc", "bad_sync", "null_packets", "ts_packets",
+                               "short_msgs", "long_msgs", "overflows", "gcs_underflows"), 0)
+        size = 6 * spi.DATA_BYTES
+        stats.update(ok=32, gcs_packets=(size + 187) // 188, gcs_bytes=size, bbframes=6, bb_mode="gcs",
+                     runtime_bbframes=2, runtime_messages=8, crc_chain=zlib.crc32(crc_fields * 2),
+                     bb_crc=spi.first_crcs(gcs=True))
+        self.assertEqual(spi.packet_faults({"source": 6, "pv_spi": stats}), [])
+        changes = {"gcs_underflows": 1, "bb_mode": "ts", "gcs_bytes": size + 1,
+                   "gcs_packets": 1, "ts_packets": 1, "bb_crc": spi.first_crcs()}
+        for name, value in changes.items():
+            with self.subTest(field=name):
+                self.assertTrue(spi.packet_faults({"source": 6, "pv_spi": dict(stats, **{name: value})}))
 
 
 if __name__ == "__main__":

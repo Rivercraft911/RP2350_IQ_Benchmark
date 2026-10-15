@@ -13,7 +13,7 @@
 pv_stats_t pv_stats;
 static uint32_t crc_t[4][256] PV_HI;                // slicing-by-4, reflected 0xEDB88320
 static uint8_t crc8_t[256];
-static uint8_t *cur;                               // packet being emitted (sync byte replaced)
+static uint8_t *cur;                               // borrowed until the next packet callback
 static uint32_t cur_off = PV_TS;                    // bytes of cur already emitted
 static uint8_t prev_crc8, null_crc8;                // CRC-8 of the previous packet / of a null
 static uint8_t null_pkt[PV_TS];                     // PID 0x1FFF, payload only, 0xFF stuffing
@@ -140,12 +140,16 @@ static inline void HOT(copy)(uint8_t *d, const uint8_t *s, uint32_t n) {   // un
     while (n--) *d++ = *s++;
 }
 
+static void HOT(bbheader)(uint8_t *h, uint32_t dfl, uint8_t matype1, uint32_t upl,
+                          uint8_t sync, uint32_t syncd) {
+    h[0] = matype1, h[1] = 0, h[2] = (uint8_t)(upl >> 8), h[3] = (uint8_t)upl;
+    h[4] = (uint8_t)(dfl >> 8), h[5] = (uint8_t)dfl, h[6] = sync;
+    h[7] = (uint8_t)(syncd >> 8), h[8] = (uint8_t)syncd, h[9] = pv_crc8(h, 9);
+}
+
 void HOT(pv_bbframe)(uint8_t *out, uint32_t kbch, uint8_t matype1, pv_packet_fn next) {
     const uint32_t dfl = kbch - 80, syncd = cur_off == PV_TS ? 0 : (PV_TS - cur_off) * 8u;
-    uint8_t *h = out;
-    h[0] = matype1, h[1] = 0, h[2] = (1504 >> 8), h[3] = 1504 & 0xFF;
-    h[4] = (uint8_t)(dfl >> 8), h[5] = (uint8_t)dfl, h[6] = 0x47;
-    h[7] = (uint8_t)(syncd >> 8), h[8] = (uint8_t)syncd, h[9] = pv_crc8(h, 9);
+    bbheader(out, dfl, matype1, 1504, 0x47, syncd);
     uint8_t *d = out + 10;
     for (uint32_t left = dfl / 8; left;) {
         if (cur_off == PV_TS) next_packet(next);
@@ -155,4 +159,30 @@ void HOT(pv_bbframe)(uint8_t *out, uint32_t kbch, uint8_t matype1, pv_packet_fn 
         d += n, cur_off += n, left -= n;
     }
     pv_stats.bbframes++;
+}
+
+bool HOT(pv_gcs_bbframe)(uint8_t *out, uint32_t kbch, uint8_t matype1, uint8_t sync,
+                        pv_packet_fn next) {
+    const uint32_t dfl = kbch - 80;
+    bbheader(out, dfl, matype1, 0, sync, 0);
+    uint8_t *d = out + 10;
+    for (uint32_t left = dfl / 8; left;) {
+        if (cur_off == PV_TS) {
+            cur = next();
+            if (!cur) {
+                pv_stats.gcs_underflows++;
+                memset(out, 0, kbch / 8);
+                return false;
+            }
+            cur_off = 0;
+            pv_stats.gcs_packets++;
+        }
+        uint32_t n = PV_TS - cur_off;
+        if (n > left) n = left;
+        copy(d, cur + cur_off, n);
+        d += n, cur_off += n, left -= n;
+        pv_stats.gcs_bytes += n;
+    }
+    pv_stats.bbframes++;
+    return true;
 }

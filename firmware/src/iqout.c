@@ -15,7 +15,7 @@ static PIO const pio = pio0;
 static uint sm_out, sm_cap, off_out, off_cap;
 static int ch[2] = {-1, -1}, ch_cap = -1;
 static uint32_t ch_seq[2];
-static uint16_t prog_out[8], prog_cap[3];
+static uint16_t prog_out[9], prog_cap[3];
 static uint8_t len_out;
 static uint32_t idle_block[BLOCK_WORDS];
 
@@ -25,12 +25,31 @@ static uint32_t idle_block[BLOCK_WORDS];
 // PACKED: FIFO word = I | Q << 16.   PAIRS: FIFO words [I0|I1] [Q0|Q1]; X holds I1.
 // Delay fields: 4 bits with one side-set bit (output SM), 5 bits without (capture SM), so
 // 2 <= cpw <= IQOUT_MAX_CPW = 32 (d0, d1 <= 15; capture delay cpw - 1 <= 31). RP2350 §11.4.
+// RAW_PAIRS below is an experimental fixed-cpw4 exception: I0 rises after one clock;
+// all other slots rise after two. Its three side-set bits leave two delay bits.
 static void build_programs(int cpw, int layout) {
     const uint d0 = (uint)cpw / 2 - 1, d1 = (uint)cpw - 2 - d0;   // odd cpw allowed
 #define LO(i) ((i) | pio_encode_sideset(1, 0) | pio_encode_delay(d0))
 #define HI(i) ((i) | pio_encode_sideset(1, 1) | pio_encode_delay(d1))
     const uint out16 = pio_encode_out(pio_pins, 16), nop = pio_encode_nop();
-    if (layout == IQ_LAYOUT_PACKED) {
+    if (layout == IQ_LAYOUT_RAW_PAIRS) {
+        // Fixed four clocks/slot. Side-set bits14..16 drive IQ, zero, CLK_IO.
+        // OUT/MOV write only14 data bits; discard signed padding before I1/Q1.
+#define SIDE(v) pio_encode_sideset(3, (v))
+        const uint16_t p[] = {
+            pio_encode_out(pio_pins, 14) | SIDE(1),
+            pio_encode_out(pio_null, 2) | SIDE(5),
+            pio_encode_out(pio_x, 16) | SIDE(5) | pio_encode_delay(1),
+            pio_encode_out(pio_pins, 14) | SIDE(0) | pio_encode_delay(1),
+            pio_encode_out(pio_null, 2) | SIDE(4) | pio_encode_delay(1),
+            pio_encode_mov(pio_pins, pio_x) | SIDE(1) | pio_encode_delay(1),
+            pio_encode_nop() | SIDE(5) | pio_encode_delay(1),
+            pio_encode_out(pio_pins, 14) | SIDE(0) | pio_encode_delay(1),
+            pio_encode_out(pio_null, 2) | SIDE(4) | pio_encode_delay(1),
+        };
+#undef SIDE
+        memcpy(prog_out, p, sizeof p), len_out = 9;
+    } else if (layout == IQ_LAYOUT_PACKED) {
         const uint16_t p[] = {LO(out16), HI(nop)};
         memcpy(prog_out, p, sizeof p), len_out = 2;
     } else {
@@ -80,6 +99,7 @@ static void bus_pin(uint pin) {
 
 void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw, int layout) {
     hard_assert(cpw >= 2 && cpw <= IQOUT_MAX_CPW);
+    hard_assert(layout != IQ_LAYOUT_RAW_PAIRS || cpw == 4);
     ring = (ring_t){.buf = buf, .block_words = block_words, .n_blocks = n_blocks};
     // Idle filler: zero samples with IQ_FLAG on I words only, in the layout the PIO expects.
     // PACKED: I | Q << 16 per word. PAIRS: [I0|I1] then [Q0|Q1].
@@ -110,9 +130,10 @@ void iqout_init(uint32_t *buf, uint32_t block_words, uint32_t n_blocks, int cpw,
 
     pio_sm_config c = pio_get_default_sm_config();
     sm_config_set_wrap(&c, off_out, off_out + len_out - 1);
-    sm_config_set_out_pins(&c, PIN_D0, 16);
-    sm_config_set_sideset(&c, 1, false, false);
-    sm_config_set_sideset_pins(&c, PIN_CLKIO);
+    const bool raw = layout == IQ_LAYOUT_RAW_PAIRS;
+    sm_config_set_out_pins(&c, PIN_D0, raw ? 14 : 16);
+    sm_config_set_sideset(&c, raw ? 3 : 1, false, false);
+    sm_config_set_sideset_pins(&c, raw ? PIN_D0 + 14 : PIN_CLKIO);
     sm_config_set_out_shift(&c, true, true, 32);          // LSB (earlier) slot first
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
     sm_config_set_clkdiv_int_frac8(&c, 1, 0);
@@ -155,6 +176,7 @@ void iqout_start(void) {
 
 void iqout_stop(void) {
     pio_set_sm_mask_enabled(pio, (1u << sm_out) | (1u << sm_cap), false);
+    dma_channel_abort(ch_cap);
     irq_set_enabled(DMA_IRQ_0, false);
     for (int i = 0; i < 2; i++) {
         dma_channel_set_irq0_enabled(ch[i], false);

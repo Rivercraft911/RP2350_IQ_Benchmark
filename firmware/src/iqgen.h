@@ -21,6 +21,7 @@ typedef void (*iq_kernel_t)(uint32_t *out, const uint32_t *in, uint32_t nwords,
 enum {
     IQ_LAYOUT_PACKED = 0,     // one word per complex sample: I | Q << 16
     IQ_LAYOUT_PAIRS = 1,      // per sample pair: I(2k) | I(2k+1) << 16, then Q(2k) | Q(2k+1) << 16
+    IQ_LAYOUT_RAW_PAIRS = 2,  // experimental signed PAIRS; PIO masks samples and supplies IQ
 };
 
 typedef struct {

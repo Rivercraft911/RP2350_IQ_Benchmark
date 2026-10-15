@@ -28,12 +28,15 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_dvbs2_buffers.py
 	python3 host/test_dvbs2_fec.py
 	python3 host/test_pv_native.py
+	python3 host/test_gcs_native.py
 	python3 host/test_pvspi_rx.py
 	python3 host/test_startup.py
 	python3 host/test_flight_service.py
 	python3 host/test_iqdesc.py
 	python3 host/test_iqpair.py
 	python3 host/test_iqquad.py
+	python3 host/test_iq8quad.py
+	python3 host/test_iqout_raw.py
 	python3 host/test_dual_pio.py
 	python3 host/test_dual_faults.py
 	python3 host/test_dual_spi.py

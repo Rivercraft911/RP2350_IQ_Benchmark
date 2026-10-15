@@ -22,7 +22,7 @@
 
 enum dual_source {
     SOURCE_CYCLIC = 0, SOURCE_PRBS = 1, SOURCE_DVBS2_CORE1 = 2, SOURCE_DVBS2_CORE0 = 3,
-    SOURCE_DVBS2_SPLIT = 4, SOURCE_PV_SPI = 5
+    SOURCE_DVBS2_SPLIT = 4, SOURCE_PV_SPI = 5, SOURCE_PV_GCS = 6
 };
 enum { SYMBOLS_PER_WORD = 16,
        DESC_LOG2 = 13, DESC_COUNT = 1 << DESC_LOG2, DESC_RING_BYTES = DESC_COUNT * 4,
@@ -30,13 +30,13 @@ enum { SYMBOLS_PER_WORD = 16,
        MAX_BLOCKS = 4 * DESC_COUNT / DESC_BLOCK, INPUT_BLOCK = DESC_BLOCK / SYMBOLS_PER_WORD,
        FRAME_SLOTS = 2, FRAME_SLOT_MASK = FRAME_SLOTS - 1,
        CAPTURE_WORDS = 4096, BCH_SLICE_WORDS = 128, BB_TOGGLE_STRIDE = 64,
-       TS_BB_BITS = 43040, TS_BB_BYTES = TS_BB_BITS / 8, TS_BB_WORDS = TS_BB_BITS / 32,
-       TS_MATYPE1 = 0xF2, SPI_HALF_CYCLES = 2,
+       SPI_BB_BITS = 43040, SPI_BB_BYTES = SPI_BB_BITS / 8, SPI_BB_WORDS = SPI_BB_BITS / 32,
+       TS_MATYPE1 = 0xF2, GCS_MATYPE1 = 0x72, GCS_SYNC = 0xB9, SPI_HALF_CYCLES = 2,
        SPI_PREFILL_MESSAGES = PV_SLOTS / 2, SPI_PREFILL_TIMEOUT_US = 10000, SPI_TRIAL_DMA_CHANNELS = 12,
        REUSE_GUARD = 8, POLL_US = 32,
-       ERR_UNDERRUN = 1u << 16, ERR_OWNERSHIP = 1u << 17 };
+       ERR_UNDERRUN = 1u << 16, ERR_OWNERSHIP = 1u << 17, ERR_INPUT = 1u << 18 };
 _Static_assert(IN_WORDS + CAPTURE_WORDS + DVBS2_FE_WORDS <= CAP_WORDS_MAX, "split FE overlay");
-_Static_assert(PV_EMU_WORDS + FRAME_SLOTS * TS_BB_WORDS <= TABLE_WORDS, "SPI BB overlay");
+_Static_assert(PV_EMU_WORDS + FRAME_SLOTS * SPI_BB_WORDS <= TABLE_WORDS, "SPI BB overlay");
 _Static_assert(IQQUAD_WORDS == N_BLOCKS * BLOCK_WORDS, "quad table must fit existing sample ring");
 typedef void (*desc_fn)(uint32_t *, uint32_t *, const uint32_t *, uint32_t,
                         uint32_t, uint32_t, uint32_t);
@@ -44,6 +44,10 @@ static const desc_fn kernels[] = {iqdesc_c, iqdesc_asm, iqdesc_interp};
 static const desc_fn pair_kernels[] = {iqdesc_pair_c, iqdesc_pair_asm, iqdesc_pair_interp};
 static const desc_fn quad_kernels[] = {iqdesc_quad_c, iqdesc_quad_asm, iqdesc_quad_interp};
 static const char *names[] = {"c", "asm", "interp"};
+
+static bool spi_source(enum dual_source source) {
+    return source == SOURCE_PV_SPI || source == SOURCE_PV_GCS;
+}
 
 static uint32_t *descriptors(void) {
     // Each hardware read ring needs 32-KiB alignment. Two rings plus alignment slop fit
@@ -130,22 +134,29 @@ static struct {
     uint32_t *fe_slots[FRAME_SLOTS];
     volatile uint32_t bb_produced, bb_consumed;
     uint32_t *bb_slots[FRAME_SLOTS];
-    bool spi;
+    bool spi, gcs;
+    volatile bool input_failed;
     dvbs2_frontend_t front;
     symstream_t stream;
 } encoder;
 
-static void build_ts_frame(uint32_t *bb) {
+static bool build_spi_frame(uint32_t *bb) {
     const uint32_t start = cycles();
-    pv_bbframe((uint8_t *)bb, TS_BB_BITS, TS_MATYPE1, pvspi_next_packet);
+    if (encoder.gcs) {
+        if (!pv_gcs_bbframe((uint8_t *)bb, SPI_BB_BITS, GCS_MATYPE1, GCS_SYNC, pvspi_next_packet)) {
+            encoder.input_failed = true;
+            return false;
+        }
+    } else pv_bbframe((uint8_t *)bb, SPI_BB_BITS, TS_MATYPE1, pvspi_next_packet);
     if (encoder.bb_frames < 4)
-        encoder.bb_crc[encoder.bb_frames] = pv_crc32(0, bb, TS_BB_BYTES);
+        encoder.bb_crc[encoder.bb_frames] = pv_crc32(0, bb, SPI_BB_BYTES);
     encoder.bb_frames++;
-    for (unsigned word = 0; word < TS_BB_WORDS; word++)
+    for (unsigned word = 0; word < SPI_BB_WORDS; word++)
         bb[word] = __builtin_bswap32(bb[word]);
     const uint32_t elapsed = cycles() - start;
     encoder.bb_cyc += elapsed;
     if (elapsed > encoder.bb_max_cyc) encoder.bb_max_cyc = elapsed;
+    return true;
 }
 
 static void __not_in_flash_func(dual_encoder)(uint32_t unused) {
@@ -179,7 +190,7 @@ static inline bool refill_bb_queue(void) {
     if (!encoder.spi || encoder.bb_produced - encoder.bb_consumed >= FRAME_SLOTS) return false;
     const uint32_t produced = encoder.bb_produced;
     __dmb(); // acquire the frontend's release before overwriting its BB slot
-    build_ts_frame(encoder.bb_slots[produced & FRAME_SLOT_MASK]);
+    if (!build_spi_frame(encoder.bb_slots[produced & FRAME_SLOT_MASK])) return false;
     __dmb();
     encoder.bb_produced = produced + 1;
     return true;
@@ -189,6 +200,7 @@ static void __not_in_flash_func(split_backend)(uint32_t unused) {
     encoder.start_us = bench_now();
     while (!encoder.stop) {
         if (refill_bb_queue()) continue;
+        if (encoder.input_failed) break;
         const uint32_t taken = encoder.fe_consumed;
         if (taken == encoder.fe_produced ||
             encoder.stream.n + encoder.frame_words + 1u - encoder.consumed > IN_WORDS) continue;
@@ -234,14 +246,17 @@ static void restore_trial_buffers(bool spi, bool paired) {
     }
 }
 
-static void prefill_encoder(enum dual_source source, uint32_t *input, unsigned target_words) {
-    const bool spi = source == SOURCE_PV_SPI, split = source >= SOURCE_DVBS2_SPLIT;
+static bool prefill_encoder(enum dual_source source, uint32_t *input, unsigned target_words) {
+    const bool spi = spi_source(source), split = source >= SOURCE_DVBS2_SPLIT;
     tx_code(5, true);
     encoder = (typeof(encoder)){.stream = {.out = input, .mask = IN_WORDS - 1},
-        .frame_words = (dvbs2_plframe_symbols() + 31u) / SYMBOLS_PER_WORD};
+        .frame_words = (dvbs2_plframe_symbols() + 31u) / SYMBOLS_PER_WORD,
+        .gcs = source == SOURCE_PV_GCS};
     while (split ? encoder.frames < FRAME_SLOTS : encoder.stream.n < target_words) {
         if (split) {
-            if (spi) build_ts_frame(bb_buf); else split_flip_bb(encoder.frames);
+            if (spi) {
+                if (!build_spi_frame(bb_buf)) return false;
+            } else split_flip_bb(encoder.frames);
             dvbs2_frame(bb_buf, &encoder.stream);
             if (!spi) split_flip_bb(encoder.frames);
         } else dvbs2_frame(bb_buf, &encoder.stream);
@@ -249,27 +264,28 @@ static void prefill_encoder(enum dual_source source, uint32_t *input, unsigned t
     }
     encoder.total = encoder.stream.n;
     encoder.prefill = encoder.frames;
-    if (!split) return;
+    if (!split) return true;
 
     // Input, capture and FE1 occupy disjoint portions of cap_buf; FE0 is the encoder's buffer.
     encoder.fe_slots[0] = dvbs2_frame_buffer();
     encoder.fe_slots[1] = cap_buf + IN_WORDS + CAPTURE_WORDS;
     for (unsigned slot = 0; slot < FRAME_SLOTS; slot++) {
         if (spi) {
-            build_ts_frame(bb_buf);
+            if (!build_spi_frame(bb_buf)) return false;
             dvbs2_frame_begin_into(bb_buf, encoder.fe_slots[slot]);
         } else split_begin_frame(encoder.fe_slots[slot], encoder.prefill + slot);
     }
     encoder.fe_produced = FRAME_SLOTS;
-    if (!spi) return;
+    if (!spi) return true;
 
     // The SPI emulator occupies the first PV_EMU_WORDS of the borrowed Q table.
     encoder.spi = true;
     for (unsigned slot = 0; slot < FRAME_SLOTS; slot++) {
-        encoder.bb_slots[slot] = (uint32_t *)cfg.tq + PV_EMU_WORDS + slot * TS_BB_WORDS;
-        build_ts_frame(encoder.bb_slots[slot]);
+        encoder.bb_slots[slot] = (uint32_t *)cfg.tq + PV_EMU_WORDS + slot * SPI_BB_WORDS;
+        if (!build_spi_frame(encoder.bb_slots[slot])) return false;
     }
     encoder.bb_produced = FRAME_SLOTS;
+    return true;
 }
 
 static inline bool begin_frontend(bool spi, uint32_t produced) {
@@ -285,15 +301,17 @@ static inline bool begin_frontend(bool spi, uint32_t produced) {
 }
 
 static void print_spi_stats(double encoder_budget, uint32_t bb_prefill, uint32_t spi_head_start) {
-    printf(",\"ts_busy\":%.4f,\"core1_work_busy\":%.4f,\"pv_spi\":{\"sck_hz\":%lu,\"bb_max_cyc\":%lu,\"bbframes\":%lu,"
+    printf(",\"ts_busy\":%.4f,\"core1_work_busy\":%.4f,\"pv_spi\":{\"bb_mode\":\"%s\",\"sck_hz\":%lu,\"bb_max_cyc\":%lu,\"bbframes\":%lu,"
            "\"runtime_bbframes\":%lu,\"runtime_messages\":%lu,\"crc_chain\":%lu,"
            "\"bb_crc\":[%lu,%lu,%lu,%lu],\"ok\":%lu,\"lost\":%lu,\"bad_hdr\":%lu,\"bad_crc\":%lu,"
            "\"bad_sync\":%lu,\"ts_packets\":%lu,\"null_packets\":%lu,"
+           "\"gcs_packets\":%lu,\"gcs_bytes\":%lu,\"gcs_underflows\":%lu,"
            "\"short_msgs\":%lu,\"long_msgs\":%lu,\"overflows\":%lu,"
            "\"deferred_msgs\":%lu,\"drain_timeouts\":%lu,\"late_closes\":%lu,"
            "\"last_short_words\":%lu,\"last_short_fifo\":%lu,\"last_short_ctrl\":%lu,"
            "\"last_short_pc\":%lu,\"last_short_cs\":%lu}",
            encoder.bb_cyc / encoder_budget, (encoder.busy_cyc + encoder.bb_cyc) / encoder_budget,
+           encoder.gcs ? "gcs" : "ts",
            (unsigned long)clock_get_hz(clk_sys) / 4,
            (unsigned long)encoder.bb_max_cyc, (unsigned long)encoder.bb_frames,
            (unsigned long)(encoder.bb_frames - bb_prefill), (unsigned long)(pvspi.head - spi_head_start),
@@ -303,6 +321,8 @@ static void print_spi_stats(double encoder_budget, uint32_t bb_prefill, uint32_t
            (unsigned long)pv_stats.ok, (unsigned long)pv_stats.lost, (unsigned long)pv_stats.bad_hdr,
            (unsigned long)pv_stats.bad_crc, (unsigned long)pv_stats.bad_sync,
            (unsigned long)pv_stats.ts_packets, (unsigned long)pv_stats.null_packets,
+           (unsigned long)pv_stats.gcs_packets, (unsigned long)pv_stats.gcs_bytes,
+           (unsigned long)pv_stats.gcs_underflows,
            (unsigned long)pvspi.short_msgs, (unsigned long)pvspi.long_msgs, (unsigned long)pvspi.overflows,
            (unsigned long)pvspi.deferred_msgs, (unsigned long)pvspi.drain_timeouts,
            (unsigned long)pvspi.late_closes, (unsigned long)pvspi.last_short_words,
@@ -322,8 +342,9 @@ static void capture_print(const uint32_t *capture, uint32_t count) {
 // fault:1=wrong valid Q row (reference must reject),2=stop publishing (ownership must reject).
 void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, int fault,
                        int schedule, int divider256, int row_symbols) {
-    const bool spi = source == SOURCE_PV_SPI, split = source >= SOURCE_DVBS2_SPLIT;
+    const bool spi = spi_source(source), split = source >= SOURCE_DVBS2_SPLIT;
     const bool paired = row_symbols >= 2, quad = row_symbols == 4;
+    encoder.input_failed = false;
     if (spi && !spi_resources_available()) {
         printf("@{\"error\":\"PV-SPI trial needs free PIO1/PIO2 and twelve DMA channels\"}\n");
         return;
@@ -362,8 +383,13 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
         printf("@{\"error\":\"PV-SPI startup prefill timed out\"}\n");
         return;
     }
-    if (source >= SOURCE_DVBS2_CORE1)
-        prefill_encoder(source, input, (blocks + 1) * input_block);
+    if (source >= SOURCE_DVBS2_CORE1 &&
+        !prefill_encoder(source, input, (blocks + 1) * input_block)) {
+        if (spi) pvspi_stop();
+        restore_trial_buffers(spi, paired);
+        printf("@{\"error\":\"PV-SPI generic stream underflow during prefill\"}\n");
+        return;
+    }
     for (uint32_t b = 0; b < blocks; b++) {
         const uint32_t off = b * input_block;
         generate(kernel, di + b * rows_per_block, dq + b * rows_per_block, input + off,
@@ -412,6 +438,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
         last_poll = now;
         p = progress_symbols(row_symbols);
         errors |= p.errors;
+        if (encoder.input_failed) errors |= ERR_INPUT;
         const uint64_t low = p.read_i < p.read_q ? p.read_i : p.read_q;
         const uint64_t high = p.issued_i > p.issued_q ? p.issued_i : p.issued_q;
         if (high - low > axis_gap_max) axis_gap_max = high - low;
@@ -541,6 +568,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     }
     const uint32_t count = captured ? dual_dma_capture_count() : 0;
     if (source == SOURCE_DVBS2_CORE1 || split) multicore_fifo_pop_blocking();
+    if (encoder.input_failed) errors |= ERR_INPUT;
     if (spi) pvspi_stop();
     const uint64_t cleanup_us = bench_now() - start - elapsed;
     const double budget = elapsed * 1e-6 * clock_get_hz(clk_sys);

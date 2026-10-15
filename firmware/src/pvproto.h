@@ -1,4 +1,4 @@
-// PV-SPI v1 message handling and TS-mode BBFRAME building (docs/pv-spi-spec.md). Portable C.
+// PV-SPI v1 message handling and BBFRAME adaptation (docs/pv-spi-spec.md). Portable C.
 #pragma once
 #include <stdbool.h>
 #include <stddef.h>
@@ -13,6 +13,7 @@ typedef struct {
     uint32_t ok, nop, bad_hdr, bad_crc, bad_sync;  // messages
     uint32_t lost;                                 // messages missing by sequence number
     uint32_t ts_packets, null_packets, bbframes;
+    uint32_t gcs_packets, gcs_bytes, gcs_underflows;
     uint32_t crc_chain;                            // CRC-32 over the CRC fields of accepted TS_DATA
     uint32_t last_seq, seq_mod;                    // seq_mod: 65536 (or 16 for the self-test)
     bool have_seq;
@@ -41,3 +42,9 @@ typedef uint8_t *(*pv_packet_fn)(void);
 // SYNC 0x47, SYNCD, CRC-8; each packet's sync byte carries the CRC-8 of the previous packet.
 // Writes Kbch/8 bytes in transmission order.
 void pv_bbframe(uint8_t *out, uint32_t kbch, uint8_t matype1, pv_packet_fn next);
+
+// Generic Continuous Stream (5.1.1/5.1.4/5.1.6): UPL/SYNCD = 0, no per-packet CRC-8.
+// PV's 188-byte containers become an opaque byte stream; their bytes are not changed.
+// The returned packet must remain valid until the next callback. Kbch is byte-aligned.
+// A missing container fails the frame, clears its output, and requires a stream restart.
+bool pv_gcs_bbframe(uint8_t *out, uint32_t kbch, uint8_t matype1, uint8_t sync, pv_packet_fn next);

@@ -180,6 +180,10 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "bench8psk")) {
         if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
         bench_8psk(reps);
+    } else if (!strcmp(cmd, "bench8quad")) {
+        if (!num(a[1], "ms", 3000, 0, 60000, &r.ms) ||
+            !num(a[2], "reps", 4, 1, 100, &reps)) return err;
+        bench_8quad(r.ms, reps);
     } else if (!strcmp(cmd, "ddrtest")) {
         if (!num(a[1], "ms", 100, 1, 5000, &r.ms)) return err;
         bench_hstx_ddr(r.ms);
@@ -199,7 +203,7 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "cpw", REQUIRED, 1, 4, &r.cpw) ||
             !num(a[2], "ms", REQUIRED, 10, 60000, &r.ms) ||
             !num(a[3], "kernel", 1, 0, 2, &kernel) ||
-            !num(a[4], "source", 1, 0, 5, &source) ||
+            !num(a[4], "source", 1, 0, 6, &source) ||
             !num(a[5], "cap_words", 4096, 0, 4096, &r.cap_words) ||
             !num(a[6], "fault", 0, 0, 2, &fault) ||
             !num(a[7], "schedule", 0, 0, 3, &schedule) ||
@@ -209,7 +213,7 @@ static const char *dispatch(char *line) {
             return "row_symbols must be1,2 or4 (L9 beta0.8 trial)";
         if (divider256 && divider256 != 384) return "optional divider256 must be384 (1.5 clocks)";
         if (fault && !source) return "fault injection requires live descriptors";
-        if (source == 5 && row_symbols != 4 &&
+        if (source >= 5 && row_symbols != 4 &&
             (row_symbols != 2 || dual_dma_get_writers() != 4))
             return "PV-SPI trial needs row2/four writers or opt-in L9 row4";
         bench_dual_stream(r.cpw, r.ms, kernel, source, r.cap_words, fault, schedule, divider256, row_symbols);
