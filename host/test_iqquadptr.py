@@ -283,6 +283,103 @@ def check_stride():
                 assert total == n + 1
 
 
+def check_stop_lifecycle(directory, source):
+    original = (source / "iqquadptr.c").read_text()
+    header = (source / "iqquadptr.h").read_text()
+    def function(signature):
+        start = original.index(signature)
+        end, depth = original.index('{', start) + 1, 1
+        while depth:
+            depth += (original[end] == '{') - (original[end] == '}')
+            end += 1
+        return original[start:end]
+    progress = header[header.index('typedef struct {', header.index('IQQUADPTR_ERR_CONFIG')):]
+    progress = progress[:progress.index('} iqquadptr_progress_t;') + len('} iqquadptr_progress_t;')]
+    state = original[original.index('typedef struct {'):]
+    state = state[:state.index('} pointer_state_t;') + len('} pointer_state_t;')]
+    # Compile the actual stop and cursor functions. time_us_32 models a pending
+    # source read retiring while ABORT is active, before its completion fence.
+    shim = r'''
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include "iqquadptr.h"
+typedef int PIO;
+typedef struct { const uint16_t *instructions; unsigned length; int origin; } pio_program_t;
+enum { IQQUADPTR_ERR_POLL_GAP=32, IQQUADPTR_ERR_OWNERSHIP=64, IQQUADPTR_ERR_STOP=128 };
+''' + progress + state + r'''
+static pointer_state_t state;
+static const char *last_error;
+static struct { struct { uint32_t read_addr; } ch[4]; uint32_t abort; } registers;
+#define dma_hw (&registers)
+static unsigned ticks, delta, timeout, cleanups, faults, posthalt_faults;
+static uint64_t cleanup_latched;
+static uint32_t time_us_32(void) {
+ if (registers.abort && !timeout) {
+  for (unsigned a=0;a<2;++a) {
+   uint32_t cursor=((registers.ch[a].read_addr-(uintptr_t)state.input-2*a)>>2)&state.mask;
+   registers.ch[a].read_addr=(uintptr_t)state.input+2*a+4*((cursor+delta)&state.mask);
+  }
+  registers.abort=0;
+ }
+ return ticks+=500;
+}
+static void sample_faults(void) { ++faults; posthalt_faults+=!state.result.running; }
+static void halt(void) { state.result.running=false; }
+static void dma_channel_cleanup(int ch) {
+ if (!cleanups) cleanup_latched=state.result.input_i_words;
+ ++cleanups; registers.ch[ch].read_addr=0; // a released channel is no longer a valid cursor
+}
+static void dma_channel_unclaim(int ch) { (void)ch; }
+static void pio_sm_clear_fifos(PIO pio,int sm) { (void)pio;(void)sm; }
+static void pio_sm_unclaim(PIO pio,int sm) { (void)pio;(void)sm; }
+static void pio_remove_program(PIO pio,const pio_program_t *p,unsigned o) { (void)pio;(void)p;(void)o; }
+''' + function('static void sample_cursors(') + function('void iqquadptr_stop(') + r'''
+void check_stop(uint64_t before,unsigned advance,uint64_t granted,uint64_t published,unsigned flags,uint64_t *out) {
+ static const iqquadptr_profile_info_t profile={.program=IQQUADPTR_L8_PROGRAM,.program_length=13};
+ ticks=cleanups=faults=posthalt_faults=0;cleanup_latched=0;delta=advance;timeout=flags&4;registers.abort=0;
+ state=(pointer_state_t){.pio=2,.input=(const uint32_t *)(uintptr_t)0x20008000,
+  .sm={0,1},.input_dma={0,1},.credit_dma={2,3},.mask=8191,.words=8192,.sm_mask=3,.dma_mask=15,
+  .last={(uint32_t)before&8191,(uint32_t)before&8191},.owned=true,.added=!(flags&2),.profile=&profile,
+  .result={.input_i_words=before,.input_q_words=before,.published_words=published,.granted_words=granted,
+   .running=!(flags&1)}};
+ for(unsigned a=0;a<2;++a)registers.ch[a].read_addr=0x20008000+2*a+4*((uint32_t)before&8191);
+ iqquadptr_stop();
+ out[0]=state.result.input_i_words;out[1]=state.result.input_q_words;out[2]=state.result.reusable_words;
+ out[3]=state.result.errors;out[4]=state.owned;out[5]=cleanups;out[6]=faults;out[7]=posthalt_faults;
+ out[8]=cleanup_latched;
+}
+'''
+    (directory / 'stop.c').write_text(shim)
+    library = directory / 'stop.so'
+    subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',
+                    f'-I{source}',str(directory/'stop.c'),'-o',str(library)],check=True)
+    lib = ctypes.CDLL(str(library))
+    lib.check_stop.argtypes = [ctypes.c_uint64,ctypes.c_uint,ctypes.c_uint64,ctypes.c_uint64,
+                              ctypes.c_uint,ctypes.POINTER(ctypes.c_uint64)]
+    cases = 0
+    for before in (0,511,8191,8192,2**32-1,2**40+511):
+        for advance in (0,1,4):
+            for already_halted in (False,True):
+                for beyond in ('neither','grant','publication'):
+                    final = before+advance
+                    granted = before if beyond=='grant' else final
+                    published = before if beyond=='publication' else final
+                    result = (ctypes.c_uint64*9)()
+                    lib.check_stop(before,advance,granted,published,int(already_halted),result)
+                    assert list(result[:3]) == [final,final,max(final-8,0)]
+                    assert result[3] == (64 if advance and beyond!='neither' else 0)
+                    assert list(result[4:8]) == [0,4,int(not already_halted),0]
+                    assert result[8] == final
+                    cases += 1
+    result = (ctypes.c_uint64*9)()
+    lib.check_stop(511,1,512,512,3,result) # incomplete prepare: no source cursor latch
+    assert list(result[:2]) == [511,511] and list(result[3:8]) == [0,0,4,0,0]
+    lib.check_stop(511,1,512,512,4,result) # timeout retains all claims and memory
+    assert list(result[:2]) == [511,511] and list(result[3:8]) == [128,1,0,1,0]
+    return cases+2
+
+
 def main():
     source = ROOT / "firmware/src"
     with tempfile.TemporaryDirectory(prefix="iqquadptr-native-") as directory:
@@ -368,12 +465,14 @@ def main():
         l8 = check_l8_profile(lib, words)
         longest, max_lead = check_credit_stalls(lib)
         microsteps = check_credit_microsteps(directory, source)
+        stop_cases = check_stop_lifecycle(directory, source)
     check_stride()
     print(json.dumps(dict(pio_words=len(code), isa_cases=cases, all_keys=4096, seeds=65536,
                           cycles_per_symbol=37 / 16, table_crc=table_crc, waveform_crc=waves,
                           full_frame_waveform_crc=frame_crc,
                           credit_stall_runs=200, longest_safe_stall_batch=longest,
                           max_axis_lead_batches=max_lead, publication_microstep_cases=microsteps,
+                          post_abort_stop_lifecycle_cases=stop_cases,
                           dma_ring_wraps_per_case=5, credit_bytes=N * 4, l8_profile=l8)))
 
 

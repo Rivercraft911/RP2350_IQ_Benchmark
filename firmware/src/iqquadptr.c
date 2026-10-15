@@ -347,6 +347,14 @@ void iqquadptr_stop(void) {
             return;
         }
     }
+    if (state.added) {
+        // ABORT can retire an outstanding source read. Latch its final cursor
+        // while channels are still owned; intentionally halted SMs are not faults.
+        sample_cursors(false);
+        if (state.result.input_high_words > state.result.granted_words ||
+            state.result.input_high_words > state.result.published_words)
+            state.result.errors |= IQQUADPTR_ERR_OWNERSHIP;
+    }
     for (unsigned axis = 0; axis < 2; ++axis) {
         const int channels[] = {state.input_dma[axis], state.credit_dma[axis]};
         for (unsigned i = 0; i < 2; ++i) if (channels[i] >= 0) {
