@@ -70,3 +70,17 @@ the branch's `host/apsk_fec_trial.py --split --ldpc-pack 1 --bch-bank 1`. 3 s fr
 Core 0 work is the runner's `producer_work_busy` (shaping, publication and BCH slices).
 The split balances the two cores rather than removing work; at the new rates both run
 at 80–90%.
+
+60 s qualification (`apsk16-split-soak/`, `apsk32-split-soak/`, `--expected-git
+5e38990269`), every run clean with no underruns and 0 capture mismatches:
+
+| Mode | Clock | CPW | Symbol rate (before → now) | BB capacity, scaled from the recorded rate | Core 0 | Core 1 |
+|---|---:|---:|---|---:|---:|---:|
+| 16APSK 5/6 | 128 MHz | 8 | 3.556 → 4.000 Msym/s | 12.89 Mb/s | 88.1% | 80.1% |
+| 16APSK 5/6 | 150 MHz | 8 | 4.167 → 4.6875 Msym/s | 15.10 Mb/s | 88.1% | 80.1% |
+| 32APSK 5/6 | 128 MHz | 12 | 2.286 → 2.667 Msym/s | 10.75 Mb/s | 89.8% | 87.8% |
+| 32APSK 5/6 | 150 MHz | 12 | 2.679 → 3.125 Msym/s | 12.60 Mb/s | 89.7% | 87.7% |
+
+BB capacity multiplies the README's recorded capacity at the old rate by the rate ratio
+(same MODCOD, pilots and BBHEADER). APSK remains 2 SPS, whose reconstruction images the
+Yapogee notes have not qualified; these are digital results only.
