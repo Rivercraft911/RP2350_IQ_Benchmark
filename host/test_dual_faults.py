@@ -56,7 +56,7 @@ static pio_t *pio1 = &capture;
 static struct dma_t { uint32_t intr; struct { uint32_t transfer_count; } ch[16]; } dma;
 static struct dma_t *dma_hw = &dma;
 static struct {
-    bool owned, running, capture_started, capture_fifo_only, capture_complete, capture_frozen;
+    bool owned, running, capture_started, capture_fifo_only, capture_complete, capture_frozen, fifo_source;
     int cap_dma, sm_cap;
     uint32_t capture_requested, captured;
     uint32_t output_sm_mask, txstall_i_mask, txstall_q_mask, output_debug_mask;
@@ -64,7 +64,8 @@ static struct {
     pio_t *output_pio;
     dual_dma_progress_t result;
 } state;
-static unsigned fifo_level, disables;
+static unsigned fifo_level, disables, cursor_reads;
+static const char *last_error;
 static unsigned pio_sm_get_rx_fifo_level(pio_t *p, unsigned sm) {
     (void)p; (void)sm; return fifo_level;
 }
@@ -72,14 +73,15 @@ static void pio_sm_set_enabled(pio_t *p, unsigned sm, bool enabled) {
     (void)p; (void)sm; assert(!enabled); disables++;
 }
 static void halt_outputs(void) { state.running = state.result.running = false; }
-static void sample_reads(bool check_time) { (void)check_time; }
+static void sample_reads(bool check_time) { (void)check_time; cursor_reads++; }
 '''
 
 CHECKS = r'''
 static void init(bool cap) {
     memset(&state, 0, sizeof state); memset(&dma, 0, sizeof dma);
     output.fdebug = capture.fdebug = 0; dma_hw = &dma;
-    fifo_level = disables = 0; state.owned = state.running = state.result.running = true;
+    fifo_level = disables = cursor_reads = 0; last_error = "";
+    state.owned = state.running = state.result.running = true;
     state.output_pio = &output; state.output_sm_mask = 15;
     state.txstall_i_mask = 5u << 24; state.txstall_q_mask = 10u << 24;
     state.output_debug_mask = (15u << 24) | (15u << 16);
@@ -129,7 +131,32 @@ int main(void) {
     state.owned = false; dma_hw = NULL; // released channels must never be read
     assert(dual_dma_capture_count() == 8 && dual_dma_capture_done());
     assert(dual_dma_capture_errors() == DUAL_DMA_ERR_CAPTURE_STALL);
-    puts("dual fault snapshots: PASS (65536 IRQ masks,256 TX flag sets,capture latching,late faults,released queries)");
+    for (unsigned fifo = 0; fifo < 2; fifo++) {
+        for (uint32_t irq = 0; irq < 65536; irq++) {
+            init(true); state.fifo_source = fifo; dma.intr = irq;
+            dual_dma_faults_t f = dual_dma_faults();
+            uint32_t want = (irq & 0x5555 ? DUAL_DMA_ERR_OUTPUT_DMA : 0) |
+                (irq & 0x8000 ? DUAL_DMA_ERR_CAPTURE_DMA : 0);
+            assert(f.errors == want && f.running == !want && !cursor_reads);
+        }
+        init(true); state.fifo_source = fifo;
+        state.capture_fifo_only = true; state.capture_requested = fifo_level = 8;
+        assert(dual_dma_faults().running && state.captured == 8 && !cursor_reads);
+        output.fdebug = (5u << 24) | (10u << 24);
+        dual_dma_faults_t f = dual_dma_faults();
+        assert(f.errors == (DUAL_DMA_ERR_TXSTALL_I | DUAL_DMA_ERR_TXSTALL_Q));
+        assert(f.txstalls_i == 2 && f.txstalls_q == 2 && !f.running && !cursor_reads);
+        state.owned = false; dma_hw = NULL;
+        dual_dma_faults_t after = dual_dma_faults();
+        assert(after.errors == f.errors && !after.running && !cursor_reads);
+    }
+    init(false); state.fifo_source = true;
+    dual_dma_progress_t rejected = dual_dma_progress();
+    assert(rejected.errors == DUAL_DMA_ERR_CONFIG && !rejected.running && !cursor_reads);
+    assert(strstr(last_error, "unavailable"));
+    state.owned = false; dma_hw = NULL;
+    assert(dual_dma_progress().errors == DUAL_DMA_ERR_CONFIG && !cursor_reads);
+    puts("dual fault snapshots: PASS (old descriptor faults/captures; both-source fault-only polling; FIFO progress rejection; released queries)");
 }
 '''
 
@@ -139,6 +166,7 @@ def main():
     functions = [("static void", "sample_capture", "uint32_t dma_interrupts"),
                  ("static void", "sample_faults", "void"),
                  ("dual_dma_progress_t", "dual_dma_progress", "void"),
+                 ("dual_dma_faults_t", "dual_dma_faults", "void"),
                  ("bool", "dual_dma_capture_done", "void"),
                  ("uint32_t", "dual_dma_capture_count", "void"),
                  ("uint32_t", "dual_dma_capture_errors", "void")]

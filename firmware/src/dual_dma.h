@@ -1,5 +1,5 @@
 // Isolated digital bench engine: two PIO0 or four PIO2 SMs alternate the shared 16-bit bus.
-// Descriptors point to immutable two-, four- or eight-word axis-table rows. No RF qualification.
+// Descriptors or PIO RX FIFOs point to immutable axis-table rows. No RF qualification.
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
@@ -22,6 +22,13 @@ typedef struct {
     uint32_t errors;               // sticky DUAL_DMA_ERR_*; a fault stops all output SMs
     bool running;
 } dual_dma_progress_t;
+
+// Common output/capture faults only. No source-read, descriptor or physical-output cursor.
+typedef struct {
+    uint32_t txstalls_i, txstalls_q;
+    uint32_t errors;
+    bool running;
+} dual_dma_faults_t;
 
 // 5 <= count_log2 <= 13: each array has 2^count_log2 uint32_t entries and must be aligned
 // to its byte size. DMA wrap is limited to 32 KiB. cpw=1..4 is clocks per output bus word.
@@ -57,8 +64,27 @@ unsigned dual_dma_get_bus_priority(void);
 // Fractional output spacing and external HSTX/data phase are not DAC timing qualification.
 bool dual_dma_start_div256(const uint32_t *desc_i, const uint32_t *desc_q,
                            unsigned count_log2, unsigned divider256);
+// Experimental pin-free pointer source: selected row_words must be8 and writers2.
+// Each source must be a distinct claimed PIO SM's RX FIFO with that SM's exact RX DREQ.
+// Caller exclusively owns both pointer SMs and their input DMAs; this engine neither
+// starts nor stops them. No other DMA/CPU consumer may drain those RX FIFOs/DREQs.
+// Poll and honor the producer's own source/reuse deadlines; faults() supplies no cursor.
+// Control DMA consumes one address only after its preceding8-word sample row completes;
+// optional byte-swap converts the L8 pointer producer's RX format to numerical addresses.
+// Prepare/start the producer with committed source data before calling this function.
+// Output startup waits up to1ms for prefill, then retains the existing output/capture timing.
+bool dual_dma_start_fifo(const volatile uint32_t *rx_i, const volatile uint32_t *rx_q,
+                         unsigned dreq_i, unsigned dreq_q, bool control_bswap, unsigned cpw);
+bool dual_dma_start_fifo_div256(const volatile uint32_t *rx_i, const volatile uint32_t *rx_q,
+                                unsigned dreq_i, unsigned dreq_q, bool control_bswap,
+                                unsigned divider256);
 const char *dual_dma_last_error(void);
+// Descriptor mode only. Calling this in FIFO mode sets CONFIG and stops output;
+// use the pointer producer's separately defined source-read/reuse bounds instead.
 dual_dma_progress_t dual_dma_progress(void);
+// Both source modes: sticky output/capture errors halt all output SMs. Polling neither
+// consumes pointer FIFOs nor derives cursors. The final snapshot is safe after stop.
+dual_dma_faults_t dual_dma_faults(void);
 
 // Samples 2*nwords 16-bit values then parks. The sampler takes 17 SM cycles/sample, normally
 // a 17-bus-word stride. For output divider384 it instead uses divider256 (17 SYS cycles),
