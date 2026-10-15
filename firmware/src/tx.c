@@ -451,6 +451,9 @@ static void print_result(const tx_run_t *r) {
     if (r->pv >= 0)
         printf(",\"pv\":{\"selftest\":%d,\"msgs_ok\":%lu,\"nop\":%lu,\"bad_hdr\":%lu,\"bad_crc\":%lu,"
                "\"bad_sync\":%lu,\"lost\":%lu,\"short\":%lu,\"long\":%lu,\"overflows\":%lu,"
+               "\"deferred_msgs\":%lu,\"drain_timeouts\":%lu,\"late_closes\":%lu,"
+               "\"last_short_words\":%lu,\"last_short_fifo\":%lu,\"last_short_ctrl\":%lu,"
+               "\"last_short_pc\":%lu,\"last_short_cs\":%lu,"
                "\"ts_packets\":%lu,\"null_packets\":%lu,\"bbframes\":%lu,\"crc_chain\":%lu,"
                "\"bb_crc\":[%lu,%lu,%lu,%lu],\"bb_cyc_per_frame\":%lu,\"first_bad_at\":%ld,"
                "\"first_bad_info\":%lu,\"ready_pin\":%u,\"ready_function\":%u,"
@@ -459,6 +462,10 @@ static void print_result(const tx_run_t *r) {
                (unsigned long)pv_stats.bad_crc, (unsigned long)pv_stats.bad_sync,
                (unsigned long)pv_stats.lost, (unsigned long)pvspi.short_msgs,
                (unsigned long)pvspi.long_msgs, (unsigned long)pvspi.overflows,
+               (unsigned long)pvspi.deferred_msgs, (unsigned long)pvspi.drain_timeouts,
+               (unsigned long)pvspi.late_closes, (unsigned long)pvspi.last_short_words,
+               (unsigned long)pvspi.last_short_fifo, (unsigned long)pvspi.last_short_ctrl,
+               (unsigned long)pvspi.last_short_pc, (unsigned long)pvspi.last_short_cs,
                (unsigned long)pv_stats.ts_packets, (unsigned long)pv_stats.null_packets,
                (unsigned long)pv_stats.bbframes, (unsigned long)pv_stats.crc_chain,
                (unsigned long)enc.bb_crc[0], (unsigned long)enc.bb_crc[1],

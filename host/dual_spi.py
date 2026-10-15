@@ -58,6 +58,8 @@ def packet_faults(result: dict) -> list[str]:
     faults = [f"pv_spi.{name}" for name in
               ("lost", "bad_hdr", "bad_crc", "bad_sync", "null_packets",
                "short_msgs", "long_msgs", "overflows") if stats.get(name, -1) != 0]
+    faults += [f"pv_spi.{name}" for name in ("drain_timeouts", "late_closes")
+               if stats.get(name, 0) != 0]
     if stats.get("ok", 0) <= 24 or stats.get("ts_packets", 0) <= 168:
         faults.append("PV-SPI did not consume runtime traffic")
     if stats.get("runtime_bbframes", 0) <= 0 or stats.get("runtime_messages", 0) <= 0:

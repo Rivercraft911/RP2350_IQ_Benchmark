@@ -7,11 +7,13 @@
 #include "hardware/pio.h"
 #include "hardware/sync.h"
 #include "pvproto.h"
+#include "pico/time.h"
 
 #define PIN_SCK 17
 #define PIN_MOSI 18
 #define PIN_CS 19
 #define PIN_READY PIN_IN_READY               // GP22
+enum { RX_DRAIN_US = 3 };
 
 pvspi_stats_t pvspi;
 static volatile bool admitting;
@@ -75,23 +77,56 @@ static void __not_in_flash_func(rx_reset)(void) {           // drop partial bits
     pio_sm_exec(pio, sm_rx, pio_encode_jmp(off_rx));
 }
 
+static bool __not_in_flash_func(close_rx)(bool late) {
+    dma_channel_hw_t *rx = dma_channel_hw_addr(ch_rx);
+    uint32_t remaining = rx->transfer_count, ctrl = rx->ctrl_trig;
+    const bool pending = remaining || (ctrl & DMA_CH0_CTRL_TRIG_BUSY_BITS);
+    if (pending) {
+        const uint32_t start = time_us_32();
+        // A CS edge does not retire the last PIO->SRAM beat. BUSY also covers in-flight
+        // transfers (§12.6.8.3); do not read the sniffer or reuse its slot before it clears.
+        do {
+            remaining = rx->transfer_count;
+            ctrl = rx->ctrl_trig;
+            if (!remaining && !(ctrl & DMA_CH0_CTRL_TRIG_BUSY_BITS)) break;
+        } while ((uint32_t)(time_us_32() - start) < RX_DRAIN_US);
+        if (remaining || (ctrl & DMA_CH0_CTRL_TRIG_BUSY_BITS)) pvspi.drain_timeouts++;
+    }
+    const uint32_t fifo = pio_sm_get_rx_fifo_level(pio, sm_rx);
+    const bool cs = gpio_get(PIN_CS);
+    late |= !cs;
+    if (late) pvspi.late_closes++;
+    if (!remaining && !(ctrl & (DMA_CH0_CTRL_TRIG_BUSY_BITS | DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS)) &&
+        !fifo && !late) {
+        if (pending) pvspi.deferred_msgs++;
+        return true;
+    }
+    if (!remaining && fifo && !late) pvspi.long_msgs++;
+    else {
+        pvspi.short_msgs++;
+        pvspi.last_short_words = PV_MSG_WORDS - remaining;
+        pvspi.last_short_fifo = fifo;
+        pvspi.last_short_ctrl = ctrl;
+        pvspi.last_short_pc = pio_sm_get_pc(pio, sm_rx);
+        pvspi.last_short_cs = cs;
+    }
+    dma_channel_abort(ch_rx);
+    return false;
+}
+
 // CS_N rose: a whole message is exactly PV_MSG_WORDS words with nothing left in the FIFO. The RX SM
 // is reset every time, so up to 31 extra bits (one stray SCK edge is enough) cannot stay in its
 // shift register and misalign every later message.
 static void __not_in_flash_func(cs_isr)(void) {
     pio_interrupt_clear(pio, 0);
     const uint32_t s = spin_lock_blocking(lock);
+    gpio_put(PIN_READY, 0);
     if (armed) {
-        const uint32_t got = PV_MSG_WORDS - dma_channel_hw_addr(ch_rx)->transfer_count;
-        const bool whole = got == PV_MSG_WORDS && pio_sm_is_rx_fifo_empty(pio, sm_rx);
-        if (whole) {
+        if (close_rx(!gpio_get(PIN_CS))) {
             // CRC-32 over data plus its own little-endian CRC leaves the residue 0x2144DF1C.
             slot_crc[pvspi.head % PV_SLOTS] = dma_sniffer_get_data_accumulator() == 0x2144DF1Cu;
+            __dmb();
             pvspi.head++;
-        } else {
-            if (got == PV_MSG_WORDS) pvspi.long_msgs++;
-            else pvspi.short_msgs++;
-            dma_channel_abort(ch_rx);
         }
         armed = false;
     } else {

@@ -16,6 +16,8 @@
 typedef struct {
     volatile uint32_t head, tail;            // messages closed / consumed (monotonic)
     volatile uint32_t short_msgs, long_msgs, overflows;
+    volatile uint32_t deferred_msgs, drain_timeouts, late_closes;
+    volatile uint32_t last_short_words, last_short_fifo, last_short_ctrl, last_short_pc, last_short_cs;
 } pvspi_stats_t;
 
 extern pvspi_stats_t pvspi;

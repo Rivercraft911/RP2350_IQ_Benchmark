@@ -41,6 +41,17 @@ class SpiReference(unittest.TestCase):
                                  bb_crc=spi.first_crcs())}
         self.assertIn("no runtime SPI arrivals and BB construction", spi.packet_faults(result))
 
+    def test_receive_closure_faults(self):
+        crc_fields = b"".join(spi.pv.message(k, spi.pv.pattern_payload(k))[-4:]
+                               for k in range(16))
+        stats = dict.fromkeys(("lost", "bad_hdr", "bad_crc", "bad_sync", "null_packets",
+                               "short_msgs", "long_msgs", "overflows"), 0)
+        stats.update(ok=32, ts_packets=224, runtime_bbframes=6, runtime_messages=8,
+                     crc_chain=zlib.crc32(crc_fields * 2), bb_crc=spi.first_crcs(), deferred_msgs=3)
+        self.assertEqual(spi.packet_faults({"pv_spi": stats}), [])
+        for field in ("drain_timeouts", "late_closes"):
+            self.assertIn(f"pv_spi.{field}", spi.packet_faults({"pv_spi": dict(stats, **{field: 1})}))
+
 
 if __name__ == "__main__":
     unittest.main()

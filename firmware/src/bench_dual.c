@@ -286,7 +286,10 @@ static void print_spi_stats(double encoder_budget, uint32_t bb_prefill, uint32_t
            "\"runtime_bbframes\":%lu,\"runtime_messages\":%lu,\"crc_chain\":%lu,"
            "\"bb_crc\":[%lu,%lu,%lu,%lu],\"ok\":%lu,\"lost\":%lu,\"bad_hdr\":%lu,\"bad_crc\":%lu,"
            "\"bad_sync\":%lu,\"ts_packets\":%lu,\"null_packets\":%lu,"
-           "\"short_msgs\":%lu,\"long_msgs\":%lu,\"overflows\":%lu}",
+           "\"short_msgs\":%lu,\"long_msgs\":%lu,\"overflows\":%lu,"
+           "\"deferred_msgs\":%lu,\"drain_timeouts\":%lu,\"late_closes\":%lu,"
+           "\"last_short_words\":%lu,\"last_short_fifo\":%lu,\"last_short_ctrl\":%lu,"
+           "\"last_short_pc\":%lu,\"last_short_cs\":%lu}",
            encoder.bb_cyc / encoder_budget, (encoder.busy_cyc + encoder.bb_cyc) / encoder_budget,
            (unsigned long)clock_get_hz(clk_sys) / 4,
            (unsigned long)encoder.bb_max_cyc, (unsigned long)encoder.bb_frames,
@@ -297,7 +300,11 @@ static void print_spi_stats(double encoder_budget, uint32_t bb_prefill, uint32_t
            (unsigned long)pv_stats.ok, (unsigned long)pv_stats.lost, (unsigned long)pv_stats.bad_hdr,
            (unsigned long)pv_stats.bad_crc, (unsigned long)pv_stats.bad_sync,
            (unsigned long)pv_stats.ts_packets, (unsigned long)pv_stats.null_packets,
-           (unsigned long)pvspi.short_msgs, (unsigned long)pvspi.long_msgs, (unsigned long)pvspi.overflows);
+           (unsigned long)pvspi.short_msgs, (unsigned long)pvspi.long_msgs, (unsigned long)pvspi.overflows,
+           (unsigned long)pvspi.deferred_msgs, (unsigned long)pvspi.drain_timeouts,
+           (unsigned long)pvspi.late_closes, (unsigned long)pvspi.last_short_words,
+           (unsigned long)pvspi.last_short_fifo, (unsigned long)pvspi.last_short_ctrl,
+           (unsigned long)pvspi.last_short_pc, (unsigned long)pvspi.last_short_cs);
 }
 
 static void capture_print(const uint32_t *capture, uint32_t count) {
