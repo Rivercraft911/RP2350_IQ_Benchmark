@@ -1,0 +1,1 @@
+{"planar_glue": "passed", "actual_descriptor_rows": 1024, "axis_descriptors": 2048, "cyclic_blocks": 22, "checked_bus_halfwords": 90112, "executed_isa_steps": 291764, "descriptor_guards": true, "immutable_descriptors": true, "source_boundary_cases": 6, "silicon_timing": false}

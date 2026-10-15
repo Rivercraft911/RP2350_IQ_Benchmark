@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "scope": "native/ISA component, no device timing",
+  "cases": 190,
+  "instructions": 123200,
+  "fixture_key_crc": 189197925,
+  "input_bytes_per_symbol": 4,
+  "asm_frame_bytes": 48,
+  "loop_instructions_per_two_symbols": 33,
+  "output_fixture_raw_crc": 2048936984
+}

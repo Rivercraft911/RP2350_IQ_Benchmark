@@ -1,0 +1,1 @@
+{"profile": "native16_sparse_exact", "gamma_count": 6, "cases": 372, "executed_instructions": 5958096, "extra_ram_bytes": 0, "stack_frame_bytes": 48, "timed": false, "modeled_instructions_for_256_words": {"sparse": 12722, "pair": 12215, "baseline": 13230}}

@@ -1,0 +1,204 @@
+{
+  "sources": {
+    "16": [
+      {
+        "clock_hz": 128000000,
+        "git": "cf8815b7b7-dirty",
+        "kernels": {
+          "native_c": {
+            "label": "Native\nC",
+            "shape": 22.5522,
+            "conversion": 0,
+            "total": 22.5522,
+            "input_bytes_per_sym": null,
+            "output_layout": "raw_pairs"
+          },
+          "native_burst": {
+            "label": "Native\nASM",
+            "shape": 21.1036,
+            "conversion": 0,
+            "total": 21.1036,
+            "input_bytes_per_sym": null,
+            "output_layout": "raw_pairs"
+          },
+          "sparse_burst": {
+            "label": "Sparse\nASM",
+            "shape": 20.1115,
+            "conversion": 0,
+            "total": 20.1115,
+            "input_bytes_per_sym": null,
+            "output_layout": "raw_pairs"
+          },
+          "pair_burst": {
+            "label": "Paired\nASM",
+            "shape": 19.3693,
+            "conversion": 0,
+            "total": 19.3693,
+            "input_bytes_per_sym": null,
+            "output_layout": "raw_pairs"
+          },
+          "planar_burst": {
+            "label": "Planar\nASM",
+            "shape": 20.3927,
+            "conversion": 0,
+            "total": 20.3927,
+            "input_bytes_per_sym": null,
+            "output_layout": "planar4"
+          }
+        },
+        "source": {
+          "path": "results/apsk-frontier/2026-10-15/component-4/runs.jsonl",
+          "line": 3,
+          "sha256": "529f056e707301148d3845e2b847c5514f21fffd7a04a5064df770cbf27b5ca6"
+        }
+      },
+      {
+        "clock_hz": 150000000,
+        "git": "cf8815b7b7-dirty",
+        "kernels": {
+          "native_c": {
+            "label": "Native\nC",
+            "shape": 22.5522,
+            "conversion": 0,
+            "total": 22.5522,
+            "input_bytes_per_sym": null,
+            "output_layout": "raw_pairs"
+          },
+          "native_burst": {
+            "label": "Native\nASM",
+            "shape": 21.1036,
+            "conversion": 0,
+            "total": 21.1036,
+            "input_bytes_per_sym": null,
+            "output_layout": "raw_pairs"
+          },
+          "sparse_burst": {
+            "label": "Sparse\nASM",
+            "shape": 20.1115,
+            "conversion": 0,
+            "total": 20.1115,
+            "input_bytes_per_sym": null,
+            "output_layout": "raw_pairs"
+          },
+          "pair_burst": {
+            "label": "Paired\nASM",
+            "shape": 19.3693,
+            "conversion": 0,
+            "total": 19.3693,
+            "input_bytes_per_sym": null,
+            "output_layout": "raw_pairs"
+          },
+          "planar_burst": {
+            "label": "Planar\nASM",
+            "shape": 20.3927,
+            "conversion": 0,
+            "total": 20.3927,
+            "input_bytes_per_sym": null,
+            "output_layout": "planar4"
+          }
+        },
+        "source": {
+          "path": "results/apsk-frontier/2026-10-15/component-4/runs.jsonl",
+          "line": 6,
+          "sha256": "529f056e707301148d3845e2b847c5514f21fffd7a04a5064df770cbf27b5ca6"
+        }
+      }
+    ],
+    "32": [
+      {
+        "clock_hz": 128000000,
+        "git": "cf8815b7b7-dirty",
+        "kernels": {
+          "native_c": {
+            "label": "Native\nC",
+            "shape": 46.6059,
+            "conversion": 0.0,
+            "total": 46.6059,
+            "input_bytes_per_sym": 2,
+            "output_layout": "raw_pairs"
+          },
+          "native_burst": {
+            "label": "Native\nASM",
+            "shape": 39.3089,
+            "conversion": 0.0,
+            "total": 39.3089,
+            "input_bytes_per_sym": 2,
+            "output_layout": "raw_pairs"
+          },
+          "pair_burst": {
+            "label": "Packed-pair\nkeys",
+            "shape": 34.7384,
+            "conversion": 6.7091,
+            "total": 41.4475,
+            "input_bytes_per_sym": 2,
+            "output_layout": "raw_pairs"
+          },
+          "keys_burst": {
+            "label": "Rolling\nkeys",
+            "shape": 22.3164,
+            "conversion": 11.2437,
+            "total": 33.560100000000006,
+            "input_bytes_per_sym": 4,
+            "output_layout": "raw_pairs"
+          }
+        },
+        "source": {
+          "path": "results/apsk-frontier/2026-10-15/component-4/runs.jsonl",
+          "line": 4,
+          "sha256": "529f056e707301148d3845e2b847c5514f21fffd7a04a5064df770cbf27b5ca6"
+        }
+      },
+      {
+        "clock_hz": 150000000,
+        "git": "cf8815b7b7-dirty",
+        "kernels": {
+          "native_c": {
+            "label": "Native\nC",
+            "shape": 46.6059,
+            "conversion": 0.0,
+            "total": 46.6059,
+            "input_bytes_per_sym": 2,
+            "output_layout": "raw_pairs"
+          },
+          "native_burst": {
+            "label": "Native\nASM",
+            "shape": 39.3087,
+            "conversion": 0.0,
+            "total": 39.3087,
+            "input_bytes_per_sym": 2,
+            "output_layout": "raw_pairs"
+          },
+          "pair_burst": {
+            "label": "Packed-pair\nkeys",
+            "shape": 34.7384,
+            "conversion": 6.7091,
+            "total": 41.4475,
+            "input_bytes_per_sym": 2,
+            "output_layout": "raw_pairs"
+          },
+          "keys_burst": {
+            "label": "Rolling\nkeys",
+            "shape": 22.3164,
+            "conversion": 11.2437,
+            "total": 33.560100000000006,
+            "input_bytes_per_sym": 4,
+            "output_layout": "raw_pairs"
+          }
+        },
+        "source": {
+          "path": "results/apsk-frontier/2026-10-15/component-4/runs.jsonl",
+          "line": 7,
+          "sha256": "529f056e707301148d3845e2b847c5514f21fffd7a04a5064df770cbf27b5ca6"
+        }
+      }
+    ]
+  },
+  "display_clock_hz": 128000000,
+  "clock_agreement_tolerance_cycles_per_symbol": 0.01,
+  "deadline_cycles_per_symbol": [
+    24,
+    32
+  ],
+  "conversion_accounting": "separate stacked measured cost; native kernels consume coordinate input directly",
+  "scope": "isolated IRQ-masked component work; no inferred complete-modem or RF throughput"
+}

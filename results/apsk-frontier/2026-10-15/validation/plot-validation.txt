@@ -1,0 +1,1 @@
+{"self_test": "passed", "checked_clock_profiles": 4, "negative_controls": 16, "kernels": {"16": 5, "32": 4}, "clocks_hz": [128000000, 150000000], "performance_values": "read from CRC-checked raw JSON"}

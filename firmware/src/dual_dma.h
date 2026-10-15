@@ -31,7 +31,7 @@ typedef struct {
 } dual_dma_faults_t;
 
 // 5 <= count_log2 <= 13: each array has 2^count_log2 uint32_t entries and must be aligned
-// to its byte size. DMA wrap is limited to 32 KiB. cpw=1..4 is clocks per output bus word.
+// to its byte size. DMA wrap is limited to32KiB. cpw=1..4,6,8 is clocks per output bus word.
 // Fill both rings before start. Caller owns publication, reuse guards and ready deadlines.
 // Poll faster than one ring period (leave >=8 rows for DMA/FIFO lookahead), otherwise
 // wrapping read addresses cannot establish monotonic counts. Use an additional >=8-entry
@@ -60,7 +60,8 @@ unsigned dual_dma_get_writers(void);
 // RP2350-E27 changes which ports they affect at FASTPERI/APB. Prior state is restored.
 bool dual_dma_set_bus_priority(unsigned mask);
 unsigned dual_dma_get_bus_priority(void);
-// Fixed-point divider (units1/256):256,384,512,768,1024 =>1,1.5,2,3,4.
+// Descriptor fixed-point divider (units1/256):256,384,512,768,1024,1536,2048
+// =>1,1.5,2,3,4,6,8. The FIFO source below retains its1..4 limit.
 // Fractional output spacing and external HSTX/data phase are not DAC timing qualification.
 bool dual_dma_start_div256(const uint32_t *desc_i, const uint32_t *desc_q,
                            unsigned count_log2, unsigned divider256);

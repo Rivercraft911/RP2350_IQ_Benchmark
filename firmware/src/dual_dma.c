@@ -374,7 +374,8 @@ static bool start_failed(const char *message, uint32_t error) {
 
 bool dual_dma_start(const uint32_t *desc_i, const uint32_t *desc_q, unsigned count_log2,
                     unsigned cpw) {
-    return dual_dma_start_div256(desc_i, desc_q, count_log2, cpw >= 1 && cpw <= 4 ? cpw * 256 : 0);
+    return dual_dma_start_div256(desc_i, desc_q, count_log2,
+                                 ((cpw >= 1 && cpw <= 4) || cpw == 6 || cpw == 8) ? cpw * 256 : 0);
 }
 
 static bool start_output(unsigned divider256, unsigned count_log2);
@@ -385,8 +386,8 @@ bool dual_dma_start_div256(const uint32_t *desc_i, const uint32_t *desc_q,
     claim_init();
     if (!desc_i || !desc_q || count_log2 < 5 || count_log2 > 13 ||
         (divider256 != 256 && divider256 != 384 && divider256 != 512 &&
-         divider256 != 768 && divider256 != 1024))
-        return start_failed("descriptor log2 5..13; divider256 256/384/512/768/1024", DUAL_DMA_ERR_CONFIG);
+         divider256 != 768 && divider256 != 1024 && divider256 != 1536 && divider256 != 2048))
+        return start_failed("descriptor log2 5..13; divider256 256/384/512/768/1024/1536/2048", DUAL_DMA_ERR_CONFIG);
     state.count = 1u << count_log2;
     state.writers = selected_writers;
     state.output_pio = state.writers == 4 ? pio2 : pio0;
@@ -546,8 +547,9 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
     hstx_ctrl_hw->csr = 0;
     hstx_ctrl_hw->bit[4] = HSTX_CTRL_BIT0_CLK_BITS;
     hstx_ctrl_hw->expand_shift = 1u << HSTX_CTRL_EXPAND_SHIFT_RAW_N_SHIFTS_LSB;
-    hstx_ctrl_hw->csr = (divider256 / 128u << HSTX_CTRL_CSR_CLKDIV_LSB) |
-        (divider256 / 256u << HSTX_CTRL_CSR_CLKPHASE_LSB) | (1u << HSTX_CTRL_CSR_N_SHIFTS_LSB) |
+    // CLKDIV encodes a16-cycle period as0. Mask before shifting into the field.
+    hstx_ctrl_hw->csr = (((divider256 / 128u) & 15u) << HSTX_CTRL_CSR_CLKDIV_LSB) |
+        (((divider256 / 256u) & 15u) << HSTX_CTRL_CSR_CLKPHASE_LSB) | (1u << HSTX_CTRL_CSR_N_SHIFTS_LSB) |
         HSTX_CTRL_CSR_EXPAND_EN_BITS;
     gpio_set_function(PIN_CLKIO, GPIO_FUNC_HSTX);
     gpio_set_slew_rate(PIN_CLKIO, GPIO_SLEW_RATE_FAST);

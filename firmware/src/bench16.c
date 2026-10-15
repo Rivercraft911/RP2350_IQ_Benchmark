@@ -1,6 +1,8 @@
 #include "bench.h"
 #include "iq16chunk.h"
 #include "iq16native8.h"
+#include "iq16fast.h"
+#include "iq16fast_planar.h"
 #include "tx.h"
 
 #include <stdio.h>
@@ -108,13 +110,27 @@ void bench_16native8(int reps) {
     const uint32_t cf = crc32_update(0, tables.future, IQ16NATIVE8_FULL_WORDS * 4);
     typedef void (*native_fn)(uint32_t *, const uint32_t *, uint32_t,
                               const uint32_t *, const iq16native8_tables_t *);
-    const native_fn native[2] = {iq16native8_kernel_c, iq16native8_kernel_asm};
-    struct { uint32_t raw, packed, worst; uint64_t elapsed; bool correct; } measured[2];
-    for (unsigned mode = 0; mode < 2; ++mode) {
+    const native_fn native[] = {iq16native8_kernel_c, iq16native8_kernel_asm,
+                               iq16fast_sparse_asm, iq16fast_pair_asm, iq16fast_planar_asm};
+    const char *const names[] = {"native_c", "native_burst", "sparse_burst", "pair_burst", "planar_burst"};
+    enum { NATIVE_MODES = sizeof native / sizeof native[0] };
+    struct { uint32_t raw, packed, worst; uint64_t elapsed; bool correct; } measured[NATIVE_MODES];
+    for (unsigned mode = 0; mode < NATIVE_MODES; ++mode) {
         uint32_t raw = 0, packed = 0, worst = 0;
         uint64_t elapsed = 0;
         for (unsigned b = 0; b < BLOCKS; b += CHUNK) {
             native[mode](cap_buf, in_buf + b, CHUNK, b ? in_buf + b - 2 : NULL, &tables);
+            if (mode == NATIVE_MODES - 1) {
+                // Verification only: normalize the planar layout to RAW_PAIRS.
+                for (unsigned k = 0; k < WORDS; k += 8) {
+                    uint32_t row[8];
+                    for (unsigned j = 0; j < 8; ++j) row[j] = cap_buf[k + j];
+                    for (unsigned j = 0; j < 4; ++j) {
+                        cap_buf[k + 2*j] = row[j];
+                        cap_buf[k + 2*j + 1] = row[j + 4];
+                    }
+                }
+            }
             packed = masked_crc(packed, cap_buf);
             raw = crc32_update(raw, cap_buf, WORDS * 4);
         }
@@ -141,10 +157,10 @@ void bench_16native8(int reps) {
            GIT_REV, (unsigned long)clock_get_hz(clk_sys), reps, IQ16NATIVE8_PROFILE,
            IQ16NATIVE8_PULSE_PROFILE, IQ16NATIVE8_COEFFICIENT_SHA256,
            (unsigned long)ci, (unsigned long)co, (unsigned long)cm, (unsigned long)cf);
-    for (unsigned mode = 0; mode < 2; ++mode) {
-        printf("%s{\"name\":\"%s\",\"raw_crc\":%lu,\"packed_crc\":%lu,\"crc_ok\":%s,"
+    for (unsigned mode = 0; mode < NATIVE_MODES; ++mode) {
+        printf("%s{\"name\":\"%s\",\"output_layout\":\"%s\",\"raw_crc\":%lu,\"packed_crc\":%lu,\"crc_ok\":%s,"
                "\"cyc_per_sym\":%.4f,\"worst_block_cyc_per_sym\":%.4f}",
-               mode ? "," : "", mode ? "native_burst" : "native_c",
+               mode ? "," : "", names[mode], mode == NATIVE_MODES - 1 ? "planar4" : "raw_pairs",
                (unsigned long)measured[mode].raw, (unsigned long)measured[mode].packed,
                measured[mode].correct ? "true" : "false",
                (double)measured[mode].elapsed / (reps * BLOCKS * 4),

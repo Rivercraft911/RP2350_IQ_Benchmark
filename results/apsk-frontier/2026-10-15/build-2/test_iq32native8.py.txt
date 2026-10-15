@@ -1,0 +1,93 @@
+{
+  "status": "PASS",
+  "scope": "native component, no device/RF/fullmodem claim",
+  "coefficient_sha256": "16936cb50f5de62e68b10367624b868afea4ad49f8dfc4481526de4712fda5ae",
+  "table_bytes": 117912,
+  "symmetry_table_option_bytes": 78608,
+  "input_crc": 1106835987,
+  "fixture_blocks": 8192,
+  "fixture_symbols": 16384,
+  "checks": 3919779,
+  "rates": [
+    {
+      "rate_index": 0,
+      "gamma100": [
+        284,
+        527
+      ],
+      "table_crcs": [
+        2047914682,
+        919939530,
+        3325065507
+      ],
+      "raw_crc": 380059168,
+      "packed_crc": 2995323908,
+      "headroom_bound_lsb": 7301,
+      "max_float_q8_error_lsb": 1.4883454967175567
+    },
+    {
+      "rate_index": 1,
+      "gamma100": [
+        272,
+        487
+      ],
+      "table_crcs": [
+        3933650313,
+        1706628315,
+        1678293446
+      ],
+      "raw_crc": 2308523439,
+      "packed_crc": 1582080147,
+      "headroom_bound_lsb": 7301,
+      "max_float_q8_error_lsb": 1.4770050163442647
+    },
+    {
+      "rate_index": 2,
+      "gamma100": [
+        264,
+        464
+      ],
+      "table_crcs": [
+        3255586384,
+        916828675,
+        1817262751
+      ],
+      "raw_crc": 2048936984,
+      "packed_crc": 1960087962,
+      "headroom_bound_lsb": 7301,
+      "max_float_q8_error_lsb": 1.4539499645866272
+    },
+    {
+      "rate_index": 3,
+      "gamma100": [
+        254,
+        433
+      ],
+      "table_crcs": [
+        3639513968,
+        2519813736,
+        2074592395
+      ],
+      "raw_crc": 1496234863,
+      "packed_crc": 826956591,
+      "headroom_bound_lsb": 7301,
+      "max_float_q8_error_lsb": 1.4536648014250204
+    },
+    {
+      "rate_index": 4,
+      "gamma100": [
+        253,
+        430
+      ],
+      "table_crcs": [
+        2709227290,
+        481522570,
+        2264605869
+      ],
+      "raw_crc": 2073208423,
+      "packed_crc": 3708628852,
+      "headroom_bound_lsb": 7301,
+      "max_float_q8_error_lsb": 1.454969942451953
+    }
+  ]
+}

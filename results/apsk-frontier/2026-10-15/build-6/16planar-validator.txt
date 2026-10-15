@@ -1,0 +1,1 @@
+{"self_test": "passed", "capture_cases": 12, "checked_halfwords": 8192, "stride": 17, "one_offset": true, "physical_period_wrap": true, "negative_controls": ["corruption", "transport_crc", "missing_line", "invalid_bounds", "outside_bounded_window"]}

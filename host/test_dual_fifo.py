@@ -189,27 +189,30 @@ static void validation_checks(void) {
     // Descriptor validation/setup remains independently exercised at all supported sizes.
     for (unsigned writers = 2; writers <= 4; writers += 2)
     for (unsigned words = 2; words <= 8; words *= 2)
+    for (unsigned div_index = 0; div_index < 7; div_index++)
     for (unsigned log = 5; log <= 13; log++) {
+        const unsigned dividers[] = {256,384,512,768,1024,1536,2048};
+        const unsigned divider = dividers[div_index];
         reset(); selected_writers = writers; selected_row_words = words;
         const uint32_t *a = (const uint32_t *)(uintptr_t)0x20010000u;
         const uint32_t *b = (const uint32_t *)(uintptr_t)0x20020000u;
         bool want = writers == 2 || words >= 4;
-        assert(dual_dma_start_div256(a, b, log, 384) == want);
+        assert(dual_dma_start_div256(a, b, log, divider) == want);
         if (want) {
             assert(!state.fifo_source && state.count == (1u << log));
             assert(state.mask == (1u << log) / (writers / 2) - 1);
             assert(state.output_pio == (writers == 4 ? pio2 : pio0));
-            assert(state.desc_i == a && state.desc_q == b && log_arg == log && divider_arg == 384);
-            uint32_t period = (uint32_t)((uint64_t)((1u << log) - 8) * 4 * words * 384 * 1000000u /
+            assert(state.desc_i == a && state.desc_q == b && log_arg == log && divider_arg == divider);
+            uint32_t period = (uint32_t)((uint64_t)((1u << log) - 8) * 4 * words * divider * 1000000u /
                                        ((uint64_t)128000000 * 256));
             assert(state.poll_limit_us == period && period > 0);
         }
     }
-    for (unsigned bad = 0; bad < 6; bad++) {
+    for (unsigned bad = 0; bad < 9; bad++) {
         reset(); const uint32_t *a = (const uint32_t *)(uintptr_t)(0x20010000u + (bad == 0 ? 4 : 0));
         assert(!dual_dma_start_div256(bad == 1 ? NULL : a,
                 (const uint32_t *)(uintptr_t)0x20020000u, bad == 2 ? 4 : bad == 3 ? 14 : 8,
-                bad == 4 ? 257 : bad == 5 ? 0 : 256));
+                bad == 4 ? 257 : bad == 5 ? 0 : bad == 6 ? 1280 : bad == 7 ? 1792 : bad == 8 ? 4096 : 256));
         assert(!starts && stopped == 1 && !state.owned);
     }
 }

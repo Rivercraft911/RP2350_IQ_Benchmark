@@ -1,0 +1,1 @@
+{"profile": "native16_planar_exact", "cases": 133, "gamma_count": 6, "executed_model_steps": 2961564, "layout": "I01_I23_I45_I67_Q01_Q23_Q45_Q67", "zero_extra_ram": true, "stack_frame_bytes": 48, "stm_model": "ordered_scalar_stores", "silicon_timing": false}

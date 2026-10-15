@@ -15,6 +15,7 @@ void bench_8quad(int ms, int reps);
 void bench_8map(int code, bool pilots, int reps);
 void bench_16chunk(int reps);
 void bench_16native8(int reps);
+void bench_32native8(int reps);
 void bench_hstx_ddr(int ms);
 void bench_descriptors(int reps);
 bool bench_dual_set_quad_profile(unsigned profile);

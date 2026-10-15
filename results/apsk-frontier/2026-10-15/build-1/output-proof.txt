@@ -1,0 +1,1 @@
+{"native_output_helper": "passed", "actual_cyclic_blocks": 106, "checked_gpio_halfwords": 434176, "source_wraps": 3, "sequence_u32_wrap_cases": 3, "arena_guards": true, "zero_history_used": false, "silicon_timing": false}

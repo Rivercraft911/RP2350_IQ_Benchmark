@@ -1,0 +1,2 @@
+dual FIFO setup: PASS (fixed RX+BSWAP, exact DREQ/claims, old DMA configs/start validation, 36000 wrapped descriptor snapshots)
+dual DMA stop: PASS (both sources, running/halted, partial DMA/FIFO capture, AHB faults, external pointer ownership, no FIFO cursor reads)

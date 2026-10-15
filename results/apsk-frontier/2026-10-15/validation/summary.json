@@ -1,0 +1,17 @@
+{
+  "make_check": "passed",
+  "additional_mixed_geometry_test": "passed",
+  "new_plot_test": "passed",
+  "compiled_firmware_source_files_matched": 86,
+  "firmware_image": "../build-6/manifest.json",
+  "builder_stack_bytes_before": 1272,
+  "builder_stack_bytes_after": 176,
+  "main_stack_bytes": 336,
+  "component_stack_bytes": 488,
+  "output_stack_bytes": 400,
+  "main_component_builder_bytes": 1000,
+  "main_output_builder_bytes": 912,
+  "per_core_stack_bytes": 2048,
+  "stack_numbers": "static Arm compiler reports, no measured high-water claim",
+  "before_fix_images": "32APSK records from builds2/3 are exploratory only; final32 evidence usesbuild6"
+}

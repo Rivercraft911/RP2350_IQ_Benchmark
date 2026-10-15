@@ -36,10 +36,12 @@ across frames; it does not switch to the separate 16-Msym/s QPSK engine.
 
 ![Qualified digital capacity and nominal bandwidth](results/plots/waveforms-2026-10-15/waveform_capacity.png)
 
-An **exact 16APSK shaper component** now takes **21.106 cycles/symbol** on the Pico.
-The complete 16APSK mapper, live output and RF path remain research work. More
-constellation points trade bandwidth for link and implementation demands; they
-do not automatically beat the fastest QPSK bitrate.
+Exact **16APSK and 32APSK output components** also run at **6.25 Msym/s** on the
+Pico. The 16APSK kernel now takes **19.369 cycles/symbol**, an 8.2% reduction.
+32APSK rolling keys reduce shaping from **39.309 to 22.316 cycles/symbol**;
+including standalone key conversion leaves a 14.6% reduction. These APSK tests
+use cyclic sources and omit complete SPI/FEC/frame production. See the
+[APSK experiments, captures and comparison plot](results/apsk-frontier/2026-10-15/README.md).
 
 The L8 QPSK encoder/output also passed 60 seconds on one core at **10.667 Msym/s
 at 128 MHz**, and **12.5 Msym/s at 150 MHz**. Those tests use a synthetic BB source;
@@ -129,7 +131,7 @@ The retained `experiment/yapogee-limits` checkpoint is `4b779c0`; current R&D is
 | Run control and default transmitter | `firmware/src/main.c`, `tx.c`, `iqout.c` |
 | Direct LUT DMA and QPSK | `bench_dual.c`, `dual_dma.c`, `iqdesc.c`, `iqquad.c` |
 | Complete 8PSK / VCM experiment | `bench8live.c`, `dvbs2_8psk.c`, `dvbs2_qpsk8.c`, `iq8quad.c` |
-| 16APSK components | `bench16.c`, `iq16chunk.c`, `iq16native8.c` and assembly leaves |
+| APSK components | `bench16.c`, `bench32.c`, `bench16out.c`, `bench32out.c`, `iq16fast_asm.S`, `iq32keys.c` |
 | DVB-S2 FEC / mapping | `dvbs2.c`, `dvbs2_asm.S`, `dvbs2_map_asm.S` |
 | SPI ingress | `pvspi.c`, `pvproto.c`, `bench_pvstress.c` |
 | PIO-generated LUT pointers | `iqquadptr.c`, `bench_quadptr.c`, `bench_quadlive.c` |

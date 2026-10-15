@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "scope": "native mixed-geometry component only",
+  "modes": [
+    "native QPSK",
+    "native8PSK",
+    "native32APSK R3=1"
+  ],
+  "fixed_gamma_profiles": 5,
+  "starting_partial_fills": 2,
+  "cases": 10,
+  "mode_boundaries": 360,
+  "checked_output_halfwords": 289960,
+  "same_sample_clock": true,
+  "history_flushed": false,
+  "complete_dvb_frames": false
+}

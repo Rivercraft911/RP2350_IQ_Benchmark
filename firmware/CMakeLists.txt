@@ -13,6 +13,9 @@ set(TX_SOURCES
     src/iqquad.c src/iqquadptr.c src/dual_dma.c
     src/iq8.c src/iq8quad.c src/iq8quad_asm.S
     src/iq16chunk.c src/iq16chunk_asm.S src/iq16native8.c src/iq16native8_asm.S
+    src/iq16fast_asm.S src/iq16fast_planar_asm.S src/bench16out.c src/bench16planar.c
+    src/iq32native8.c src/iq32native8_asm.S src/bench32.c
+    src/iq32keys.c src/iq32keys_asm.S src/iq32pairkey.c src/iq32pairkey_asm.S src/bench32out.c
     src/dvbs2.c src/dvbs2_8psk.c src/dvbs2_qpsk8.c src/dvbs2_asm.S src/dvbs2_map_asm.S
     src/pvproto.c src/pvspi.c
     src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c

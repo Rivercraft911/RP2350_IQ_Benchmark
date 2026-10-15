@@ -21,6 +21,10 @@
 //   bench8quad ms reps / bench8map code pilots reps   8PSK shaper / mapper components
 //   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
 //   bench16chunk reps / bench16native8 reps       16APSK shaper components
+//   bench16out cpw ms kernel                     16APSK output with capture, no FEC
+//   bench16planar cpw ms                         experimental dual-axis planar output
+//   bench32native8 reps                          32APSK shaper components
+//   bench32out cpw ms kernel                     32APSK rolling-key output, no FEC
 //   benchquadptr mode / quadlive cpw ms fault     finite / live PIO address generation
 //   pvstress ms irq_mask_us                      on-chip SPI admission test
 //   ddrtest [ms]                                  experimental PIO data + HSTX DDR clock
@@ -37,6 +41,9 @@
 
 #include "bench.h"
 #include "bench8live.h"
+#include "bench16out.h"
+#include "bench16planar.h"
+#include "bench32out.h"
 #include "bench_quadlive.h"
 #include "bench_quadptr.h"
 #include "bench_ptr.h"
@@ -223,9 +230,28 @@ static const char *dispatch(char *line) {
             !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
             !num(a[3], "fault", 0, 0, 1, &fault)) return err;
         bench_quadlive(r.cpw, r.ms, fault);
+    } else if (!strcmp(cmd, "bench16out")) {
+        int kernel;
+        if (!num(a[1], "cpw", 6, 4, 8, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "kernel", 3, 0, 3, &kernel)) return err;
+        bench_16out(r.cpw, r.ms, kernel);
+    } else if (!strcmp(cmd, "bench16planar")) {
+        if (!num(a[1], "cpw", 6, 4, 8, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms)) return err;
+        bench_16planar(r.cpw, r.ms);
     } else if (!strcmp(cmd, "bench16native8")) {
         if (!num(a[1], "reps", 8, 1, 100, &reps)) return err;
         bench_16native8(reps);
+    } else if (!strcmp(cmd, "bench32out")) {
+        int kernel;
+        if (!num(a[1], "cpw", 6, 4, 8, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "kernel", 1, 0, 1, &kernel)) return err;
+        bench_32out(r.cpw, r.ms, kernel);
+    } else if (!strcmp(cmd, "bench32native8")) {
+        if (!num(a[1], "reps", 8, 1, 100, &reps)) return err;
+        bench_32native8(reps);
     } else if (!strcmp(cmd, "bench16chunk")) {
         if (!num(a[1], "reps", 8, 1, 100, &reps)) return err;
         bench_16chunk(reps);

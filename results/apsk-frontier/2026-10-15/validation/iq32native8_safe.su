@@ -1,0 +1,4 @@
+/tmp/yapogee-apsk-stack-audit/iq32native8_safe.c:8:16:iq32native8_coefficients	0	static
+/tmp/yapogee-apsk-stack-audit/iq32native8_safe.c:10:6:iq32native8_build	176	static
+/tmp/yapogee-apsk-stack-audit/iq32native8_safe.c:63:6:iq32native8_kernel_c	64	static
+/tmp/yapogee-apsk-stack-audit/iq32native8_safe.c:90:6:iq32native8_fill	16	static

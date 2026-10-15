@@ -1,0 +1,5 @@
+/Users/river/.pico-sdk/sdk/2.2.0/src/rp2_common/hardware_clocks/include/hardware/clocks.h:569:20:set_sys_clock_khz	32	static
+/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/src/main.c:152:13:cmd_info	72	static
+/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/src/main.c:146:13:cap_ok.part.0	8	static
+/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/src/main.c:127:13:num	32	static
+/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/src/main.c:357:5:main	336	static

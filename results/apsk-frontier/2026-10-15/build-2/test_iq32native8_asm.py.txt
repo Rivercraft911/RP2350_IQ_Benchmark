@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "scope": "actual source ISA/AAPCS model, not device timing",
+  "cases": 180,
+  "instructions": 336555,
+  "asm_frame_bytes": 48,
+  "long_loop_instructions_per_two_symbols": 62
+}

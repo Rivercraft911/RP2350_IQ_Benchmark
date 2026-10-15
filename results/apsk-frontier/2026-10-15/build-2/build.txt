@@ -1,0 +1,45 @@
+ninja: Entering directory `firmware/build-limits'
+[0/1] Re-running CMake...
+PICO_SDK_PATH is /Users/river/.pico-sdk/sdk/2.2.0
+Target board (PICO_BOARD) is 'pimoroni_pico_plus2_rp2350'.
+Using board configuration from /Users/river/.pico-sdk/sdk/2.2.0/src/boards/include/boards/pimoroni_pico_plus2_rp2350.h
+Pico Platform (PICO_PLATFORM) is 'rp2350-arm-s'.
+Build type is Release
+Using picotool from /opt/homebrew/bin/picotool
+TinyUSB available at /Users/river/.pico-sdk/sdk/2.2.0/lib/tinyusb/hw/bsp/rp2040; enabling build support for USB.
+BTstack available at /Users/river/.pico-sdk/sdk/2.2.0/lib/btstack
+cyw43-driver available at /Users/river/.pico-sdk/sdk/2.2.0/lib/cyw43-driver
+mbedtls available at /Users/river/.pico-sdk/sdk/2.2.0/lib/mbedtls
+lwIP available at /Users/river/.pico-sdk/sdk/2.2.0/lib/lwip
+-- Configuring done (0.2s)
+-- Generating done (0.1s)
+-- Build files have been written to: /Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/build-limits
+[1/40] cd /Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/build-limits && /opt/homebrew/bin/cmake -DSRC=/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware -DOUT=/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/build-limits/git_rev.h -P /Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/git_rev.cmake
+[2/30] Building ASM object CMakeFiles/iqbench.dir/src/iq16fast_planar_asm.S.o
+[3/30] Building ASM object CMakeFiles/iqbench.dir/src/iq32native8_asm.S.o
+[4/30] Building ASM object CMakeFiles/pvflight.dir/src/iq16fast_planar_asm.S.o
+[5/30] Building ASM object CMakeFiles/pvflight.dir/src/iq32native8_asm.S.o
+[6/30] Building C object CMakeFiles/iqbench.dir/src/iq32native8.c.o
+[7/30] Building C object CMakeFiles/pvflight.dir/src/iq32native8.c.o
+[8/30] Building C object CMakeFiles/iqbench.dir/src/bench32.c.o
+[9/30] Building C object CMakeFiles/iqbench.dir/src/bench_pvstress.c.o
+[10/30] Building C object CMakeFiles/pvflight.dir/src/bench32.c.o
+[11/30] Building C object CMakeFiles/iqbench.dir/src/bench16.c.o
+[12/30] Building C object CMakeFiles/iqbench.dir/src/bench8quad.c.o
+[13/30] Building C object CMakeFiles/iqbench.dir/src/bench_ddr.c.o
+[14/30] Building C object CMakeFiles/pvflight.dir/src/bench_ddr.c.o
+[15/30] Building C object CMakeFiles/iqbench.dir/src/bench.c.o
+[16/30] Building C object CMakeFiles/pvflight.dir/src/bench.c.o
+[17/30] Building C object CMakeFiles/pvflight.dir/src/bench_pvstress.c.o
+[18/30] Building C object CMakeFiles/pvflight.dir/src/bench8quad.c.o
+[19/30] Building C object CMakeFiles/iqbench.dir/src/main.c.o
+[20/30] Building C object CMakeFiles/iqbench.dir/src/bench_quadlive.c.o
+[21/30] Building C object CMakeFiles/pvflight.dir/src/bench16.c.o
+[22/30] Building C object CMakeFiles/pvflight.dir/src/main.c.o
+[23/30] Building C object CMakeFiles/pvflight.dir/src/bench_quadlive.c.o
+[24/30] Building C object CMakeFiles/iqbench.dir/src/bench_dual.c.o
+[25/30] Building C object CMakeFiles/iqbench.dir/src/dual_dma.c.o
+[26/30] Building C object CMakeFiles/pvflight.dir/src/bench_dual.c.o
+[27/30] Building C object CMakeFiles/pvflight.dir/src/dual_dma.c.o
+[28/30] Linking CXX executable iqbench.elf
+[29/30] Linking CXX executable pvflight.elf
