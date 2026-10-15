@@ -40,6 +40,7 @@ FAULTS = ('errors', 'underruns', 'own_errors', 'idle_sent', 'txstalls',
           'txstalls_i', 'txstalls_q', 'input_overruns')
 PV_FAULTS = ('lost', 'bad_hdr', 'bad_crc', 'bad_sync', 'short_msgs', 'long_msgs',
              'overflows', 'gcs_underflows', 'drain_timeouts', 'late_closes')
+ABSENT_IMAGES = {}  # gitignored firmware images missing locally: path -> unchecked recorded sha256
 
 
 def digest(path):
@@ -199,8 +200,16 @@ def pointer_evidence(row, policy, lines=None):
     assert manifest['expected_firmware_git'] == row['git']
     driver = folder/'driver.py'
     assert digest(driver) == manifest['sha256']['host/quadlive_trial.py']
+    absent = {}
     for name in ('iqbench.uf2', 'iqbench.elf'):
-        assert digest(folder/name) == manifest['sha256'][name]
+        recorded = manifest['sha256'][name]
+        if (folder/name).exists():
+            assert digest(folder/name) == recorded
+        else:
+            # Firmware images are gitignored build outputs, so a fresh clone lacks them.
+            # Report the unchecked recorded hash; never accept a present image that differs.
+            absent[str((folder/name).relative_to(ROOT))] = recorded
+            ABSENT_IMAGES[str((folder/name).relative_to(ROOT))] = recorded
     capture = folder/f'capture-{row["clk_hz"]//1000}-1-0-0.txt'
     spec = importlib.util.spec_from_file_location('frozen_quadlive_'+policy, driver)
     validator = importlib.util.module_from_spec(spec)
@@ -213,13 +222,16 @@ def pointer_evidence(row, policy, lines=None):
     files = [capture, driver, folder/'manifest.json', folder/'firmware-source.tar.gz']
     files += [ROOT/p for p in ('host/dual_trial.py', 'host/iqbench.py', 'host/pulse_profiles.py',
                               'reference/iqlut.py', 'reference/gen_coeffs.py')]
-    return dict(validation='Pinned campaign validator re-run on all8192 raw GPIO observations; finite metadata gate added',
+    evidence = dict(validation='Pinned campaign validator re-run on all8192 raw GPIO observations; finite metadata gate added',
                 capture=result, file_sha256={str(p.relative_to(ROOT)): digest(p) for p in files},
                 snapshot_span=dict(observed_us=row.get('max_source_snapshot_span_us'),
                     note='Old24us campaign records begin gaps/body cycles, not a source-snapshot span or minimum credit runway'),
                 credit_proof=dict(pio_cycles_per_word=49, reserve_words=8, timer_quantization_us=1,
                     budget_formula='8+ceil(clk_hz*(256+1)/(49*1e6))', runway_formula='2*budget',
                     qualification='Both-axis snapshot span includes current and previous call timing; finite zero sentinel gates unpublished reads') if policy == 'new' else None)
+    if absent:
+        evidence['images_absent_unchecked'] = absent
+    return evidence
 
 
 def select():
@@ -376,6 +388,9 @@ def self_test():
     else:
         raise AssertionError('Corrupt raw pointer capture accepted')
     print('plot_waveforms self-test: failed/short/fault-injected/wrong-profile/NaN records, CRCs and pointer bound drift rejected; raw captures revalidated')
+    if ABSENT_IMAGES:
+        print(f'plot_waveforms self-test: {len(ABSENT_IMAGES)} gitignored firmware images absent; '
+              'their recorded hashes were not rechecked')
 
 
 def style():
