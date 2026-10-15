@@ -1,0 +1,15 @@
+A 5 0 normal 2/3 759869660 270401 {'ldpc_groups': 74631, 'ldpc_accum': 6085, 'ldpc_transpose': 27029, 'f_bb_bch': 91907, 'f_ldpc': 107834, 'f_map': 70603}
+A 5 1 normal 2/3 759869660 270401 {'ldpc_groups': 74631, 'ldpc_accum': 6085, 'ldpc_transpose': 27029, 'f_bb_bch': 91907, 'f_ldpc': 107834, 'f_map': 70603}
+A 6 0 normal 3/4 4273726099 354390 {'ldpc_groups': 84158, 'ldpc_accum': 4600, 'ldpc_transpose': 38320, 'f_bb_bch': 139286, 'f_ldpc': 144444, 'f_map': 70603}
+A 6 1 normal 3/4 4273726099 324613 {'ldpc_groups': 84158, 'ldpc_accum': 4600, 'ldpc_transpose': 25847, 'f_bb_bch': 139286, 'f_ldpc': 114667, 'f_map': 70603}
+A 8 0 normal 5/6 1689259845 311408 {'ldpc_groups': 92294, 'ldpc_accum': 3115, 'ldpc_transpose': 19771, 'f_bb_bch': 113948, 'f_ldpc': 126800, 'f_map': 70603}
+A 8 1 normal 5/6 1689259845 295922 {'ldpc_groups': 92294, 'ldpc_accum': 3115, 'ldpc_transpose': 15843, 'f_bb_bch': 113948, 'f_ldpc': 111314, 'f_map': 70603}
+A 10 0 normal 9/10 1350531209 347994 {'ldpc_groups': 83265, 'ldpc_accum': 1927, 'ldpc_transpose': 18782, 'f_bb_bch': 166330, 'f_ldpc': 111004, 'f_map': 70603}
+A 10 1 normal 9/10 1350531209 337412 {'ldpc_groups': 83265, 'ldpc_accum': 1927, 'ldpc_transpose': 15168, 'f_bb_bch': 166330, 'f_ldpc': 100422, 'f_map': 70603}
+B gcs16-bank0-pack0 {'elapsed_us': 60000028, 'underruns': 0, 'core0_active_busy': 0.863, 'core1_work_busy': 0.8834, 'split_bch_busy': 0.4907, 'split_bch_max_slice_cyc': 16189, 's2_busy': 0.7608, 'cap_mismatches': 0, 'faults': []}
+B gcs16-bank1-pack0 {'elapsed_us': 60000006, 'underruns': 0, 'core0_active_busy': 0.8289, 'core1_work_busy': 0.8798, 'split_bch_busy': 0.452, 'split_bch_max_slice_cyc': 16419, 's2_busy': 0.758, 'cap_mismatches': 0, 'faults': []}
+B gcs16-bank0-pack1 {'elapsed_us': 60000041, 'underruns': 0, 'core0_active_busy': 0.8686, 'core1_work_busy': 0.8234, 'split_bch_busy': 0.4936, 'split_bch_max_slice_cyc': 16100, 's2_busy': 0.7002, 'cap_mismatches': 0, 'faults': []}
+B gcs16-bank1-pack1 {'elapsed_us': 60000025, 'underruns': 0, 'core0_active_busy': 0.8309, 'core1_work_busy': 0.82, 'split_bch_busy': 0.4519, 'split_bch_max_slice_cyc': 16108, 's2_busy': 0.6976, 'cap_mismatches': 0, 'faults': []}
+C ts16-bank0-pack1 {'elapsed_us': 60000037, 'underruns': 0, 'core0_active_busy': 0.8672, 'core1_work_busy': 0.942, 'split_bch_busy': 0.492, 'split_bch_max_slice_cyc': 16393, 's2_busy': 0.7006, 'cap_mismatches': 0, 'faults': []}
+C ts16-bank1-pack1 {'elapsed_us': 60000019, 'underruns': 0, 'core0_active_busy': 0.8333, 'core1_work_busy': 0.9368, 'split_bch_busy': 0.4527, 'split_bch_max_slice_cyc': 16458, 's2_busy': 0.6979, 'cap_mismatches': 0, 'faults': []}
+exit=0
