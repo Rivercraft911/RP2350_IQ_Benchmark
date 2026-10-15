@@ -18,15 +18,15 @@ class SpiReference(unittest.TestCase):
         for index in (1, 31, 10528, 123456):
             np.testing.assert_array_equal(spi.bbframe(index), spi.bbframe(index + 10528))
 
-    def test_capture_and_corruption(self):
+    def check_capture_and_corruption(self, rows, span, beta):
         cursor = 123 * spi.FRAME_SYMBOLS + 1000
-        first, bus = spi.reference_window(cursor)
+        first, bus = spi.reference_window(cursor, span=span, beta=beta)
         offset = (cursor - first * spi.FRAME_SYMBOLS) * 8 + 13
         got = np.asarray(bus[offset + np.arange(8192) * 17], dtype="<u2").view("<u4").copy()
         def validate(words):
             lines = ["@cap " + str(i) + " " + " ".join(f"{v:08x}" for v in words[i:i + 16])
                      for i in range(0, len(words), 16)]
-            result = dict(cap_words=4096, cap_crc=zlib.crc32(words.tobytes()), cap_stride=17,
+            result = dict(cap_words=4096, cap_crc=zlib.crc32(words.tobytes()), cap_stride=17, row_symbols=rows,
                           divider256=256, cap_divider256=256, cap_symbol_cursor=cursor)
             return trial.validate_capture(result, lines, 5)
         good = validate(got)
@@ -34,6 +34,11 @@ class SpiReference(unittest.TestCase):
         self.assertEqual(good["cap_mismatches"], 0)
         got[300] ^= 1
         self.assertEqual(validate(got)["cap_mismatches"], 1)
+
+    def test_capture_and_corruption(self):
+        for profile in ((2, 12, 1.0), (4, 9, 0.8)):
+            with self.subTest(profile=profile):
+                self.check_capture_and_corruption(*profile)
 
     def test_startup_is_not_runtime(self):
         result = {"pv_spi": dict(ok=25, ts_packets=172, bbframes=6,

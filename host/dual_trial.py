@@ -27,11 +27,21 @@ CAPTURE_STRIDE = 17
 SEED = 0x1234ABCD
 
 
+def pulse_parameters(row_symbols: int) -> tuple[int, float]:
+    if row_symbols not in (1, 2, 4):
+        raise ValueError(f"unknown row format {row_symbols}")
+    return (9, 0.8) if row_symbols == 4 else (12, iq.gen_coeffs.KAISER_BETA)
+
+
 @functools.lru_cache(maxsize=16)
 def reference_bus(source: int, seed: int = SEED, row_symbols: int = 1, bb_stride: int = 0) -> np.ndarray:
     """One exact steady-state period, in physical 16-bit I,Q bus order."""
+    span, beta = pulse_parameters(row_symbols)
+    lut = iq.m.Lut(iq.gen_coeffs.ALPHA, 4, span, beta, iq.gen_coeffs.HEADROOM_DB)
     if source in (0, 1):
-        words = iq.model_words(4, 12, seed, 512 * row_symbols if source == 0 else 8192, periodic=True)
+        count = 512 * row_symbols if source == 0 else 8192
+        inputs = iq.m.xorshift32(seed, count)
+        words = iq.m.generate(np.tile(inputs, 2), lut)[count * 16 * 4:]
     elif source == 4:
         import sys
         sys.path.insert(0, str(iq.ROOT / "reference/dvbs2"))
@@ -47,16 +57,12 @@ def reference_bus(source: int, seed: int = SEED, row_symbols: int = 1, bb_stride
         bi = np.concatenate([phase[0] for phase in phases])
         bq = np.concatenate([phase[1] for phase in phases])
         packed = iq.pack_symbols(np.tile(bi, 3), np.tile(bq, 3))
-        lut = iq.m.Lut(iq.gen_coeffs.ALPHA, 4, 12, iq.gen_coeffs.KAISER_BETA,
-                       iq.gen_coeffs.HEADROOM_DB)
         samples = iq.m.generate(packed, lut)
         period = len(bi) * 4
         words = samples[period:2 * period]
     elif source in (2, 3):
         bi, bq = iq.dvbs2_ref_symbols("normal 2/3", 1, 0x9E3779B9 ^ 5)
         packed = iq.pack_symbols(np.tile(bi, 3), np.tile(bq, 3))
-        lut = iq.m.Lut(iq.gen_coeffs.ALPHA, 4, 12, iq.gen_coeffs.KAISER_BETA,
-                       iq.gen_coeffs.HEADROOM_DB)
         all_samples = iq.m.generate(packed, lut)
         # The middle frame has correct preceding history and no frame-packing tail pad.
         period = len(bi) * 4
@@ -105,7 +111,8 @@ def validate_capture(r: dict, lines: list[str], source: int,
     bus = got.view("<u2")
     if source == 5:
         from dual_spi import reference_window
-        first_frame, ref = reference_window(int(r["cap_symbol_cursor"]))
+        span, beta = pulse_parameters(int(r.get("row_symbols", 2)))
+        first_frame, ref = reference_window(int(r["cap_symbol_cursor"]), span=span, beta=beta)
     else:
         first_frame = None
         ref = reference_bus(source, int(r.get("seed", SEED)), int(r.get("row_symbols", 1)), int(r.get("split_bb_stride_words", 0)))
@@ -170,6 +177,9 @@ def stream_faults(r: dict, capture: bool, source: int) -> list[str]:
             faults.append(name)
     if not r.get("tables_ok", 1):
         faults.append("tables")
+    if r.get("row_symbols") == 4 and (r.get("L") != 9 or r.get("filter_beta") != 0.8 or
+                                       r.get("row_profile") != "l9_quad"):
+        faults.append("four-symbol rows require the L9 beta0.8 pulse profile")
     # axis_gap_max is a queue-lead diagnostic; a nonzero bounded lead is legitimate.
     if capture and not (r.get("cap_aligned") and r.get("cap_mismatches") == 0):
         faults.append(r.get("cap_error") or "strided capture mismatches")
@@ -221,15 +231,16 @@ def negative_control_detected(fault: int, r: dict) -> bool:
 
 def self_test():
     """No serial access: exercise genuine reference periods and negative capture controls."""
-    for source, bb_stride in ((0, 0), (1, 0), (2, 0), (4, 0), (4, 64)):
-        ref = reference_bus(source, bb_stride=bb_stride)
+    for source, bb_stride, rows in ((0, 0, 1), (1, 0, 1), (2, 0, 1), (4, 0, 1),
+                                    (4, 64, 1), (0, 0, 4), (1, 0, 4), (4, 64, 4)):
+        ref = reference_bus(source, row_symbols=rows, bb_stride=bb_stride)
         samples = np.asarray(ref[(len(ref) - 97 + np.arange(8192) * CAPTURE_STRIDE) % len(ref)],
                              dtype="<u2")
         def make_capture(bus):
             words = np.asarray(bus, dtype="<u2").view("<u4")
             lines = [f"@cap {i} " + " ".join(f"{int(w):08x}" for w in words[i:i + 16])
                      for i in range(0, len(words), 16)]
-            return dict(cap_words=len(words), cap_crc=zlib.crc32(words.tobytes()),
+            return dict(cap_words=len(words), cap_crc=zlib.crc32(words.tobytes()), row_symbols=rows,
                         cap_stride=CAPTURE_STRIDE, seed=SEED, split_bb_stride_words=bb_stride), lines
         r, lines = make_capture(samples)
         check = validate_capture(r, lines, source)
@@ -252,6 +263,10 @@ def self_test():
     assert stream_faults(dict(axis_gap_max=3), False, 1) == []
     assert stream_faults(dict(errors=1), False, 1)
     assert stream_faults({}, False, 2)
+    quad_profile = dict(row_symbols=4, L=9, filter_beta=0.8, row_profile="l9_quad")
+    assert stream_faults(quad_profile, False, 1) == []
+    for field, value in (("L", 12), ("filter_beta", 1.0), ("row_profile", "l12_pair")):
+        assert stream_faults(dict(quad_profile, **{field: value}), False, 1)
     for injected in (1, 2):
         assert not negative_control_detected(injected, dict(error="configuration rejected", errors=1))
         assert not negative_control_detected(injected, dict(gen_syms=1024, errors=1,
@@ -261,13 +276,13 @@ def self_test():
     assert negative_control_detected(2, dict(errors=1 << 16, gen_syms=1024))
     assert negative_control_detected(2, dict(errors=0, own_errors=1, gen_syms=1024))
     assert not negative_control_detected(2, dict(errors=1 << 17, gen_syms=0))
-    print("dual_trial self-test: five waveform periods, integer/fractional capture, corruption, serial CRC, "
+    print("dual_trial self-test: L12/L9 waveform periods, integer/fractional capture, corruption, serial CRC, "
           "capture ordering and fault classification checked; no hardware accessed")
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("profile", nargs="?", choices=("quick", "soak", "priority", "onecore", "split", "spi", "qualify"), default="quick")
+    p.add_argument("profile", nargs="?", choices=("quick", "soak", "priority", "onecore", "split", "spi", "qualify", "quad"), default="quick")
     p.add_argument("--out", type=Path)
     p.add_argument("--build", type=Path, default=Path("firmware/build-limits"))
     p.add_argument("--port")
@@ -276,16 +291,18 @@ def main():
     p.add_argument("--self-test", action="store_true")
     p.add_argument("--writers", type=int, choices=(2, 4), default=2)
     p.add_argument("--priority-mask", type=int, choices=range(16), default=0)
-    p.add_argument("--row-symbols", type=int, choices=(1, 2), default=1)
+    p.add_argument("--row-symbols", type=int, choices=(1, 2, 4), default=1)
     a = p.parse_args()
     if a.clocks is None:
-        a.clocks = [128000] if a.profile == "spi" else [128000, 150000]
+        a.clocks = [128000] if a.profile in ("spi", "quad") else [128000, 150000]
+    if a.profile == "quad":
+        a.row_symbols = 4
     if a.profile == "spi":
         a.writers, a.row_symbols = 4, 2
         if a.clocks != [128000]:
             p.error("the SPI profile is qualified at --clocks 128000 only")
-    if a.writers == 4 and a.row_symbols != 2:
-        p.error("four writers require --row-symbols 2")
+    if a.writers == 4 and a.row_symbols not in (2, 4):
+        p.error("four writers require --row-symbols 2 or 4")
     if a.self_test:
         self_test()
         return
@@ -387,6 +404,7 @@ def main():
             if not fault and r.get("elapsed_us", 0) < ms * 1000:
                 r["faults"].append("run ended before the requested duration")
             expected_config = dict(row_symbols=a.row_symbols, schedule=schedule,
+                                   L=pulse_parameters(a.row_symbols)[0],
                                    divider256=divider256 or cpw * 256,
                                    clk_hz=clock * 1000, source=source,
                                    bus_priority_mask=a.priority_mask, writers=a.writers)
@@ -470,6 +488,14 @@ def main():
                 raw("dualwriters 4")
                 dual(clock, 2, 2, 5)
                 dual(clock, 1, 2, 5)
+            elif a.profile == "quad":
+                dual(clock, 2, 2, 1)
+                dual(clock, 1, 2, 1)
+                dual(clock, 2, 2, 3)
+                dual(clock, 1, 2, 3, divider256=384)
+                dual(clock, 1, 2, 4)
+                if clock == 128000:
+                    dual(clock, 1, 2, 5)
             elif a.profile == "onecore":
                 record(f"legacy-onecore-{clock}", lambda: iq.run_txs2(
                     board, 5, 1, "lut_asm_p", 4, 12, 3, 3000, 4096, "dual-onecore", True))

@@ -14,6 +14,10 @@ void iqdesc_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
 // A shared unflagged table has 8192 rows of four uint32_t words (128 KiB).
 void iqdesc_pair_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
                    uint32_t prev, uint32_t base_i, uint32_t base_q);
+// L9 four-symbol rows: four descriptors/axis/input word, 12-bit key, 32-byte stride.
+// The shared unflagged table is [4096][8] words, built by iqquad_build.
+void iqdesc_quad_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+                   uint32_t prev, uint32_t base_i, uint32_t base_q);
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
 void iqdesc_asm(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
                 uint32_t prev, uint32_t base_i, uint32_t base_q);
@@ -27,5 +31,10 @@ void iqdesc_pair_asm(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nw
                      uint32_t prev, uint32_t base_i, uint32_t base_q);
 // Same exclusive ownership / save-and-restore contract as iqdesc_interp above.
 void iqdesc_pair_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+                        uint32_t prev, uint32_t base_i, uint32_t base_q);
+void iqdesc_quad_asm(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+                     uint32_t prev, uint32_t base_i, uint32_t base_q);
+// Same calling-core interpolator exclusivity and restoration contract as above.
+void iqdesc_quad_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
                         uint32_t prev, uint32_t base_i, uint32_t base_q);
 #endif

@@ -11,6 +11,7 @@
 #include "hardware/sync.h"
 #include "iqdesc.h"
 #include "iqpair.h"
+#include "iqquad.h"
 #include "link.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -26,7 +27,7 @@ enum dual_source {
 enum { SYMBOLS_PER_WORD = 16,
        DESC_LOG2 = 13, DESC_COUNT = 1 << DESC_LOG2, DESC_RING_BYTES = DESC_COUNT * 4,
        DESC_BLOCK_SHIFT = 10, DESC_BLOCK = 1 << DESC_BLOCK_SHIFT, SPLIT_BLOCK_SHIFT = 11,
-       MAX_BLOCKS = 2 * DESC_COUNT / DESC_BLOCK, INPUT_BLOCK = DESC_BLOCK / SYMBOLS_PER_WORD,
+       MAX_BLOCKS = 4 * DESC_COUNT / DESC_BLOCK, INPUT_BLOCK = DESC_BLOCK / SYMBOLS_PER_WORD,
        FRAME_SLOTS = 2, FRAME_SLOT_MASK = FRAME_SLOTS - 1,
        CAPTURE_WORDS = 4096, BCH_SLICE_WORDS = 128, BB_TOGGLE_STRIDE = 64,
        TS_BB_BITS = 43040, TS_BB_BYTES = TS_BB_BITS / 8, TS_BB_WORDS = TS_BB_BITS / 32,
@@ -36,10 +37,12 @@ enum { SYMBOLS_PER_WORD = 16,
        ERR_UNDERRUN = 1u << 16, ERR_OWNERSHIP = 1u << 17 };
 _Static_assert(IN_WORDS + CAPTURE_WORDS + DVBS2_FE_WORDS <= CAP_WORDS_MAX, "split FE overlay");
 _Static_assert(PV_EMU_WORDS + FRAME_SLOTS * TS_BB_WORDS <= TABLE_WORDS, "SPI BB overlay");
+_Static_assert(IQQUAD_WORDS == N_BLOCKS * BLOCK_WORDS, "quad table must fit existing sample ring");
 typedef void (*desc_fn)(uint32_t *, uint32_t *, const uint32_t *, uint32_t,
                         uint32_t, uint32_t, uint32_t);
 static const desc_fn kernels[] = {iqdesc_c, iqdesc_asm, iqdesc_interp};
 static const desc_fn pair_kernels[] = {iqdesc_pair_c, iqdesc_pair_asm, iqdesc_pair_interp};
+static const desc_fn quad_kernels[] = {iqdesc_quad_c, iqdesc_quad_asm, iqdesc_quad_interp};
 static const char *names[] = {"c", "asm", "interp"};
 
 static uint32_t *descriptors(void) {
@@ -69,7 +72,7 @@ static inline dual_dma_progress_t progress_symbols(unsigned row_symbols) {
 static void generate(unsigned kernel, uint32_t *di, uint32_t *dq, const uint32_t *input,
                      uint32_t prev, unsigned row_symbols, uint32_t base_i, uint32_t base_q, uint32_t nwords) {
     // This bench owns both core0 interpolators; USB and SPI handlers do not use them.
-    (row_symbols == 2 ? pair_kernels : kernels)[kernel](
+    (row_symbols == 4 ? quad_kernels : row_symbols == 2 ? pair_kernels : kernels)[kernel](
         di, dq, input, nwords, prev, base_i, base_q);
 }
 
@@ -320,7 +323,7 @@ static void capture_print(const uint32_t *capture, uint32_t count) {
 void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, int fault,
                        int schedule, int divider256, int row_symbols) {
     const bool spi = source == SOURCE_PV_SPI, split = source >= SOURCE_DVBS2_SPLIT;
-    const bool paired = row_symbols == 2;
+    const bool paired = row_symbols >= 2, quad = row_symbols == 4;
     if (spi && !spi_resources_available()) {
         printf("@{\"error\":\"PV-SPI trial needs free PIO1/PIO2 and twelve DMA channels\"}\n");
         return;
@@ -344,7 +347,12 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     const uint32_t base_i = paired ? (uint32_t)ring_buf : (uint32_t)cfg.ti;
     const uint32_t base_q = paired ? (uint32_t)ring_buf : (uint32_t)cfg.tq;
     if (paired) {
-        iqpair_build(ring_buf, cfg.tq);
+        if (quad) iqquad_build(ring_buf); else iqpair_build(ring_buf, cfg.tq);
+        if (quad && crc32_update(0, ring_buf, IQQUAD_WORDS * sizeof ring_buf[0]) != IQQUAD_TABLE_CRC) {
+            restore_trial_buffers(false, paired);
+            printf("@{\"error\":\"L9 quad table CRC mismatch\"}\n");
+            return;
+        }
         uint32_t seed = SEED;
         prbs_fill(input, IN_WORDS, &seed);
     }
@@ -538,7 +546,8 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     const double budget = elapsed * 1e-6 * clock_get_hz(clk_sys);
     const double encoder_budget = (encoder.end_us - encoder.start_us) * 1e-6 * clock_get_hz(clk_sys);
     const uint32_t generated = gen_blocks * block_syms;
-    printf("@{\"cmd\":\"dualstream\",\"git\":\"%s\",\"clk_hz\":%lu,\"sps\":4,\"L\":12,"
+    printf("@{\"cmd\":\"dualstream\",\"git\":\"%s\",\"clk_hz\":%lu,\"sps\":4,\"L\":%u,"
+           "\"filter_beta\":%.1f,\"row_profile\":\"%s\","
            "\"kernel\":\"%s\",\"source\":%d,\"cpw\":%d,\"divider256\":%d,\"schedule\":%d,\"row_symbols\":%d,\"writers\":%u,\"bus_priority_mask\":%u,"
            "\"ms\":%d,\"elapsed_us\":%llu,\"cleanup_us\":%llu,"
            "\"seed\":%lu,\"in_words\":%lu,\"sym_rate\":%.1f,\"tables_ok\":%u,\"fault\":%d,"
@@ -550,7 +559,9 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
            "\"one_core\":%s,\"s2_core\":%d,\"s2_max_frame_cyc\":%lu,\"s2_max_slice_cyc\":%lu,"
            "\"s2_stage_max_cyc\":{\"bb_bch\":%lu,\"ldpc\":%lu,\"map\":%lu},\"s2_incomplete_stage\":%u,"
            "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%u,\"cap_fifo_only\":%u",
-           GIT_REV, (unsigned long)clock_get_hz(clk_sys), names[kernel], source, cpw,
+           GIT_REV, (unsigned long)clock_get_hz(clk_sys), quad ? IQQUAD_SPAN : 12u,
+           quad ? 0.8 : 1.0, quad ? "l9_quad" : paired ? "l12_pair" : "l12_single",
+           names[kernel], source, cpw,
            divider256 ? divider256 : cpw * 256, schedule, row_symbols, dual_dma_get_writers(), dual_dma_get_bus_priority(), ms,
            (unsigned long long)elapsed, (unsigned long long)cleanup_us,
            (unsigned long)SEED, (unsigned long)input_words,

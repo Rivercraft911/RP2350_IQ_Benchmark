@@ -33,6 +33,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_flight_service.py
 	python3 host/test_iqdesc.py
 	python3 host/test_iqpair.py
+	python3 host/test_iqquad.py
 	python3 host/test_dual_pio.py
 	python3 host/test_dual_faults.py
 	python3 host/test_dual_spi.py

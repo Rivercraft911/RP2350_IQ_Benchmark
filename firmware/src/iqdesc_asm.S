@@ -82,3 +82,44 @@ iqdesc_pair_asm:
     b       1b
 2:  pop     {r4-r11, pc}
     .size iqdesc_pair_asm, . - iqdesc_pair_asm
+
+// L9 four-symbol rows. Two adjacent descriptors cover eight symbols; each row
+// selects12 bits and occupies32 bytes. Stack arguments match the older leaves.
+    .section .scratch_y.iqdesc_quad_asm, "ax"
+    .p2align 2
+    .macro QUADDESCPAIR j
+    ubfx    r12, r8, #(8+\j), #12
+    ubfx    lr, r11, #(8+\j), #12
+    ubfx    r2, r8, #(12+\j), #12
+    ubfx    r3, r11, #(12+\j), #12
+    add     r12, r4, r12, lsl #5
+    add     lr, r5, lr, lsl #5
+    add     r2, r4, r2, lsl #5
+    add     r3, r5, r3, lsl #5
+    strd    r12, r2, [r0], #8
+    strd    lr, r3, [r1], #8
+    .endm
+
+    .global iqdesc_quad_asm
+    .type iqdesc_quad_asm, %function
+    .thumb_func
+iqdesc_quad_asm:
+    push    {r4-r11, lr}
+    mov     r9, r2
+    add     r10, r2, r3, lsl #2
+    ldr     r6, [sp, #36]
+    ldr     r4, [sp, #40]
+    ldr     r5, [sp, #44]
+1:  cmp     r9, r10
+    beq     2f
+    ldr     r7, [r9], #4
+    pkhbt   r8, r6, r7, lsl #16
+    pkhtb   r11, r7, r6, asr #16
+    mov     r6, r7
+    .irp j, 0,8
+    QUADDESCPAIR \j
+    .endr
+    b       1b
+2:  pop     {r4-r11, pc}
+    .size iqdesc_quad_asm, . - iqdesc_quad_asm
+    .purgem QUADDESCPAIR

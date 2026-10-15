@@ -204,11 +204,14 @@ static const char *dispatch(char *line) {
             !num(a[6], "fault", 0, 0, 2, &fault) ||
             !num(a[7], "schedule", 0, 0, 3, &schedule) ||
             !num(a[8], "divider256", 0, 0, 1024, &divider256) ||
-            !num(a[9], "row_symbols", 1, 1, 2, &row_symbols)) return err;
+            !num(a[9], "row_symbols", 1, 1, 4, &row_symbols)) return err;
+        if (row_symbols != 1 && row_symbols != 2 && row_symbols != 4)
+            return "row_symbols must be1,2 or4 (L9 beta0.8 trial)";
         if (divider256 && divider256 != 384) return "optional divider256 must be384 (1.5 clocks)";
         if (fault && !source) return "fault injection requires live descriptors";
-        if (source == 5 && (row_symbols != 2 || dual_dma_get_writers() != 4))
-            return "PV-SPI trial needs paired rows and four writers";
+        if (source == 5 && row_symbols != 4 &&
+            (row_symbols != 2 || dual_dma_get_writers() != 4))
+            return "PV-SPI trial needs row2/four writers or opt-in L9 row4";
         bench_dual_stream(r.cpw, r.ms, kernel, source, r.cap_words, fault, schedule, divider256, row_symbols);
     } else if (!strcmp(cmd, "clock")) {
         if (!num(a[1], "khz", REQUIRED, 1, 150000, &khz)) return err;

@@ -45,6 +45,16 @@ static const pio_program_t four_i_program = {
 static const pio_program_t four_q_program = {
     .instructions = four_q_code, .length = 4, .origin = -1,
 };
+// Sixteen axis samples (eight words) on alternating slots, then32 silent slots.
+// The four delayed instructions each take8 cycles with optional side-set disabled.
+static const uint16_t quad_four_i_code[] = {0x7810, 0x0040, 0xe72f, 0xa742, 0xa742, 0x0700};
+static const uint16_t quad_four_q_code[] = {0x7010, 0x0040, 0xe72f, 0xa742, 0xa742, 0x0700};
+static const pio_program_t quad_four_i_program = {
+    .instructions = quad_four_i_code, .length = 6, .origin = -1,
+};
+static const pio_program_t quad_four_q_program = {
+    .instructions = quad_four_q_code, .length = 6, .origin = -1,
+};
 
 typedef struct {
     PIO output_pio;
@@ -80,12 +90,12 @@ static uint32_t out_mask(void) {
 }
 
 static const pio_program_t *i_output_program(void) {
-    return state.writers == 4 ? &four_i_program :
-        state.row_words == 4 ? &paired_i_program : &out_program;
+    return state.writers == 4 ? (state.row_words == 8 ? &quad_four_i_program : &four_i_program) :
+        state.row_words >= 4 ? &paired_i_program : &out_program;
 }
 
 static const pio_program_t *q_output_program(void) {
-    return state.writers == 4 ? &four_q_program : &paired_q_program;
+    return state.writers == 4 ? (state.row_words == 8 ? &quad_four_q_program : &four_q_program) : &paired_q_program;
 }
 
 static unsigned channels_in_use(int channels[9]) {
@@ -203,8 +213,8 @@ bool dual_dma_set_schedule(unsigned mode) {
 unsigned dual_dma_get_schedule(void) { return selected_schedule; }
 
 bool dual_dma_set_row_words(unsigned row_words) {
-    if (state.owned || (row_words != 2 && row_words != 4)) {
-        last_error = "row words requires idle engine and 2 or 4";
+    if (state.owned || (row_words != 2 && row_words != 4 && row_words != 8)) {
+        last_error = "row words requires idle engine and 2,4 or8";
         return false;
     }
     selected_row_words = row_words;
@@ -332,8 +342,8 @@ bool dual_dma_start_div256(const uint32_t *desc_i, const uint32_t *desc_q,
     state.writers = selected_writers;
     state.output_pio = state.writers == 4 ? pio2 : pio0;
     state.row_words = selected_row_words;
-    if (state.writers == 4 && state.row_words != 4)
-        return start_failed("four writers require four-word paired rows", DUAL_DMA_ERR_CONFIG);
+    if (state.writers == 4 && state.row_words != 4 && state.row_words != 8)
+        return start_failed("four writers require four- or eight-word rows", DUAL_DMA_ERR_CONFIG);
     state.mask = state.count / (state.writers / 2) - 1;
     const uintptr_t alignment = 4u * state.count - 1;
     if (((uintptr_t)desc_i & alignment) || ((uintptr_t)desc_q & alignment))
@@ -375,7 +385,7 @@ bool dual_dma_start_div256(const uint32_t *desc_i, const uint32_t *desc_q,
         return start_failed("dual DMA PIO instruction space unavailable", DUAL_DMA_ERR_CONFIG);
     state.out_offset = pio_add_program(state.output_pio, i_program); state.out_added = true;
     state.out_q_offset = state.out_offset;
-    if (state.row_words == 4) {
+    if (state.row_words >= 4) {
         const pio_program_t *q_program = q_output_program();
         if (!pio_can_add_program(state.output_pio, q_program))
             return start_failed("paired DMA output Q instruction space unavailable", DUAL_DMA_ERR_CONFIG);
@@ -410,8 +420,8 @@ bool dual_dma_start_div256(const uint32_t *desc_i, const uint32_t *desc_q,
         gpio_set_drive_strength(p, BUS_DRIVE);
     }
     pio_sm_config pc = pio_get_default_sm_config();
-    sm_config_set_out_pins(&pc, PIN_D0, state.row_words == 4 ? 14 : 16);
-    if (state.row_words == 4) {
+    sm_config_set_out_pins(&pc, PIN_D0, state.row_words >= 4 ? 14 : 16);
+    if (state.row_words >= 4) {
         sm_config_set_sideset(&pc, 2, true, false); // one value bit plus optional enable
         sm_config_set_sideset_pins(&pc, PIN_D0 + 14);
     }
@@ -426,11 +436,12 @@ bool dual_dma_start_div256(const uint32_t *desc_i, const uint32_t *desc_q,
         pio_sm_init(state.output_pio, state.sm[s], start, &pc);
         pio_sm_set_consecutive_pindirs(state.output_pio, state.sm[s], PIN_D0, 16, true);
         if (state.writers == 4) {
-            const unsigned initial_x[] = {7, 8, 0, 0};
+            const unsigned samples = 2 * state.row_words;
+            const unsigned initial_x[] = {samples - 1, samples, 0, 0};
             pio_sm_exec_wait_blocking(state.output_pio, state.sm[s], pio_encode_set(pio_x, initial_x[s]));
         }
     }
-    if (state.row_words == 4)
+    if (state.row_words >= 4)
         pio_sm_set_pins_with_mask(state.output_pio, state.sm[0], 0, 1u << (PIN_D0 + 15));
     // Disabled SM dividers free-run (§11.5.5); capture setup must not rewrite/restart them.
     // At output divisor1.5, sample at integer17-SYS intervals instead. Matching1.5 clocks

@@ -41,14 +41,13 @@ def first_crcs() -> list[int]:
     return [zlib.crc32(np.packbits(bbframe(k)).tobytes()) for k in range(4)]
 
 
-def reference_window(symbol_cursor: int) -> tuple[int, np.ndarray]:
+def reference_window(symbol_cursor: int, *, span: int = 12, beta: float = 1.0) -> tuple[int, np.ndarray]:
     """A previous frame supplies FIR history; three more cover the sparse capture."""
     first = max(0, symbol_cursor // FRAME_SYMBOLS - 1)
     frames = [ref.plframe(ref.fecframe(bbframe(k), "2/3"), "2/3", pilots=True)
               for k in range(first, first + 4)]
     bi, bq = (np.concatenate([frame[axis] for frame in frames]) for axis in (0, 1))
-    lut = iq.m.Lut(iq.gen_coeffs.ALPHA, 4, 12, iq.gen_coeffs.KAISER_BETA,
-                   iq.gen_coeffs.HEADROOM_DB)
+    lut = iq.m.Lut(iq.gen_coeffs.ALPHA, 4, span, beta, iq.gen_coeffs.HEADROOM_DB)
     words = iq.m.generate(iq.pack_symbols(bi, bq), lut)
     return first, np.asarray(words, dtype="<u4").view("<u2")
 
