@@ -418,13 +418,18 @@ def main():
                                    divider256=divider256 or cpw * 256,
                                    clk_hz=clock * 1000, source=source,
                                    bus_priority_mask=a.priority_mask, writers=a.writers)
+            configuration_ok = True
             for key, expected in expected_config.items():
                 if r.get(key) != expected:
+                    configuration_ok = False
                     r["faults"].append(f"reported {key}={r.get(key)}; requested {expected}")
             if r.get("code_index", 5) != a.code_index:
+                configuration_ok = False
                 r["faults"].append("reported code differs from requested code")
             if r.get("map_kernel", 0) != a.map_kernel:
+                configuration_ok = False
                 r["faults"].append("reported mapping kernel differs from requested kernel")
+            r["configuration_ok"] = configuration_ok
             if fault:
                 r["negative_control_fault"] = fault
                 r["negative_control_detected"] = negative_control_detected(fault, r)
@@ -439,7 +444,10 @@ def main():
                 capture_path.write_text("\n".join(lines) + "\n")
                 r["capture_file"] = str(capture_path.relative_to(a.out))
             return r
-        return record(label, run, "negative" if fault else "ceiling" if exploratory else "clean")
+        result = record(label, run, "negative" if fault else "ceiling" if exploratory else "clean")
+        if not result.get("configuration_ok"):
+            raise RuntimeError("firmware configuration differs from request; no further trials run")
+        return result
 
     def baseline(clock, after=False):
         tag = f"baseline-{'after-' if after else ''}{clock}"

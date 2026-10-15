@@ -27,7 +27,7 @@ foreach(target iqbench pvflight)
     # Lab waveforms share the fixed buffers and never allocate. Keep both2KiB
     # stacks; reserve1KiB minimum heap while retaining the SRAM bank boundary.
     target_compile_definitions(${target} PRIVATE PICO_HEAP_SIZE=1024)
-    target_compile_options(${target} PRIVATE -O3 -Wall -Wextra -Wno-unused-parameter)
+    target_compile_options(${target} PRIVATE -O3 -Wall -Wextra -Wno-unused-parameter -Werror=array-bounds)
     target_link_libraries(${target} pico_stdlib pico_multicore hardware_pio hardware_dma
                           hardware_clocks)
     pico_enable_stdio_usb(${target} 1)

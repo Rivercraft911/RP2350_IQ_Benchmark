@@ -55,26 +55,30 @@ class RawPairs(unittest.TestCase):
                                      "#define valid_params_if(group, condition) assert(condition)\n"
                                      "#define PARAM_ASSERTIONS_ENABLED(group) 1\n")
         source = (ROOT / "firmware/src/iqout.c").read_text()
-        match = re.search(r"if \(layout == IQ_LAYOUT_RAW_PAIRS\).*?const uint16_t p\[\] = \{(.*?)\};",
+        match = re.search(r"if \(layout == IQ_LAYOUT_RAW_PAIRS\) \{(.*?)#define SIDE\(v\).*?"
+                          r"const uint16_t p\[\] = \{(.*?)\};",
                           source, re.S)
         assert match, "RAW_PAIRS program missing"
+        valid = re.search(r"hard_assert\(layout != IQ_LAYOUT_RAW_PAIRS \|\| (.*?)\);", source)
+        assert valid, "RAW_PAIRS timing validation missing"
         crc = function((ROOT / "firmware/src/iqgen.c").read_text(), "crc32_update")
         packed = function((ROOT / "firmware/src/bench8quad.c").read_text(), "packed_crc")
         wrapper = ("#include <stddef.h>\n#include <string.h>\n#include " + json.dumps(str(header)) + "\n"
                    "#define SIDE(v) pio_encode_sideset(3, (v))\n"
-                   "unsigned raw_program(uint16_t *out) { const uint16_t p[] = {" + match[1] + "};\n"
+                   "unsigned raw_program(uint16_t *out, int cpw) {" + match[1] +
+                   "const uint16_t p[] = {" + match[2] + "};\n"
                    "memcpy(out, p, sizeof p); return sizeof p/sizeof p[0]; }\n"
+                   "int raw_valid(int cpw) { return " + valid[1] + "; }\n"
                    "#define OUT_WORDS 2048\n" + crc + "\n" + packed + "\n"
                    "uint32_t test_packed_crc(uint32_t crc, const uint32_t *p) { return packed_crc(crc,p); }\n")
         (temp / "test.c").write_text(wrapper)
         subprocess.run(["cc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
                         "-I" + str(temp), str(temp / "test.c"), "-o", str(temp / "test.so")], check=True)
         cls.lib = ct.CDLL(str(temp / "test.so"))
-        cls.lib.raw_program.argtypes = [ct.POINTER(ct.c_uint16)]
+        cls.lib.raw_program.argtypes = [ct.POINTER(ct.c_uint16), ct.c_int]
         cls.lib.raw_program.restype = ct.c_uint
-        code = (ct.c_uint16 * 32)()
-        count = cls.lib.raw_program(code)
-        cls.code = list(code[:count])
+        cls.lib.raw_valid.argtypes = [ct.c_int]
+        cls.lib.raw_valid.restype = ct.c_int
         cls.lib.test_packed_crc.argtypes = [ct.c_uint32, ct.POINTER(ct.c_uint32)]
         cls.lib.test_packed_crc.restype = ct.c_uint32
 
@@ -86,7 +90,12 @@ class RawPairs(unittest.TestCase):
     def pair_words(i, q):
         return np.stack([i[::2] | i[1::2] << 16, q[::2] | q[1::2] << 16], axis=1).ravel().astype("<u4")
 
-    def trace(self, words, clocks):
+    def program(self, cpw):
+        code = (ct.c_uint16 * 32)()
+        count = self.lib.raw_program(code, cpw)
+        return list(code[:count])
+
+    def trace(self, code, words, clocks):
         fifo = iter(int(w) for w in words)
         pc, x, osr, count, data, side, delay = 0, 0, 0, 32, 0, 0, 0
         bus, clock = [], []
@@ -94,8 +103,8 @@ class RawPairs(unittest.TestCase):
             if delay:
                 delay -= 1
             else:
-                op = self.code[pc]
-                pc = (pc + 1) % len(self.code)
+                op = code[pc]
+                pc = (pc + 1) % len(code)
                 side, delay = (op >> 10) & 7, (op >> 8) & 3
                 if op >> 13 == 3:  # OUT, shift right, autopull threshold32
                     if count == 32:
@@ -123,18 +132,34 @@ class RawPairs(unittest.TestCase):
         return np.asarray(bus, dtype=np.uint16), np.asarray(clock, dtype=np.uint8)
 
     def test_all_signed_halfwords_and_clock_schedule(self):
-        self.assertEqual(len(self.code), 9)
         i = np.arange(65536, dtype=np.uint32)
         q = (i * 40503 + 91) & 0xFFFF
         words = self.pair_words(i, q)
-        bus, clock = self.trace(words, len(i) * 8)
         expected = np.stack([(i & 0x3FFF) | 0x4000, q & 0x3FFF], axis=1).ravel()
-        np.testing.assert_array_equal(bus, np.repeat(expected, 4))
-        edges = np.asarray([0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1], dtype=np.uint8)
-        np.testing.assert_array_equal(clock, np.tile(edges, len(i) // 2))
-        rising = np.flatnonzero(np.diff(clock.astype(int), prepend=0) == 1)
-        np.testing.assert_array_equal(bus[rising], expected)
-        self.assertFalse(np.any(bus & 0x8000))
+        for cpw in (4, 6, 8):
+            with self.subTest(cpw=cpw):
+                code = self.program(cpw)
+                self.assertEqual(len(code), 9)
+                half = cpw // 2
+                # Decode the SDK's actual opcodes, with mandatory 3-bit side-set.
+                self.assertEqual([(op >> 10) & 7 for op in code], [1, 5, 5, 0, 4, 1, 5, 0, 4])
+                self.assertEqual([(op >> 8) & 3 for op in code],
+                                 [half - 1, 0, half - 2] + [half - 1] * 6)
+                self.assertEqual(sum(1 + ((op >> 8) & 3) for op in code), 4 * cpw)
+                bus, clock = self.trace(code, words, len(i) * 2 * cpw)
+                np.testing.assert_array_equal(bus, np.repeat(expected, cpw))
+                edges = np.asarray([0] * half + [1] * half, dtype=np.uint8)
+                np.testing.assert_array_equal(clock, np.tile(edges, len(expected)))
+                rising = np.flatnonzero(np.diff(clock.astype(int), prepend=0) == 1)
+                np.testing.assert_array_equal(rising, np.arange(len(expected)) * cpw + half)
+                np.testing.assert_array_equal(bus[rising], expected)
+                self.assertFalse(np.any(bus & 0x8000))
+
+    def test_raw_timing_range_and_pin_assignment(self):
+        self.assertEqual([cpw for cpw in range(-2, 35) if self.lib.raw_valid(cpw)], [4, 6, 8])
+        config = (ROOT / "firmware/src/config.h").read_text()
+        self.assertRegex(config, r"#define\s+PIN_D0\s+0\b")
+        self.assertRegex(config, r"#define\s+PIN_CLKIO\s+16\b")
 
     def test_packed_crc_uses_iq_order_without_sign_padding_or_flag(self):
         rng = np.random.default_rng(1234)

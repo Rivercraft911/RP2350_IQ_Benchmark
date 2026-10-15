@@ -148,9 +148,10 @@ static void cmd_info(void) {
 
 // Run one command line. Returns NULL, or an error message.
 static const char *dispatch(char *line) {
-    char *a[10] = {0};
+    char *a[12] = {0};
     int n = 0;
-    for (char *t = strtok(line, " \t\r"); t && n < 10; t = strtok(0, " \t\r")) a[n++] = t;
+    for (char *t = strtok(line, " \t\r"); t && n < (int)(sizeof a / sizeof a[0]);
+         t = strtok(0, " \t\r")) a[n++] = t;
     if (!n) return NULL;
     const char *cmd = a[0];
     tx_run_t r = {.code = -1, .pv = -1, .cap_ms = -1};
