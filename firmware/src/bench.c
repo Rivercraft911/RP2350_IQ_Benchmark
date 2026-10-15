@@ -8,6 +8,7 @@
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/sync.h"
+#include "iq8.h"
 #include "pvproto.h"
 #include "tx.h"
 
@@ -92,13 +93,13 @@ void bench_dvbs2(int code, bool pilots, int reps) {
     const uint32_t c_ldpc = time_min(t_ldpc, reps), c_ldpcs = time_min(t_ldpc_serial, 1);
     const uint32_t c_frame = time_min(t_frame, reps), c_prbs = time_min(t_prbs, reps);
     printf("@{\"cmd\":\"dvbs2\",\"git\":\"%s\",\"clk_hz\":%lu,\"code\":\"%s\",\"index\":%d,"
-           "\"pilots\":%d,\"syms\":%lu,\"words\":%lu,\"crc\":%lu,\"init_us\":%lu,\"reps\":%d,"
+           "\"pilots\":%d,\"syms\":%lu,\"words\":%lu,\"crc\":%lu,\"init_us\":%lu,\"reps\":%d,\"bch_kernel\":%d,"
            "\"cyc_bch\":%lu,\"cyc_bch_serial\":%lu,\"cyc_ldpc\":%lu,\"cyc_ldpc_serial\":%lu,"
            "\"cyc_frame\":%lu,\"prof\":{\"ldpc_groups\":%lu,\"ldpc_accum\":%lu,"
            "\"ldpc_transpose\":%lu,\"f_bb_bch\":%lu,\"f_ldpc\":%lu,\"f_map\":%lu}}\n",
            GIT_REV, (unsigned long)clock_get_hz(clk_sys), c->name, code, pilots,
            (unsigned long)dvbs2_plframe_symbols(), (unsigned long)s.n, (unsigned long)crc,
-           (unsigned long)init_us, reps, (unsigned long)c_bch, (unsigned long)c_bchs,
+           (unsigned long)init_us, reps, dvbs2_bch_get_kernel(), (unsigned long)c_bch, (unsigned long)c_bchs,
            (unsigned long)c_ldpc, (unsigned long)c_ldpcs, (unsigned long)(c_frame - c_prbs),
            (unsigned long)(dvbs2_prof[1] - dvbs2_prof[0]), (unsigned long)(dvbs2_prof[2] - dvbs2_prof[1]),
            (unsigned long)(dvbs2_prof[3] - dvbs2_prof[2]), (unsigned long)(dvbs2_prof[5] - dvbs2_prof[4]),
@@ -136,4 +137,53 @@ void bench_sniffer(void) {
     dma_sniffer_disable();
     dma_channel_unclaim(ch);
     printf("]}\n");
+}
+
+// Isolated 8PSK shaping, not a DVB-S2 8PSK encoder or a streaming measurement. The two
+// unflagged amplitude-plane tables borrow cfg.ti/tq; restore the QPSK tables afterward.
+void bench_8psk(int reps) {
+    const iq_kernel_info_t *k;
+    bool tables_ok;
+    const char *e = tx_shaper("lut_asm_p", 4, 12, &k, &tables_ok);
+    if (e || !tables_ok) {
+        printf("@{\"error\":\"8PSK baseline tables unavailable\"}\n");
+        return;
+    }
+    const iq8_tables_t tables = {cfg.ti, cfg.tq};
+    const uint32_t groups = IN_WORDS / 2, block = BLOCK_WORDS / (16 * IQ8_SPS);
+    iq8_input_t *in = (iq8_input_t *)in_buf;
+    uint32_t seed = SEED;
+    iq8_fill(in, groups, &seed);
+    iq8_build_tables(cfg.coef, &tables);
+    uint32_t crc_c = 0, crc_asm = 0, worst = 0;
+    uint64_t elapsed = 0;
+    for (uint32_t g = 0; g < groups; g += block) {
+        const iq8_input_t *prev = g ? in + g - 1 : NULL;
+        iq8_kernel_c(ring_buf, in + g, block, prev, &tables);
+        crc_c = crc32_update(crc_c, ring_buf, BLOCK_WORDS * sizeof(uint32_t));
+        iq8_kernel_asm(ring_buf, in + g, block, prev, &tables);
+        crc_asm = crc32_update(crc_asm, ring_buf, BLOCK_WORDS * sizeof(uint32_t));
+    }
+    for (int r = 0; r < reps; r++) {
+        for (uint32_t g = 0; g < groups; g += block) {
+            const uint32_t save = save_and_disable_interrupts(), t0 = cycles();
+            iq8_kernel_asm(ring_buf, in + g, block, g ? in + g - 1 : NULL, &tables);
+            const uint32_t dt = cycles() - t0;
+            restore_interrupts(save);
+            elapsed += dt;
+            if (dt > worst) worst = dt;
+        }
+    }
+    const double cps = (double)elapsed / ((double)reps * groups * 16);
+    printf("@{\"cmd\":\"bench8psk\",\"git\":\"%s\",\"clk_hz\":%lu,\"seed\":%lu,"
+           "\"sps\":4,\"L\":12,\"groups\":%lu,\"reps\":%d,\"table_bytes\":65536,"
+           "\"crc_c\":%lu,\"crc_asm\":%lu,\"crc_match\":%u,\"cyc_per_sym\":%.4f,"
+           "\"worst_block_cyc_per_sym\":%.4f,\"msym_s_one_core\":%.4f}\n",
+           GIT_REV, (unsigned long)clock_get_hz(clk_sys), (unsigned long)SEED,
+           (unsigned long)groups, reps, (unsigned long)crc_c, (unsigned long)crc_asm,
+           crc_c == crc_asm, cps, (double)worst / (block * 16),
+           clock_get_hz(clk_sys) / cps / 1e6);
+    iq_build_tables(&cfg);
+    seed = SEED;
+    prbs_fill(in_buf, IN_WORDS, &seed);
 }

@@ -7,7 +7,7 @@ project(iqbench C CXX ASM)
 pico_sdk_init()
 
 
-set(TX_SOURCES src/main.c src/tx.c src/bench.c src/iqgen.c src/iqasm.S src/iqout.c
+set(TX_SOURCES src/main.c src/tx.c src/bench.c src/bench_ddr.c src/iq8.c src/iqgen.c src/iqasm.S src/iqout.c
                src/link.c src/dvbs2.c src/pvproto.c src/pvspi.c)
 add_executable(iqbench ${TX_SOURCES})
 add_executable(pvflight ${TX_SOURCES})
@@ -49,7 +49,13 @@ string(REPLACE "RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 512k"
        LD "${LD}")
 string(REPLACE "    .heap (NOLOAD):"
        "    .sram_hi (NOLOAD) : { *(.sram_hi*) } > RAM_HI\n\n    .heap (NOLOAD):" LD "${LD}")
-if(NOT LD MATCHES "RAM_HI" OR NOT LD MATCHES "sram_hi")
+# Reserve the two 32-KiB-aligned input rings before code. Otherwise a few KiB of extra experimental
+# hot code pushes its alignment from 32 to 64 KiB and wastes an entire 32-KiB SRAM interval.
+# tx_init explicitly initializes these NOLOAD rings before any consumer is started.
+string(REPLACE "    .ram_vector_table (NOLOAD):"
+       "    .input_ring (NOLOAD) : { *(.bss.in_buf) *(.bss.link_ring) } > RAM\n\n    .ram_vector_table (NOLOAD):"
+       LD "${LD}")
+if(NOT LD MATCHES "RAM_HI" OR NOT LD MATCHES "sram_hi" OR NOT LD MATCHES "input_ring")
     message(FATAL_ERROR "SDK linker script changed; update the RAM_HI patch")
 endif()
 file(WRITE ${CMAKE_BINARY_DIR}/memmap_iq.ld "${LD}")

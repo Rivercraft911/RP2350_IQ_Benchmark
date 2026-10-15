@@ -7,6 +7,7 @@
   python3 host/iqbench.py sweep [--note "..."]
   python3 host/iqbench.py dvbs2 3 5 6 11 [--pilots 1]     (code indices: firmware/src/dvbs2_codes.h)
   python3 host/iqbench.py txs2 5 lut_asm_p 4 10 --cpw 2 --ms 3000 --cap 4096   (full transmitter)
+  python3 host/iqbench.py txs2 5 lut_asm_p 4 12 --cpw 4 --single-core --ms 3000 --cap 4096
   python3 host/iqbench.py pvtx --selftest --cap 4096      (PigeonVision SPI TX; drop --selftest for the CM5)
   python3 host/iqbench.py raw "clock 150000"
   python3 host/iqbench.py smoke                          (every command once, briefly; not logged)
@@ -217,25 +218,32 @@ def dvbs2_ref_crc(code: str, pilots: int, seed: int) -> tuple[int, int]:
 
 
 def run_txs2(b: Board, index: int, pilots: int, kernel: str, sps: int, L: int, cpw: int, ms: int,
-             cap: int, note: str | None) -> dict:
-    """Full transmitter: on-chip DVB-S2 encoder (core 1) -> shaper/DMA/PIO (core 0) -> pin capture,
+             cap: int, note: str | None, single_core: bool = False) -> dict:
+    """Full transmitter: DVB-S2 encoder -> shaper/DMA/PIO -> pin capture; encoder core 1 by
+    default, or cooperative encoder stages and shaping on core 0 with single_core.
     checked against reference PLFRAMEs (identical frames) run through the LUT model."""
-    r, lines = b.cmd(f"txs2 {index} {pilots} {kernel} {sps} {L} {cpw} {ms} {cap}", timeout=ms / 1e3 + 60)
+    mode = " 1" if single_core else ""
+    r, lines = b.cmd(f"txs2 {index} {pilots} {kernel} {sps} {L} {cpw} {ms} {cap}{mode}", timeout=ms / 1e3 + 60)
     if "error" in r:
         raise RuntimeError(r["error"])
+    if single_core and r.get("tx_mode") != "one_core":
+        raise RuntimeError("firmware did not acknowledge one-core TX mode")
     if cap:
         bI, bQ = dvbs2_ref_symbols(r["s2_code"], pilots, 0x9E3779B9 ^ index)
         words = pack_symbols(np.tile(bI, 3), np.tile(bQ, 3))
         lut = m.Lut(gen_coeffs.ALPHA, sps, L, gen_coeffs.KAISER_BETA, gen_coeffs.HEADROOM_DB)
         r.update(check_capture(r, lines, 0, 0, ref=m.generate(words, lut).view(np.uint16)))
     r["faults"] = stream_faults(r, cap)
+    if single_core and not r.get("s2_runtime_frames"):
+        r["faults"].append("no complete encoder frame during timed run")
     if r["faults"]:
         fail(f"txs2 {r['s2_code']}: {', '.join(r['faults'])}")
     c0 = r["core"][0]
     print(f"txs2 {r['s2_code']} pilots={pilots} {kernel} sps={sps} L={L} {r['sym_rate'] / 1e6:.3f} Msym/s "
-          f"{r['ms']} ms: frames {r['s2_frames']} encoder core1 {r['s2_busy'] * 100:.1f}% "
+          f"{r['ms']} ms: frames {r['s2_frames']} encoder core{r.get('s2_core', 1)} {r['s2_busy'] * 100:.1f}% "
           f"(min ahead {r['s2_min_ahead_words']} words), shaper core0 {c0['busy'] * 100:.1f}% "
           f"input waits {c0['input_waits']}, underruns {r['underruns']} txstall {r['txstalls']}" +
+          (f", combined core0 compute {r['one_core_busy'] * 100:.1f}%" if single_core else "") +
           (f", cap {r['cap_bus_words']} words: " + (f"{r['cap_mismatches']} mismatches" if r["cap_aligned"]
                                                   else "NOT ALIGNED") if cap else ""))
     return log(r, note)
@@ -260,14 +268,20 @@ def run_dvbs2(b: Board, index: int, pilots: int, reps: int, note: str | None) ->
     return log(r, note)
 
 
-def run_pvtx(b: Board, cpw: int, ms: int, selftest: bool, cap: int, cap_ms: int, note: str | None) -> dict:
+def run_pvtx(b: Board, cpw: int, ms: int, selftest: bool, cap: int, cap_ms: int, note: str | None,
+             single_core: bool = False) -> dict:
     """PigeonVision TX: PV-SPI v1 TS input -> DVB-S2 normal 2/3 + pilots -> shaper -> pins.
     Self-test: the on-chip emulated master sends the pattern of host/cm5/pv_spi_tx.py, so the TS
     CRC, the first BBFRAMEs and the output capture are all checked against the references."""
-    r, lines = b.cmd(f"pvtx {cpw} {ms} {int(selftest)} {cap} {cap_ms}", timeout=ms / 1e3 + 60)
+    mode = " 1" if single_core else ""
+    r, lines = b.cmd(f"pvtx {cpw} {ms} {int(selftest)} {cap} {cap_ms}{mode}", timeout=ms / 1e3 + 60)
     if "error" in r:
         raise RuntimeError(r["error"])
+    if single_core and r.get("tx_mode") != "one_core":
+        raise RuntimeError("firmware did not acknowledge one-core TX mode")
     pv, faults = r["pv"], stream_faults(r, cap)
+    if single_core and not r.get("s2_runtime_frames"):
+        faults.append("no complete encoder frame during timed run")
     faults += [k for k in ("bad_hdr", "bad_crc", "bad_sync", "lost", "short", "long", "overflows") if pv[k]]
     if selftest:
         sys.path[:0] = [str(ROOT / "host" / "cm5"), str(ROOT / "reference" / "dvbs2")]
@@ -302,6 +316,7 @@ def run_pvtx(b: Board, cpw: int, ms: int, selftest: bool, cap: int, cap_ms: int,
           f"short {pv['short']}, overflow {pv['overflows']}), TS {pv['ts_packets']} + null {pv['null_packets']}, "
           f"BBFRAMEs {pv['bbframes']}, crc_chain 0x{pv['crc_chain']:08x}; encoder {r['s2_busy'] * 100:.1f}% "
           f"shaper {c0['busy'] * 100:.1f}%, underruns {r['underruns']}" +
+          (f", combined core0 compute {r['one_core_busy'] * 100:.1f}%" if single_core else "") +
           (f", cap {r.get('cap_bus_words', 0)} words: {r.get('cap_mismatches', r.get('cap_error'))} mismatches"
            if cap else "") + ("  FAIL" if faults else "  PASS"))
     return log(r, note)
@@ -377,12 +392,14 @@ def main():
     p.add_argument("--cpw", type=int, required=True)
     p.add_argument("--ms", type=int, default=3000)
     p.add_argument("--cap", type=int, default=4096)
+    p.add_argument("--single-core", action="store_true", help="encoder stages and shaping on core 0")
     p = sub.add_parser("pvtx", help="PigeonVision TX: PV-SPI input -> DVB-S2 -> shaper")
     p.add_argument("--cpw", type=int, default=2, help="2 = 8 Msym/s, 4 = 4, 8 = 2, 16 = 1")
     p.add_argument("--ms", type=int, default=5000)
     p.add_argument("--selftest", action="store_true", help="on-chip emulated CM5 master")
     p.add_argument("--cap", type=int, default=0)
     p.add_argument("--cap-ms", type=int, default=20)
+    p.add_argument("--single-core", action="store_true", help="encoder stages and shaping on core 0")
     p = sub.add_parser("dvbs2", help="DVB-S2 encoder benchmark; code index into DVBS2_CODES")
     p.add_argument("index", type=int, nargs="+")
     p.add_argument("--pilots", type=int, default=1)
@@ -403,9 +420,9 @@ def main():
     elif a.cmd == "smoke":
         smoke(b)
     elif a.cmd == "pvtx":
-        run_pvtx(b, a.cpw, a.ms, a.selftest, a.cap, a.cap_ms, a.note)
+        run_pvtx(b, a.cpw, a.ms, a.selftest, a.cap, a.cap_ms, a.note, a.single_core)
     elif a.cmd == "txs2":
-        run_txs2(b, a.index, a.pilots, a.kernel, a.sps, a.L, a.cpw, a.ms, a.cap, a.note)
+        run_txs2(b, a.index, a.pilots, a.kernel, a.sps, a.L, a.cpw, a.ms, a.cap, a.note, a.single_core)
     elif a.cmd == "dvbs2":
         for i in a.index:
             run_dvbs2(b, i, a.pilots, a.reps, a.note)

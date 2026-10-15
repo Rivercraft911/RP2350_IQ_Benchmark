@@ -8,38 +8,121 @@
 #include "dvbs2_codes.h"
 #include "iqgen.h"
 
+// Exercise every selectable BCH implementation against the bit-serial definition, including
+// nonzero unused bits in a final partial word. Kernel 2 uses the C recurrence on this host;
+// the Thumb-2 scheduling and register preservation still require the device checks.
+static int check_bch_kernels(const dvbs2_code_t *c, uint32_t *input, uint32_t *got, uint32_t *ref) {
+    const uint32_t nw = (c->kbch + 31u) / 32;
+    int ok = 1;
+    for (unsigned pattern = 0; pattern < 6; pattern++) {
+        uint32_t st = 0xD1B54A35u ^ c->kbch ^ pattern;
+        for (uint32_t i = 0; i < nw; i++) {
+            st ^= st << 13, st ^= st >> 17, st ^= st << 5;
+            input[i] = pattern == 0 ? 0 : pattern == 1 ? ~0u : pattern == 2 ? 0xAAAAAAAAu :
+                       pattern == 3 ? 0x55555555u : pattern == 4 ? st : 0;
+        }
+        if (pattern == 5) {
+            input[0] = 0x80000001u;
+            input[nw - 1] ^= 1u << (31u - ((c->kbch - 1u) & 31u));
+        }
+        dvbs2_bch_serial(input, ref);
+        for (int kernel = S2_BCH_BASELINE; kernel <= S2_BCH_STREAM_ARM; kernel++) {
+            ok &= dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)kernel);
+            dvbs2_bch(input, got);
+            if (memcmp(got, ref, 24)) {
+                fprintf(stderr, "BCH mismatch: %s pattern=%u kernel=%d\n", c->name, pattern, kernel);
+                ok = 0;
+            }
+        }
+    }
+    // Reject out-of-range selectors without silently changing the active kernel.
+    ok &= !dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)-1);
+    ok &= !dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)3);
+    ok &= dvbs2_bch_get_kernel() == S2_BCH_STREAM_ARM;
+    return ok;
+}
+
+// Exercise frame boundaries without flushing: normal and short PLFRAMEs both leave partial
+// symbol words. Different payloads catch accidental reuse of the prior frame's FEC workspace.
+static int check_staged_frames(const dvbs2_code_t *c, unsigned ci, int pilots,
+                               dvbs2_bch_kernel_t kernel) {
+    enum { FRAMES = 3, STREAM_WORDS = (FRAMES * 33282 + 15) / 16 + 1 };
+    static uint32_t bb[64800 / 32 + 2], full[STREAM_WORDS], staged[STREAM_WORDS];
+    symstream_t streams[2] = {{.out = full, .mask = ~0u}, {.out = staged, .mask = ~0u}};
+    for (int mode = 0; mode < 2; mode++) {
+        dvbs2_bch_set_kernel(kernel);
+        dvbs2_init(c, pilots);
+        for (unsigned frame = 0; frame < FRAMES; frame++) {
+            uint32_t st = 0xD1B54A35u ^ ci ^ (frame * 0x9E3779B9u);
+            const uint32_t nw = (c->kbch + 31u) / 32;
+            memset(bb, 0, sizeof bb);
+            prbs_fill(bb, nw, &st);
+            if (c->kbch % 32u) bb[nw - 1] &= ~(~0u >> (c->kbch % 32u));
+            if (!mode) dvbs2_frame(bb, &streams[mode]);
+            else {
+                dvbs2_frame_begin(bb);
+                dvbs2_frame_ldpc();
+                dvbs2_frame_finish(&streams[mode]);
+            }
+        }
+    }
+    const symstream_t *a = &streams[0], *b = &streams[1];
+    int ok = a->n == b->n && a->fill == b->fill && a->acc_i == b->acc_i &&
+             a->acc_q == b->acc_q && b->n * 16u + b->fill == FRAMES * dvbs2_plframe_symbols();
+    if (ok) ok = !memcmp(full, staged, a->n * sizeof full[0]);
+    symstream_flush(&streams[0]);
+    symstream_flush(&streams[1]);
+    ok &= streams[0].n == streams[1].n;
+    if (ok) ok = !memcmp(full, staged, streams[0].n * sizeof full[0]);
+    if (!ok) fprintf(stderr, "Staged stream mismatch: %s pilots=%d kernel=%d\n", c->name, pilots, kernel);
+    return ok;
+}
+
 int main(int argc, char **argv) {
     static uint32_t bb[64800 / 32 + 2], fe[64800 / 32 + 2], p1[64800 / 32 + 2], p2[64800 / 32 + 2];
-    static uint32_t out[33282 / 16 + 2];
+    static uint32_t out[33282 / 16 + 2], baseline[33282 / 16 + 2];
+    int failed = 0;
     const char *only = argc > 1 ? argv[1] : 0;
     for (int ci = 0; ci < N_DVBS2_CODES; ci++) {
         const dvbs2_code_t *c = &DVBS2_CODES[ci];
         if (only && strcmp(only, c->name)) continue;
         for (int pil = 0; pil < 2; pil++) {
+            dvbs2_bch_set_kernel(S2_BCH_WORDS_C);
             dvbs2_init(c, pil);
+            const int selection_ok = dvbs2_bch_get_kernel() == S2_BCH_WORDS_C;
             uint32_t st = 0x9E3779B9u ^ (uint32_t)ci, nw = (c->kbch + 31) / 32;
             memset(bb, 0, sizeof bb);
             prbs_fill(bb, nw, &st);
             if (c->kbch % 32) bb[nw - 1] &= ~(~0u >> (c->kbch % 32));
-            // BCH and LDPC: fast vs serial on the scrambled frame
-            memcpy(fe, bb, sizeof fe);
-            dvbs2_bbscramble(fe);
-            dvbs2_bch(fe, p1), dvbs2_bch_serial(fe, p2);
-            const int bch_ok = !memcmp(p1, p2, 24);
+            const int bch_ok = selection_ok && check_bch_kernels(c, fe, p1, p2);
             for (uint32_t k = 0; k < 64800 / 32 + 2; k++) fe[k] = st = st * 1664525u + 1013904223u;
             dvbs2_ldpc(fe, p1), dvbs2_ldpc_serial(fe, p2);
             const uint32_t m = c->nldpc - c->kldpc;
             int ldpc_ok = !memcmp(p1, p2, m / 32 * 4);
             if (m % 32) ldpc_ok &= ((p1[m / 32] ^ p2[m / 32]) & ~(~0u >> (m % 32))) == 0;
-            symstream_t s = {.out = out, .mask = ~0u};
-            dvbs2_frame(bb, &s);                               // bb is not modified
-            symstream_flush(&s);
+            symstream_t s = {0};
+            int frame_ok = 1;
+            uint32_t baseline_n = 0;
+            for (int kernel = S2_BCH_BASELINE; kernel <= S2_BCH_STREAM_ARM; kernel++) {
+                dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)kernel);
+                s = (symstream_t){.out = out, .mask = ~0u};
+                dvbs2_frame(bb, &s);                           // bb is not modified
+                symstream_flush(&s);
+                if (kernel == S2_BCH_BASELINE) {
+                    baseline_n = s.n;
+                    memcpy(baseline, out, s.n * sizeof out[0]);
+                } else {
+                    frame_ok &= s.n == baseline_n && !memcmp(baseline, out, s.n * sizeof out[0]);
+                }
+                frame_ok &= check_staged_frames(c, (unsigned)ci, pil, (dvbs2_bch_kernel_t)kernel);
+            }
+            failed |= !(bch_ok && ldpc_ok && frame_ok);
             printf("{\"code\":\"%s\",\"pilots\":%d,\"seed\":%u,\"bch_ok\":%d,\"ldpc_ok\":%d,"
-                   "\"syms\":%u,\"words\":[", c->name, pil, 0x9E3779B9u ^ (uint32_t)ci, bch_ok,
+                   "\"syms\":%u,\"words\":[", c->name, pil, 0x9E3779B9u ^ (uint32_t)ci, bch_ok && frame_ok,
                    ldpc_ok, dvbs2_plframe_symbols());
             for (uint32_t k = 0; k < s.n; k++) printf("%s%u", k ? "," : "", out[k]);
             printf("]}\n");
         }
     }
-    return 0;
+    return failed ? 1 : 0;
 }

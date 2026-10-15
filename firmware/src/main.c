@@ -7,13 +7,17 @@
 //        cores: 0 | 1 | 01 (alternate blocks); cpw: PIO system clocks per 16-bit bus word
 //        lanes > 0: input arrives over the PIO link (emulated host), half = SCK half period
 //   dvbs2 <code> <pilots> [reps]                  DVB-S2 encoder stage cycles + PLFRAME CRC
-//   txs2 <code> <pilots> <kernel> <sps> <L> <cpw> <ms> [cap_words]
+//   txs2 <code> <pilots> <kernel> <sps> <L> <cpw> <ms> [cap_words] [single_core]
 //        full transmitter: core 1 encodes DVB-S2 frames, core 0 shapes and streams
 //        code: index into DVBS2_CODES (dvbs2_codes.h)
-//   pvtx <cpw> <ms> <selftest> [cap_words] [cap_ms]
+//        single_core 1 = cooperative encoder + shaper on core 0; default 0 = two cores
+//   pvtx <cpw> <ms> <selftest> [cap_words] [cap_ms] [single_core]
 //        PigeonVision TX: TS over PV-SPI v1 (docs/pv-spi-spec.md) -> DVB-S2 normal QPSK 2/3 with
 //        pilots -> shaper (N = 4, L = 12). selftest 1 = on-chip emulated CM5 master.
 //   snifftest                                     DMA sniffer CRC modes
+//   bchkernel <0|1|2>                             baseline, C words, ARM stream
+//   bench8psk [reps]                              experimental split-LUT shaping
+//   ddrtest [ms]                                  experimental PIO data + HSTX DDR clock
 //   bootsel                                       reboot to the USB bootloader
 #include <limits.h>
 #include <stdio.h>
@@ -21,6 +25,7 @@
 #include <string.h>
 
 #include "bench.h"
+#include "dvbs2.h"
 #include "dvbs2_codes.h"
 #include "hardware/clocks.h"
 #include "iqout.h"
@@ -142,7 +147,7 @@ static const char *dispatch(char *line) {
     if (!n) return NULL;
     const char *cmd = a[0];
     tx_run_t r = {.code = -1, .pv = -1, .cap_ms = -1};
-    int code, pilots, reps, khz;
+    int code, pilots, reps, khz, single_core;
 
 #ifdef PV_AUTONOMOUS
     if (!strcmp(cmd, "start")) return flight_start();
@@ -155,6 +160,16 @@ static const char *dispatch(char *line) {
         reset_usb_boot(0, 0);
     } else if (!strcmp(cmd, "snifftest")) {
         bench_sniffer();
+    } else if (!strcmp(cmd, "bchkernel")) {
+        if (!num(a[1], "kernel", REQUIRED, 0, 2, &code)) return err;
+        if (!dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)code)) return "unknown BCH kernel";
+        printf("@{\"cmd\":\"bchkernel\",\"kernel\":%d}\n", (int)dvbs2_bch_get_kernel());
+    } else if (!strcmp(cmd, "bench8psk")) {
+        if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
+        bench_8psk(reps);
+    } else if (!strcmp(cmd, "ddrtest")) {
+        if (!num(a[1], "ms", 100, 1, 5000, &r.ms)) return err;
+        bench_hstx_ddr(r.ms);
     } else if (!strcmp(cmd, "clock")) {
         if (!num(a[1], "khz", REQUIRED, 1, 150000, &khz)) return err;
         if (!set_sys_clock_khz((uint32_t)khz, false)) return "clock not reachable";
@@ -191,8 +206,10 @@ static const char *dispatch(char *line) {
             !num(a[4], "sps", REQUIRED, 1, 16, &r.sps) || !num(a[5], "L", REQUIRED, 1, MAX_L, &r.L) ||
             !num(a[6], "cpw", REQUIRED, 2, IQOUT_MAX_CPW, &r.cpw) ||
             !num(a[7], "ms", REQUIRED, 1, INT_MAX, &r.ms) ||
-            !num(a[8], "cap_words", 0, 0, CAP_WORDS_MAX, &r.cap_words) || !cap_ok(r.cap_words))
+            !num(a[8], "cap_words", 0, 0, CAP_WORDS_MAX, &r.cap_words) || !cap_ok(r.cap_words) ||
+            !num(a[9], "single_core", 0, 0, 1, &single_core))
             return err;
+        r.single_core = single_core;
         return tx_run(&r);
     } else if (!strcmp(cmd, "pvtx")) {
         r = PVTX;
@@ -200,9 +217,11 @@ static const char *dispatch(char *line) {
             !num(a[2], "ms", REQUIRED, 1, INT_MAX, &r.ms) ||
             !num(a[3], "selftest", REQUIRED, 0, 1, &r.pv) ||
             !num(a[4], "cap_words", 0, 0, r.pv ? TX_CAP_SELFTEST_MAX : CAP_WORDS_MAX, &r.cap_words) ||
-            !num(a[5], "cap_ms", -1, -1, r.ms - 1, &r.cap_ms))
+            !num(a[5], "cap_ms", -1, -1, r.ms - 1, &r.cap_ms) ||
+            !num(a[6], "single_core", 0, 0, 1, &single_core))
             return err;
         if (!cap_ok(r.cap_words)) return err;
+        r.single_core = single_core;
         return tx_run(&r);
     } else {
         return "unknown command";

@@ -1,6 +1,6 @@
 // The transmitter: core 0 shapes symbols into the DMA ring that the PIO puts on the AFE7071 bus.
 // The symbols come from a PRBS, the PIO input link, or the DVB-S2 encoder on core 1 (fed with
-// TS over PV-SPI in pvtx).
+// TS over PV-SPI in pvtx). Experimental one-core mode cooperatively encodes on core 0 too.
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
@@ -29,6 +29,7 @@ typedef struct {
     int lanes, half;             // > 0: PRBS over the PIO input link, SCK half period
     int code, pilots;            // DVB-S2 code index on core 1, -1 = PRBS input
     int pv;                      // TS over PV-SPI: -1 off, 0 from the CM5, 1 on-chip emulator
+    bool single_core;            // full TX: core 0 alternates encoder stages and shaping
     void (*service)(void);       // optional bounded core-0 service, at most once per ms
 } tx_run_t;
 

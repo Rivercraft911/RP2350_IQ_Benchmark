@@ -40,6 +40,7 @@ static uint32_t P[MAX_Q + 32][12] HI;                   // q x 360 parity matrix
 static uint32_t fe[MAX_BITS_W] HI;                      // FECFRAME under construction
 static uint32_t r0[MAX_BODY_W] HI, r1[MAX_BODY_W] HI;      // PL scrambling R(i) bit planes (init)
 static uint32_t hdr[6], body_syms;
+static dvbs2_bch_kernel_t bch_kernel = S2_BCH_BASELINE;
 
 // ------------------------------------------------------------------ bit-vector helpers
 
@@ -133,7 +134,7 @@ void dvbs2_bch_serial(const uint32_t *m, uint32_t *parity) {
 // Slicing by 4: X = top32(R) ^ word; R <- (R << 32) ^ T3[X3] ^ T2[X2] ^ T1[X1] ^ T0[X0], since
 // X(x) x^deg = sum_k X_k(x) x^(deg + 8k) mod g. Trailing bytes (Kbch mod 32 = 0, 8, 16 or 24 bits)
 // use T0 one byte at a time: R <- (R << 8) ^ T0[top8(R) ^ byte].
-void HOT(dvbs2_bch)(const uint32_t *m, uint32_t *parity) {
+static void HOT(bch_baseline)(const uint32_t *m, uint32_t *parity) {
     uint32_t r0_ = 0, r1_ = 0, r2 = 0, r3 = 0, r4 = 0, r5 = 0;
     const uint32_t nw = C->kbch / 32u, tail = (C->kbch % 32u) / 8;
     const uint32_t(*t0)[8] = bch_tab[0], (*t1)[8] = bch_tab[1];
@@ -159,6 +160,109 @@ void HOT(dvbs2_bch)(const uint32_t *m, uint32_t *parity) {
         r5 = (r5 << 8) ^ t[5];
     }
     parity[0] = r0_, parity[1] = r1_, parity[2] = r2, parity[3] = r3, parity[4] = r4, parity[5] = r5;
+}
+
+// A degree-160 remainder has five live words; the sixth word in the general kernel is always
+// zero. Keep the padded table layout so this experiment consumes no extra table SRAM.
+static void HOT(bch160_words)(const uint32_t *m, uint32_t *parity) {
+    uint32_t r0_ = 0, r1_ = 0, r2 = 0, r3 = 0, r4 = 0;
+    const uint32_t nw = C->kbch / 32u, tail = (C->kbch % 32u) / 8;
+    for (uint32_t i = 0; i < nw; i++) {
+        const uint32_t x = r0_ ^ m[i];
+        const uint32_t *a = bch_tab[3][x >> 24], *b = bch_tab[2][(x >> 16) & 0xFF],
+                       *c = bch_tab[1][(x >> 8) & 0xFF], *d = bch_tab[0][x & 0xFF];
+        r0_ = r1_ ^ a[0] ^ b[0] ^ c[0] ^ d[0];
+        r1_ = r2 ^ a[1] ^ b[1] ^ c[1] ^ d[1];
+        r2 = r3 ^ a[2] ^ b[2] ^ c[2] ^ d[2];
+        r3 = r4 ^ a[3] ^ b[3] ^ c[3] ^ d[3];
+        r4 = a[4] ^ b[4] ^ c[4] ^ d[4];
+    }
+    for (uint32_t i = 0; i < tail; i++) {
+        const uint32_t *t = bch_tab[0][(r0_ >> 24) ^ ((m[nw] >> (24 - 8 * i)) & 0xFF)];
+        r0_ = ((r0_ << 8) | (r1_ >> 24)) ^ t[0];
+        r1_ = ((r1_ << 8) | (r2 >> 24)) ^ t[1];
+        r2 = ((r2 << 8) | (r3 >> 24)) ^ t[2];
+        r3 = ((r3 << 8) | (r4 >> 24)) ^ t[3];
+        r4 = (r4 << 8) ^ t[4];
+    }
+    parity[0] = r0_, parity[1] = r1_, parity[2] = r2, parity[3] = r3, parity[4] = r4;
+    parity[5] = 0;
+}
+
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+// Process complete input words with five remainder registers and four table pointers.
+// r1 is scratch inside the loop (the output pointer is saved once). Alternating r1/lr loads
+// separates each table load from its dependent XOR; there are no inner-loop stack spills.
+// Arguments: input, six-word output, table base, input word count. All AAPCS callee-saved
+// registers are restored. Remaining bytes are handled by the caller using the same T0 table.
+void dvbs2_bch160_stream(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
+#define BCH160_XOR(DST, OLD, OFF) \
+    "ldr lr, [r9, #" #OFF "]\n" \
+    "ldr r1, [r10, #" #OFF "]\n" \
+    "eor " #DST ", " #OLD ", lr\n" \
+    "ldr lr, [r11, #" #OFF "]\n" \
+    "eor " #DST ", " #DST ", r1\n" \
+    "ldr r1, [r12, #" #OFF "]\n" \
+    "eor " #DST ", " #DST ", lr\n" \
+    "eor " #DST ", " #DST ", r1\n"
+__asm__(".syntax unified\n.thumb\n"
+        ".section .time_critical.dvbs2_bch160_stream,\"ax\",%progbits\n"
+        ".align 2\n.global dvbs2_bch160_stream\n.type dvbs2_bch160_stream,%function\n"
+        ".thumb_func\ndvbs2_bch160_stream:\n"
+        "push {r4-r11, lr}\n"
+        "push {r1}\n"
+        "movs r4, #0\nmovs r5, #0\nmovs r6, #0\nmovs r7, #0\nmovs r8, #0\n"
+        "cmp r3, #0\nbeq 2f\n"
+        "1:\n"
+        "ldr lr, [r0], #4\n"
+        "eor r4, r4, lr\n"
+        "ubfx r9, r4, #24, #8\n"
+        "add r9, r2, r9, lsl #5\nadd r9, r9, #24576\n"
+        "ubfx r10, r4, #16, #8\n"
+        "add r10, r2, r10, lsl #5\nadd r10, r10, #16384\n"
+        "ubfx r11, r4, #8, #8\n"
+        "add r11, r2, r11, lsl #5\nadd r11, r11, #8192\n"
+        "uxtb r12, r4\nadd r12, r2, r12, lsl #5\n"
+        BCH160_XOR(r4, r5, 0)
+        BCH160_XOR(r5, r6, 4)
+        BCH160_XOR(r6, r7, 8)
+        BCH160_XOR(r7, r8, 12)
+        "ldr r8, [r9, #16]\nldr lr, [r10, #16]\nldr r1, [r11, #16]\n"
+        "eor r8, r8, lr\nldr lr, [r12, #16]\neor r8, r8, r1\neor r8, r8, lr\n"
+        "subs r3, r3, #1\nbne 1b\n"
+        "2:\npop {r0}\nstmia r0!, {r4-r8}\nmovs r1, #0\nstr r1, [r0]\n"
+        "pop {r4-r11, pc}\n.size dvbs2_bch160_stream, .-dvbs2_bch160_stream\n"
+        ".text\n");
+#undef BCH160_XOR
+#endif
+
+bool dvbs2_bch_set_kernel(dvbs2_bch_kernel_t kernel) {
+    if ((unsigned)kernel > S2_BCH_STREAM_ARM) return false;
+    bch_kernel = kernel;
+    return true;
+}
+
+dvbs2_bch_kernel_t dvbs2_bch_get_kernel(void) { return bch_kernel; }
+
+void HOT(dvbs2_bch)(const uint32_t *m, uint32_t *parity) {
+    if (bch_kernel == S2_BCH_BASELINE || bch_deg != 160) {
+        bch_baseline(m, parity);
+        return;
+    }
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    if (bch_kernel == S2_BCH_STREAM_ARM) {
+        const uint32_t nw = C->kbch / 32u, tail = (C->kbch % 32u) / 8;
+        dvbs2_bch160_stream(m, parity, bch_tab, nw);
+        for (uint32_t i = 0; i < tail; i++) {
+            const uint32_t *t = bch_tab[0][(parity[0] >> 24) ^ ((m[nw] >> (24 - 8 * i)) & 0xFF)];
+            for (int k = 0; k < 4; k++)
+                parity[k] = ((parity[k] << 8) | (parity[k + 1] >> 24)) ^ t[k];
+            parity[4] = (parity[4] << 8) ^ t[4];
+        }
+        return;
+    }
+#endif
+    bch160_words(m, parity);
 }
 
 // ------------------------------------------------------------------ BB scrambling (5.2.2)
@@ -404,8 +508,8 @@ void dvbs2_init(const dvbs2_code_t *c, bool pil_on) {
 }
 
 // One BBFRAME to one PLFRAME appended to s. fe = [scrambled BBFRAME | BCH | LDPC parity].
-void HOT(dvbs2_frame)(const uint32_t *bb, symstream_t *out) {
-    const uint32_t kw = (C->kbch + 31u) / 32, nsym = C->nldpc / 2u;
+void HOT(dvbs2_frame_begin)(const uint32_t *bb) {
+    const uint32_t kw = (C->kbch + 31u) / 32;
     PROF(4);
     for (uint32_t k = 0; k < kw; k++) fe[k] = bb[k] ^ bb_prbs[k];
     if (C->kbch % 32u) fe[kw - 1] &= ~(~0u >> (C->kbch % 32u));
@@ -414,11 +518,17 @@ void HOT(dvbs2_frame)(const uint32_t *bb, symstream_t *out) {
     dvbs2_bch(fe, par);
     copy_bits(fe, C->kbch, par, bch_deg);
     PROF(5);
+}
+
+void HOT(dvbs2_frame_ldpc)(void) {
     static uint32_t lpar[MAX_BITS_W] HI;
     dvbs2_ldpc(fe, lpar);
     copy_bits(fe, C->kldpc, lpar, M);
     PROF(6);
+}
 
+void HOT(dvbs2_frame_finish)(symstream_t *out) {
+    const uint32_t nsym = C->nldpc / 2u;
     symstream_t s = *out;                                      // local copy keeps state in registers
     for (int k = 0; k < 5; k++) symstream_put16(&s, hdr[k]);
     symstream_put(&s, hdr[5], 10);
@@ -436,4 +546,10 @@ void HOT(dvbs2_frame)(const uint32_t *bb, symstream_t *out) {
     }
     *out = s;
     PROF(7);
+}
+
+void HOT(dvbs2_frame)(const uint32_t *bb, symstream_t *out) {
+    dvbs2_frame_begin(bb);
+    dvbs2_frame_ldpc();
+    dvbs2_frame_finish(out);
 }

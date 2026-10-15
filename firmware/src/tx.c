@@ -54,6 +54,7 @@ void tx_init(void) {
     gpio_set_dir(PIN_IN_READY, GPIO_OUT);
     enable_cyccnt();
     fill_prbs();
+    memset(link_ring, 0, sizeof link_ring);       // experiment linker reserves input rings as NOLOAD
     multicore_launch_core1(core1_entry);
 }
 
@@ -203,7 +204,9 @@ static void task_producer1(uint32_t first) { producer(first, run.stride, false);
 static struct {
     volatile uint32_t total;                       // words published to the shaper
     uint64_t busy_cyc, t0_us, t1_us;
-    uint32_t frames, fw;
+    uint32_t frames, prefill_frames, fw;
+    uint32_t max_frame_cyc, max_slice_cyc;
+    uint32_t max_stage_cyc[4];                    // one-core: BB build, BB+BCH, LDPC, PL
     int32_t min_ahead;                             // untransmitted words when a frame completes
     bool ts;                                       // pvtx: BBFRAMEs from the PV-SPI TS queue
     uint32_t bb_crc[4];                            // CRC-32 of the first four TS BBFRAMEs
@@ -213,10 +216,12 @@ static struct {
 
 static uint8_t *no_packet(void) { return NULL; }
 
-// One PLFRAME. In TS mode the BBFRAME is built from queued packets (nulls when none), as bytes,
-// then turned into the encoder's MSB-first words.
-static void __not_in_flash_func(enc_frame)(void) {
-    if (enc.ts) {
+enum { ENC_FULL = -1, ENC_BUILD_BB = 0, ENC_BEGIN = 1 };
+
+// One PLFRAME, or only the selected cooperative stage. TS construction is separated from
+// BB+BCH so packet copies, byte conversion and startup CRC checks cannot extend that slice.
+static void __not_in_flash_func(enc_frame)(int stage) {
+    if (enc.ts && stage <= ENC_BUILD_BB) {
         const uint32_t t0 = cycles();
         uint8_t *b = (uint8_t *)bb_buf;
         const uint32_t nb = s2c->kbch / 8u, nw = (nb + 3) / 4;
@@ -226,7 +231,9 @@ static void __not_in_flash_func(enc_frame)(void) {
         for (uint32_t i = 0; i < nw; i++) bb_buf[i] = __builtin_bswap32(bb_buf[i]);
         enc.bb_cyc += cycles() - t0;
     }
-    dvbs2_frame(bb_buf, &enc.s);
+    if (stage == ENC_BUILD_BB) return;
+    if (stage == ENC_BEGIN) dvbs2_frame_begin(bb_buf);
+    else dvbs2_frame(bb_buf, &enc.s);
 }
 
 static void __not_in_flash_func(task_encoder)(uint32_t unused) {
@@ -236,8 +243,11 @@ static void __not_in_flash_func(task_encoder)(uint32_t unused) {
         const uint32_t d = ring.done * run.biw, consumed = d ? d - 1 : 0;
         if (enc.s.n + enc.fw + 1 - consumed > IN_WORDS) continue;
         const uint32_t t = cycles();
-        enc_frame();
-        enc.busy_cyc += cycles() - t;
+        enc_frame(ENC_FULL);
+        const uint32_t dt = cycles() - t;
+        enc.busy_cyc += dt;
+        if (dt > enc.max_frame_cyc) enc.max_frame_cyc = dt;
+        if (dt > enc.max_slice_cyc) enc.max_slice_cyc = dt;
         enc.frames++;
         __dmb();
         enc.total = enc.s.n;
@@ -247,11 +257,73 @@ static void __not_in_flash_func(task_encoder)(uint32_t unused) {
     enc.t1_us = time_us_64();
 }
 
+// One CPU owns both encoder and shaper. A whole normal-frame encode is longer than the
+// 8-block output ring at 4 Msym/s, so refill between BB construction, BB+BCH, LDPC and PL.
+// DMA/PIO remain autonomous; the second CPU stays idle. Overload is reported by the same
+// underrun/ownership/capture checks as the two-core mode, rather than hidden with idle data.
+static void __not_in_flash_func(producer_single)(void) {
+    core_stats_t *st = &run.st[0];
+    *st = (core_stats_t){.min_lead = 1 << 30, .t_start_us = time_us_64()};
+    enc.t0_us = st->t_start_us;
+    uint32_t s = N_BLOCKS, frame_cyc = 0;
+    unsigned stage = 0;
+    bool input_wait = false;
+    while (!expired()) {
+        monitor();
+        if (expired()) break;
+        const bool room = s - ring.done < N_BLOCKS;
+        const bool input = input_ready(s);
+        if (room && input) {
+            const uint32_t t = cycles();
+            produce(s);
+            const uint32_t dt = cycles() - t;
+            const int32_t lead = (int32_t)(s - ring.next_arm);
+            st->gen_cyc += dt;
+            st->blocks++;
+            if (dt > st->max_block_cyc) st->max_block_cyc = dt;
+            if (lead < st->min_lead) st->min_lead = lead;
+            s++;
+            input_wait = false;
+            continue;
+        }
+        if (room && !input && !input_wait) {
+            st->input_waits++;
+            input_wait = true;
+        }
+        // Reserve a whole frame, including the prior symbol word, before touching encoder
+        // state. This is the same conservative ownership bound as the two-core encoder.
+        const uint32_t d = ring.done * run.biw, consumed = d ? d - 1 : 0;
+        if (!stage && enc.s.n + enc.fw + 1 - consumed > IN_WORDS) continue;
+        const uint32_t t = cycles();
+        if (stage == 0) enc_frame(ENC_BUILD_BB);
+        else if (stage == 1) enc_frame(ENC_BEGIN);
+        else if (stage == 2) dvbs2_frame_ldpc();
+        else dvbs2_frame_finish(&enc.s);
+        const uint32_t dt = cycles() - t;
+        enc.busy_cyc += dt;
+        frame_cyc += dt;
+        if (dt > enc.max_slice_cyc) enc.max_slice_cyc = dt;
+        if (dt > enc.max_stage_cyc[stage]) enc.max_stage_cyc[stage] = dt;
+        if (++stage == 4) {
+            stage = 0;
+            if (frame_cyc > enc.max_frame_cyc) enc.max_frame_cyc = frame_cyc;
+            frame_cyc = 0;
+            enc.frames++;
+            __dmb();
+            enc.total = enc.s.n;
+            const int32_t ahead = (int32_t)(enc.s.n - ring.done * run.biw);
+            if (ahead < enc.min_ahead) enc.min_ahead = ahead;
+        }
+    }
+    st->t_end_us = enc.t1_us = time_us_64();
+}
+
 // ------------------------------------------------------------------ one run
 
 static void print_result(const tx_run_t *r);
 
 const char *tx_run(const tx_run_t *r) {
+    if (r->single_core && r->code < 0) return "single_core requires DVB-S2 input";
     const iq_kernel_info_t *k;
     bool tables_ok;
     const char *e = tx_shaper(r->kernel, r->sps, r->L, &k, &tables_ok);
@@ -285,10 +357,11 @@ const char *tx_run(const tx_run_t *r) {
         enc = (typeof(enc)){.s = {.out = link_ring, .mask = IN_WORDS - 1}, .min_ahead = 1 << 30,
                             .fw = (dvbs2_plframe_symbols() + 31) / 16, .ts = r->pv >= 0};
         while (enc.s.n < (N_BLOCKS + 1) * run.biw) {      // short frames: ~511 words each
-            enc_frame();
+            enc_frame(ENC_FULL);
             enc.frames++;
         }
         enc.total = enc.s.n;
+        enc.prefill_frames = enc.frames;
     }
     for (uint32_t s = 0; s < N_BLOCKS; s++) produce(s);   // prefill
     const uint64_t t0 = time_us_64();
@@ -301,8 +374,9 @@ const char *tx_run(const tx_run_t *r) {
     const uint32_t stride = (c0 && c1) ? 2 : 1;
     run.stride = stride;
     if (c1) core1_run(task_producer1, c0 ? N_BLOCKS + 1 : N_BLOCKS);
-    if (r->code >= 0) core1_run(task_encoder, 0);
-    if (c0) producer(N_BLOCKS, stride, true);
+    if (r->code >= 0 && !r->single_core) core1_run(task_encoder, 0);
+    if (r->single_core) producer_single();
+    else if (c0) producer(N_BLOCKS, stride, true);
     else while (!expired()) monitor();
     // Stop the output as soon as production ends, before waiting for core 1 (whose last DVB-S2
     // frame can take ~3 ms): otherwise the drained ring is counted as underruns.
@@ -315,7 +389,10 @@ const char *tx_run(const tx_run_t *r) {
     if (r->pv >= 0) pvspi_pause();
     while (run.cap_started && iqout_capture_busy()) tight_loop_contents();
     iqout_stop();
-    if (c1 || r->code >= 0) multicore_fifo_pop_blocking();
+    // A final encoder/shaper slice can cross the deadline before monitor runs again.
+    // Read the sticky flag after disabling output so the last active slice is covered too.
+    if (iqout_take_txstall()) run.txstalls++;
+    if (c1 || (r->code >= 0 && !r->single_core)) multicore_fifo_pop_blocking();
     run.link_words = link_total, run.t_run_us = time_us_64() - tl;
     run.elapsed_us = now_us() - run.started_us;
     run.active = false;
@@ -357,8 +434,20 @@ static void print_result(const tx_run_t *r) {
     printf("]");
     if (r->code >= 0)
         printf(",\"s2_code\":\"%s\",\"s2_index\":%d,\"s2_frames\":%lu,\"s2_busy\":%.4f,"
-               "\"s2_min_ahead_words\":%ld", s2c->name, r->code, (unsigned long)enc.frames,
-               busy(enc.busy_cyc, enc.t0_us, enc.t1_us), (long)enc.min_ahead);
+               "\"s2_runtime_frames\":%lu,\"s2_min_ahead_words\":%ld,\"tx_mode\":\"%s\","
+               "\"s2_core\":%d,\"bch_kernel\":%d,"
+               "\"s2_max_frame_cyc\":%lu,\"s2_max_slice_cyc\":%lu", s2c->name, r->code,
+               (unsigned long)enc.frames, busy(enc.busy_cyc, enc.t0_us, enc.t1_us),
+               (unsigned long)(enc.frames - enc.prefill_frames), (long)enc.min_ahead,
+               r->single_core ? "one_core" : "two_core",
+               r->single_core ? 0 : 1, (int)dvbs2_bch_get_kernel(), (unsigned long)enc.max_frame_cyc,
+               (unsigned long)enc.max_slice_cyc);
+    if (r->single_core)
+        printf(",\"one_core_busy\":%.4f,\"s2_stage_max_cyc\":{\"bb\":%lu,\"bb_bch\":%lu,"
+               "\"ldpc\":%lu,\"map\":%lu}", busy(enc.busy_cyc + run.st[0].gen_cyc,
+               run.st[0].t_start_us, run.st[0].t_end_us), (unsigned long)enc.max_stage_cyc[0],
+               (unsigned long)enc.max_stage_cyc[1], (unsigned long)enc.max_stage_cyc[2],
+               (unsigned long)enc.max_stage_cyc[3]);
     if (r->pv >= 0)
         printf(",\"pv\":{\"selftest\":%d,\"msgs_ok\":%lu,\"nop\":%lu,\"bad_hdr\":%lu,\"bad_crc\":%lu,"
                "\"bad_sync\":%lu,\"lost\":%lu,\"short\":%lu,\"long\":%lu,\"overflows\":%lu,"

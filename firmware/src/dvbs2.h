@@ -21,6 +21,15 @@ typedef struct {
 void dvbs2_init(const dvbs2_code_t *c, bool pilots);
 
 // FEC stages (exposed for benchmarking). Buffers are MSB-first word vectors.
+typedef enum {
+    S2_BCH_BASELINE = 0,        // original six-word slicing-by-four C
+    S2_BCH_WORDS_C = 1,         // five-word specialization for degree 160, otherwise baseline
+    S2_BCH_STREAM_ARM = 2,      // degree-160 streamed Thumb-2, otherwise WORDS_C
+} dvbs2_bch_kernel_t;
+// Experimental selection, retained across dvbs2_init. Default is BASELINE. On non-Arm hosts,
+// STREAM_ARM uses WORDS_C; the native tests validate the same recurrence, not Arm scheduling.
+bool dvbs2_bch_set_kernel(dvbs2_bch_kernel_t kernel);
+dvbs2_bch_kernel_t dvbs2_bch_get_kernel(void);
 void dvbs2_bbscramble(uint32_t *bbframe);                      // kbch bits, in place
 void dvbs2_bch(const uint32_t *bbframe, uint32_t *parity);    // kbch -> 16t or 14t parity bits
 void dvbs2_bch_serial(const uint32_t *bbframe, uint32_t *parity);   // bit-serial reference
@@ -61,4 +70,9 @@ static inline void symstream_put16(symstream_t *s, uint32_t w) {
 
 uint32_t dvbs2_plframe_symbols(void);                         // for the configured code
 void dvbs2_frame(const uint32_t *bbframe, symstream_t *s);     // bbframe: kbch bits, unscrambled
+// Cooperative full-frame stages, in order. Shared encoder buffers make these non-reentrant:
+// do not init/encode another frame between begin and finish. Allows shaping between stages.
+void dvbs2_frame_begin(const uint32_t *bbframe);              // BB scramble + BCH
+void dvbs2_frame_ldpc(void);                                  // LDPC + parity append
+void dvbs2_frame_finish(symstream_t *s);                      // QPSK mapping + PL framing
 void symstream_flush(symstream_t *s);
