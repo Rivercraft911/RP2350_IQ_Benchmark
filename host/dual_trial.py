@@ -363,6 +363,9 @@ def main():
     p.add_argument("--row-symbols", type=int, choices=(1, 2, 4), default=1)
     p.add_argument("--code-index", type=int, choices=(5, 6, 8), default=5)
     p.add_argument("--map-kernel", type=int, choices=(0, 1), default=0)
+    p.add_argument("--ldpc-pack", type=int, choices=(0, 1), default=0)
+    p.add_argument("--ldpc-xor", type=int, choices=(0, 1), default=0)
+    p.add_argument("--bch-bank", type=int, choices=(0, 1), default=0)
     p.add_argument("--quad-profile", type=int, choices=(0, 1), default=0,
                    help="0=L9 Kaiser, 1=opt-in L8 convex pulse")
     p.add_argument("--dac-clock", choices=("hstx", "ddr"), default="hstx",
@@ -409,6 +412,7 @@ def main():
         hashes[str(a.build / name)] = hashlib.sha256((a.build / name).read_bytes()).hexdigest()
     manifest = dict(started=dt.datetime.now().isoformat(), profile=a.profile, duration_ms=duration,
                     code_index=a.code_index, map_kernel=a.map_kernel, quad_profile=a.quad_profile,
+                    ldpc_pack=a.ldpc_pack, ldpc_xor=a.ldpc_xor, bch_bank=a.bch_bank,
                     clocks_khz=a.clocks, row_symbols=a.row_symbols, writers=a.writers, priority_mask=a.priority_mask,
                     dac_clock=DAC_CLOCK_NAMES[a.dac_clock],
                     expected_firmware_git=a.expected_git, head=git("rev-parse", "HEAD"),
@@ -517,6 +521,10 @@ def main():
             if r.get("map_kernel", 0) != a.map_kernel:
                 configuration_ok = False
                 r["faults"].append("reported mapping kernel differs from requested kernel")
+            for field in ("ldpc_pack", "ldpc_xor", "bch_bank"):
+                if r.get(field, 0) != getattr(a, field):
+                    configuration_ok = False
+                    r["faults"].append(f"reported {field} differs from requested setting")
             r["configuration_ok"] = configuration_ok
             if fault:
                 r["negative_control_fault"] = fault
@@ -564,6 +572,9 @@ def main():
         raw(f"dualwriters {a.writers}")
         raw(f"dualclock {DAC_CLOCK_MODES[a.dac_clock]}")
         raw(f"mapkernel {a.map_kernel}")
+        raw(f"ldpcpack {a.ldpc_pack}")
+        raw(f"ldpcxor {a.ldpc_xor}")
+        raw(f"bchbank {a.bch_bank}")
         raw(f"quadprofile {a.quad_profile}")
         for clock in a.clocks:
             raw(f"clock {clock}")
@@ -667,6 +678,9 @@ def main():
             try:
                 raw("bchkernel 0")
                 raw("mapkernel 0")
+                raw("ldpcpack 0")
+                raw("ldpcxor 0")
+                raw("bchbank 0")
             finally:
                 board.s.close()
     if failures:

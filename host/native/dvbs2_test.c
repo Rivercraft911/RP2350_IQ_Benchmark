@@ -83,29 +83,38 @@ static int check_staged_frames(const dvbs2_code_t *c, unsigned ci, int pilots,
 // The in-place input mimics frame_begin: information bits, then zero bits after Kldpc.
 static int check_ldpc_packs(const dvbs2_code_t *c, unsigned ci) {
     enum { W = 64800 / 32 + 2 };
-    static uint32_t info[W], par[2][W], frame[2][W];
+    static uint32_t info[W], par[2][W], frame[2][W], expected[W];
     const uint32_t m = c->nldpc - c->kldpc, guard = (m + 63) / 32, kw = c->kldpc / 32;
     uint32_t st = 0x2545F491u ^ ci;
     for (uint32_t k = 0; k < W; k++) info[k] = st = st * 1664525u + 1013904223u;
     int ok = 1;
-    for (unsigned pack = 0; pack < 2; pack++) {
-        ok &= dvbs2_ldpc_set_pack(pack) && dvbs2_ldpc_get_pack() == pack;
-        memset(par[pack], 0xA5, sizeof par[pack]);
-        dvbs2_ldpc(info, par[pack]);
-        memcpy(frame[pack], info, sizeof info);
-        if (c->kldpc & 31u) frame[pack][kw] &= ~(~0u >> (c->kldpc & 31u));
-        memset(frame[pack] + kw + !!(c->kldpc & 31u), 0, (W - kw - !!(c->kldpc & 31u)) * 4);
-        dvbs2_frame_ldpc_into(frame[pack]);
+    dvbs2_ldpc_serial(info, expected);
+    for (unsigned kernel = 0; kernel < 2; kernel++) {
+        ok &= dvbs2_ldpc_set_kernel(kernel) && dvbs2_ldpc_get_kernel() == kernel;
+        for (unsigned pack = 0; pack < 2; pack++) {
+            ok &= dvbs2_ldpc_set_pack(pack) && dvbs2_ldpc_get_pack() == pack;
+            memset(par[pack], 0xA5, sizeof par[pack]);
+            dvbs2_ldpc(info, par[pack]);
+            memcpy(frame[pack], info, sizeof info);
+            if (c->kldpc & 31u) frame[pack][kw] &= ~(~0u >> (c->kldpc & 31u));
+            memset(frame[pack] + kw + !!(c->kldpc & 31u), 0, (W - kw - !!(c->kldpc & 31u)) * 4);
+            dvbs2_frame_ldpc_into(frame[pack]);
+            const uint32_t full = m / 32, tail = m & 31u;
+            ok &= !memcmp(par[pack], expected, full * 4);
+            if (tail) ok &= !((par[pack][full] ^ expected[full]) & ~(~0u >> tail));
+        }
+        if (memcmp(par[0], par[1], guard * 4) || par[1][guard] != 0xA5A5A5A5u) {
+            fprintf(stderr, "LDPC pack mismatch (separate buffer): %s\n", c->name);
+            ok = 0;
+        }
+        if (memcmp(frame[0], frame[1], sizeof frame[0])) {
+            fprintf(stderr, "LDPC pack mismatch (in-place FE): %s\n", c->name);
+            ok = 0;
+        }
+        ok &= !dvbs2_ldpc_set_pack(2) && dvbs2_ldpc_get_pack() == 1;
     }
-    if (memcmp(par[0], par[1], guard * 4) || par[1][guard] != 0xA5A5A5A5u) {
-        fprintf(stderr, "LDPC pack mismatch (separate buffer): %s\n", c->name);
-        ok = 0;
-    }
-    if (memcmp(frame[0], frame[1], sizeof frame[0])) {
-        fprintf(stderr, "LDPC pack mismatch (in-place FE): %s\n", c->name);
-        ok = 0;
-    }
-    ok &= !dvbs2_ldpc_set_pack(2) && dvbs2_ldpc_get_pack() == 1;
+    ok &= !dvbs2_ldpc_set_kernel(2) && !dvbs2_ldpc_set_kernel(~0u) && dvbs2_ldpc_get_kernel() == 1;
+    ok &= dvbs2_ldpc_set_kernel(0);
     return ok;
 }
 
@@ -140,14 +149,16 @@ int main(int argc, char **argv) {
             symstream_t s = {0};
             int frame_ok = 1;
             uint32_t baseline_n = 0;
+            for (unsigned xor_kernel = 0; xor_kernel < 2; xor_kernel++)
             for (unsigned pack = 0; pack < 2; pack++)
             for (int kernel = S2_BCH_BASELINE; kernel <= S2_BCH_STREAM_ARM; kernel++) {
+                dvbs2_ldpc_set_kernel(xor_kernel);
                 dvbs2_ldpc_set_pack(pack);
                 dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)kernel);
                 s = (symstream_t){.out = out, .mask = ~0u};
                 dvbs2_frame(bb, &s);                           // bb is not modified
                 symstream_flush(&s);
-                if (!pack && kernel == S2_BCH_BASELINE) {
+                if (!xor_kernel && !pack && kernel == S2_BCH_BASELINE) {
                     baseline_n = s.n;
                     memcpy(baseline, out, s.n * sizeof out[0]);
                 } else {
@@ -156,6 +167,7 @@ int main(int argc, char **argv) {
                 frame_ok &= check_staged_frames(c, (unsigned)ci, pil, (dvbs2_bch_kernel_t)kernel);
             }
             dvbs2_ldpc_set_pack(0);
+            dvbs2_ldpc_set_kernel(0);
             failed |= !(bch_ok && ldpc_ok && frame_ok);
             printf("{\"code\":\"%s\",\"pilots\":%d,\"seed\":%u,\"bch_ok\":%d,\"ldpc_ok\":%d,"
                    "\"syms\":%u,\"words\":[", c->name, pil, 0x9E3779B9u ^ (uint32_t)ci, bch_ok && frame_ok,
