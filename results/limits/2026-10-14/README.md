@@ -58,7 +58,11 @@ Two other proposed shortcuts need correction. RP2350's Hazard3 configuration exp
 instruction is unavailable. The DMA sniffer's fixed CRC functions do not directly implement
 the DVB-S2 160/168/192-bit BCH polynomial.
 
-Chained DMA lookup remains an unmeasured experiment. The current LUT is separable: distinct
+**Follow-up:** the [direct LUT DMA campaign](../../dual-dma/2026-10-14/README.md) now measures
+this architecture, including paired rows and alternating PIO writers. The paragraph below
+records the constraints identified before that campaign.
+
+At the time of this limits campaign, chained DMA lookup remained unmeasured. The current LUT is separable: distinct
 I/Q histories address two 32-KiB tables. A ready-interleaved joint L12 QPSK table would require
 256 MiB. Two contiguous axis bursts also do not produce the current PAIRS order
 `I01,Q01,I23,Q23`. A DMA version needs PIO reordering or several gathered fragments, plus CPU

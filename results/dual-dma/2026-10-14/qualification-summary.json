@@ -1,0 +1,9 @@
+{
+  "positive_streams": 10,
+  "negative_controls": 4,
+  "all_clean": true,
+  "captured_bus_observations_per_positive": 8192,
+  "code_commit": "79d1e8505610221bdf61539b650ca8357b17a63a",
+  "repeated_16msym_60s_passes": 2,
+  "repeat_capture_bus_observations": 8192
+}

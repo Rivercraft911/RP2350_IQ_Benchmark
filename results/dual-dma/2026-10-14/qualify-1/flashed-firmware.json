@@ -1,0 +1,9 @@
+{
+  "code_commit": "79d1e8505610221bdf61539b650ca8357b17a63a",
+  "board_serial": "D7304C6F543390D2",
+  "uf2_sha256": "d823bb6782da47e992e5a4f12399daf1b46da8993f0103c5f1201b6ea23dbb3c",
+  "uf2": "iqbench.uf2",
+  "archived_at": "2026-10-15T00:48:41.339295",
+  "flash_command": "picotool load -v -f firmware/build-limits/iqbench.uf2 -x",
+  "flash_verification": "picotool reported successful flash verification before this campaign; reported firmware Git ID is checked in runs.jsonl"
+}

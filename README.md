@@ -29,6 +29,13 @@ Pico measurements, failed ceiling probes, reproduction commands and remaining ha
 The two-core startup profile and baseline BCH kernel remain the defaults. The historical
 measurements below describe the original baseline; the experiment report covers the new modes.
 
+The follow-up [direct LUT DMA campaign](results/dual-dma/2026-10-14/README.md) tests
+paired LUT rows, two/four alternating PIO writers, and a split encoder with bounded BCH
+chunks. Its [load comparison](results/plots/dual_dma_load.png),
+[rate comparison](results/plots/dual_dma_rates.png), and
+[one-core comparison](results/plots/dual_dma_onecore.png) use matched digital measurements.
+These opt-in modes do not yet include PV-SPI ingress or qualify the AFE clock/data interface.
+
 ## Autonomous digital startup
 
 The flight transmitter targets the RP2350B chip. The current firmware build and
