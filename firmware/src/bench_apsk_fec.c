@@ -380,12 +380,12 @@ void bench_apsk_fec(int modulation, int cpw, int ms) {
            (double)worst_prepare/BLOCK_SYMBOLS,(double)worst_shape/BLOCK_SYMBOLS);
     printf("\"encoder_frames\":%lu,\"encoder_runtime_frames\":%lu,\"encoder_attempted_frames\":%lu,\"encoder_partial_frame\":%s,"
            "\"encoder_elapsed_us\":%llu,\"encoder_busy\":%.6f,\"encoder_credit_wait_cycles\":%llu,\"encoder_max_frame_work_cyc\":%lu,"
-           "\"bch_kernel\":%d,\"encoder_stage_cycles\":{\"bb\":%llu,\"bb_bch\":%llu,\"ldpc\":%llu,\"map\":%llu},"
+           "\"bch_kernel\":%d,\"ldpc_pack\":%u,\"encoder_stage_cycles\":{\"bb\":%llu,\"bb_bch\":%llu,\"ldpc\":%llu,\"map\":%llu},"
            "\"encoder_stage_max_cyc\":{\"bb\":%lu,\"bb_bch\":%lu,\"ldpc\":%lu,\"map\":%lu},",
            (unsigned long)live.frames,(unsigned long)(live.frames-1),(unsigned long)live.attempts,
            live.attempts!=live.frames?"true":"false",(unsigned long long)encoder_elapsed,
            encoder_budget?encoder_cycles/encoder_budget:0,(unsigned long long)live.credit_wait_cycles,
-           (unsigned long)live.max_frame_cycles,(int)dvbs2_bch_get_kernel(),
+           (unsigned long)live.max_frame_cycles,(int)dvbs2_bch_get_kernel(),dvbs2_ldpc_get_pack(),
            (unsigned long long)live.stage_cycles[STAGE_BB],(unsigned long long)live.stage_cycles[STAGE_BCH],
            (unsigned long long)live.stage_cycles[STAGE_LDPC],(unsigned long long)live.stage_cycles[STAGE_MAP],
            (unsigned long)live.max_stage_cycles[STAGE_BB],(unsigned long)live.max_stage_cycles[STAGE_BCH],

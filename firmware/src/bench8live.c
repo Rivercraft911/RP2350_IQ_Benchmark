@@ -348,7 +348,7 @@ static void bench_psk_live(int ms, bool vcm) {
            "\"input_waits\":%lu,\"min_input_groups\":%lu,\"input_published_groups\":%lu,\"input_consumed_groups\":%lu,"
            "\"underruns\":%lu,\"own_errors\":%lu,\"idle_sent\":%lu,\"txstalls\":%lu,"
            "\"encoder_frames\":%lu,\"encoder_runtime_frames\":%lu,\"encoder_busy\":%.4f,"
-           "\"encoder_elapsed_us\":%llu,\"encoder_max_frame_cyc\":%lu,\"bch_kernel\":%d,"
+           "\"encoder_elapsed_us\":%llu,\"encoder_max_frame_cyc\":%lu,\"bch_kernel\":%d,\"ldpc_pack\":%u,"
            "\"encoder_stage_cycles\":{\"bb\":%llu,\"bb_bch\":%llu,\"ldpc\":%llu,\"map\":%llu},"
            "\"encoder_stage_max_cyc\":{\"bb\":%lu,\"bb_bch\":%lu,\"ldpc\":%lu,\"map\":%lu},"
            "\"cap_words\":%u,\"cap_crc\":%lu,\"cap_stride\":1,\"cap_symbol_cursor\":%llu,"
@@ -376,7 +376,7 @@ static void bench_psk_live(int ms, bool vcm) {
            (unsigned long)live.frames, (unsigned long)(live.frames - PREFILL_FRAMES),
            encoder_budget ? encoder_cycles / encoder_budget : 0,
            (unsigned long long)(live.end_us - live.start_us), (unsigned long)live.max_frame_cycles,
-           (int)dvbs2_bch_get_kernel(),
+           (int)dvbs2_bch_get_kernel(), dvbs2_ldpc_get_pack(),
            (unsigned long long)live.stage_cycles[STAGE_BB], (unsigned long long)live.stage_cycles[STAGE_BCH],
            (unsigned long long)live.stage_cycles[STAGE_LDPC], (unsigned long long)live.stage_cycles[STAGE_MAP],
            (unsigned long)live.max_stage_cycles[STAGE_BB], (unsigned long)live.max_stage_cycles[STAGE_BCH],
