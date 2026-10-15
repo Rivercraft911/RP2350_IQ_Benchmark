@@ -91,3 +91,12 @@ constellation planes add an EVM/interoperability budget without a demonstrated
 advantage over exact chunks. Further overclocking is unnecessary to establish
 these architectural questions; the current campaign stays at stock voltage and
 128/150-MHz clocks.
+
+A [common native 8PSK/16APSK alphabet](native8-16-common-alphabet.md) is another
+memory-oriented option: 11 axis levels, four three-coordinate chunks and FIR
+symmetry give 49.59 KiB including the key map. The independent math checks all
+six ring ratios separately. It requires eight row lookups per quad instead of
+six, a new mapper/history representation and one fixed gamma/orientation/profile.
+It could support future coherent native-mode transitions, but is unimplemented
+and has no cycle or live-transition result. It cannot directly reuse either the
+current rotated-8PSK tables or the fixed eight-level 16APSK tables.

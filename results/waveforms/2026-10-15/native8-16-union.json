@@ -1,0 +1,59 @@
+{
+  "scope": "Future mathematical architecture idea; not implemented or timed",
+  "L": 9,
+  "SPS": 2,
+  "output_symbols_per_group": 4,
+  "history_coordinates_per_axis": 12,
+  "native_alphabet_checks": [
+    {
+      "gamma": 3.15,
+      "coordinate_levels": 11
+    },
+    {
+      "gamma": 2.85,
+      "coordinate_levels": 11
+    },
+    {
+      "gamma": 2.75,
+      "coordinate_levels": 11
+    },
+    {
+      "gamma": 2.7,
+      "coordinate_levels": 11
+    },
+    {
+      "gamma": 2.6,
+      "coordinate_levels": 11
+    },
+    {
+      "gamma": 2.57,
+      "coordinate_levels": 11
+    }
+  ],
+  "symmetric_matrix_elements_checked": 96,
+  "chunk_coordinates": [
+    3,
+    3,
+    3,
+    3
+  ],
+  "rows_per_chunk": 1331,
+  "axis_samples_per_row": 8,
+  "bytes_per_row": 16,
+  "one_table_bytes": 21296,
+  "four_independent_tables_bytes": 85184,
+  "two_symmetry_shared_tables_bytes": 42592,
+  "packed12_to_radix11_map_bytes": 8192,
+  "two_tables_plus_one_map_bytes": 50784,
+  "valid_packed12_keys": 1331,
+  "invalid_packed12_keys": 2765,
+  "optional_separate_radix_reverse_map_bytes": 2662,
+  "axis_row_lookups_per_quad": 4,
+  "both_axes_row_lookups_per_quad": 8,
+  "current_three_chunk_both_axes_row_lookups_per_quad": 6,
+  "chunk_rounding_error_bound_lsb": 2.0,
+  "additional_Q8_coordinate_coefficient_rounding_bound_lsb": 0.017578125,
+  "illustrative_phase_l1_lsb": 7300.234375,
+  "illustrative_final_and_partial_sum_bound_lsb": 7302.251953125,
+  "illustrative_tap_file_sha256": "783d878b14f20c962ab1a3a869277319e30f93aecefa3dfdb3789327ef71e7bf"
+}
