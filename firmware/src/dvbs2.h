@@ -70,6 +70,31 @@ static inline void symstream_put16(symstream_t *s, uint32_t w) {
 
 uint32_t dvbs2_plframe_symbols(void);                         // for the configured code
 void dvbs2_frame(const uint32_t *bbframe, symstream_t *s);     // bbframe: kbch bits, unscrambled
+// Explicit per-frame storage permits BB+BCH for the next frame while one backend performs
+// LDPC/mapping for the current frame. Tables/configuration must remain fixed during use;
+// LDPC's shared scratch still permits only one LDPC call at a time. Buffers must be disjoint,
+// uint32-aligned arrays of DVBS2_FE_WORDS words. The original buffer is borrowed between runs.
+enum { DVBS2_FE_WORDS = 64800 / 32 + 2 };
+uint32_t *dvbs2_frame_buffer(void);
+void dvbs2_frame_begin_into(const uint32_t *bbframe, uint32_t *frame);
+void dvbs2_frame_ldpc_into(uint32_t *frame);
+void dvbs2_frame_finish_from(const uint32_t *frame, symstream_t *s);
+// Optional bounded frontend for degree160 with BCH selectors WORDS_C or STREAM_ARM.
+// Successful begin copies the complete BBFRAME, then steps consume at most max_words
+// complete input words. The final step also handles <=3 tail bytes and appends BCH.
+// Unsupported begin returns false WITHOUT modifying frame or state, allowing full-begin
+// fallback. Keep configuration fixed until done; each independent frontend owns its state.
+typedef struct {
+    uint32_t *frame;
+    uint32_t cursor;
+    uint32_t parity[7];
+    dvbs2_bch_kernel_t kernel;
+    bool done;
+} dvbs2_frontend_t;
+bool dvbs2_frontend_begin(const uint32_t *bbframe, uint32_t *frame, dvbs2_frontend_t *state);
+// Call only after successful begin. max_words0 makes no progress; completed calls are
+// idempotent and return true. On Arm selector2 continues the streamed assembly recurrence.
+bool dvbs2_frontend_step(dvbs2_frontend_t *state, uint32_t max_words);
 // Cooperative full-frame stages, in order. Shared encoder buffers make these non-reentrant:
 // do not init/encode another frame between begin and finish. Allows shaping between stages.
 void dvbs2_frame_begin(const uint32_t *bbframe);              // BB scramble + BCH

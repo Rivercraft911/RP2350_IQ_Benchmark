@@ -10,3 +10,6 @@ void bench_dvbs2(int code, bool pilots, int reps);
 void bench_sniffer(void);
 void bench_8psk(int reps);
 void bench_hstx_ddr(int ms);
+void bench_descriptors(int reps);
+void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, int fault,
+                       int schedule, int divider256, int row_symbols);

@@ -7,7 +7,8 @@ project(iqbench C CXX ASM)
 pico_sdk_init()
 
 
-set(TX_SOURCES src/main.c src/tx.c src/bench.c src/bench_ddr.c src/iq8.c src/iqgen.c src/iqasm.S src/iqout.c
+set(TX_SOURCES src/main.c src/tx.c src/bench.c src/bench_ddr.c src/bench_dual.c src/dual_dma.c
+               src/iqdesc.c src/iqdesc_asm.S src/iqpair.c src/iq8.c src/iqgen.c src/iqasm.S src/iqout.c
                src/link.c src/dvbs2.c src/pvproto.c src/pvspi.c)
 add_executable(iqbench ${TX_SOURCES})
 add_executable(pvflight ${TX_SOURCES})

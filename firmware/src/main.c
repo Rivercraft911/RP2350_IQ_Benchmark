@@ -18,6 +18,9 @@
 //   bchkernel <0|1|2>                             baseline, C words, ARM stream
 //   bench8psk [reps]                              experimental split-LUT shaping
 //   ddrtest [ms]                                  experimental PIO data + HSTX DDR clock
+//   dualbench [reps]                             descriptor generation experiment
+//   dualwriters <2|4> / dualprio <0..15>          idle experimental DMA settings
+//   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols]
 //   bootsel                                       reboot to the USB bootloader
 #include <limits.h>
 #include <stdio.h>
@@ -25,6 +28,7 @@
 #include <string.h>
 
 #include "bench.h"
+#include "dual_dma.h"
 #include "dvbs2.h"
 #include "dvbs2_codes.h"
 #include "hardware/clocks.h"
@@ -170,6 +174,31 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "ddrtest")) {
         if (!num(a[1], "ms", 100, 1, 5000, &r.ms)) return err;
         bench_hstx_ddr(r.ms);
+    } else if (!strcmp(cmd, "dualwriters")) {
+        if (!num(a[1], "writers", REQUIRED, 2, 4, &code)) return err;
+        if (!dual_dma_set_writers((unsigned)code)) return dual_dma_last_error();
+        printf("@{\"cmd\":\"dualwriters\",\"writers\":%d}\n", code);
+    } else if (!strcmp(cmd, "dualprio")) {
+        if (!num(a[1], "mask", REQUIRED, 0, 15, &code)) return err;
+        if (!dual_dma_set_bus_priority((unsigned)code)) return dual_dma_last_error();
+        printf("@{\"cmd\":\"dualprio\",\"mask\":%d}\n", code);
+    } else if (!strcmp(cmd, "dualbench")) {
+        if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
+        bench_descriptors(reps);
+    } else if (!strcmp(cmd, "dualstream")) {
+        int kernel, source, fault, schedule, divider256, row_symbols;
+        if (!num(a[1], "cpw", REQUIRED, 1, 4, &r.cpw) ||
+            !num(a[2], "ms", REQUIRED, 10, 60000, &r.ms) ||
+            !num(a[3], "kernel", 1, 0, 2, &kernel) ||
+            !num(a[4], "source", 1, 0, 4, &source) ||
+            !num(a[5], "cap_words", 4096, 0, 4096, &r.cap_words) ||
+            !num(a[6], "fault", 0, 0, 2, &fault) ||
+            !num(a[7], "schedule", 0, 0, 3, &schedule) ||
+            !num(a[8], "divider256", 0, 0, 1024, &divider256) ||
+            !num(a[9], "row_symbols", 1, 1, 2, &row_symbols)) return err;
+        if (divider256 && divider256 != 384) return "optional divider256 must be384 (1.5 clocks)";
+        if (fault && !source) return "fault injection requires live descriptors";
+        bench_dual_stream(r.cpw, r.ms, kernel, source, r.cap_words, fault, schedule, divider256, row_symbols);
     } else if (!strcmp(cmd, "clock")) {
         if (!num(a[1], "khz", REQUIRED, 1, 150000, &khz)) return err;
         if (!set_sys_clock_khz((uint32_t)khz, false)) return "clock not reachable";

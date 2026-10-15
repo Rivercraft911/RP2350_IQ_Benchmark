@@ -21,7 +21,7 @@ static inline uint32_t rbit(uint32_t x) {
 #endif
 
 enum {
-    MAX_BITS_W = 64800 / 32 + 2,     // FECFRAME words, plus padding for 64-bit reads
+    MAX_BITS_W = DVBS2_FE_WORDS,     // FECFRAME words, plus padding for 64-bit reads
     MAX_Q = 135,                     // normal 1/4
     MAX_ADDR = 2048,
     MAX_BODY_W = (33282 - 90) / 16 + 2,
@@ -196,6 +196,7 @@ static void HOT(bch160_words)(const uint32_t *m, uint32_t *parity) {
 // Arguments: input, six-word output, table base, input word count. All AAPCS callee-saved
 // registers are restored. Remaining bytes are handled by the caller using the same T0 table.
 void dvbs2_bch160_stream(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
+void dvbs2_bch160_continue(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
 #define BCH160_XOR(DST, OLD, OFF) \
     "ldr lr, [r9, #" #OFF "]\n" \
     "ldr r1, [r10, #" #OFF "]\n" \
@@ -212,7 +213,7 @@ __asm__(".syntax unified\n.thumb\n"
         "push {r4-r11, lr}\n"
         "push {r1}\n"
         "movs r4, #0\nmovs r5, #0\nmovs r6, #0\nmovs r7, #0\nmovs r8, #0\n"
-        "cmp r3, #0\nbeq 2f\n"
+        "3:\ncmp r3, #0\nbeq 2f\n"
         "1:\n"
         "ldr lr, [r0], #4\n"
         "eor r4, r4, lr\n"
@@ -232,6 +233,12 @@ __asm__(".syntax unified\n.thumb\n"
         "subs r3, r3, #1\nbne 1b\n"
         "2:\npop {r0}\nstmia r0!, {r4-r8}\nmovs r1, #0\nstr r1, [r0]\n"
         "pop {r4-r11, pc}\n.size dvbs2_bch160_stream, .-dvbs2_bch160_stream\n"
+        // The continuation entry loads the previous remainder and shares the unchanged
+        // streamed word loop/epilogue. Its output pointer is saved exactly as above.
+        ".align 2\n.global dvbs2_bch160_continue\n.type dvbs2_bch160_continue,%function\n"
+        ".thumb_func\ndvbs2_bch160_continue:\n"
+        "push {r4-r11, lr}\npush {r1}\nldmia r1, {r4-r8}\nb 3b\n"
+        ".size dvbs2_bch160_continue, .-dvbs2_bch160_continue\n"
         ".text\n");
 #undef BCH160_XOR
 #endif
@@ -508,31 +515,88 @@ void dvbs2_init(const dvbs2_code_t *c, bool pil_on) {
 }
 
 // One BBFRAME to one PLFRAME appended to s. fe = [scrambled BBFRAME | BCH | LDPC parity].
-void HOT(dvbs2_frame_begin)(const uint32_t *bb) {
+uint32_t *dvbs2_frame_buffer(void) { return fe; }
+
+bool HOT(dvbs2_frontend_begin)(const uint32_t *bb, uint32_t *frame, dvbs2_frontend_t *state) {
+    if (bch_deg != 160 || bch_kernel == S2_BCH_BASELINE) return false;
+    PROF(4);
+    const uint32_t kw = (C->kbch + 31u) / 32;
+    for (uint32_t k = 0; k < kw; k++) frame[k] = bb[k] ^ bb_prbs[k];
+    if (C->kbch % 32u) frame[kw - 1] &= ~(~0u >> (C->kbch % 32u));
+    memset(frame + kw, 0, (DVBS2_FE_WORDS - kw) * sizeof frame[0]);
+    *state = (dvbs2_frontend_t){.frame = frame, .kernel = bch_kernel};
+    return true;
+}
+
+static void HOT(bch160_continue_c)(const uint32_t *m, uint32_t *parity, uint32_t nw) {
+    uint32_t r0_ = parity[0], r1_ = parity[1], r2 = parity[2], r3 = parity[3], r4 = parity[4];
+    for (uint32_t i = 0; i < nw; i++) {
+        const uint32_t x = r0_ ^ m[i];
+        const uint32_t *a = bch_tab[3][x >> 24], *b = bch_tab[2][(x >> 16) & 0xFF],
+                       *c = bch_tab[1][(x >> 8) & 0xFF], *d = bch_tab[0][x & 0xFF];
+        r0_ = r1_ ^ a[0] ^ b[0] ^ c[0] ^ d[0];
+        r1_ = r2 ^ a[1] ^ b[1] ^ c[1] ^ d[1];
+        r2 = r3 ^ a[2] ^ b[2] ^ c[2] ^ d[2];
+        r3 = r4 ^ a[3] ^ b[3] ^ c[3] ^ d[3];
+        r4 = a[4] ^ b[4] ^ c[4] ^ d[4];
+    }
+    parity[0] = r0_; parity[1] = r1_; parity[2] = r2; parity[3] = r3; parity[4] = r4;
+    parity[5] = 0;
+}
+
+bool HOT(dvbs2_frontend_step)(dvbs2_frontend_t *state, uint32_t max_words) {
+    if (state->done) return true;
+    if (!max_words) return false;
+    const uint32_t nw = C->kbch / 32u;
+    const uint32_t left = nw - state->cursor;
+    const uint32_t take = left < max_words ? left : max_words;
+    const uint32_t *m = state->frame + state->cursor;
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    if (state->kernel == S2_BCH_STREAM_ARM)
+        dvbs2_bch160_continue(m, state->parity, bch_tab, take);
+    else
+#endif
+        bch160_continue_c(m, state->parity, take);
+    state->cursor += take;
+    if (state->cursor != nw) return false;
+
+    for (uint32_t i = 0; i < (C->kbch % 32u) / 8; i++) {
+        uint32_t *p = state->parity;
+        const uint32_t *t = bch_tab[0][(p[0] >> 24) ^ ((state->frame[nw] >> (24 - 8 * i)) & 0xFF)];
+        for (unsigned k = 0; k < 4; k++) p[k] = ((p[k] << 8) | (p[k + 1] >> 24)) ^ t[k];
+        p[4] = (p[4] << 8) ^ t[4];
+    }
+    copy_bits(state->frame, C->kbch, state->parity, bch_deg);
+    state->done = true;
+    PROF(5);
+    return true;
+}
+
+void HOT(dvbs2_frame_begin_into)(const uint32_t *bb, uint32_t *frame) {
     const uint32_t kw = (C->kbch + 31u) / 32;
     PROF(4);
-    for (uint32_t k = 0; k < kw; k++) fe[k] = bb[k] ^ bb_prbs[k];
-    if (C->kbch % 32u) fe[kw - 1] &= ~(~0u >> (C->kbch % 32u));
-    memset(fe + kw, 0, sizeof fe - kw * 4);
+    for (uint32_t k = 0; k < kw; k++) frame[k] = bb[k] ^ bb_prbs[k];
+    if (C->kbch % 32u) frame[kw - 1] &= ~(~0u >> (C->kbch % 32u));
+    memset(frame + kw, 0, (DVBS2_FE_WORDS - kw) * sizeof frame[0]);
     uint32_t par[BCH_W + 1];
-    dvbs2_bch(fe, par);
-    copy_bits(fe, C->kbch, par, bch_deg);
+    dvbs2_bch(frame, par);
+    copy_bits(frame, C->kbch, par, bch_deg);
     PROF(5);
 }
 
-void HOT(dvbs2_frame_ldpc)(void) {
+void HOT(dvbs2_frame_ldpc_into)(uint32_t *frame) {
     static uint32_t lpar[MAX_BITS_W] HI;
-    dvbs2_ldpc(fe, lpar);
-    copy_bits(fe, C->kldpc, lpar, M);
+    dvbs2_ldpc(frame, lpar);
+    copy_bits(frame, C->kldpc, lpar, M);
     PROF(6);
 }
 
-void HOT(dvbs2_frame_finish)(symstream_t *out) {
+void HOT(dvbs2_frame_finish_from)(const uint32_t *frame, symstream_t *out) {
     const uint32_t nsym = C->nldpc / 2u;
     symstream_t s = *out;                                      // local copy keeps state in registers
     for (int k = 0; k < 5; k++) symstream_put16(&s, hdr[k]);
     symstream_put(&s, hdr[5], 10);
-    const uint32_t *f = fe, *sw = swapm, *fl = flipm;
+    const uint32_t *f = frame, *sw = swapm, *fl = flipm;
     for (uint32_t left = nsym, blk = 0; left;) {               // runs of 1440 data symbols
         const uint32_t run = blk < n_pil && left > 1440 ? 1440 : left;
         for (uint32_t i = 0; i < run / 16; i++) symstream_put16(&s, map_scramble16(*f++, *sw++, *fl++));
@@ -547,6 +611,12 @@ void HOT(dvbs2_frame_finish)(symstream_t *out) {
     *out = s;
     PROF(7);
 }
+
+void HOT(dvbs2_frame_begin)(const uint32_t *bb) { dvbs2_frame_begin_into(bb, fe); }
+
+void HOT(dvbs2_frame_ldpc)(void) { dvbs2_frame_ldpc_into(fe); }
+
+void HOT(dvbs2_frame_finish)(symstream_t *out) { dvbs2_frame_finish_from(fe, out); }
 
 void HOT(dvbs2_frame)(const uint32_t *bb, symstream_t *out) {
     dvbs2_frame_begin(bb);
