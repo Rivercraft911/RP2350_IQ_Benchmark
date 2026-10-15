@@ -1,4 +1,5 @@
 #include "iq16native8.h"
+#include "iqlanes.h"
 
 // Frozen L8/N2 hold-aware alpha.20 pulse; Q8 DAC units. See coefficient hash in
 // the header. No physical AFE/image or full16APSK-modem qualification is implied.
@@ -43,17 +44,6 @@ bool iq16native8_build(const iq16native8_tables_t *tables, unsigned gamma100) {
         }
     }
     return true;
-}
-
-static inline uint32_t add_lanes(uint32_t a, uint32_t b) {
-#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    uint32_t sum;
-    __asm("sadd16 %0, %1, %2" : "=r"(sum) : "r"(a), "r"(b) : "cc");
-    return sum;
-#else
-    return (uint32_t)(uint16_t)((int16_t)a + (int16_t)b) |
-        (uint32_t)(uint16_t)((int16_t)(a >> 16) + (int16_t)(b >> 16)) << 16;
-#endif
 }
 
 void iq16native8_kernel_c(uint32_t *out, const uint32_t *input, uint32_t blocks,

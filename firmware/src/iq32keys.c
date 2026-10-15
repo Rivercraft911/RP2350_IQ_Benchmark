@@ -1,4 +1,5 @@
 #include "iq32keys.h"
+#include "iqlanes.h"
 
 void iq32keys_encode(uint32_t *out, const uint32_t *input, uint32_t blocks,
                      const uint32_t *prev_word) {
@@ -25,17 +26,6 @@ void iq32keys_history(uint32_t out[5], const uint32_t *coordinate_prev) {
     uint32_t encoded[8];
     iq32keys_encode(encoded, coordinate_prev, 4, 0);
     for (unsigned i = 0; i < 5; ++i) out[i] = encoded[i+3];
-}
-
-static inline uint32_t add_lanes(uint32_t a, uint32_t b) {
-#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    uint32_t sum;
-    __asm("sadd16 %0, %1, %2" : "=r"(sum) : "r"(a), "r"(b) : "cc");
-    return sum;
-#else
-    return (uint32_t)(uint16_t)((int16_t)a + (int16_t)b) |
-        (uint32_t)(uint16_t)((int16_t)(a >> 16) + (int16_t)(b >> 16)) << 16;
-#endif
 }
 
 void iq32keys_kernel_c(uint32_t *out, const uint32_t *input, uint32_t blocks,

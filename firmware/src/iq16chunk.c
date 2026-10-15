@@ -1,4 +1,5 @@
 #include "iq16chunk.h"
+#include "iqlanes.h"
 #include <stddef.h>
 
 // Same offline filter as iq8quad: alpha=.20, L9, N2, Kaiser beta1.16,
@@ -67,18 +68,6 @@ void iq16chunk_fill(uint32_t *input, uint32_t blocks, uint32_t *seed) {
         input[block] = packed;
     }
     *seed = x;
-}
-
-static inline uint32_t add_lanes(uint32_t a, uint32_t b) {
-#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    uint32_t sum;
-    __asm("sadd16 %0, %1, %2" : "=r"(sum) : "r"(a), "r"(b) : "cc");
-    return sum;
-#else
-    const int32_t lo = (int16_t)a + (int16_t)b;
-    const int32_t hi = (int16_t)(a >> 16) + (int16_t)(b >> 16);
-    return (uint32_t)(uint16_t)lo | (uint32_t)(uint16_t)hi << 16;
-#endif
 }
 
 static inline uint32_t swap_lanes(uint32_t word) { return word << 16 | word >> 16; }
