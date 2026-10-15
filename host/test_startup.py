@@ -1,7 +1,8 @@
-"""Source-order regression for hardware-only digital startup/READY interlocks.
+"""Startup ordering and actual native READY admission/pause regressions.
 
 These checks cannot establish GPIO timing or throughput; they catch accidental
-relocation of admission initialization into the CS interrupt, including restart.
+relocation of admission initialization into the CS interrupt. The native check
+executes the production pause/arm/IRQ functions and the generated PIO gate words.
 """
 from pathlib import Path
 import re
@@ -41,17 +42,17 @@ class StartupOrdering(unittest.TestCase):
         enabled = start.index('admitting = true;')
         self.assertLess(start.rindex('spin_lock_blocking(lock)', 0, enabled), enabled)
         self.assertLess(enabled, start.index('arm_locked();', enabled))
-        self.assertLess(start.index('arm_locked();', enabled), start.index('spin_unlock(lock, s)', enabled))
+        unmask = start.index('gpio_set_outover(PIN_READY, GPIO_OVERRIDE_NORMAL)', enabled)
+        self.assertLess(start.index('arm_locked();', enabled), unmask)
+        self.assertLess(unmask, start.index('spin_unlock(lock, s)', enabled))
         self.assertEqual(len(re.findall(r'admitting\s*=\s*true', self.spi)), 1)
         self.assertNotRegex(body(self.spi, 'cs_isr'), r'admitting\s*=')
 
     def test_pause_survives_consumer_and_cs_rearm(self):
-        self.assertIn('gpio_put(PIN_READY, armed && admitting);', body(self.spi, 'arm_locked'))
-        pause = body(self.spi, 'pvspi_pause')
-        self.assertLess(pause.index('spin_lock_blocking(lock)'), pause.index('admitting = false;'))
-        self.assertLess(pause.index('admitting = false;'), pause.index('gpio_put(PIN_READY, 0)'))
-        self.assertIn('arm_locked();', body(self.spi, 'cs_isr'))
-        self.assertIn('arm_locked();', body(self.spi, 'pvspi_next_packet'))
+        # READY is PIO-driven now. Checking for a SIO gpio_put would miss stale
+        # hardware grants; run the real pause/rearm leaves and delayed-IRQ model.
+        from test_pvspi_rx import main as check_ready_gate
+        check_ready_gate()
 
     def test_external_spi_after_output_and_pause_before_stop(self):
         run = body(self.tx, 'tx_run')

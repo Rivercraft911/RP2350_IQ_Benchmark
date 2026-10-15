@@ -150,6 +150,11 @@ static bool build_spi_frame(uint32_t *bb) {
             return false;
         }
     } else pv_bbframe((uint8_t *)bb, encoder.bb_bits, TS_MATYPE1, pvspi_next_packet);
+    if (pvspi.errors || pv_stats.lost || pv_stats.bad_hdr || pv_stats.bad_crc ||
+        pv_stats.bad_sync || pv_stats.gcs_underflows) {
+        encoder.input_failed = true;
+        return false;
+    }
     // The encoder consumes MSB-first words. A partial final word must have zero low bits
     // after the byte swap; e.g. normal 5/6 has two valid bytes in that last word.
     for (unsigned byte = encoder.bb_bytes; byte < 4 * encoder.bb_words; byte++)
@@ -470,7 +475,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
         last_poll = now;
         p = progress_symbols(row_symbols);
         errors |= p.errors;
-        if (encoder.input_failed) errors |= ERR_INPUT;
+        if (encoder.input_failed || (spi && pvspi.errors)) errors |= ERR_INPUT;
         const uint64_t low = p.read_i < p.read_q ? p.read_i : p.read_q;
         const uint64_t high = p.issued_i > p.issued_q ? p.issued_i : p.issued_q;
         if (high - low > axis_gap_max) axis_gap_max = high - low;
@@ -600,7 +605,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     }
     const uint32_t count = captured ? dual_dma_capture_count() : 0;
     if (source == SOURCE_DVBS2_CORE1 || split) multicore_fifo_pop_blocking();
-    if (encoder.input_failed) errors |= ERR_INPUT;
+    if (encoder.input_failed || (spi && pvspi.errors)) errors |= ERR_INPUT;
     if (spi) pvspi_stop();
     const uint64_t cleanup_us = bench_now() - start - elapsed;
     const double budget = elapsed * 1e-6 * clock_get_hz(clk_sys);

@@ -30,21 +30,24 @@ static spin_lock_t *lock;
 static uint32_t *slot_mem;
 static int8_t slot_crc[PV_SLOTS];                    // 1 = sniffer residue OK, 0 = bad
 static bool armed, emu_on;
-static uint16_t prog_rx[4], prog_cs[3], prog_emu[10];
+static uint16_t prog_rx[4], prog_cs[5], prog_emu[10];
 static uint8_t len_emu;
 
 static inline uint32_t *slot(uint32_t n) { return slot_mem + (n % PV_SLOTS) * PV_MSG_WORDS; }
 
 // RX: wait for CS_N low once, then sample MOSI on each SCK rising edge, MSB first, autopush 32.
-// CS watcher: raise PIO IRQ 0 on every CS_N rising edge (end of message).
+// CS gate: a CPU token admits one message. READY falls at CS_N falling in hardware,
+// then IRQ WAIT holds admission until the CPU closes RX and arms the next buffer.
 static void build(int emu_half) {
     prog_rx[0] = pio_encode_wait_gpio(false, PIN_CS);
     prog_rx[1] = pio_encode_wait_gpio(true, PIN_SCK);          // wrap target
     prog_rx[2] = pio_encode_in(pio_pins, 1);
     prog_rx[3] = pio_encode_wait_gpio(false, PIN_SCK);
-    prog_cs[0] = pio_encode_wait_gpio(false, PIN_CS);
-    prog_cs[1] = pio_encode_wait_gpio(true, PIN_CS);
-    prog_cs[2] = pio_encode_irq_set(false, 0);
+    prog_cs[0] = pio_encode_pull(false, true) | pio_encode_sideset(1, 0);
+    prog_cs[1] = pio_encode_wait_gpio(true, PIN_CS) | pio_encode_sideset(1, 0);
+    prog_cs[2] = pio_encode_wait_gpio(false, PIN_CS) | pio_encode_sideset(1, 1);
+    prog_cs[3] = pio_encode_wait_gpio(true, PIN_CS) | pio_encode_sideset(1, 0);
+    prog_cs[4] = pio_encode_irq_wait(false, 0) | pio_encode_sideset(1, 0);
     // Emulated master: wait READY, CS_N low, 10 656 bits (Y = bits - 1) with SCK as side-set,
     // CS_N high, then a gap of 2 x 32 x 16 cycles (8 us at 128 MHz).
     const uint d = (uint)emu_half - 1;
@@ -63,12 +66,15 @@ static void build(int emu_half) {
 }
 
 static void __not_in_flash_func(arm_locked)(void) {         // caller holds lock
-    if (!armed && pvspi.head - pvspi.tail < PV_SLOTS) {
+    if (!armed && admitting && pvspi.head - pvspi.tail < PV_SLOTS) {
         dma_sniffer_set_data_accumulator(0xFFFFFFFFu);
         dma_channel_transfer_to_buffer_now(ch_rx, slot(pvspi.head), PV_MSG_WORDS);
         armed = true;
+        // Only this false->true transition posts a credit. At most one token is
+        // pending; repeated consumer calls while armed cannot grant another CS.
+        __dmb(); // finish DMA/sniffer setup before the PIO can expose READY
+        pio_sm_put(pio, sm_cs, 0);
     }
-    gpio_put(PIN_READY, armed && admitting);
 }
 
 static void __not_in_flash_func(rx_reset)(void) {           // drop partial bits and FIFO words
@@ -95,15 +101,20 @@ static bool __not_in_flash_func(close_rx)(bool late) {
     const uint32_t fifo = pio_sm_get_rx_fifo_level(pio, sm_rx);
     const bool cs = gpio_get(PIN_CS);
     late |= !cs;
-    if (late) pvspi.late_closes++;
+    if (late) { pvspi.late_closes++; pvspi.errors |= PV_SPI_ERR_LATE; }
+    if (ctrl & DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS) pvspi.errors |= PV_SPI_ERR_DMA;
     if (!remaining && !(ctrl & (DMA_CH0_CTRL_TRIG_BUSY_BITS | DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS)) &&
         !fifo && !late) {
         if (pending) pvspi.deferred_msgs++;
         return true;
     }
-    if (!remaining && fifo && !late) pvspi.long_msgs++;
+    if (!remaining && fifo && !late) {
+        pvspi.long_msgs++;
+        pvspi.errors |= PV_SPI_ERR_LONG;
+    }
     else {
         pvspi.short_msgs++;
+        pvspi.errors |= PV_SPI_ERR_SHORT;
         pvspi.last_short_words = PV_MSG_WORDS - remaining;
         pvspi.last_short_fifo = fifo;
         pvspi.last_short_ctrl = ctrl;
@@ -118,9 +129,7 @@ static bool __not_in_flash_func(close_rx)(bool late) {
 // is reset every time, so up to 31 extra bits (one stray SCK edge is enough) cannot stay in its
 // shift register and misalign every later message.
 static void __not_in_flash_func(cs_isr)(void) {
-    pio_interrupt_clear(pio, 0);
     const uint32_t s = spin_lock_blocking(lock);
-    gpio_put(PIN_READY, 0);
     if (armed) {
         if (close_rx(!gpio_get(PIN_CS))) {
             // CRC-32 over data plus its own little-endian CRC leaves the residue 0x2144DF1C.
@@ -131,9 +140,14 @@ static void __not_in_flash_func(cs_isr)(void) {
         armed = false;
     } else {
         pvspi.overflows++;                                   // arrived with no slot (READY low)
+        pvspi.errors |= PV_SPI_ERR_OVERFLOW;
     }
     rx_reset();
     arm_locked();
+    // Release IRQ WAIT only after the old slot is immutable, RX is realigned and
+    // a fresh DMA/token (if room remains) is published. READY stayed low throughout.
+    pio_interrupt_clear(pio, 0);
+    __dsb(); // complete the peripheral IRQ acknowledgement before exception return
     spin_unlock(lock, s);
 }
 
@@ -143,6 +157,7 @@ void pvspi_start(PIO bus, uint32_t *slots, bool selftest, uint32_t *emu, int emu
     irq_num = PIO0_IRQ_0 + 2 * pio_get_index(pio);
     slot_mem = slots;
     pvspi = (pvspi_stats_t){0};
+    admitting = false;
     armed = false;
     msg = 0, npk = ipk = 0;                               // no stale pointer into last run's slots
     ch_rx = dma_claim_unused_channel(true);
@@ -162,12 +177,12 @@ void pvspi_start(PIO bus, uint32_t *slots, bool selftest, uint32_t *emu, int emu
     irq_set_exclusive_handler(irq_num, cs_isr);
     build(emu_half);
     off_rx = pio_add_program(pio, &(pio_program_t){.instructions = prog_rx, .length = 4, .origin = -1});
-    off_cs = pio_add_program(pio, &(pio_program_t){.instructions = prog_cs, .length = 3, .origin = -1});
+    off_cs = pio_add_program(pio, &(pio_program_t){.instructions = prog_cs, .length = 5, .origin = -1});
     off_emu = pio_add_program(pio, &(pio_program_t){.instructions = prog_emu, .length = len_emu, .origin = -1});
 
-    gpio_init(PIN_READY);
-    gpio_set_dir(PIN_READY, GPIO_OUT);
     gpio_put(PIN_READY, 0);
+    gpio_set_dir(PIN_READY, GPIO_OUT);
+    gpio_set_function(PIN_READY, GPIO_FUNC_SIO);
     for (uint p = PIN_SCK; p <= PIN_CS; p++) pio_gpio_init(pio, p);
     gpio_pull_up(PIN_CS);                                    // idle high if the master is absent
     // PIO output enables outlive the SM that set them: after a self-test PIO would still drive
@@ -181,8 +196,14 @@ void pvspi_start(PIO bus, uint32_t *slots, bool selftest, uint32_t *emu, int emu
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
     pio_sm_init(pio, sm_rx, off_rx, &c);
     c = pio_get_default_sm_config();
-    sm_config_set_wrap(&c, off_cs, off_cs + 2);
+    sm_config_set_wrap(&c, off_cs, off_cs + 4);
+    sm_config_set_sideset(&c, 1, false, false);
+    sm_config_set_sideset_pins(&c, PIN_READY);
     pio_sm_init(pio, sm_cs, off_cs, &c);
+    pio_sm_set_pins_with_mask(pio, sm_cs, 0, 1u << PIN_READY);
+    pio_sm_set_consecutive_pindirs(pio, sm_cs, PIN_READY, 1, true);
+    pio_gpio_init(pio, PIN_READY);
+    gpio_set_outover(PIN_READY, GPIO_OVERRIDE_LOW);
     pio_set_irq0_source_enabled(pio, pis_interrupt0, true);
     pio_interrupt_clear(pio, 0);
 
@@ -245,6 +266,7 @@ void pvspi_start(PIO bus, uint32_t *slots, bool selftest, uint32_t *emu, int emu
     const uint32_t s = spin_lock_blocking(lock);
     admitting = true;
     arm_locked();
+    gpio_set_outover(PIN_READY, GPIO_OVERRIDE_NORMAL);
     spin_unlock(lock, s);
     if (selftest) {
         dma_channel_start(ch_emu);
@@ -256,7 +278,7 @@ void pvspi_pause(void) {
     if (!active) return;
     const uint32_t s = spin_lock_blocking(lock);
     admitting = false;
-    gpio_put(PIN_READY, 0);
+    gpio_set_outover(PIN_READY, GPIO_OVERRIDE_LOW);
     spin_unlock(lock, s);
 }
 
@@ -266,6 +288,7 @@ void pvspi_stop(void) {
     irq_set_enabled(irq_num, false);
     pio_set_irq0_source_enabled(pio, pis_interrupt0, false);
     pio_set_sm_mask_enabled(pio, (1u << sm_rx) | (1u << sm_cs) | (1u << sm_emu), false);
+    pio_sm_clear_fifos(pio, sm_cs); // discard any granted-but-not-started message token
     pio_interrupt_clear(pio, 0);
     irq_clear(irq_num);
     irq_remove_handler(irq_num, cs_isr);
@@ -283,8 +306,15 @@ void pvspi_stop(void) {
     }
     pio_sm_set_consecutive_pindirs(pio, sm_rx, PIN_SCK, 3, false);
     for (uint p = PIN_SCK; p <= PIN_CS; p++) gpio_set_dir(p, GPIO_IN), gpio_set_function(p, GPIO_FUNC_SIO);
+    // OUTOVER remains LOW until the SIO latch/direction are ready. gpio_set_function
+    // itself clears overrides, so its transition must already select a low output.
+    gpio_put(PIN_READY, 0);
+    gpio_set_dir(PIN_READY, GPIO_OUT);
+    gpio_set_function(PIN_READY, GPIO_FUNC_SIO);
+    gpio_set_outover(PIN_READY, GPIO_OVERRIDE_NORMAL);
+    pio_sm_set_consecutive_pindirs(pio, sm_cs, PIN_READY, 1, false);
     pio_remove_program(pio, &(pio_program_t){.instructions = prog_rx, .length = 4, .origin = -1}, off_rx);
-    pio_remove_program(pio, &(pio_program_t){.instructions = prog_cs, .length = 3, .origin = -1}, off_cs);
+    pio_remove_program(pio, &(pio_program_t){.instructions = prog_cs, .length = 5, .origin = -1}, off_cs);
     pio_remove_program(pio, &(pio_program_t){.instructions = prog_emu, .length = len_emu, .origin = -1}, off_emu);
     pio_sm_unclaim(pio, sm_rx);
     pio_sm_unclaim(pio, sm_cs);

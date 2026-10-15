@@ -68,6 +68,7 @@ static const dvbs2_code_t *s2c;
 static uint32_t cycles(void) {return 0;}
 static uint32_t time_us_32(void) {return 0;}
 static uint32_t packet_index;
+static struct {volatile uint32_t errors;} pvspi;
 static uint8_t *pvspi_next_packet(void) {
     static uint8_t packet[188];
     const uint32_t k=packet_index++%112;
@@ -88,7 +89,7 @@ int trial(int code_index,int gcs) {
     memset(input,0xa5,sizeof input);
     memset(&q_store,0x5a,sizeof q_store);
     memset(&bb_store,0x3c,sizeof bb_store);
-    packet_index=0; pv_init(16); dvbs2_bch_set_kernel(S2_BCH_STREAM_ARM);
+    packet_index=0; pvspi.errors=0; pv_init(16); dvbs2_bch_set_kernel(S2_BCH_STREAM_ARM);
     const dvbs2_code_t *c=&DVBS2_CODES[code_index];
     if(!prefill_encoder(gcs?SOURCE_PV_GCS:SOURCE_PV_SPI,input,0,code_index,c->kbch)) return 1;
     if(encoder.bb_frames!=6) return 2;
@@ -129,6 +130,13 @@ int trial(int code_index,int gcs) {
     return 0;
 }
 uint32_t trial_word(unsigned index) {return trace[index];}
+int trial_reject(int transport) {
+    pvspi.errors=0; pv_stats.bad_crc=0; encoder.input_failed=false;
+    const uint32_t before=encoder.bb_frames;
+    if(transport) pvspi.errors=1; else pv_stats.bad_crc=1;
+    const bool accepted=build_spi_frame(bb_buf);
+    return !accepted && encoder.input_failed && encoder.bb_frames==before;
+}
 '''
     return (head + macros + setup + source_enum + constants + encoder +
             function(tx, "tx_code") + leaves + tail)
@@ -188,6 +196,8 @@ def main() -> None:
         for code_index, rate in ((5, "2/3"), (6, "3/4"), (8, "5/6")):
             for gcs in (False, True):
                 print(json.dumps(check(lib, code_index, rate, gcs)), flush=True)
+                for transport in (False, True):
+                    assert lib.trial_reject(transport) == 1, "faulted BBFRAME was published"
 
 
 if __name__ == "__main__":
