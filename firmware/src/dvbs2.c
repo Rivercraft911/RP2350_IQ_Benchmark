@@ -366,7 +366,7 @@ static inline void xor_rot(uint32_t *row, const uint32_t *src, uint32_t sh) {
 // so FEC parity lands directly after an unaligned Kldpc (normal 5/6, 3/4, 9/10) with no
 // intermediate buffer, scattered OR or copy_bits pass. Words through (bit + M + 63) / 32 are
 // written, matching the zeroed guard of the generic path. Unused rows of each tile are zero.
-// Placement: SRAM0-3 has only a few hundred bytes free (pvflight least), so this 0.35 KiB leaf
+// Placement: SRAM0-3 has only a few hundred bytes free (pvflight least), so this 0.4 KiB leaf
 // runs from flash through the XIP cache, once per frame; misses are charged to its measurement.
 static void __attribute__((noinline)) COMPACT ldpc_pack_stream(uint32_t *dst, uint32_t bit) {
     const uint32_t q = C->q, rem = q > 32 ? q - 32 : q, end = (bit + M + 63u) / 32u;
@@ -380,22 +380,20 @@ static void __attribute__((noinline)) COMPACT ldpc_pack_stream(uint32_t *dst, ui
             transpose32(tile[1]);
         }
         const unsigned columns = k == 11 ? 8 : 32;
-        const uint32_t *last = q > 32 ? tile[1] : tile[0];
-        for (unsigned col = 0; col < columns; col++) {
-            if (q > 32) {                                       // a full 32-bit row tile
-                const uint32_t v = tile[0][col];
+        // rem MSB-aligned bits per column; v << (rem - fill) is split so that fill may be 0.
+#define APPEND_REM(v) do { acc |= (v) >> fill; fill += rem;                                   \
+        if (fill >= 32) { *out++ = acc; fill -= 32; acc = ((v) << 1) << (rem - 1u - fill); } } while (0)
+        if (q > 32) {
+            for (unsigned col = 0; col < columns; col++) {
+                const uint32_t v = tile[0][col];                // a full 32-row chunk first
                 *out++ = acc | v >> fill;
-                acc = (v << 1) << (31u - fill);                 // v << (32 - fill), fill may be 0
+                acc = (v << 1) << (31u - fill);                 // v << (32 - fill)
+                APPEND_REM(tile[1][col]);
             }
-            const uint32_t v = last[col];                       // rem MSB-aligned bits
-            acc |= v >> fill;
-            fill += rem;
-            if (fill >= 32) {
-                *out++ = acc;
-                fill -= 32;
-                acc = (v << 1) << (rem - 1u - fill);            // v << (rem - fill)
-            }
+        } else {
+            for (unsigned col = 0; col < columns; col++) APPEND_REM(tile[0][col]);
         }
+#undef APPEND_REM
     }
     if (fill) *out++ = acc;
     while (out < dst + end) *out++ = 0;
