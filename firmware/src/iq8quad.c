@@ -1,12 +1,6 @@
 #include "iq8quad.h"
 #include <stddef.h>
 
-#ifdef IQ_ON_DEVICE
-#define IQ8QUAD_HOT __attribute__((section(".time_critical.iq8quad_c")))
-#else
-#define IQ8QUAD_HOT
-#endif
-
 // Offline alpha=.20 RRC, L9, N2, Kaiser beta1.16; symmetric cropped pre-emphasis
 // [-.0455, 1.091, -.0455], then exact worst-phase L1 scaling to 1dB headroom.
 // Q8 quantization. Baseband + DAC-hold mask model only; RF images are unqualified.
@@ -49,7 +43,7 @@ static inline uint32_t add_signed_lanes(uint32_t a, uint32_t b) {
     return (uint32_t)(uint16_t)lo | (uint32_t)(uint16_t)hi << 16;
 }
 
-void IQ8QUAD_HOT iq8quad_kernel_c(uint32_t *out, const iq8_input_t *in, uint32_t groups,
+void iq8quad_kernel_c(uint32_t *out, const iq8_input_t *in, uint32_t groups,
                                  const iq8_input_t *prev, const iq8quad_tables_t *tables) {
     iq8_input_t last = prev ? *prev : (iq8_input_t){0, 0xffff0000u};
     for (uint32_t g = 0; g < groups; g++) {

@@ -45,7 +45,15 @@ typedef void (*desc_fn)(uint32_t *, uint32_t *, const uint32_t *, uint32_t,
 static const desc_fn kernels[] = {iqdesc_c, iqdesc_asm, iqdesc_interp};
 static const desc_fn pair_kernels[] = {iqdesc_pair_c, iqdesc_pair_asm, iqdesc_pair_interp};
 static const desc_fn quad_kernels[] = {iqdesc_quad_c, iqdesc_quad_asm, iqdesc_quad_interp};
+static const desc_fn quad8_kernels[] = {iqdesc_quad8_c, NULL, iqdesc_quad8_interp};
 static const char *names[] = {"c", "asm", "interp"};
+static iqquad_profile_t quad_profile = IQQUAD_PROFILE_L9_KAISER;
+
+bool bench_dual_set_quad_profile(unsigned profile) {
+    if (!iqquad_profile_info((iqquad_profile_t)profile)) return false;
+    quad_profile = (iqquad_profile_t)profile;
+    return true;
+}
 
 static bool spi_source(enum dual_source source) {
     return source == SOURCE_PV_SPI || source == SOURCE_PV_GCS;
@@ -78,7 +86,8 @@ static inline dual_dma_progress_t progress_symbols(unsigned row_symbols) {
 static void generate(unsigned kernel, uint32_t *di, uint32_t *dq, const uint32_t *input,
                      uint32_t prev, unsigned row_symbols, uint32_t base_i, uint32_t base_q, uint32_t nwords) {
     // This bench owns both core0 interpolators; USB and SPI handlers do not use them.
-    (row_symbols == 4 ? quad_kernels : row_symbols == 2 ? pair_kernels : kernels)[kernel](
+    const desc_fn *quad = quad_profile == IQQUAD_PROFILE_L8_OPTIMIZED_BOTH ? quad8_kernels : quad_kernels;
+    (row_symbols == 4 ? quad : row_symbols == 2 ? pair_kernels : kernels)[kernel](
         di, dq, input, nwords, prev, base_i, base_q);
 }
 
@@ -118,9 +127,9 @@ void bench_descriptors(int reps) {
             }
         restore_interrupts(save);
         const double cps = (double)elapsed / ((double)reps * IN_WORDS * 16);
-        printf("%s{\"name\":\"%s\",\"cyc_per_sym\":%.4f,\"worst_block_cyc_per_sym\":%.4f,"
+        printf("%s{\"name\":\"%s\",\"code_placement\":\"%s\",\"cyc_per_sym\":%.4f,\"worst_block_cyc_per_sym\":%.4f,"
                "\"crc_i\":%lu,\"crc_q\":%lu,\"crc_ok\":%u}", kernel ? "," : "", names[kernel],
-               cps, (double)worst / DESC_BLOCK, (unsigned long)ci, (unsigned long)cq,
+               kernel ? "sram" : "flash_cached", cps, (double)worst / DESC_BLOCK, (unsigned long)ci, (unsigned long)cq,
                ci == 491185096u && cq == 845440890u);
     }
     printf("]}\n");
@@ -381,6 +390,12 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     }
     const bool spi = spi_source(source), split = source >= SOURCE_DVBS2_SPLIT;
     const bool paired = row_symbols >= 2, quad = row_symbols == 4;
+    const bool short_pulse = quad && quad_profile == IQQUAD_PROFILE_L8_OPTIMIZED_BOTH;
+    const iqquad_profile_info_t *profile = iqquad_profile_info(quad_profile);
+    if (short_pulse && kernel == 1) {
+        printf("@{\"error\":\"L8 profile supports C or interpolator descriptors\"}\n");
+        return;
+    }
     encoder.input_failed = false;
     if (spi && !spi_resources_available()) {
         printf("@{\"error\":\"PV-SPI trial needs free PIO1/PIO2 and twelve DMA channels\"}\n");
@@ -405,10 +420,11 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     const uint32_t base_i = paired ? (uint32_t)ring_buf : (uint32_t)cfg.ti;
     const uint32_t base_q = paired ? (uint32_t)ring_buf : (uint32_t)cfg.tq;
     if (paired) {
-        if (quad) iqquad_build(ring_buf); else iqpair_build(ring_buf, cfg.tq);
-        if (quad && crc32_update(0, ring_buf, IQQUAD_WORDS * sizeof ring_buf[0]) != IQQUAD_TABLE_CRC) {
+        if (quad) iqquad_build_profile(ring_buf, IQQUAD_WORDS, quad_profile);
+        else iqpair_build(ring_buf, cfg.tq);
+        if (quad && crc32_update(0, ring_buf, profile->words * sizeof ring_buf[0]) != profile->table_crc) {
             restore_trial_buffers(false, paired);
-            printf("@{\"error\":\"L9 quad table CRC mismatch\"}\n");
+            printf("@{\"error\":\"quad pulse table CRC mismatch\"}\n");
             return;
         }
         uint32_t seed = SEED;
@@ -612,9 +628,9 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     const double encoder_budget = (encoder.end_us - encoder.start_us) * 1e-6 * clock_get_hz(clk_sys);
     const uint32_t generated = gen_blocks * block_syms;
     printf("@{\"cmd\":\"dualstream\",\"git\":\"%s\",\"clk_hz\":%lu,\"sps\":4,\"L\":%u,"
-           "\"filter_beta\":%.1f,\"row_profile\":\"%s\","
+           "\"filter_beta\":%s,\"row_profile\":\"%s\","
            "\"code_index\":%d,\"s2_code\":\"%s\",\"kbch\":%u,"
-           "\"kernel\":\"%s\",\"source\":%d,\"cpw\":%d,\"divider256\":%d,\"schedule\":%d,\"row_symbols\":%d,\"writers\":%u,\"bus_priority_mask\":%u,"
+           "\"kernel\":\"%s\",\"descriptor_code_placement\":\"%s\",\"source\":%d,\"cpw\":%d,\"divider256\":%d,\"schedule\":%d,\"row_symbols\":%d,\"writers\":%u,\"bus_priority_mask\":%u,"
            "\"ms\":%d,\"elapsed_us\":%llu,\"cleanup_us\":%llu,"
            "\"seed\":%lu,\"in_words\":%lu,\"sym_rate\":%.1f,\"tables_ok\":%u,\"fault\":%d,"
            "\"errors\":%lu,\"underruns\":%lu,\"own_errors\":%lu,\"txstalls_i\":%lu,\"txstalls_q\":%lu,"
@@ -625,10 +641,11 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
            "\"map_kernel\":%u,\"one_core\":%s,\"s2_core\":%d,\"s2_max_frame_cyc\":%lu,\"s2_max_slice_cyc\":%lu,"
            "\"s2_stage_max_cyc\":{\"bb_bch\":%lu,\"ldpc\":%lu,\"map\":%lu},\"s2_incomplete_stage\":%u,"
            "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%u,\"cap_fifo_only\":%u",
-           GIT_REV, (unsigned long)clock_get_hz(clk_sys), quad ? IQQUAD_SPAN : 12u,
-           quad ? 0.8 : 1.0, quad ? "l9_quad" : paired ? "l12_pair" : "l12_single",
+           GIT_REV, (unsigned long)clock_get_hz(clk_sys), quad ? profile->span : 12u,
+           short_pulse ? "null" : quad ? "0.8" : "1.0",
+           short_pulse ? profile->id : quad ? "l9_quad" : paired ? "l12_pair" : "l12_single",
            code_index, code_name, bb_bits,
-           names[kernel], source, cpw,
+           names[kernel], kernel ? "sram" : "flash_cached", source, cpw,
            divider256 ? divider256 : cpw * 256, schedule, row_symbols, dual_dma_get_writers(), dual_dma_get_bus_priority(), ms,
            (unsigned long long)elapsed, (unsigned long long)cleanup_us,
            (unsigned long)SEED, (unsigned long)input_words,

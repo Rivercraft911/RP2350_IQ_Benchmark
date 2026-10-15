@@ -18,6 +18,9 @@ void iqdesc_pair_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwor
 // The shared unflagged table is [4096][8] words, built by iqquad_build.
 void iqdesc_quad_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
                    uint32_t prev, uint32_t base_i, uint32_t base_q);
+// L8 opt-in profile: eleven history bits, same four-symbol/32-byte row format.
+void iqdesc_quad8_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+                    uint32_t prev, uint32_t base_i, uint32_t base_q);
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
 void iqdesc_asm(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
                 uint32_t prev, uint32_t base_i, uint32_t base_q);
@@ -37,4 +40,6 @@ void iqdesc_quad_asm(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nw
 // Same calling-core interpolator exclusivity and restoration contract as above.
 void iqdesc_quad_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
                         uint32_t prev, uint32_t base_i, uint32_t base_q);
+void iqdesc_quad8_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+                         uint32_t prev, uint32_t base_i, uint32_t base_q);
 #endif

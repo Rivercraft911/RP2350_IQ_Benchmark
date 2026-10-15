@@ -26,6 +26,7 @@ test:                  ## host-native kernels vs Python model, bit-exact
 check: test            ## encoder, protocol, PIO/DMA models and result validation; no USB
 	python3 host/test_dvbs2_native.py
 	python3 host/test_dvbs2_8psk.py
+	python3 host/test_dvbs2_qpsk8.py
 	python3 host/test_dvbs2_map.py
 	python3 host/test_dvbs2_buffers.py
 	python3 host/test_dvbs2_fec.py
@@ -38,9 +39,19 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_iqpair.py
 	python3 host/test_iqquad.py
 	python3 host/test_iq8quad.py
+	python3 host/test_iq16chunk.py
+	python3 host/test_iq16chunk_asm.py
+	python3 host/test_iq16native8.py
+	python3 host/test_8live_native.py
+	python3 host/iq8live_trial.py --self-test
+	python3 host/vcm_trial.py --self-test
+	python3 host/test_iqquadptr.py
+	python3 host/test_quadptr_trial.py
+	python3 host/test_quadlive_trial.py
 	python3 host/test_iqout_raw.py
 	python3 host/test_dual_pio.py
 	python3 host/test_dual_faults.py
+	python3 host/test_dual_fifo.py
 	python3 host/test_dual_spi.py
 	python3 host/test_dual_codes.py
 	python3 host/test_ptrprog.py

@@ -26,18 +26,13 @@ sys.path.insert(0, str(ROOT / "reference"))
 sys.path.insert(0, str(ROOT / "reference/dvbs2"))
 import iqlut as m
 import dvbs2 as s2
+from pulse_profiles import L8_COEFFICIENTS
 
 L, SPS, ROWS, ROW_WORDS = 9, 4, 4096, 8
 U32 = 0xffffffff
 BASE_I, BASE_Q = 0x20040000, 0x20040000
 CANARY = 0x9ad4c781
 PTR = ctypes.POINTER(ctypes.c_uint32)
-L8_COEFFICIENTS = np.array([
-    18026, -9152, -32743, -43578, -16902, 44626, 101009, 97555,
-    8822, -128261, -220622, -167118, 78231, 466713, 865736, 1117887,
-    1117887, 865736, 466713, 78231, -167118, -220622, -128261, 8822,
-    97555, 101009, 44626, -16902, -43578, -32743, -9152, 18026,
-], dtype=np.int64)
 
 
 class ProfileInfo(ctypes.Structure):
@@ -72,7 +67,7 @@ def descriptors(words, prev, bases, span=L):
     return result
 
 
-def feedback_model(words, prev, bases):
+def feedback_model(words, prev, bases, span=L):
     def ror(x, n):
         return ((x >> n) | (x << (32 - n))) & U32
     outputs = [[], []]
@@ -83,13 +78,14 @@ def feedback_model(words, prev, bases):
         for axis, base in enumerate(bases):
             window = windows[axis]
             for _ in range(4):
-                outputs[axis].append((base + (ror(window, 3) & 0x1ffe0)) & U32)
+                outputs[axis].append((base + (ror(window, 12 - span) &
+                                              (((1 << (span + 3)) - 1) << 5))) & U32)
                 window = ror(window, 4)
         prev = cur
     return [np.asarray(out, dtype="<u4") for out in outputs]
 
 
-def native_descriptors(lib, words, prev, bases, block):
+def native_descriptors(lib, words, prev, bases, block, span=L):
     n = len(words)
     arrays = [(ctypes.c_uint32 * (4 * n + 2))() for _ in range(2)]
     for out in arrays:
@@ -97,13 +93,15 @@ def native_descriptors(lib, words, prev, bases, block):
     data = np.asarray(words, dtype=np.uint32)
     for start in range(0, n, block):
         take = min(block, n - start)
-        lib.iqdesc_quad_c(
+        kernel = lib.iqdesc_quad8_c if span == 8 else lib.iqdesc_quad_c
+        kernel(
             ctypes.cast(ctypes.byref(arrays[0], 4 + start * 16), PTR),
             ctypes.cast(ctypes.byref(arrays[1], 4 + start * 16), PTR),
             data[start:].ctypes.data_as(PTR), take,
             int(data[start - 1]) if start else prev, *bases)
     # The zero-word contract must not touch either output.
-    lib.iqdesc_quad_c(ctypes.cast(ctypes.byref(arrays[0], 4), PTR),
+    kernel = lib.iqdesc_quad8_c if span == 8 else lib.iqdesc_quad_c
+    kernel(ctypes.cast(ctypes.byref(arrays[0], 4), PTR),
                      ctypes.cast(ctypes.byref(arrays[1], 4), PTR),
                      data.ctypes.data_as(PTR), 0, prev, *bases)
     for out in arrays:
@@ -140,14 +138,14 @@ def scalar_waveform(words, previous, coefficients):
     return m.to_layout(m.pack(*axes), m.LAYOUT_PAIRS)
 
 
-def profile_waveform(words, previous, rows, span, block):
-    chunks = []
-    for start in range(0, len(words), block):
-        part = words[start:start + block]
-        desc = descriptors(part, int(words[start - 1]) if start else previous,
-                           (BASE_I, BASE_Q), span)
-        chunks.append(resolve_waveform(desc, rows, (BASE_I, BASE_Q)))
-    return np.concatenate(chunks) if chunks else np.empty(0, dtype=np.uint32)
+def profile_waveform(lib, words, previous, rows, span, block):
+    expected = descriptors(words, previous, (BASE_I, BASE_Q), span)
+    actual = native_descriptors(lib, words, previous, (BASE_I, BASE_Q), block, span)
+    for axis in range(2):
+        np.testing.assert_array_equal(actual[axis], expected[axis])
+        np.testing.assert_array_equal(feedback_model(words, previous, (BASE_I, BASE_Q), span)[axis],
+                                      expected[axis])
+    return resolve_waveform(actual, rows, (BASE_I, BASE_Q))
 
 
 def l8_profile_check(lib):
@@ -184,7 +182,7 @@ def l8_profile_check(lib):
         for previous in (0, 0x716bc429, U32):
             expected = scalar_waveform(words, previous, L8_COEFFICIENTS)
             for block in (1, 3, 7, 64, 137):
-                np.testing.assert_array_equal(profile_waveform(words, previous, rows, 8, block), expected)
+                np.testing.assert_array_equal(profile_waveform(lib, words, previous, rows, 8, block), expected)
                 cases += 1
     # Consecutive normal/short frames with different pilot settings have partial
     # raw words at the PLFRAME boundaries; history and row assembly must continue.
@@ -198,7 +196,7 @@ def l8_profile_check(lib):
     words = symbol_words([np.concatenate([p[a] for p in planes]) for a in range(2)])
     expected = scalar_waveform(words, 0, L8_COEFFICIENTS)
     for block in (1, 7, 256, len(words)):
-        np.testing.assert_array_equal(profile_waveform(words, 0, rows, 8, block), expected)
+        np.testing.assert_array_equal(profile_waveform(lib, words, 0, rows, 8, block), expected)
     # Selecting/building another profile never changes the legacy API's output.
     lib.iqquad_build(out)
     legacy = np.ctypeslib.as_array(guarded)[1:-1].copy()
@@ -315,6 +313,7 @@ def main():
         lib.iqquad_build_profile.argtypes = [PTR, ctypes.c_uint, ctypes.c_int]
         lib.iqquad_build_profile.restype = ctypes.c_bool
         lib.iqdesc_quad_c.argtypes = [PTR, PTR, PTR] + [ctypes.c_uint32] * 4
+        lib.iqdesc_quad8_c.argtypes = lib.iqdesc_quad_c.argtypes
         table = (ctypes.c_uint32 * (ROWS * ROW_WORDS + 2))()
         table[0] = table[-1] = CANARY
         lib.iqquad_build(ctypes.cast(ctypes.byref(table, 4), PTR))

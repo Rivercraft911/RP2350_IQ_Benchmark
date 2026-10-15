@@ -7,7 +7,9 @@
 // Keep the parity in r4-r8 and four table rows in r9-r12. Alternating r1/lr loads
 // separate each load from its XOR. Save the output pointer once, outside the word loop.
 // Core 0 fetches this loop from scratch Y, away from striped SRAM DMA traffic.
-    .section .scratch_y.dvbs2_bch160_stream, "ax", %progbits
+    // Core0's 8PSK shaper occupies scratch Y. Keep core1's BCH loop in striped
+    // SRAM so simultaneous instruction fetches do not serialize on that bank.
+    .section .time_critical.dvbs2_bch160_stream, "ax", %progbits
     .macro BCH160_XOR dst, old, off
     ldr     lr, [r9, #\off]
     ldr     r1, [r10, #\off]

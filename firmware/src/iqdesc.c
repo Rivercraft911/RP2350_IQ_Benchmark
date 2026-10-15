@@ -1,16 +1,8 @@
 #include "iqdesc.h"
 
-#ifdef IQ_ON_DEVICE
-#define IQDESC_HOT __attribute__((section(".time_critical.iqdesc_c")))
-#define IQDESC_PAIR_HOT __attribute__((section(".time_critical.iqdesc_pair_c")))
-#define IQDESC_QUAD_HOT __attribute__((section(".time_critical.iqdesc_quad_c")))
-#else
-#define IQDESC_HOT
-#define IQDESC_PAIR_HOT
-#define IQDESC_QUAD_HOT
-#endif
-
-void IQDESC_HOT iqdesc_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+// Portable reference leaves stay in cached flash; the measured fast paths below
+// use SRAM-resident assembly or interpolators.
+void iqdesc_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
                         uint32_t prev, uint32_t base_i, uint32_t base_q) {
     for (uint32_t w = 0; w < nwords; ++w) {
         const uint32_t cur = in[w];
@@ -25,7 +17,7 @@ void IQDESC_HOT iqdesc_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_
     }
 }
 
-void IQDESC_PAIR_HOT iqdesc_pair_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+void iqdesc_pair_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
               uint32_t prev, uint32_t base_i, uint32_t base_q) {
     for (uint32_t w = 0; w < nwords; ++w) {
         const uint32_t cur = in[w];
@@ -40,7 +32,7 @@ void IQDESC_PAIR_HOT iqdesc_pair_c(uint32_t *di, uint32_t *dq, const uint32_t *i
     }
 }
 
-void IQDESC_QUAD_HOT
+void
 iqdesc_quad_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
               uint32_t prev, uint32_t base_i, uint32_t base_q) {
     for (uint32_t w = 0; w < nwords; ++w) {
@@ -52,6 +44,23 @@ iqdesc_quad_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
         for (unsigned j = 0; j < 4; ++j) {
             *di++ = base_i + (((ri >> (8 + 4 * j)) & 0xfffu) << 5);
             *dq++ = base_q + (((rq >> (8 + 4 * j)) & 0xfffu) << 5);
+        }
+    }
+}
+
+// Portable L8 reference; the measured L8 path uses the interpolator below.
+void
+iqdesc_quad8_c(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+               uint32_t prev, uint32_t base_i, uint32_t base_q) {
+    for (uint32_t w = 0; w < nwords; ++w) {
+        const uint32_t cur = in[w];
+        const uint32_t ri = (prev & 0xffffu) | cur << 16;
+        const uint32_t rq = prev >> 16 | (cur & 0xffff0000u);
+        prev = cur;
+#pragma GCC unroll 4
+        for (unsigned j = 0; j < 4; ++j) {
+            *di++ = base_i + (((ri >> (9 + 4 * j)) & 0x7ffu) << 5);
+            *dq++ = base_q + (((rq >> (9 + 4 * j)) & 0x7ffu) << 5);
         }
     }
 }
@@ -135,9 +144,9 @@ iqdesc_pair_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwor
     }
 }
 
-void __attribute__((section(".scratch_y.iqdesc_quad_interp")))
-iqdesc_quad_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
-                   uint32_t prev, uint32_t base_i, uint32_t base_q) {
+static void __attribute__((noinline, noclone, section(".scratch_y.iqdesc_quad_interp")))
+quad_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+            uint32_t prev, uint32_t base_i, uint32_t base_q, uint32_t control) {
     if (!nwords) return;
     uint32_t saved[2][7];
     for (unsigned axis = 0; axis < 2; ++axis) {
@@ -145,10 +154,7 @@ iqdesc_quad_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwor
         saved[axis][0] = p->accum[0]; saved[axis][1] = p->accum[1];
         saved[axis][2] = p->base[0]; saved[axis][3] = p->base[1]; saved[axis][4] = p->base[2];
         saved[axis][5] = p->ctrl[0]; saved[axis][6] = p->ctrl[1];
-        // ROR3 then bits5..16 selects source bits8..19, scaled by32bytes/row.
-        p->ctrl[0] = 3u | (5u << SIO_INTERP0_CTRL_LANE0_MASK_LSB_LSB) |
-                     (16u << SIO_INTERP0_CTRL_LANE0_MASK_MSB_LSB) |
-                     SIO_INTERP0_CTRL_LANE0_CROSS_INPUT_BITS;
+        p->ctrl[0] = control;
         p->ctrl[1] = 4u | (31u << SIO_INTERP0_CTRL_LANE1_MASK_MSB_LSB);
         p->base[0] = axis ? base_q : base_i;
         p->base[1] = 0;
@@ -170,5 +176,21 @@ iqdesc_quad_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwor
         p->ctrl[0] = saved[axis][5]; p->ctrl[1] = saved[axis][6];
         p->accum[0] = saved[axis][0]; p->accum[1] = saved[axis][1];
     }
+}
+
+void iqdesc_quad_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+                        uint32_t prev, uint32_t base_i, uint32_t base_q) {
+    // ROR3 then bits5..16 selects source bits8..19, scaled by32bytes/row.
+    const uint32_t control = 3u | (5u << SIO_INTERP0_CTRL_LANE0_MASK_LSB_LSB) |
+        (16u << SIO_INTERP0_CTRL_LANE0_MASK_MSB_LSB) | SIO_INTERP0_CTRL_LANE0_CROSS_INPUT_BITS;
+    quad_interp(di, dq, in, nwords, prev, base_i, base_q, control);
+}
+
+void iqdesc_quad8_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
+                         uint32_t prev, uint32_t base_i, uint32_t base_q) {
+    // ROR4 then bits5..15 selects source bits9..19, scaled by32bytes/row.
+    const uint32_t control = 4u | (5u << SIO_INTERP0_CTRL_LANE0_MASK_LSB_LSB) |
+        (15u << SIO_INTERP0_CTRL_LANE0_MASK_MSB_LSB) | SIO_INTERP0_CTRL_LANE0_CROSS_INPUT_BITS;
+    quad_interp(di, dq, in, nwords, prev, base_i, base_q, control);
 }
 #endif

@@ -18,11 +18,17 @@
 //   pvbench [reps] / ptrbench [reps]              packet preparation / pin-free PIO pointers
 //   bchkernel <0|1|2>                             baseline, C words, ARM stream
 //   bench8psk [reps]                              experimental split-LUT shaping
+//   bench8quad ms reps / bench8map code pilots reps   8PSK shaper / mapper components
+//   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
+//   bench16chunk reps / bench16native8 reps       16APSK shaper components
+//   benchquadptr mode / quadlive cpw ms fault     finite / live PIO address generation
+//   pvstress ms irq_mask_us                      on-chip SPI admission test
 //   ddrtest [ms]                                  experimental PIO data + HSTX DDR clock
 //   dualbench [reps]                             descriptor generation experiment
 //   dualwriters <2|4> / dualprio <0..15>          idle experimental DMA settings
-//   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols]
-//        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=split PV-SPI
+//   quadprofile <0|1> / mapkernel <0|1>          L9/L8 pulse / baseline/packed mapper
+//   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
+//        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=SPI TS, 6=SPI GCS
 //   bootsel                                       reboot to the USB bootloader
 #include <limits.h>
 #include <stdio.h>
@@ -30,6 +36,9 @@
 #include <string.h>
 
 #include "bench.h"
+#include "bench8live.h"
+#include "bench_quadlive.h"
+#include "bench_quadptr.h"
 #include "bench_ptr.h"
 #include "dual_dma.h"
 #include "dvbs2.h"
@@ -171,6 +180,11 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "pvbench")) {
         if (!num(a[1], "reps", 8, 1, 1000, &reps)) return err;
         bench_pv(reps);
+    } else if (!strcmp(cmd, "pvstress")) {
+        int irq_mask_us;
+        if (!num(a[1], "ms", 1000, 100, 60000, &r.ms) ||
+            !num(a[2], "irq_mask_us", 0, 0, 200, &irq_mask_us)) return err;
+        bench_pvstress(r.ms, irq_mask_us);
     } else if (!strcmp(cmd, "ptrbench")) {
         if (!num(a[1], "reps", 8, 1, 100, &reps)) return err;
         bench_pointers(reps);
@@ -189,14 +203,39 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "ms", 3000, 0, 60000, &r.ms) ||
             !num(a[2], "reps", 4, 1, 100, &reps)) return err;
         bench_8quad(r.ms, reps);
+    } else if (!strcmp(cmd, "bench8live")) {
+        if (!num(a[1], "ms", 3000, 1000, 60000, &r.ms)) return err;
+        bench_8live(r.ms);
+    } else if (!strcmp(cmd, "benchvcm")) {
+        if (!num(a[1], "ms", 3000, 1000, 60000, &r.ms)) return err;
+        bench_vcm(r.ms);
     } else if (!strcmp(cmd, "bench8map")) {
         if (!num(a[1], "code", 8, 0, N_DVBS2_CODES - 1, &code) ||
             !num(a[2], "pilots", 1, 0, 1, &r.pilots) ||
             !num(a[3], "reps", 32, 1, 1000, &reps)) return err;
         bench_8map(code, r.pilots, reps);
+    } else if (!strcmp(cmd, "benchquadptr")) {
+        if (!num(a[1], "mode", 1, 0, 1, &code)) return err;
+        bench_quadptr(code);
+    } else if (!strcmp(cmd, "quadlive")) {
+        int fault;
+        if (!num(a[1], "cpw", REQUIRED, 1, 2, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "fault", 0, 0, 1, &fault)) return err;
+        bench_quadlive(r.cpw, r.ms, fault);
+    } else if (!strcmp(cmd, "bench16native8")) {
+        if (!num(a[1], "reps", 8, 1, 100, &reps)) return err;
+        bench_16native8(reps);
+    } else if (!strcmp(cmd, "bench16chunk")) {
+        if (!num(a[1], "reps", 8, 1, 100, &reps)) return err;
+        bench_16chunk(reps);
     } else if (!strcmp(cmd, "ddrtest")) {
         if (!num(a[1], "ms", 100, 1, 5000, &r.ms)) return err;
         bench_hstx_ddr(r.ms);
+    } else if (!strcmp(cmd, "quadprofile")) {
+        if (!num(a[1], "profile", REQUIRED, 0, 1, &code)) return err;
+        if (!bench_dual_set_quad_profile((unsigned)code)) return "unknown quad profile";
+        printf("@{\"cmd\":\"quadprofile\",\"profile\":%d}\n", code);
     } else if (!strcmp(cmd, "dualwriters")) {
         if (!num(a[1], "writers", REQUIRED, 2, 4, &code)) return err;
         if (!dual_dma_set_writers((unsigned)code)) return dual_dma_last_error();
