@@ -1,4 +1,5 @@
 #include "iq32native8.h"
+#include "iqlanes.h"
 
 static const int32_t coefficients[16] = {
     6658, -48202, 6455, 124501, -58274, -258197, 258053, 1108522,
@@ -41,17 +42,6 @@ bool iq32native8_build(const iq32native8_tables_t *tables, unsigned rate) {
             }
         }
     return true;
-}
-
-static inline uint32_t add_lanes(uint32_t a, uint32_t b) {
-#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    uint32_t sum;
-    __asm("sadd16 %0, %1, %2" : "=r"(sum) : "r"(a), "r"(b) : "cc");
-    return sum;
-#else
-    return (uint32_t)(uint16_t)((int16_t)a + (int16_t)b) |
-        (uint32_t)(uint16_t)((int16_t)(a >> 16) + (int16_t)(b >> 16)) << 16;
-#endif
 }
 
 // Each halfword is a radix17 key0..4912. Products/sums never carry between

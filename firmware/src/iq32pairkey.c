@@ -1,4 +1,5 @@
 #include "iq32pairkey.h"
+#include "iqlanes.h"
 
 void iq32pairkey_convert(uint32_t *out, const uint32_t *native, uint32_t blocks) {
     for (uint32_t b = 0; b < blocks; ++b) {
@@ -6,17 +7,6 @@ void iq32pairkey_convert(uint32_t *out, const uint32_t *native, uint32_t blocks)
         const uint32_t last = (native[b] >> 5) & 0x001f001fu;
         out[b] = first + 17u*last + (last << 9);
     }
-}
-
-static inline uint32_t add_lanes(uint32_t a, uint32_t b) {
-#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    uint32_t sum;
-    __asm("sadd16 %0, %1, %2" : "=r"(sum) : "r"(a), "r"(b) : "cc");
-    return sum;
-#else
-    return (uint32_t)(uint16_t)((int16_t)a + (int16_t)b) |
-        (uint32_t)(uint16_t)((int16_t)(a >> 16) + (int16_t)(b >> 16)) << 16;
-#endif
 }
 
 void iq32pairkey_kernel_c(uint32_t *out, const uint32_t *input, uint32_t blocks,

@@ -1,18 +1,8 @@
 #include "iq32offsets.h"
+#include "iqlanes.h"
 
 void iq32offsets_encode(uint32_t *out, const uint32_t *keys, uint32_t count) {
     for (uint32_t i = 0; i < count; ++i) out[i] = keys[i] << 3;
-}
-
-static inline uint32_t add_lanes(uint32_t a, uint32_t b) {
-#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    uint32_t sum;
-    __asm("sadd16 %0, %1, %2" : "=r"(sum) : "r"(a), "r"(b) : "cc");
-    return sum;
-#else
-    return (uint32_t)(uint16_t)((int16_t)a + (int16_t)b) |
-        (uint32_t)(uint16_t)((int16_t)(a >> 16) + (int16_t)(b >> 16)) << 16;
-#endif
 }
 
 static inline const uint32_t *row(const uint32_t *table, uint32_t offset) {
