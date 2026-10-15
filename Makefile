@@ -25,6 +25,8 @@ test:                  ## host-native kernels vs Python model, bit-exact
 
 check: test            ## encoder, protocol, PIO/DMA models and result validation; no USB
 	python3 host/test_dvbs2_native.py
+	python3 host/test_dvbs2_8psk.py
+	python3 host/test_dvbs2_map.py
 	python3 host/test_dvbs2_buffers.py
 	python3 host/test_dvbs2_fec.py
 	python3 host/test_pv_native.py
@@ -40,6 +42,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_dual_pio.py
 	python3 host/test_dual_faults.py
 	python3 host/test_dual_spi.py
+	python3 host/test_dual_codes.py
 	python3 host/test_ptrprog.py
 	python3 host/dual_trial.py --self-test
 	python3 host/plot_dual.py --self-test

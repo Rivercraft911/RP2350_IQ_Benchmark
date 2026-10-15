@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "dvbs2.h"
+#include "dvbs2_8psk.h"
 #include "dvbs2_codes.h"
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
@@ -13,6 +14,51 @@
 #include "tx.h"
 
 #include "git_rev.h"
+
+void bench_8map(int code, bool pilots, int reps) {
+    const dvbs2_code_t *c = &DVBS2_CODES[code];
+    dvbs2_8psk_cfg_t profile;
+    const uint32_t arena_words = dvbs2_8psk_arena_words(c, pilots);
+    if (!arena_words || arena_words > TABLE_WORDS) {
+        printf("@{\"error\":\"unsupported 8PSK code\"}\n");
+        return;
+    }
+    tx_code(code, pilots);
+    if (!dvbs2_8psk_init(&profile, c, pilots, 0, cfg.ti, TABLE_WORDS)) {
+        iq_build_tables(&cfg);
+        printf("@{\"error\":\"8PSK mapper setup failed\"}\n");
+        return;
+    }
+    const uint32_t t0 = cycles();
+    dvbs2_frame_begin(bb_buf);
+    const uint32_t frontend = cycles() - t0, t1 = cycles();
+    dvbs2_frame_ldpc();
+    const uint32_t ldpc = cycles() - t1;
+    dvbs2_8psk_stream_t stream = {.out = (iq8_input_t *)cap_buf, .mask = ~0u};
+    dvbs2_8psk_frame(&profile, dvbs2_frame_buffer(), &stream);
+    dvbs2_8psk_flush(&stream);
+    const uint32_t crc = crc32_update(0, cap_buf, stream.n * sizeof(iq8_input_t));
+    stream = (dvbs2_8psk_stream_t){.out = (iq8_input_t *)cap_buf, .mask = 4095};
+    uint64_t elapsed = 0;
+    uint32_t worst = 0;
+    for (int r = 0; r < reps; ++r) {
+        const uint32_t saved = save_and_disable_interrupts(), start = cycles();
+        dvbs2_8psk_frame(&profile, dvbs2_frame_buffer(), &stream);
+        const uint32_t dt = cycles() - start;
+        restore_interrupts(saved);
+        elapsed += dt;
+        if (dt > worst) worst = dt;
+    }
+    printf("@{\"cmd\":\"bench8map\",\"git\":\"%s\",\"clk_hz\":%lu,"
+           "\"code_index\":%d,\"code\":\"%s\",\"pilots\":%u,\"gold\":0,"
+           "\"modcod\":%u,\"frame_symbols\":%lu,\"arena_bytes\":%lu,\"reps\":%d,"
+           "\"bb_bch_cyc\":%lu,\"ldpc_cyc\":%lu,\"map_cyc\":%.1f,\"map_worst_cyc\":%lu,\"crc\":%lu}\n",
+           GIT_REV, (unsigned long)clock_get_hz(clk_sys), code, c->name, pilots,
+           profile.modcod, (unsigned long)profile.frame_symbols, (unsigned long)arena_words * 4,
+           reps, (unsigned long)frontend, (unsigned long)ldpc, (double)elapsed / reps,
+           (unsigned long)worst, (unsigned long)crc);
+    iq_build_tables(&cfg);
+}
 
 // Kernel throughput over the whole PRBS input. The first pass computes the output CRC, outside
 // the timing; the timed passes run with interrupts off.
@@ -120,13 +166,13 @@ void bench_dvbs2(int code, bool pilots, int reps) {
     const uint32_t c_ldpc = time_min(t_ldpc, reps), c_ldpcs = time_min(t_ldpc_serial, 1);
     const uint32_t c_frame = time_min(t_frame, reps), c_prbs = time_min(t_prbs, reps);
     printf("@{\"cmd\":\"dvbs2\",\"git\":\"%s\",\"clk_hz\":%lu,\"code\":\"%s\",\"index\":%d,"
-           "\"pilots\":%d,\"syms\":%lu,\"words\":%lu,\"crc\":%lu,\"init_us\":%lu,\"reps\":%d,\"bch_kernel\":%d,"
+           "\"pilots\":%d,\"syms\":%lu,\"words\":%lu,\"crc\":%lu,\"init_us\":%lu,\"reps\":%d,\"bch_kernel\":%d,\"map_kernel\":%u,"
            "\"cyc_bch\":%lu,\"cyc_bch_serial\":%lu,\"cyc_ldpc\":%lu,\"cyc_ldpc_serial\":%lu,"
            "\"cyc_frame\":%lu,\"prof\":{\"ldpc_groups\":%lu,\"ldpc_accum\":%lu,"
            "\"ldpc_transpose\":%lu,\"f_bb_bch\":%lu,\"f_ldpc\":%lu,\"f_map\":%lu}}\n",
            GIT_REV, (unsigned long)clock_get_hz(clk_sys), c->name, code, pilots,
            (unsigned long)dvbs2_plframe_symbols(), (unsigned long)s.n, (unsigned long)crc,
-           (unsigned long)init_us, reps, dvbs2_bch_get_kernel(), (unsigned long)c_bch, (unsigned long)c_bchs,
+           (unsigned long)init_us, reps, dvbs2_bch_get_kernel(), dvbs2_map_get_kernel(), (unsigned long)c_bch, (unsigned long)c_bchs,
            (unsigned long)c_ldpc, (unsigned long)c_ldpcs, (unsigned long)(c_frame - c_prbs),
            (unsigned long)(dvbs2_prof[1] - dvbs2_prof[0]), (unsigned long)(dvbs2_prof[2] - dvbs2_prof[1]),
            (unsigned long)(dvbs2_prof[3] - dvbs2_prof[2]), (unsigned long)(dvbs2_prof[5] - dvbs2_prof[4]),

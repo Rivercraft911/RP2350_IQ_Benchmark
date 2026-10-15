@@ -177,6 +177,10 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "kernel", REQUIRED, 0, 2, &code)) return err;
         if (!dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)code)) return "unknown BCH kernel";
         printf("@{\"cmd\":\"bchkernel\",\"kernel\":%d}\n", (int)dvbs2_bch_get_kernel());
+    } else if (!strcmp(cmd, "mapkernel")) {
+        if (!num(a[1], "kernel", REQUIRED, 0, 1, &code)) return err;
+        if (!dvbs2_map_set_kernel((unsigned)code)) return "unknown mapping kernel";
+        printf("@{\"cmd\":\"mapkernel\",\"kernel\":%u}\n", dvbs2_map_get_kernel());
     } else if (!strcmp(cmd, "bench8psk")) {
         if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
         bench_8psk(reps);
@@ -184,6 +188,11 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "ms", 3000, 0, 60000, &r.ms) ||
             !num(a[2], "reps", 4, 1, 100, &reps)) return err;
         bench_8quad(r.ms, reps);
+    } else if (!strcmp(cmd, "bench8map")) {
+        if (!num(a[1], "code", 8, 0, N_DVBS2_CODES - 1, &code) ||
+            !num(a[2], "pilots", 1, 0, 1, &r.pilots) ||
+            !num(a[3], "reps", 32, 1, 1000, &reps)) return err;
+        bench_8map(code, r.pilots, reps);
     } else if (!strcmp(cmd, "ddrtest")) {
         if (!num(a[1], "ms", 100, 1, 5000, &r.ms)) return err;
         bench_hstx_ddr(r.ms);
@@ -199,7 +208,7 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
         bench_descriptors(reps);
     } else if (!strcmp(cmd, "dualstream")) {
-        int kernel, source, fault, schedule, divider256, row_symbols;
+        int kernel, source, fault, schedule, divider256, row_symbols, code_index;
         if (!num(a[1], "cpw", REQUIRED, 1, 4, &r.cpw) ||
             !num(a[2], "ms", REQUIRED, 10, 60000, &r.ms) ||
             !num(a[3], "kernel", 1, 0, 2, &kernel) ||
@@ -208,7 +217,10 @@ static const char *dispatch(char *line) {
             !num(a[6], "fault", 0, 0, 2, &fault) ||
             !num(a[7], "schedule", 0, 0, 3, &schedule) ||
             !num(a[8], "divider256", 0, 0, 1024, &divider256) ||
-            !num(a[9], "row_symbols", 1, 1, 4, &row_symbols)) return err;
+            !num(a[9], "row_symbols", 1, 1, 4, &row_symbols) ||
+            !num(a[10], "code", 5, 5, 8, &code_index)) return err;
+        if (code_index != 5 && code_index != 6 && code_index != 8)
+            return "trial codes are normal2/3(5),3/4(6),5/6(8)";
         if (row_symbols != 1 && row_symbols != 2 && row_symbols != 4)
             return "row_symbols must be1,2 or4 (L9 beta0.8 trial)";
         if (divider256 && divider256 != 384) return "optional divider256 must be384 (1.5 clocks)";
@@ -216,7 +228,7 @@ static const char *dispatch(char *line) {
         if (source >= 5 && row_symbols != 4 &&
             (row_symbols != 2 || dual_dma_get_writers() != 4))
             return "PV-SPI trial needs row2/four writers or opt-in L9 row4";
-        bench_dual_stream(r.cpw, r.ms, kernel, source, r.cap_words, fault, schedule, divider256, row_symbols);
+        bench_dual_stream(r.cpw, r.ms, kernel, source, r.cap_words, fault, schedule, divider256, row_symbols, code_index);
     } else if (!strcmp(cmd, "clock")) {
         if (!num(a[1], "khz", REQUIRED, 1, 150000, &khz)) return err;
         if (!set_sys_clock_khz((uint32_t)khz, false)) return "clock not reachable";

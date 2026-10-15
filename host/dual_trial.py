@@ -34,7 +34,8 @@ def pulse_parameters(row_symbols: int) -> tuple[int, float]:
 
 
 @functools.lru_cache(maxsize=16)
-def reference_bus(source: int, seed: int = SEED, row_symbols: int = 1, bb_stride: int = 0) -> np.ndarray:
+def reference_bus(source: int, seed: int = SEED, row_symbols: int = 1, bb_stride: int = 0,
+                  code_index: int = 5) -> np.ndarray:
     """One exact steady-state period, in physical 16-bit I,Q bus order."""
     span, beta = pulse_parameters(row_symbols)
     lut = iq.m.Lut(iq.gen_coeffs.ALPHA, 4, span, beta, iq.gen_coeffs.HEADROOM_DB)
@@ -46,14 +47,15 @@ def reference_bus(source: int, seed: int = SEED, row_symbols: int = 1, bb_stride
         import sys
         sys.path.insert(0, str(iq.ROOT / "reference/dvbs2"))
         import dvbs2 as ref
-        kbch = ref.code("2/3", False).kbch
-        w = iq.m.xorshift32(0x9E3779B9 ^ 5, (kbch + 31) // 32)
+        rate = {5: "2/3", 6: "3/4", 8: "5/6"}[code_index]
+        kbch = ref.code(rate, False).kbch
+        w = iq.m.xorshift32(0x9E3779B9 ^ code_index, (kbch + 31) // 32)
         bits = ((w[:, None] >> np.arange(31, -1, -1, dtype=np.uint32)) & 1).astype(np.uint8).ravel()[:kbch]
         phases = []
         for flip in (0, 1):
             b = bits.copy()
             b[::32 * bb_stride if bb_stride else len(bits)] ^= flip
-            phases.append(ref.plframe(ref.fecframe(b, "2/3", False), "2/3", False, pilots=True))
+            phases.append(ref.plframe(ref.fecframe(b, rate, False), rate, False, pilots=True))
         bi = np.concatenate([phase[0] for phase in phases])
         bq = np.concatenate([phase[1] for phase in phases])
         packed = iq.pack_symbols(np.tile(bi, 3), np.tile(bq, 3))
@@ -61,7 +63,8 @@ def reference_bus(source: int, seed: int = SEED, row_symbols: int = 1, bb_stride
         period = len(bi) * 4
         words = samples[period:2 * period]
     elif source in (2, 3):
-        bi, bq = iq.dvbs2_ref_symbols("normal 2/3", 1, 0x9E3779B9 ^ 5)
+        rate = {5: "2/3", 6: "3/4", 8: "5/6"}[code_index]
+        bi, bq = iq.dvbs2_ref_symbols(f"normal {rate}", 1, 0x9E3779B9 ^ code_index)
         packed = iq.pack_symbols(np.tile(bi, 3), np.tile(bq, 3))
         all_samples = iq.m.generate(packed, lut)
         # The middle frame has correct preceding history and no frame-packing tail pad.
@@ -113,10 +116,12 @@ def validate_capture(r: dict, lines: list[str], source: int,
         from dual_spi import reference_window
         span, beta = pulse_parameters(int(r.get("row_symbols", 2)))
         first_frame, ref = reference_window(int(r["cap_symbol_cursor"]), span=span, beta=beta,
-                                            gcs=source == 6)
+                                            gcs=source == 6,
+                                            rate=r.get("s2_code", "normal 2/3").split()[-1])
     else:
         first_frame = None
-        ref = reference_bus(source, int(r.get("seed", SEED)), int(r.get("row_symbols", 1)), int(r.get("split_bb_stride_words", 0)))
+        ref = reference_bus(source, int(r.get("seed", SEED)), int(r.get("row_symbols", 1)),
+                            int(r.get("split_bb_stride_words", 0)), int(r.get("code_index", 5)))
     # Uniform clocks use17 logical bus slots per IN. With output divider1.5,
     # capture runs at SYSCLK to avoid the feedback path aliasing one I/Q axis. Every
     # candidate uses one fixed physical-time phase for the ENTIRE snapshot.
@@ -293,6 +298,8 @@ def main():
     p.add_argument("--writers", type=int, choices=(2, 4), default=2)
     p.add_argument("--priority-mask", type=int, choices=range(16), default=0)
     p.add_argument("--row-symbols", type=int, choices=(1, 2, 4), default=1)
+    p.add_argument("--code-index", type=int, choices=(5, 6, 8), default=5)
+    p.add_argument("--map-kernel", type=int, choices=(0, 1), default=0)
     a = p.parse_args()
     if a.clocks is None:
         a.clocks = [128000] if a.profile in ("spi", "quad", "gcs") else [128000, 150000]
@@ -329,6 +336,7 @@ def main():
     for name in ("iqbench.uf2", "iqbench.elf"):
         hashes[str(a.build / name)] = hashlib.sha256((a.build / name).read_bytes()).hexdigest()
     manifest = dict(started=dt.datetime.now().isoformat(), profile=a.profile, duration_ms=duration,
+                    code_index=a.code_index, map_kernel=a.map_kernel,
                     clocks_khz=a.clocks, row_symbols=a.row_symbols, writers=a.writers, priority_mask=a.priority_mask, head=git("rev-parse", "HEAD"),
                     branch=git("branch", "--show-current"), status=git("status", "--short"),
                     sha256=hashes,
@@ -393,11 +401,12 @@ def main():
         variant += f"-cap{cap_words}" if cap_words != 4096 else ""
         variant += f"-prio{a.priority_mask}" if a.priority_mask else ""
         variant += f"-writers{a.writers}" if a.writers != 2 else ""
+        variant += f"-code{a.code_index}" if a.code_index != 5 else ""
         label = f"dual-row{a.row_symbols}-{clock}-src{source}-k{kernel}-cpw{cpw}-fault{fault}{variant}{suffix}"
         def run():
             ms = 1000 if fault else trial_ms if trial_ms is not None else duration
             r, lines = board.cmd(f"dualstream {cpw} {ms} {kernel} {source} {cap_words} {fault} "
-                                 f"{schedule} {divider256} {a.row_symbols}",
+                                 f"{schedule} {divider256} {a.row_symbols} {a.code_index}",
                                  timeout=ms / 1000 + 60)
             if "error" not in r and cap_words:
                 r.update(validate_capture(r, lines, source, cap_words))
@@ -412,6 +421,10 @@ def main():
             for key, expected in expected_config.items():
                 if r.get(key) != expected:
                     r["faults"].append(f"reported {key}={r.get(key)}; requested {expected}")
+            if r.get("code_index", 5) != a.code_index:
+                r["faults"].append("reported code differs from requested code")
+            if r.get("map_kernel", 0) != a.map_kernel:
+                r["faults"].append("reported mapping kernel differs from requested kernel")
             if fault:
                 r["negative_control_fault"] = fault
                 r["negative_control_detected"] = negative_control_detected(fault, r)
@@ -441,6 +454,7 @@ def main():
         raw("info")
         raw(f"dualprio {a.priority_mask}")
         raw(f"dualwriters {a.writers}")
+        raw(f"mapkernel {a.map_kernel}")
         for clock in a.clocks:
             raw(f"clock {clock}")
             raw("bchkernel 2")
@@ -538,6 +552,7 @@ def main():
         finally:
             try:
                 raw("bchkernel 0")
+                raw("mapkernel 0")
             finally:
                 board.s.close()
     if failures:

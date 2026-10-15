@@ -6,6 +6,7 @@
 
 #include "dual_dma.h"
 #include "dvbs2.h"
+#include "dvbs2_codes.h"
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/sync.h"
@@ -30,13 +31,14 @@ enum { SYMBOLS_PER_WORD = 16,
        MAX_BLOCKS = 4 * DESC_COUNT / DESC_BLOCK, INPUT_BLOCK = DESC_BLOCK / SYMBOLS_PER_WORD,
        FRAME_SLOTS = 2, FRAME_SLOT_MASK = FRAME_SLOTS - 1,
        CAPTURE_WORDS = 4096, BCH_SLICE_WORDS = 128, BB_TOGGLE_STRIDE = 64,
-       SPI_BB_BITS = 43040, SPI_BB_BYTES = SPI_BB_BITS / 8, SPI_BB_WORDS = SPI_BB_BITS / 32,
+       SPI_BB_MAX_WORDS = (58192 + 31) / 32, // largest normal-frame BBFRAME
        TS_MATYPE1 = 0xF2, GCS_MATYPE1 = 0x72, GCS_SYNC = 0xB9, SPI_HALF_CYCLES = 2,
        SPI_PREFILL_MESSAGES = PV_SLOTS / 2, SPI_PREFILL_TIMEOUT_US = 10000, SPI_TRIAL_DMA_CHANNELS = 12,
        REUSE_GUARD = 8, POLL_US = 32,
        ERR_UNDERRUN = 1u << 16, ERR_OWNERSHIP = 1u << 17, ERR_INPUT = 1u << 18 };
 _Static_assert(IN_WORDS + CAPTURE_WORDS + DVBS2_FE_WORDS <= CAP_WORDS_MAX, "split FE overlay");
-_Static_assert(PV_EMU_WORDS + FRAME_SLOTS * SPI_BB_WORDS <= TABLE_WORDS, "SPI BB overlay");
+_Static_assert(PV_EMU_WORDS + SPI_BB_MAX_WORDS <= TABLE_WORDS, "SPI emulator plus one BB slot");
+_Static_assert(SPI_BB_MAX_WORDS <= BB_WORDS, "second SPI BB slot fits bb_buf");
 _Static_assert(IQQUAD_WORDS == N_BLOCKS * BLOCK_WORDS, "quad table must fit existing sample ring");
 typedef void (*desc_fn)(uint32_t *, uint32_t *, const uint32_t *, uint32_t,
                         uint32_t, uint32_t, uint32_t);
@@ -129,7 +131,7 @@ static struct {
     volatile uint32_t total, consumed;
     uint32_t frames, prefill, frame_words, max_frame_cyc, max_slice_cyc, max_stage_cyc[3];
     uint64_t busy_cyc, start_us, end_us, bb_cyc;
-    uint32_t bb_frames, bb_crc[4], bb_max_cyc;
+    uint32_t bb_frames, bb_crc[4], bb_max_cyc, bb_bits, bb_bytes, bb_words;
     volatile uint32_t fe_produced, fe_consumed;
     uint32_t *fe_slots[FRAME_SLOTS];
     volatile uint32_t bb_produced, bb_consumed;
@@ -143,15 +145,19 @@ static struct {
 static bool build_spi_frame(uint32_t *bb) {
     const uint32_t start = cycles();
     if (encoder.gcs) {
-        if (!pv_gcs_bbframe((uint8_t *)bb, SPI_BB_BITS, GCS_MATYPE1, GCS_SYNC, pvspi_next_packet)) {
+        if (!pv_gcs_bbframe((uint8_t *)bb, encoder.bb_bits, GCS_MATYPE1, GCS_SYNC, pvspi_next_packet)) {
             encoder.input_failed = true;
             return false;
         }
-    } else pv_bbframe((uint8_t *)bb, SPI_BB_BITS, TS_MATYPE1, pvspi_next_packet);
+    } else pv_bbframe((uint8_t *)bb, encoder.bb_bits, TS_MATYPE1, pvspi_next_packet);
+    // The encoder consumes MSB-first words. A partial final word must have zero low bits
+    // after the byte swap; e.g. normal 5/6 has two valid bytes in that last word.
+    for (unsigned byte = encoder.bb_bytes; byte < 4 * encoder.bb_words; byte++)
+        ((uint8_t *)bb)[byte] = 0;
     if (encoder.bb_frames < 4)
-        encoder.bb_crc[encoder.bb_frames] = pv_crc32(0, bb, SPI_BB_BYTES);
+        encoder.bb_crc[encoder.bb_frames] = pv_crc32(0, bb, encoder.bb_bytes);
     encoder.bb_frames++;
-    for (unsigned word = 0; word < SPI_BB_WORDS; word++)
+    for (unsigned word = 0; word < encoder.bb_words; word++)
         bb[word] = __builtin_bswap32(bb[word]);
     const uint32_t elapsed = cycles() - start;
     encoder.bb_cyc += elapsed;
@@ -246,12 +252,14 @@ static void restore_trial_buffers(bool spi, bool paired) {
     }
 }
 
-static bool prefill_encoder(enum dual_source source, uint32_t *input, unsigned target_words) {
+static bool prefill_encoder(enum dual_source source, uint32_t *input, unsigned target_words,
+                            int code_index, unsigned bb_bits) {
     const bool spi = spi_source(source), split = source >= SOURCE_DVBS2_SPLIT;
-    tx_code(5, true);
+    tx_code(code_index, true);
     encoder = (typeof(encoder)){.stream = {.out = input, .mask = IN_WORDS - 1},
         .frame_words = (dvbs2_plframe_symbols() + 31u) / SYMBOLS_PER_WORD,
-        .gcs = source == SOURCE_PV_GCS};
+        .gcs = source == SOURCE_PV_GCS,
+        .bb_bits = bb_bits, .bb_bytes = bb_bits / 8, .bb_words = (bb_bits + 31) / 32};
     while (split ? encoder.frames < FRAME_SLOTS : encoder.stream.n < target_words) {
         if (split) {
             if (spi) {
@@ -278,10 +286,13 @@ static bool prefill_encoder(enum dual_source source, uint32_t *input, unsigned t
     encoder.fe_produced = FRAME_SLOTS;
     if (!spi) return true;
 
-    // The SPI emulator occupies the first PV_EMU_WORDS of the borrowed Q table.
+    // The emulator occupies the first PV_EMU_WORDS of the borrowed Q table. Keep the
+    // original two Q-table slots for 2/3. Larger BBFRAMEs borrow bb_buf for slot one:
+    // only prefill used it above, and begin_frontend copies a slot before releasing it.
     encoder.spi = true;
     for (unsigned slot = 0; slot < FRAME_SLOTS; slot++) {
-        encoder.bb_slots[slot] = (uint32_t *)cfg.tq + PV_EMU_WORDS + slot * SPI_BB_WORDS;
+        encoder.bb_slots[slot] = slot && PV_EMU_WORDS + FRAME_SLOTS * encoder.bb_words > TABLE_WORDS
+            ? bb_buf : (uint32_t *)cfg.tq + PV_EMU_WORDS + slot * encoder.bb_words;
         if (!build_spi_frame(encoder.bb_slots[slot])) return false;
     }
     encoder.bb_produced = FRAME_SLOTS;
@@ -341,7 +352,28 @@ static void capture_print(const uint32_t *capture, uint32_t count) {
 
 // fault:1=wrong valid Q row (reference must reject),2=stop publishing (ownership must reject).
 void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, int fault,
-                       int schedule, int divider256, int row_symbols) {
+                       int schedule, int divider256, int row_symbols, int code_index) {
+    const char *code_name;
+    unsigned bb_bits;
+    // Constant member reads let the compiler use the generated metadata without
+    // retaining another copy of every LDPC address table in this translation unit.
+    switch (code_index) {
+    case S2_N2_3:
+        code_name = DVBS2_CODES[S2_N2_3].name;
+        bb_bits = DVBS2_CODES[S2_N2_3].kbch;
+        break;
+    case S2_N3_4:
+        code_name = DVBS2_CODES[S2_N3_4].name;
+        bb_bits = DVBS2_CODES[S2_N3_4].kbch;
+        break;
+    case S2_N5_6:
+        code_name = DVBS2_CODES[S2_N5_6].name;
+        bb_bits = DVBS2_CODES[S2_N5_6].kbch;
+        break;
+    default:
+        printf("@{\"error\":\"dual trial code_index must be5,6 or8\"}\n");
+        return;
+    }
     const bool spi = spi_source(source), split = source >= SOURCE_DVBS2_SPLIT;
     const bool paired = row_symbols >= 2, quad = row_symbols == 4;
     encoder.input_failed = false;
@@ -384,7 +416,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
         return;
     }
     if (source >= SOURCE_DVBS2_CORE1 &&
-        !prefill_encoder(source, input, (blocks + 1) * input_block)) {
+        !prefill_encoder(source, input, (blocks + 1) * input_block, code_index, bb_bits)) {
         if (spi) pvspi_stop();
         restore_trial_buffers(spi, paired);
         printf("@{\"error\":\"PV-SPI generic stream underflow during prefill\"}\n");
@@ -576,6 +608,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     const uint32_t generated = gen_blocks * block_syms;
     printf("@{\"cmd\":\"dualstream\",\"git\":\"%s\",\"clk_hz\":%lu,\"sps\":4,\"L\":%u,"
            "\"filter_beta\":%.1f,\"row_profile\":\"%s\","
+           "\"code_index\":%d,\"s2_code\":\"%s\",\"kbch\":%u,"
            "\"kernel\":\"%s\",\"source\":%d,\"cpw\":%d,\"divider256\":%d,\"schedule\":%d,\"row_symbols\":%d,\"writers\":%u,\"bus_priority_mask\":%u,"
            "\"ms\":%d,\"elapsed_us\":%llu,\"cleanup_us\":%llu,"
            "\"seed\":%lu,\"in_words\":%lu,\"sym_rate\":%.1f,\"tables_ok\":%u,\"fault\":%d,"
@@ -584,11 +617,12 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
            "\"gen_cyc_per_sym\":%.4f,\"gen_busy\":%.4f,\"control_busy\":%.4f,\"core0_work_busy\":%.4f,\"core0_active_busy\":%.4f,"
            "\"max_gen_cyc\":%lu,\"max_poll_gap_us\":%lu,\"poll_interval_us\":%u,\"min_lead_syms\":%lld,"
            "\"block_syms\":%u,\"split_bb_stride_words\":%u,\"split_bch_frames\":%lu,\"split_bch_busy\":%.4f,\"split_bch_max_cyc\":%lu,\"split_bch_max_slice_cyc\":%lu,\"split_bch_slices\":%lu,\"split_bch_slice_words\":%u,\"input_waits\":%lu,\"s2_runtime_frames\":%lu,\"s2_busy\":%.4f,\"bch_kernel\":%d,"
-           "\"one_core\":%s,\"s2_core\":%d,\"s2_max_frame_cyc\":%lu,\"s2_max_slice_cyc\":%lu,"
+           "\"map_kernel\":%u,\"one_core\":%s,\"s2_core\":%d,\"s2_max_frame_cyc\":%lu,\"s2_max_slice_cyc\":%lu,"
            "\"s2_stage_max_cyc\":{\"bb_bch\":%lu,\"ldpc\":%lu,\"map\":%lu},\"s2_incomplete_stage\":%u,"
            "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%u,\"cap_fifo_only\":%u",
            GIT_REV, (unsigned long)clock_get_hz(clk_sys), quad ? IQQUAD_SPAN : 12u,
            quad ? 0.8 : 1.0, quad ? "l9_quad" : paired ? "l12_pair" : "l12_single",
+           code_index, code_name, bb_bits,
            names[kernel], source, cpw,
            divider256 ? divider256 : cpw * 256, schedule, row_symbols, dual_dma_get_writers(), dual_dma_get_bus_priority(), ms,
            (unsigned long long)elapsed, (unsigned long long)cleanup_us,
@@ -609,7 +643,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
            (unsigned long)bch_slices, BCH_SLICE_WORDS, (unsigned long)input_waits,
            (unsigned long)(source >= SOURCE_DVBS2_CORE1 ? encoder.frames - encoder.prefill : 0),
            source >= SOURCE_DVBS2_CORE1 && encoder_budget ? encoder.busy_cyc / encoder_budget : 0,
-           (int)dvbs2_bch_get_kernel(), source == SOURCE_DVBS2_CORE0 ? "true" : "false", source >= SOURCE_DVBS2_CORE1 ? (source == SOURCE_DVBS2_CORE0 ? 0 : 1) : -1,
+           (int)dvbs2_bch_get_kernel(), dvbs2_map_get_kernel(), source == SOURCE_DVBS2_CORE0 ? "true" : "false", source >= SOURCE_DVBS2_CORE1 ? (source == SOURCE_DVBS2_CORE0 ? 0 : 1) : -1,
            (unsigned long)(source >= SOURCE_DVBS2_CORE1 ? encoder.max_frame_cyc : 0),
            (unsigned long)(source == SOURCE_DVBS2_CORE0 ? encoder.max_slice_cyc : source == SOURCE_DVBS2_CORE1 ? encoder.max_frame_cyc : 0),
            (unsigned long)(source == SOURCE_DVBS2_CORE0 ? encoder.max_stage_cyc[0] : 0),

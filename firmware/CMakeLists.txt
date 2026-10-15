@@ -9,7 +9,7 @@ pico_sdk_init()
 
 set(TX_SOURCES src/main.c src/tx.c src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c src/bench8quad.c src/dual_dma.c
                src/iqdesc.c src/iqdesc_asm.S src/iqpair.c src/iqquad.c src/iq8.c src/iq8quad.c src/iq8quad_asm.S src/iqgen.c src/iqasm.S src/iqout.c
-               src/link.c src/dvbs2.c src/dvbs2_asm.S src/pvproto.c src/pvspi.c)
+               src/link.c src/dvbs2.c src/dvbs2_8psk.c src/dvbs2_asm.S src/dvbs2_map_asm.S src/pvproto.c src/pvspi.c)
 add_executable(iqbench ${TX_SOURCES})
 add_executable(pvflight ${TX_SOURCES})
 # git_rev.h is rewritten on every build (only when the revision changes), so logged firmware
@@ -24,6 +24,9 @@ foreach(target iqbench pvflight)
     add_dependencies(${target} git_rev)
     target_include_directories(${target} PRIVATE ${CMAKE_BINARY_DIR})
     target_compile_definitions(${target} PRIVATE IQ_ON_DEVICE=1)
+    # Lab waveforms share the fixed buffers and never allocate. Keep both2KiB
+    # stacks; reserve1KiB minimum heap while retaining the SRAM bank boundary.
+    target_compile_definitions(${target} PRIVATE PICO_HEAP_SIZE=1024)
     target_compile_options(${target} PRIVATE -O3 -Wall -Wextra -Wno-unused-parameter)
     target_link_libraries(${target} pico_stdlib pico_multicore hardware_pio hardware_dma
                           hardware_clocks)

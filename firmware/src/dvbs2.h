@@ -30,6 +30,10 @@ typedef enum {
 // STREAM_ARM uses WORDS_C; the native tests validate the same recurrence, not Arm scheduling.
 bool dvbs2_bch_set_kernel(dvbs2_bch_kernel_t kernel);
 dvbs2_bch_kernel_t dvbs2_bch_get_kernel(void);
+// Opt-in mapper experiment: 0 = baseline, 1 = packed-carry contiguous chunks.
+// Select while the encoder is idle; retained across dvbs2_init. Canonical FEC bits are unchanged.
+bool dvbs2_map_set_kernel(unsigned kernel);
+unsigned dvbs2_map_get_kernel(void);
 void dvbs2_bbscramble(uint32_t *bbframe);                      // kbch bits, in place
 void dvbs2_bch(const uint32_t *bbframe, uint32_t *parity);    // kbch -> 16t or 14t parity bits
 void dvbs2_bch_serial(const uint32_t *bbframe, uint32_t *parity);   // bit-serial reference

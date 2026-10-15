@@ -42,6 +42,7 @@ static uint32_t fe[MAX_BITS_W] HI;                      // FECFRAME under constr
 static uint32_t r0[MAX_BODY_W] HI, r1[MAX_BODY_W] HI;      // PL scrambling R(i) bit planes (init)
 static uint32_t hdr[6], body_syms;
 static dvbs2_bch_kernel_t bch_kernel = S2_BCH_BASELINE;
+static unsigned map_kernel;
 
 // ------------------------------------------------------------------ bit-vector helpers
 
@@ -408,6 +409,14 @@ void HOT(dvbs2_ldpc)(const uint32_t *info, uint32_t *parity) {
 
 // ------------------------------------------------------------------ mapping and PL framing
 
+bool dvbs2_map_set_kernel(unsigned kernel) {
+    if (kernel > 1) return false;
+    map_kernel = kernel;
+    return true;
+}
+
+unsigned dvbs2_map_get_kernel(void) { return map_kernel; }
+
 // FECFRAME word (MSB first: I0 Q0 I1 Q1 ... I15 Q15) -> shaper word (I_j at bit j, Q_j at
 // bit 16+j): bit-reverse, then outer unshuffle (even bits to [15:0], odd bits to [31:16]).
 static inline uint32_t unshuffle(uint32_t x) {
@@ -438,13 +447,44 @@ _Static_assert(sizeof(symstream_t) == 24 && offsetof(symstream_t, fill) == 20 &&
                offsetof(symstream_t, acc_i) == 12, "map_words requires the six-word stream layout");
 void dvbs2_map_words(const uint32_t *frame, const uint32_t *swap, const uint32_t *flip,
                      uint32_t nwords, symstream_t *stream, const uint32_t *table);
-#define map_words dvbs2_map_words
+void dvbs2_map_words_rotate_chunks_scheduled(const uint32_t *frame, const uint32_t *swap,
+                     const uint32_t *flip, uint32_t nwords, symstream_t *stream, const uint32_t *table);
+static inline void map_words(const uint32_t *frame, const uint32_t *swap, const uint32_t *flip,
+                             uint32_t nwords, symstream_t *stream, const uint32_t *table) {
+    if (map_kernel) dvbs2_map_words_rotate_chunks_scheduled(frame, swap, flip, nwords, stream, table);
+    else dvbs2_map_words(frame, swap, flip, nwords, stream, table);
+}
 #else
 static void map_words(const uint32_t *frame, const uint32_t *swap, const uint32_t *flip,
                       uint32_t nwords, symstream_t *stream, const uint32_t *table) {
     (void)table;
-    for (uint32_t k = 0; k < nwords; k++)
-        symstream_put16(stream, map_scramble16(frame[k], swap[k], flip[k]));
+    if (!map_kernel) {
+        for (uint32_t k = 0; k < nwords; k++)
+            symstream_put16(stream, map_scramble16(frame[k], swap[k], flip[k]));
+        return;
+    }
+    // Rotation puts overflow in the opposite halfword's low bits. Select it with
+    // the repeated fill mask, then swap halves to retain the next I/Q carry.
+    const uint32_t fill = stream->fill, mask = ((1u << fill) - 1u) * 0x10001u;
+    uint32_t carry = stream->acc_i | stream->acc_q << 16;
+    while (nwords) {
+        const uint32_t offset = stream->n & stream->mask;
+        const uint32_t limit_minus_one = stream->mask - offset;
+        uint32_t count = nwords;
+        if (count - 1 > limit_minus_one) count = limit_minus_one + 1;
+        uint32_t *out = stream->out + offset;
+        nwords -= count;
+        stream->n += count;
+        do {
+            const uint32_t w = map_scramble16(*frame++, *swap++, *flip++);
+            const uint32_t rotated = (w << fill) | (w >> ((0u - fill) & 31u));
+            *out++ = (rotated & ~mask) | carry;
+            const uint32_t overflow = rotated & mask;
+            carry = (overflow << 16) | (overflow >> 16);
+        } while (--count);
+    }
+    stream->acc_i = carry & 0xFFFFu;
+    stream->acc_q = carry >> 16;
 }
 #endif
 
