@@ -1,4 +1,4 @@
-"""Independent checks for the opt-in L9/beta0.8 four-symbol-row trial.
+"""Independent checks for the L9 and opt-in convex L8 four-symbol-row trials.
 
 Builds the actual C table/descriptor functions in a temporary directory. Checks every
 sample against direct integer FIR, chronological input/word boundaries, complete DVB-S2
@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import ctypes
 from dataclasses import dataclass
+import hashlib
 import json
 import re
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import zlib
 from pathlib import Path
 
@@ -30,29 +32,41 @@ U32 = 0xffffffff
 BASE_I, BASE_Q = 0x20040000, 0x20040000
 CANARY = 0x9ad4c781
 PTR = ctypes.POINTER(ctypes.c_uint32)
+L8_COEFFICIENTS = np.array([
+    18026, -9152, -32743, -43578, -16902, 44626, 101009, 97555,
+    8822, -128261, -220622, -167118, 78231, 466713, 865736, 1117887,
+    1117887, 865736, 466713, 78231, -167118, -220622, -128261, 8822,
+    97555, 101009, 44626, -16902, -43578, -32743, -9152, 18026,
+], dtype=np.int64)
+
+
+class ProfileInfo(ctypes.Structure):
+    _fields_ = [(name, ctypes.c_uint) for name in ("span", "history_bits", "rows", "words")]
+    _fields_ += [("table_crc", ctypes.c_uint32), ("id", ctypes.c_char_p)]
 
 
 def fir_rows(lut):
     """Direct all-key FIR sums, independent of builder's history-table composition."""
-    keys = np.arange(ROWS, dtype=np.int64)[:, None]
-    ages = np.arange(L)[None, :]
+    span, sps = lut.L, lut.sps
+    keys = np.arange(1 << (span + 3), dtype=np.int64)[:, None]
+    ages = np.arange(span)[None, :]
     rows = []
-    for newest in range(L - 1, L + 3):
+    for newest in range(span - 1, span + 3):
         signs = 1 - 2 * ((keys >> (newest - ages)) & 1)
-        acc = signs @ lut.coef.reshape(L, SPS)
+        acc = signs @ lut.coef.reshape(span, sps)
         slots = (((acc + 128) >> 8) & 0x3fff).astype("<u4")
         rows.append(slots[:, 0::2] | slots[:, 1::2] << 16)
     return np.concatenate(rows, axis=1)
 
 
-def descriptors(words, prev, bases):
+def descriptors(words, prev, bases, span=L):
     """Gather chronological bits directly, including arbitrary prehistory."""
     result = []
     for axis, base in enumerate(bases):
         before = [(prev >> (16 * axis + j)) & 1 for j in range(16)]
         bits = before + [int(word >> (16 * axis + j)) & 1 for word in words for j in range(16)]
         result.append(np.asarray([
-            (base + 32 * sum(bits[16 + n - 8 + k] << k for k in range(12))) & U32
+            (base + 32 * sum(bits[16 + n - (span - 1) + k] << k for k in range(span + 3))) & U32
             for n in range(0, len(words) * 16, 4)
         ], dtype="<u4"))
     return result
@@ -110,6 +124,88 @@ def symbol_words(planes):
     shifts = np.arange(16, dtype=np.uint32)
     return ((padded[0].astype(np.uint32) << shifts).sum(axis=1, dtype=np.uint32) |
             (padded[1].astype(np.uint32) << shifts).sum(axis=1, dtype=np.uint32) << 16)
+
+
+def scalar_waveform(words, previous, coefficients):
+    """Causal integer FIR convolution, without any history-key or row lookup."""
+    axes = []
+    for axis, bits in enumerate(m.unpack_bits(words)):
+        before = (previous >> (16 * axis + np.arange(16))) & 1
+        signs = 1 - 2 * np.concatenate([before, bits]).astype(np.int64)
+        samples = np.empty((len(bits), SPS), dtype=np.int64)
+        for phase in range(SPS):
+            sums = np.convolve(signs, coefficients[phase::SPS])[16:16 + len(bits)]
+            samples[:, phase] = (sums + 128) >> 8
+        axes.append(samples.ravel())
+    return m.to_layout(m.pack(*axes), m.LAYOUT_PAIRS)
+
+
+def profile_waveform(words, previous, rows, span, block):
+    chunks = []
+    for start in range(0, len(words), block):
+        part = words[start:start + block]
+        desc = descriptors(part, int(words[start - 1]) if start else previous,
+                           (BASE_I, BASE_Q), span)
+        chunks.append(resolve_waveform(desc, rows, (BASE_I, BASE_Q)))
+    return np.concatenate(chunks) if chunks else np.empty(0, dtype=np.uint32)
+
+
+def l8_profile_check(lib):
+    infos = [lib.iqquad_profile_info(profile).contents for profile in (0, 1)]
+    assert [(p.span, p.history_bits, p.rows, p.words, p.table_crc, p.id) for p in infos] == [
+        (9, 12, 4096, 32768, 0xd0cb695f, b"qpsk_l9_n4_kaiser_b080"),
+        (8, 11, 2048, 16384, 0x2581bd84, b"qpsk_l8_n4_both_m010_far2"),
+    ]
+    assert hashlib.sha256(L8_COEFFICIENTS.astype("<i4").tobytes()).hexdigest() == \
+        "28a65e7881d8649dcae694866b798491a57b36d4c43528b58fe44a66b32a1dcd"
+    guarded = (ctypes.c_uint32 * (ROWS * ROW_WORDS + 2))(*([CANARY] * (ROWS * ROW_WORDS + 2)))
+    out = ctypes.cast(ctypes.byref(guarded, 4), PTR)
+    for bad in (-1, 2, 0x7fffffff):
+        assert not lib.iqquad_profile_info(bad)
+        assert not lib.iqquad_build_profile(out, ROWS * ROW_WORDS, bad)
+    for profile, info in enumerate(infos):
+        assert not lib.iqquad_build_profile(out, info.words - 1, profile)
+        assert not lib.iqquad_build_profile(None, info.words, profile)
+    assert all(value == CANARY for value in guarded)
+    info = infos[1]
+    assert lib.iqquad_build_profile(out, info.words, 1)
+    assert guarded[0] == CANARY and all(value == CANARY for value in guarded[info.words + 1:])
+    rows = np.ctypeslib.as_array(guarded)[1:info.words + 1].copy().reshape(info.rows, ROW_WORDS)
+    pulse = SimpleNamespace(L=8, sps=SPS, coef=L8_COEFFICIENTS)
+    np.testing.assert_array_equal(rows, fir_rows(pulse))
+    assert zlib.crc32(rows.astype("<u4").tobytes()) == info.table_crc
+    assert rows.nbytes == 65536 and not np.any(rows & np.uint32(0xc000c000))
+    slots = np.stack([rows & 0x3fff, (rows >> 16) & 0x3fff], axis=-1)
+    signed = ((slots.astype(np.int32) ^ 0x2000) - 0x2000)
+    assert signed.min() == -7300 and signed.max() == 7300
+    cases = 0
+    for seed in (0, 1, 0x1234abcd, U32):
+        words = m.xorshift32(seed, 137)
+        for previous in (0, 0x716bc429, U32):
+            expected = scalar_waveform(words, previous, L8_COEFFICIENTS)
+            for block in (1, 3, 7, 64, 137):
+                np.testing.assert_array_equal(profile_waveform(words, previous, rows, 8, block), expected)
+                cases += 1
+    # Consecutive normal/short frames with different pilot settings have partial
+    # raw words at the PLFRAME boundaries; history and row assembly must continue.
+    planes = []
+    for index, (rate, short, pilots) in enumerate((("2/3", False, True), ("1/4", True, False),
+                                                 ("9/10", False, False), ("5/6", True, True))):
+        c = s2.code(rate, short)
+        raw = m.xorshift32(0x1234abcd ^ index, (c.n + 31) // 32)
+        bits = ((raw[:, None] >> np.arange(31, -1, -1, dtype=np.uint32)) & 1).astype(np.uint8).ravel()[:c.n]
+        planes.append(s2.plframe(bits, rate, short=short, pilots=pilots))
+    words = symbol_words([np.concatenate([p[a] for p in planes]) for a in range(2)])
+    expected = scalar_waveform(words, 0, L8_COEFFICIENTS)
+    for block in (1, 7, 256, len(words)):
+        np.testing.assert_array_equal(profile_waveform(words, 0, rows, 8, block), expected)
+    # Selecting/building another profile never changes the legacy API's output.
+    lib.iqquad_build(out)
+    legacy = np.ctypeslib.as_array(guarded)[1:-1].copy()
+    assert zlib.crc32(legacy.astype("<u4").tobytes()) == 0xd0cb695f
+    return dict(profile=info.id.decode(), rows=info.rows, bytes=rows.nbytes,
+                table_crc=info.table_crc, exact_peak=7300, scalar_samples=info.rows * 16,
+                stream_cases=cases, mixed_plframes=len(planes), waveform_crc=zlib.crc32(expected.tobytes()))
 
 
 def full_frame_check(lib, rows, lut):
@@ -214,6 +310,10 @@ def main():
                         f"-I{src}", str(src / "iqquad.c"), str(src / "iqdesc.c"), "-o", str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.iqquad_build.argtypes = [PTR]
+        lib.iqquad_profile_info.argtypes = [ctypes.c_int]
+        lib.iqquad_profile_info.restype = ctypes.POINTER(ProfileInfo)
+        lib.iqquad_build_profile.argtypes = [PTR, ctypes.c_uint, ctypes.c_int]
+        lib.iqquad_build_profile.restype = ctypes.c_bool
         lib.iqdesc_quad_c.argtypes = [PTR, PTR, PTR] + [ctypes.c_uint32] * 4
         table = (ctypes.c_uint32 * (ROWS * ROW_WORDS + 2))()
         table[0] = table[-1] = CANARY
@@ -237,11 +337,12 @@ def main():
                                    (BASE_I, BASE_Q))
             np.testing.assert_array_equal(got, m.to_layout(m.generate(words, lut), m.LAYOUT_PAIRS))
         frame_result = full_frame_check(lib, rows, lut)
+        l8_result = l8_profile_check(lib)
     check_pio()
     print(json.dumps(dict(profile="l9_quad", L=L, filter_beta=.8, rows=ROWS,
                           bytes=rows.nbytes, table_crc=zlib.crc32(rows.tobytes()),
                           descriptor_cases=cases, pio_slots_per_mode=65536,
-                          full_frame=frame_result)))
+                          full_frame=frame_result, l8_profile=l8_result)))
 
 
 if __name__ == "__main__":
