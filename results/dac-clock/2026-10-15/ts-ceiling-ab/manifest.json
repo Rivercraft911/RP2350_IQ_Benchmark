@@ -1,0 +1,16 @@
+{
+  "created": "2026-10-15",
+  "purpose": "A/B of 16 Msym/s TS-source QPSK 5/6 underrun: new firmware (DDR clock change) vs clean HEAD",
+  "new": {
+    "uf2": "results/dac-clock/2026-10-15/gcs-ddr-soak-1/iqbench.uf2",
+    "sha256": "933141bb751a099f30ccd66f9a5f2203d6487ae3e86c9c9ecb19e296fedc7bf4",
+    "source": "results/dac-clock/2026-10-15/gcs-ddr-soak-1/firmware-source.tar.gz",
+    "git": "34195cedfc-dirty"
+  },
+  "head": {
+    "uf2": "results/dac-clock/2026-10-15/ts-ceiling-ab/head-iqbench.uf2",
+    "sha256": "58ab1611e72155fb20ad0673a88ff477eacc8c6c001cc90453284bd2b79969eb",
+    "source": "git archive 34195ce (clean), built with the same SDK/toolchain; GIT_REV reports unknown"
+  },
+  "setup": "USB only, external GPIOs unconnected, stock voltage, on-chip SPI master"
+}

@@ -26,6 +26,9 @@ DESCRIPTOR_CRC_I = 491185096
 DESCRIPTOR_CRC_Q = 845440890
 CAPTURE_STRIDE = 17
 SEED = 0x1234ABCD
+DAC_CLOCK_PIN, IQ_FLAG_PIN = 28, 14
+DAC_CLOCK_NAMES = {"hstx": "hstx_gp16", "ddr": "ddr_pio_gp28", "inverted": "ddr_pio_gp28_inverted"}
+DAC_CLOCK_MODES = {"hstx": 0, "ddr": 1, "inverted": 2}
 
 
 def pulse_parameters(row_symbols: int, profile=None) -> tuple[int, float | None]:
@@ -93,6 +96,19 @@ def parse_capture(lines: list[str]) -> np.ndarray:
     return np.asarray(values, dtype="<u4")
 
 
+def clock_parity(words: np.ndarray) -> dict:
+    """pins32 snapshots: the DDR clock (GPIO28) must equal IQ_FLAG (GPIO14) in every one.
+
+    Both pins are read on the same SYS cycle with input synchronizers bypassed, so this
+    establishes I/Q slot parity to one cycle; it says nothing about sub-cycle pad skew."""
+    clock = (words >> DAC_CLOCK_PIN) & 1
+    flag = (words >> IQ_FLAG_PIN) & 1
+    mismatches = int(np.count_nonzero(clock != flag))
+    high = int(np.count_nonzero(clock))
+    return dict(cap_clock_checked=int(len(words)), cap_clock_mismatches=mismatches,
+                cap_clock_high=high, cap_clock_ok=mismatches == 0 and 0 < high < len(words))
+
+
 def validate_capture(r: dict, lines: list[str], source: int,
                      requested_words: int = 4096) -> dict:
     """Check serial integrity, then all samples against a fixed-stride reference period."""
@@ -114,7 +130,10 @@ def validate_capture(r: dict, lines: list[str], source: int,
         return dict(cap_aligned=False, cap_error=str(e), cap_mismatches=None,
                     cap_checked_bus_words=0, cap_transport_ok=False, cap_reference_failed=False)
 
-    bus = got.view("<u2")
+    # pins32: one GPIO0..31 snapshot per word at the same 17-cycle stride, bus in bits15:0.
+    pins = r.get("cap_format") == "pins32"
+    bus = (got & 0xffff).astype("<u2") if pins else got.view("<u2")
+    clock = clock_parity(got) if pins else {}
     if source in (5, 6):
         from dual_spi import reference_window
         span, beta = pulse_parameters(int(r.get("row_symbols", 2)), r.get("row_profile"))
@@ -160,7 +179,8 @@ def validate_capture(r: dict, lines: list[str], source: int,
     if best_bad is None:
         return dict(cap_aligned=False, cap_mismatches=None, cap_checked_bus_words=min(16, len(bus)),
                     cap_transport_ok=True, cap_reference_failed=True,
-                    cap_error="no fixed offset and physical-time phase matches the first16 bus observations")
+                    cap_error="no fixed offset and physical-time phase matches the first16 bus observations",
+                    **clock)
     first = int(best_bad[0]) if len(best_bad) else None
     axes = np.bincount((bus >> 14) & 1, minlength=2)
     both_axes = bool(axes.min() >= len(bus) // 4)
@@ -171,7 +191,7 @@ def validate_capture(r: dict, lines: list[str], source: int,
                 cap_first_bad=first, cap_checked_bus_words=len(bus),
                 cap_got_first_bad=int(bus[first]) if first is not None else None,
                 cap_want_first_bad=int(ref[(best_offset + best_steps[first]) % len(ref)])
-                if first is not None else None)
+                if first is not None else None, **clock)
 
 
 def stream_faults(r: dict, capture: bool, source: int) -> list[str]:
@@ -196,6 +216,8 @@ def stream_faults(r: dict, capture: bool, source: int) -> list[str]:
     # axis_gap_max is a queue-lead diagnostic; a nonzero bounded lead is legitimate.
     if capture and not (r.get("cap_aligned") and r.get("cap_mismatches") == 0):
         faults.append(r.get("cap_error") or "strided capture mismatches")
+    if capture and r.get("dac_clock", "hstx_gp16") != "hstx_gp16" and not r.get("cap_clock_ok"):
+        faults.append("DDR clock was not high in exactly the I slots of a pins32 capture")
     if source in (2, 3, 4, 5, 6) and not r.get("s2_runtime_frames"):
         faults.append("no complete DVB-S2 encoder frame during timed run")
     if source in (4, 5, 6) and not r.get("split_bch_frames"):
@@ -239,6 +261,12 @@ def negative_control_detected(fault: int, r: dict) -> bool:
         ownership_bits = (1 << 16) | (1 << 17)  # firmware ERR_UNDERRUN / ERR_OWNERSHIP
         return bool(r.get("underruns") or r.get("own_errors") or
                     (int(r.get("errors", 0)) & ownership_bits))
+    if fault == 3:
+        # Inverted DDR clock start: correct data, but the clock is high in every Q slot.
+        checked = r.get("cap_clock_checked", 0)
+        return (r.get("errors") == 0 and r.get("dac_clock") == DAC_CLOCK_NAMES["inverted"] and
+                bool(r.get("cap_transport_ok")) and not r.get("cap_reference_failed") and
+                checked > 0 and r.get("cap_clock_mismatches") == checked)
     return False
 
 
@@ -296,8 +324,28 @@ def self_test():
     assert negative_control_detected(2, dict(errors=1 << 16, gen_syms=1024))
     assert negative_control_detected(2, dict(errors=0, own_errors=1, gen_syms=1024))
     assert not negative_control_detected(2, dict(errors=1 << 17, gen_syms=0))
+    # pins32 DDR clock snapshots. Unrelated GPIO16..31 activity (SPI, CLK_IO) must not matter.
+    ref = reference_bus(1, row_symbols=4)
+    bus = ref[(len(ref) - 97 + np.arange(4096) * CAPTURE_STRIDE) % len(ref)].astype(np.uint32)
+    noise = iq.m.xorshift32(7, len(bus)).astype(np.uint32) & ~np.uint32(0xffff | 1 << DAC_CLOCK_PIN)
+    flag = (bus >> IQ_FLAG_PIN) & 1
+    one_slot_late = flag.copy(); one_slot_late[::5] ^= 1
+    for mode, clock, clock_ok in (("ddr", flag, True), ("inverted", 1 - flag, False),
+                                  ("ddr", one_slot_late, False), ("ddr", np.ones_like(flag), False)):
+        words = (bus | noise | clock << DAC_CLOCK_PIN).astype("<u4")
+        lines = [f"@cap {i} " + " ".join(f"{int(w):08x}" for w in words[i:i + 16])
+                 for i in range(0, len(words), 16)]
+        r = dict(cap_words=len(words), cap_crc=zlib.crc32(words.tobytes()), row_symbols=4,
+                 cap_stride=CAPTURE_STRIDE, seed=SEED, cap_format="pins32",
+                 dac_clock=DAC_CLOCK_NAMES[mode], errors=0, gen_syms=1024,
+                 L=9, filter_beta=0.8, row_profile="l9_quad")
+        r.update(validate_capture(r, lines, 1, len(words)))
+        assert r["cap_aligned"] and r["cap_mismatches"] == 0, r
+        assert r["cap_clock_ok"] == clock_ok, r
+        assert bool(stream_faults(r, True, 1)) == (not clock_ok)
+        assert negative_control_detected(3, r) == (mode == "inverted")
     print("dual_trial self-test: L12/L9/L8 waveform periods, integer/fractional capture, corruption, serial CRC, "
-          "capture ordering and fault classification checked; no hardware accessed")
+          "capture ordering, pins32 DDR clock parity and fault classification checked; no hardware accessed")
 
 
 def main():
@@ -317,6 +365,9 @@ def main():
     p.add_argument("--map-kernel", type=int, choices=(0, 1), default=0)
     p.add_argument("--quad-profile", type=int, choices=(0, 1), default=0,
                    help="0=L9 Kaiser, 1=opt-in L8 convex pulse")
+    p.add_argument("--dac-clock", choices=("hstx", "ddr"), default="hstx",
+                   help="hstx=qualified GPIO16 CLK_IO test clock; ddr=GPIO28 PIO DDR clock, "
+                        "pins32 captures checked for clock/IQ_FLAG parity plus an inverted control")
     a = p.parse_args()
     if a.clocks is None:
         a.clocks = [128000] if a.profile in ("spi", "quad", "gcs") else [128000, 150000]
@@ -359,6 +410,7 @@ def main():
     manifest = dict(started=dt.datetime.now().isoformat(), profile=a.profile, duration_ms=duration,
                     code_index=a.code_index, map_kernel=a.map_kernel, quad_profile=a.quad_profile,
                     clocks_khz=a.clocks, row_symbols=a.row_symbols, writers=a.writers, priority_mask=a.priority_mask,
+                    dac_clock=DAC_CLOCK_NAMES[a.dac_clock],
                     expected_firmware_git=a.expected_git, head=git("rev-parse", "HEAD"),
                     branch=git("branch", "--show-current"), status=git("status", "--short"),
                     sha256=hashes,
@@ -397,7 +449,7 @@ def main():
                                     recorded_at=dt.datetime.now().isoformat(), **r)) + "\n")
         print(label, json.dumps({k: r[k] for k in (
             "sym_rate", "gen_cyc_per_sym", "gen_busy", "control_busy", "core0_work_busy",
-            "underruns", "own_errors", "cap_aligned", "cap_mismatches", "faults",
+            "underruns", "own_errors", "cap_aligned", "cap_mismatches", "cap_clock_mismatches", "faults",
             "s2_runtime_frames", "host_crc_ok", "negative_control_detected") if k in r}), flush=True)
         return r
 
@@ -416,17 +468,24 @@ def main():
             return r
         return record(f"descriptor-bench-{clock}", run)
 
-    def dual(clock, cpw, kernel, source, fault=0, schedule=0, divider256=0, trial_ms=None, cap_words=4096):
+    def dual(clock, cpw, kernel, source, fault=0, schedule=0, divider256=0, trial_ms=None, cap_words=4096,
+             clock_inverted=False):
         exploratory = (cpw == 1 or divider256 != 0) and a.profile not in ("qualify", "spi")
-        suffix = "-negative-control" if fault else "-ceiling-probe" if exploratory else ""
+        suffix = "-clock-inverted-negative-control" if clock_inverted else \
+            "-negative-control" if fault else "-ceiling-probe" if exploratory else ""
         variant = f"-sched{schedule}-div{divider256}" if schedule or divider256 else ""
         variant += f"-cap{cap_words}" if cap_words != 4096 else ""
         variant += f"-prio{a.priority_mask}" if a.priority_mask else ""
         variant += f"-writers{a.writers}" if a.writers != 2 else ""
         variant += f"-code{a.code_index}" if a.code_index != 5 else ""
+        variant += "-ddrclk" if a.dac_clock == "ddr" else ""
         label = f"dual-row{a.row_symbols}-{clock}-src{source}-k{kernel}-cpw{cpw}-fault{fault}{variant}{suffix}"
+        if a.dac_clock == "ddr" and divider256:
+            # A fractional divider cannot give a uniform DAC clock; firmware rejects it.
+            print(f"{label}: skipped, DDR clock requires an integer divider", flush=True)
+            return {}
         def run():
-            ms = 1000 if fault else trial_ms if trial_ms is not None else duration
+            ms = 1000 if fault or clock_inverted else trial_ms if trial_ms is not None else duration
             r, lines = board.cmd(f"dualstream {cpw} {ms} {kernel} {source} {cap_words} {fault} "
                                  f"{schedule} {divider256} {a.row_symbols} {a.code_index}",
                                  timeout=ms / 1000 + 60)
@@ -439,12 +498,17 @@ def main():
                                    L=pulse_parameters(a.row_symbols, L8_PROFILE if a.quad_profile else None)[0],
                                    divider256=divider256 or cpw * 256,
                                    clk_hz=clock * 1000, source=source,
-                                   bus_priority_mask=a.priority_mask, writers=a.writers)
+                                   bus_priority_mask=a.priority_mask, writers=a.writers,
+                                   dac_clock=DAC_CLOCK_NAMES["inverted" if clock_inverted else a.dac_clock])
+            if a.dac_clock == "ddr":
+                expected_config["cap_format"] = "pins32"
             if a.expected_git:
                 expected_config["git"] = a.expected_git
             configuration_ok = True
             for key, expected in expected_config.items():
-                if r.get(key) != expected:
+                # Firmware before the DDR clock option reported no dac_clock: HSTX only.
+                reported = r.get(key, "hstx_gp16" if key == "dac_clock" else None)
+                if reported != expected:
                     configuration_ok = False
                     r["faults"].append(f"reported {key}={r.get(key)}; requested {expected}")
             if r.get("code_index", 5) != a.code_index:
@@ -457,7 +521,12 @@ def main():
             if fault:
                 r["negative_control_fault"] = fault
                 r["negative_control_detected"] = negative_control_detected(fault, r)
+            if clock_inverted:
+                r["negative_control_fault"] = 3
+                r["negative_control_detected"] = negative_control_detected(3, r)
             effective_divider = divider256 / 256 if divider256 else cpw
+            if a.dac_clock == "ddr":
+                r["ddr_dacclk_hz"] = clock * 1000 / (2 * effective_divider)
             r["requested_schedule"] = schedule
             r["requested_divider256"] = divider256
             r["afe_sample_rate_within_65msps"] = clock * 1000 / (2 * effective_divider) <= 65e6
@@ -468,7 +537,14 @@ def main():
                 capture_path.write_text("\n".join(lines) + "\n")
                 r["capture_file"] = str(capture_path.relative_to(a.out))
             return r
-        result = record(label, run, "negative" if fault else "ceiling" if exploratory else "clean")
+        if clock_inverted:
+            raw("dualclock 2")
+        try:
+            result = record(label, run, "negative" if fault or clock_inverted else
+                            "ceiling" if exploratory else "clean")
+        finally:
+            if clock_inverted:
+                raw(f"dualclock {DAC_CLOCK_MODES[a.dac_clock]}")
         if not result.get("configuration_ok"):
             raise RuntimeError("firmware configuration differs from request; no further trials run")
         return result
@@ -486,6 +562,7 @@ def main():
         raw("info")
         raw(f"dualprio {a.priority_mask}")
         raw(f"dualwriters {a.writers}")
+        raw(f"dualclock {DAC_CLOCK_MODES[a.dac_clock]}")
         raw(f"mapkernel {a.map_kernel}")
         raw(f"quadprofile {a.quad_profile}")
         for clock in a.clocks:
@@ -576,9 +653,12 @@ def main():
                         dual(clock, 1, 2, 1, schedule=1, cap_words=8)
             dual(clock, 2, 2 if a.quad_profile else 1, 1, fault=1)
             dual(clock, 2, 2 if a.quad_profile else 1, 1, fault=2)
+            if a.dac_clock == "ddr":
+                dual(clock, 2, 2 if a.quad_profile else 1, 1, clock_inverted=True)
             baseline(clock, after=True)
     finally:
         try:
+            raw("dualclock 0")
             raw("quadprofile 0")
             raw("dualprio 0")
             raw("dualwriters 2")

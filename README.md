@@ -141,6 +141,10 @@ python3 host/quadlive_trial.py --ms 60000 --clocks 128000 --cpws 1 --faults 0 \
 python3 host/dual_trial.py gcs --clocks 128000 --ms 60000 \
   --writers 4 --row-symbols 4 --quad-profile 1 --code-index 8 --map-kernel 1 \
   --build firmware/build --out results/qpsk-codes/local
+# Same, with the Yapogee GPIO28 DDR clock, parity captures and an inverted control.
+python3 host/dual_trial.py gcs --clocks 128000 --ms 60000 \
+  --writers 4 --row-symbols 4 --quad-profile 1 --code-index 8 --map-kernel 1 \
+  --dac-clock ddr --build firmware/build --out results/dac-clock/local
 ```
 
 These tests drive GPIOs. The runners do not build or flash; use the matching
@@ -170,6 +174,7 @@ qualified QPSK checkpoint `4b779c0` remains in its history.
 | Complete 8PSK / VCM experiment | `bench8live.c`, `dvbs2_8psk.c`, `dvbs2_qpsk8.c`, `iq8quad.c` |
 | APSK components | `bench_apsk_live.c`, `iq16fast_asm.S`, `iq32mapkeys_pair.c`, `iq32offsets_asm.S`, `bench32map.c`, `bench32bus.c` |
 | Complete APSK SPI/FEC experiment | `bench_apsk_fec.c`, `dvbs2_apsk.c`, `iq32offsets_native.c`, `host/apsk_fec_trial.py` |
+| GPIO28 DDR DAC clock | `dual_dma.c` (`dualclock`), `host/test_dacclk.py`, [notes](docs/dac-clock.md) |
 | DVB-S2 FEC / mapping | `dvbs2.c`, `dvbs2_asm.S`, `dvbs2_map_asm.S` |
 | SPI ingress | `pvspi.c`, `pvproto.c`, `bench_pvstress.c` |
 | PIO-generated LUT pointers | `iqquadptr.c`, `bench_quadptr.c`, `bench_quadlive.c` |

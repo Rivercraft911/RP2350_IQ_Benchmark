@@ -55,6 +55,14 @@ static const pio_program_t quad_four_i_program = {
 static const pio_program_t quad_four_q_program = {
     .instructions = quad_four_q_code, .length = 6, .origin = -1,
 };
+// DDR DAC clock, .side_set 1 (mandatory): MOV Y,Y side1; MOV Y,Y side0. Every writer layout
+// puts I in even and Q in odd bus slots from the first enabled cycle, so a same-cycle start
+// at the same integer divider holds GPIO28 high for each I word and low for each Q word.
+static const uint16_t ddr_clock_code[] = {0xb042, 0xa042};
+static const pio_program_t ddr_clock_program = {
+    .instructions = ddr_clock_code, .length = 2, .origin = -1,
+};
+_Static_assert(PIN_DACCLK > PIN_CLKIO && PIN_DACCLK < 32, "DDR clock must be outside the bus, below GPIO32");
 
 typedef struct {
     PIO output_pio;
@@ -79,10 +87,19 @@ typedef struct {
     uint32_t hstx_clock_ctrl, hstx_clock_div, hstx_hz;
     uint32_t bus_priority;
     uint16_t capture_code[3];
+    // DDR clock: SM in PIO0 or PIO2. run_mask[p] holds the writer and clock SMs of PIO p,
+    // which one PIO1 CTRL write enables (PREV = PIO0, NEXT = PIO2) or disables together.
+    unsigned dac_clock;
+    PIO clock_pio;
+    int clock_sm;
+    uint clock_offset;
+    bool clock_added, clock_saved;
+    uint32_t run_mask[3], clock_gpio_ctrl, clock_gpio_pad, clock_pio_out, clock_pio_oe;
 } engine_t;
 
 static engine_t state;
 static const char *last_error = "not started";
+static unsigned selected_dac_clock;
 static unsigned selected_schedule;
 static unsigned selected_row_words = 2;
 static unsigned selected_bus_priority;
@@ -113,8 +130,15 @@ static void __not_in_flash_func(halt_outputs)(void) {
     if (!state.running) return;
     // One register write stops all shared-pin writers. Clock stopping is a separate write;
     // this is digital fault containment, not an RF mute or an analog timing guarantee.
-    pio_set_sm_mask_enabled(state.output_pio, out_mask(), false);
-    hw_clear_bits(&hstx_ctrl_hw->csr, HSTX_CTRL_CSR_EN_BITS);
+    // The DDR clock stops in the same write as the writers, without first disabling an
+    // external clock driver: a board must remove clock permission before this point.
+    if (state.dac_clock) {
+        hw_set_bits(&pio1->ctrl, (state.run_mask[0] << PIO_CTRL_PREV_PIO_MASK_LSB) |
+                    (state.run_mask[2] << PIO_CTRL_NEXT_PIO_MASK_LSB) | PIO_CTRL_NEXTPREV_SM_DISABLE_BITS);
+    } else {
+        pio_set_sm_mask_enabled(state.output_pio, out_mask(), false);
+        hw_clear_bits(&hstx_ctrl_hw->csr, HSTX_CTRL_CSR_EN_BITS);
+    }
     if (state.capture_started) pio_sm_set_enabled(pio1, state.sm_cap, false);
     state.running = state.result.running = false;
 }
@@ -252,6 +276,23 @@ bool dual_dma_set_writers(unsigned writers) {
 
 unsigned dual_dma_get_writers(void) { return selected_writers; }
 
+bool dual_dma_set_dac_clock(unsigned mode) {
+    if (state.owned || mode > DUAL_DMA_DAC_CLOCK_DDR_PIO_INVERTED) {
+        last_error = "dac clock requires idle engine and mode0..2";
+        return false;
+    }
+    selected_dac_clock = mode;
+    return true;
+}
+
+unsigned dual_dma_get_dac_clock(void) { return selected_dac_clock; }
+
+int dual_dma_dac_clock_pio(void) {
+    return state.dac_clock && state.clock_sm >= 0 ? (int)pio_get_index(state.clock_pio) : -1;
+}
+
+int dual_dma_dac_clock_sm(void) { return state.dac_clock ? state.clock_sm : -1; }
+
 bool dual_dma_set_bus_priority(unsigned mask) {
     if (state.owned || mask > 15) {
         last_error = "bus priority requires idle engine and mask0..15";
@@ -275,8 +316,26 @@ static bool apply_bus_priority(uint32_t priority) {
 static void claim_init(void) {
     memset(&state, 0, sizeof state);
     for (unsigned s = 0; s < 4; s++) state.sm[s] = state.control[s] = state.data[s] = -1;
-    state.sm_cap = state.cap_dma = -1;
+    state.sm_cap = state.cap_dma = state.clock_sm = -1;
     state.owned = true;
+}
+
+// PIO1 holds capture and issues the start/stop CTRL write; only its neighbours PIO0/PIO2
+// take the same-cycle NEXTPREV enable/disable. Prefer the block without writers.
+static bool claim_dac_clock(void) {
+    const PIO order[2] = {state.output_pio == pio0 ? pio2 : pio0, state.output_pio};
+    for (unsigned i = 0; i < 2; i++) {
+        const PIO p = order[i];
+        if (pio_get_gpio_base(p) || !pio_can_add_program(p, &ddr_clock_program)) continue;
+        const int sm = pio_claim_unused_sm(p, false);
+        if (sm < 0) continue;
+        state.clock_pio = p;
+        state.clock_sm = sm;
+        state.clock_offset = pio_add_program(p, &ddr_clock_program);
+        state.clock_added = true;
+        return true;
+    }
+    return false;
 }
 
 static void prepare_channel(int channel) {
@@ -441,6 +500,11 @@ bool dual_dma_start_fifo_div256(const volatile uint32_t *rx_i, const volatile ui
 }
 
 static bool start_output(unsigned divider256, unsigned count_log2) {
+    state.dac_clock = selected_dac_clock;
+    // A fractional divider alternates short and long ticks: DDR edges would stay paired
+    // with the data but the DAC sample period would not be uniform.
+    if (state.dac_clock && ((divider256 & 255u) || pio_get_gpio_base(pio1)))
+        return start_failed("DDR clock requires an integer divider and PIO1 GPIO base0", DUAL_DMA_ERR_CONFIG);
     if (!(resets_hw->reset & RESETS_RESET_HSTX_BITS) &&
         ((hstx_ctrl_hw->csr & HSTX_CTRL_CSR_EN_BITS) ||
          !(hstx_fifo_hw->stat & HSTX_FIFO_STAT_EMPTY_BITS)))
@@ -461,6 +525,8 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
         return start_failed("dual DMA needs one free PIO1 SM", DUAL_DMA_ERR_CONFIG);
     state.capture_debug_mask = (1u << (PIO_FDEBUG_RXSTALL_LSB + state.sm_cap)) |
         (1u << (PIO_FDEBUG_RXUNDER_LSB + state.sm_cap));
+    if (state.dac_clock && !claim_dac_clock())
+        return start_failed("DDR clock needs a free SM and two words in PIO0 or PIO2", DUAL_DMA_ERR_CONFIG);
     state.capture_code[0] = pio_encode_in(pio_pins, 16) | pio_encode_delay(15);
     state.capture_code[1] = pio_encode_jmp_x_dec(0);
     state.capture_code[2] = pio_encode_jmp(2);
@@ -528,6 +594,30 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
     }
     if (state.row_words >= 4)
         pio_sm_set_pins_with_mask(state.output_pio, state.sm[0], 0, 1u << (PIN_D0 + 15));
+    if (state.dac_clock) {
+        const uint32_t pin = 1u << PIN_DACCLK;
+        state.clock_gpio_ctrl = io_bank0_hw->io[PIN_DACCLK].ctrl;
+        state.clock_gpio_pad = pads_bank0_hw->io[PIN_DACCLK];
+        state.clock_pio_out = state.clock_pio->dbg_padout & pin;
+        state.clock_pio_oe = state.clock_pio->dbg_padoe & pin;
+        state.clock_saved = true;
+        pio_sm_config cc = pio_get_default_sm_config();
+        sm_config_set_wrap(&cc, state.clock_offset, state.clock_offset + 1);
+        sm_config_set_sideset(&cc, 1, false, false);
+        sm_config_set_sideset_pins(&cc, PIN_DACCLK);
+        sm_config_set_clkdiv_int_frac8(&cc, divider256 >> 8, 0);
+        // The normal clock starts on the high instruction with I0; the inverted control
+        // starts on the low one. Drive low before handing the pad to PIO: no early edge.
+        pio_sm_init(state.clock_pio, state.clock_sm,
+                    state.clock_offset + (state.dac_clock == DUAL_DMA_DAC_CLOCK_DDR_PIO_INVERTED), &cc);
+        pio_sm_set_pins_with_mask(state.clock_pio, state.clock_sm, 0, pin);
+        pio_sm_set_pindirs_with_mask(state.clock_pio, state.clock_sm, pin, pin);
+        pio_gpio_init(state.clock_pio, PIN_DACCLK);
+        gpio_set_slew_rate(PIN_DACCLK, GPIO_SLEW_RATE_FAST);
+        gpio_set_drive_strength(PIN_DACCLK, BUS_DRIVE);
+        state.run_mask[pio_get_index(state.clock_pio)] |= 1u << state.clock_sm;
+    }
+    state.run_mask[pio_get_index(state.output_pio)] |= out_mask();
     // Disabled SM dividers free-run (§11.5.5); capture setup must not rewrite/restart them.
     // At output divisor1.5, sample at integer17-SYS intervals instead. Matching1.5 clocks
     // can alias one axis through fixed GPIO-loop latency; the integer sampler covers both
@@ -539,23 +629,25 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
     const unsigned cap_divider256 = divider256 == 384 ? 256 : divider256;
     sm_config_set_clkdiv_int_frac8(&cap_cfg, cap_divider256 >> 8, cap_divider256 & 255u);
     pio_sm_init(pio1, state.sm_cap, state.cap_offset, &cap_cfg);
-    pio1->input_sync_bypass |= 0xffffu;
-    clock_configure(clk_hstx, 0, CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS, state.sys_hz, state.sys_hz);
-    state.hstx_changed = true;
-    reset_block(RESETS_RESET_HSTX_BITS);
-    unreset_block_wait(RESETS_RESET_HSTX_BITS);
-    hstx_ctrl_hw->csr = 0;
-    hstx_ctrl_hw->bit[4] = HSTX_CTRL_BIT0_CLK_BITS;
-    hstx_ctrl_hw->expand_shift = 1u << HSTX_CTRL_EXPAND_SHIFT_RAW_N_SHIFTS_LSB;
-    // CLKDIV encodes a16-cycle period as0. Mask before shifting into the field.
-    hstx_ctrl_hw->csr = (((divider256 / 128u) & 15u) << HSTX_CTRL_CSR_CLKDIV_LSB) |
-        (((divider256 / 256u) & 15u) << HSTX_CTRL_CSR_CLKPHASE_LSB) | (1u << HSTX_CTRL_CSR_N_SHIFTS_LSB) |
-        HSTX_CTRL_CSR_EXPAND_EN_BITS;
-    gpio_set_function(PIN_CLKIO, GPIO_FUNC_HSTX);
-    gpio_set_slew_rate(PIN_CLKIO, GPIO_SLEW_RATE_FAST);
-    gpio_set_drive_strength(PIN_CLKIO, BUS_DRIVE);
-    hstx_fifo_hw->fifo = 0x1000u; // infinite RAW_REPEAT
-    hstx_fifo_hw->fifo = 0;
+    pio1->input_sync_bypass |= 0xffffu | (state.dac_clock ? 1u << PIN_DACCLK : 0u);
+    if (!state.dac_clock) {
+        clock_configure(clk_hstx, 0, CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS, state.sys_hz, state.sys_hz);
+        state.hstx_changed = true;
+        reset_block(RESETS_RESET_HSTX_BITS);
+        unreset_block_wait(RESETS_RESET_HSTX_BITS);
+        hstx_ctrl_hw->csr = 0;
+        hstx_ctrl_hw->bit[4] = HSTX_CTRL_BIT0_CLK_BITS;
+        hstx_ctrl_hw->expand_shift = 1u << HSTX_CTRL_EXPAND_SHIFT_RAW_N_SHIFTS_LSB;
+        // CLKDIV encodes a16-cycle period as0. Mask before shifting into the field.
+        hstx_ctrl_hw->csr = (((divider256 / 128u) & 15u) << HSTX_CTRL_CSR_CLKDIV_LSB) |
+            (((divider256 / 256u) & 15u) << HSTX_CTRL_CSR_CLKPHASE_LSB) | (1u << HSTX_CTRL_CSR_N_SHIFTS_LSB) |
+            HSTX_CTRL_CSR_EXPAND_EN_BITS;
+        gpio_set_function(PIN_CLKIO, GPIO_FUNC_HSTX);
+        gpio_set_slew_rate(PIN_CLKIO, GPIO_SLEW_RATE_FAST);
+        gpio_set_drive_strength(PIN_CLKIO, BUS_DRIVE);
+        hstx_fifo_hw->fifo = 0x1000u; // infinite RAW_REPEAT
+        hstx_fifo_hw->fifo = 0;
+    }
     uint32_t control_mask = 0;
     for (unsigned s = 0; s < state.writers; s++) {
         if (state.fifo_source) {
@@ -591,26 +683,38 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
     state.last_poll_us = time_us_32();
     if (!state.fifo_source)
         sample_reads(false); // includes the initial prefetched pointers; ring has not wrapped
-    hw_set_bits(&hstx_ctrl_hw->csr, HSTX_CTRL_CSR_EN_BITS);
-    // Atomic cross-PIO divider restart, enabling only the output SMs. Capture's
-    // divider keeps running while its instruction execution stays disabled.
-    const unsigned capture_peer = state.output_pio == pio2 ? PIO_CTRL_PREV_PIO_MASK_LSB :
-        PIO_CTRL_NEXT_PIO_MASK_LSB; // PIO2->PIO1 previous; PIO0->PIO1 next
-    hw_set_bits(&state.output_pio->ctrl, (out_mask() << PIO_CTRL_CLKDIV_RESTART_LSB) |
-        (out_mask() << PIO_CTRL_SM_ENABLE_LSB) | PIO_CTRL_NEXTPREV_CLKDIV_RESTART_BITS |
-        (1u << state.sm_cap << capture_peer));
+    if (state.dac_clock) {
+        // One PIO1 CTRL write: writers and clock (PIO0 = PREV, PIO2 = NEXT) restart their
+        // dividers and enable on the same cycle; capture only restarts its divider.
+        hw_set_bits(&pio1->ctrl, (1u << state.sm_cap << PIO_CTRL_CLKDIV_RESTART_LSB) |
+            (state.run_mask[0] << PIO_CTRL_PREV_PIO_MASK_LSB) |
+            (state.run_mask[2] << PIO_CTRL_NEXT_PIO_MASK_LSB) |
+            PIO_CTRL_NEXTPREV_SM_ENABLE_BITS | PIO_CTRL_NEXTPREV_CLKDIV_RESTART_BITS);
+    } else {
+        hw_set_bits(&hstx_ctrl_hw->csr, HSTX_CTRL_CSR_EN_BITS);
+        // Atomic cross-PIO divider restart, enabling only the output SMs. Capture's
+        // divider keeps running while its instruction execution stays disabled.
+        const unsigned capture_peer = state.output_pio == pio2 ? PIO_CTRL_PREV_PIO_MASK_LSB :
+            PIO_CTRL_NEXT_PIO_MASK_LSB; // PIO2->PIO1 previous; PIO0->PIO1 next
+        hw_set_bits(&state.output_pio->ctrl, (out_mask() << PIO_CTRL_CLKDIV_RESTART_LSB) |
+            (out_mask() << PIO_CTRL_SM_ENABLE_LSB) | PIO_CTRL_NEXTPREV_CLKDIV_RESTART_BITS |
+            (1u << state.sm_cap << capture_peer));
+    }
     state.running = state.result.running = true;
     last_error = "";
     return true;
 }
 
-bool dual_dma_capture(uint32_t *buffer, uint32_t nwords) {
+static bool start_capture(uint32_t *buffer, uint32_t nwords, bool pins) {
     if (!state.owned || !state.running || state.capture_started || !buffer ||
         ((uintptr_t)buffer & 3u) || !nwords || nwords > 4096) {
         last_error = "capture needs a running engine, aligned buffer and 1..4096 words";
         return false;
     }
-    pio_sm_put(pio1, state.sm_cap, 2 * nwords - 1);
+    // The capture SM has not run yet in this ownership, so its first instruction can be
+    // replaced: IN PINS32 samples GPIO0..31 on one cycle, one snapshot per word.
+    if (pins) pio1->instr_mem[state.cap_offset] = pio_encode_in(pio_pins, 32) | pio_encode_delay(15);
+    pio_sm_put(pio1, state.sm_cap, (pins ? nwords : 2 * nwords) - 1);
     pio_sm_exec_wait_blocking(pio1, state.sm_cap, pio_encode_pull(false, true));
     pio_sm_exec_wait_blocking(pio1, state.sm_cap, pio_encode_mov(pio_x, pio_osr));
     // Join only after loading X: RX joining removes the TX FIFO used for this preload.
@@ -636,6 +740,10 @@ bool dual_dma_capture(uint32_t *buffer, uint32_t nwords) {
     pio_sm_set_enabled(pio1, state.sm_cap, true); // preserve the free-running divider phase
     return true;
 }
+
+bool dual_dma_capture(uint32_t *buffer, uint32_t nwords) { return start_capture(buffer, nwords, false); }
+
+bool dual_dma_capture_pins(uint32_t *buffer, uint32_t nwords) { return start_capture(buffer, nwords, true); }
 
 bool dual_dma_capture_done(void) {
     if (state.owned) { sample_capture(dma_hw->intr); if (state.result.errors) halt_outputs(); }
@@ -712,6 +820,13 @@ void dual_dma_stop(void) {
             pads_bank0_hw->io[p] = state.gpio_pad[p];
         }
     }
+    if (state.clock_saved) {
+        const uint32_t pin = 1u << PIN_DACCLK;
+        pio_sm_set_pins_with_mask(state.clock_pio, state.clock_sm, state.clock_pio_out, pin);
+        pio_sm_set_pindirs_with_mask(state.clock_pio, state.clock_sm, state.clock_pio_oe, pin);
+        io_bank0_hw->io[PIN_DACCLK].ctrl = state.clock_gpio_ctrl;
+        pads_bank0_hw->io[PIN_DACCLK] = state.clock_gpio_pad;
+    }
     if (state.hstx_changed) {
         hstx_ctrl_hw->csr = 0;
         reset_block(RESETS_RESET_HSTX_BITS);
@@ -740,5 +855,7 @@ void dual_dma_stop(void) {
     for (unsigned s = 0; s < state.writers; s++)
         if (state.sm[s] >= 0) pio_sm_unclaim(state.output_pio, state.sm[s]);
     if (state.sm_cap >= 0) pio_sm_unclaim(pio1, state.sm_cap);
+    if (state.clock_added) pio_remove_program(state.clock_pio, &ddr_clock_program, state.clock_offset);
+    if (state.clock_pio && state.clock_sm >= 0) pio_sm_unclaim(state.clock_pio, state.clock_sm);
     state.running = state.result.running = state.owned = false;
 }

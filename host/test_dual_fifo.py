@@ -71,7 +71,7 @@ static uint32_t now, tick;
 static uint32_t time_us_32(void) { uint32_t result = now; now += tick; return result; }
 static struct {
     PIO output_pio;
-    int sm[4], control[4], data[4], sm_cap, cap_dma;
+    int sm[4], control[4], data[4], sm_cap, cap_dma, clock_sm;
     bool owned, fifo_source, control_bswap;
     uint32_t count, mask, divider256, schedule, row_words, writers, sys_hz;
     uint32_t last[4], last_poll_us, poll_limit_us;
@@ -267,14 +267,14 @@ typedef unsigned uint;
 typedef struct { uint32_t input_sync_bypass; bool claimed[4]; } pio_t;
 typedef pio_t *PIO;
 typedef struct { const uint16_t *instructions; unsigned length; int origin; } pio_program_t;
-pio_t output, capture;
+pio_t output, capture, dacclk;
 PIO pio1 = &capture;
 struct dma_t {
     struct { uint32_t al1_ctrl, ctrl_trig, transfer_count; } ch[16];
     uint32_t abort;
 } dma, *dma_hw = &dma;
-struct { struct { uint32_t ctrl; } io[17]; } io_bank, *io_bank0_hw = &io_bank;
-struct { uint32_t io[17]; } pads, *pads_bank0_hw = &pads;
+struct { struct { uint32_t ctrl; } io[32]; } io_bank, *io_bank0_hw = &io_bank;
+struct { uint32_t io[32]; } pads, *pads_bank0_hw = &pads;
 struct { uint32_t csr, bit[8], expand_shift, expand_tmds; } hstx, *hstx_ctrl_hw = &hstx;
 struct { struct { uint32_t ctrl, div; } clk[1]; } clocks, *clocks_hw = &clocks;
 #define DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB 13
@@ -285,6 +285,8 @@ struct { struct { uint32_t ctrl, div; } clk[1]; } clocks, *clocks_hw = &clocks;
 #define clk_hstx 0
 #define PIN_D0 0
 #define PIN_CLKIO 16
+#define PIN_DACCLK 28
+static const pio_program_t ddr_clock_program;  // DDR clock fields stay zero/unclaimed here
 '''
 
 STOP_STUBS = r'''
@@ -348,9 +350,19 @@ int main(void) {
     for (unsigned fifo = 0; fifo < 2; fifo++)
     for (unsigned running = 0; running < 2; running++)
     for (unsigned cap = 0; cap < 3; cap++)
-    for (unsigned ahb = 0; ahb < 3; ahb++) {
+    for (unsigned ahb = 0; ahb < 3; ahb++)
+    for (unsigned ddr = 0; ddr < 2; ddr++) {
         memset(&state, 0, sizeof state); memset(&dma, 0, sizeof dma);
         memset(&output, 0, sizeof output); memset(&capture, 0, sizeof capture);
+        memset(&dacclk, 0, sizeof dacclk); memset(&io_bank, 0, sizeof io_bank); memset(&pads, 0, sizeof pads);
+        // DDR clock SM 1 is released and GPIO28 restored only when this engine claimed it;
+        // with memset-only state (no clock_pio) an external claim of SM1 must survive.
+        dacclk.claimed[1] = true;
+        if (ddr) {
+            state.dac_clock = 1; state.clock_pio = &dacclk; state.clock_sm = 1;
+            state.clock_added = state.clock_saved = true;
+            state.clock_gpio_ctrl = 0x1f; state.clock_gpio_pad = 0x56;
+        }
         dma_hw = &dma; reads = faults = halted = cleaned = unclaimed = drained = aborts = 0;
         state.owned = state.saved = true; state.fifo_source = fifo;
         state.running = state.result.running = running;
@@ -373,6 +385,8 @@ int main(void) {
         assert(faults == 2 && halted == running && aborts == 1 && cleaned == 5 && unclaimed == 5);
         assert(!output.claimed[2] && !output.claimed[3] && !capture.claimed[2]);
         assert(capture.claimed[0] && capture.claimed[1]);
+        assert(dacclk.claimed[1] == !ddr);
+        assert(io_bank.io[28].ctrl == (ddr ? 0x1fu : 0u) && pads.io[28] == (ddr ? 0x56u : 0u));
         assert(state.result.errors == (ahb == 1 ? DUAL_DMA_ERR_OUTPUT_DMA :
                                       ahb == 2 ? DUAL_DMA_ERR_CAPTURE_DMA : 0));
         assert(state.captured == (cap == 1 ? 11 : cap == 2 ? 5 : 0));
@@ -380,7 +394,7 @@ int main(void) {
         if (cap == 2) for (unsigned n = 0; n < 5; n++) assert(buffer[n] == 0xa000u + n);
         dma_hw = NULL; dual_dma_stop(); // no register access after ownership release
     }
-    puts("dual DMA stop: PASS (both sources, running/halted, partial DMA/FIFO capture, AHB faults, external pointer ownership, no FIFO cursor reads)");
+    puts("dual DMA stop: PASS (both sources, running/halted, partial DMA/FIFO capture, AHB faults, external pointer ownership, DDR clock release, no FIFO cursor reads)");
 }
 '''
 

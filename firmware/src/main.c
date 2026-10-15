@@ -34,6 +34,7 @@
 //   ddrtest [ms]                                  experimental PIO data + HSTX DDR clock
 //   dualbench [reps]                             descriptor generation experiment
 //   dualwriters <2|4> / dualprio <0..15>          idle experimental DMA settings
+//   dualclock <0|1|2>                             0 HSTX CLK_IO, 1 GP28 PIO DDR clock, 2 inverted control
 //   quadprofile <0|1> / mapkernel <0|1>          L9/L8 pulse / baseline/packed mapper
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
 //        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=SPI TS, 6=SPI GCS
@@ -297,6 +298,10 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "writers", REQUIRED, 2, 4, &code)) return err;
         if (!dual_dma_set_writers((unsigned)code)) return dual_dma_last_error();
         printf("@{\"cmd\":\"dualwriters\",\"writers\":%d}\n", code);
+    } else if (!strcmp(cmd, "dualclock")) {
+        if (!num(a[1], "mode", REQUIRED, 0, 2, &code)) return err;
+        if (!dual_dma_set_dac_clock((unsigned)code)) return dual_dma_last_error();
+        printf("@{\"cmd\":\"dualclock\",\"mode\":%d}\n", code);
     } else if (!strcmp(cmd, "dualprio")) {
         if (!num(a[1], "mask", REQUIRED, 0, 15, &code)) return err;
         if (!dual_dma_set_bus_priority((unsigned)code)) return dual_dma_last_error();

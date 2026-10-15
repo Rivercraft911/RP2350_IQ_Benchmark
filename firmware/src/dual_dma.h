@@ -55,6 +55,25 @@ unsigned dual_dma_get_row_words(void);
 // any ahead-of-order even/odd reads. Two-writer mode has identical read and issued bounds.
 bool dual_dma_set_writers(unsigned writers);
 unsigned dual_dma_get_writers(void);
+// Idle-only DAC clock source. HSTX (default) keeps the qualified GPIO16 CLK_IO test clock.
+// DDR_PIO runs a separate two-instruction PIO SM on GPIO28 at the writers' integer
+// divider: high in every I slot, low in every Q slot, i.e. bus word rate / 2. One write
+// to PIO1 CTRL enables it with the writers on the same cycle; faults stop both together.
+// GPIO16 stays untouched and HSTX is not used. dual_dma_capture_pins() can then check
+// GPIO28 against IQ_FLAG (GPIO14). DDR_PIO_INVERTED starts on the low instruction: a
+// negative control whose clock is high in Q slots. Needs a free SM
+// and two instruction words in PIO0 or PIO2 with GPIO base 0. Digital phase only; pad
+// skew, SN65 delay and AFE setup/hold are not established by this engine.
+enum {
+    DUAL_DMA_DAC_CLOCK_HSTX = 0,
+    DUAL_DMA_DAC_CLOCK_DDR_PIO = 1,
+    DUAL_DMA_DAC_CLOCK_DDR_PIO_INVERTED = 2,
+};
+bool dual_dma_set_dac_clock(unsigned mode);
+unsigned dual_dma_get_dac_clock(void);
+// Valid while owned or after stop: PIO index and SM of the DDR clock, or -1.
+int dual_dma_dac_clock_pio(void);
+int dual_dma_dac_clock_sm(void);
 // Idle-only BUS_PRIORITY register mask0..15: bits0/1/2/3 select the register fields
 // PROC0/PROC1/DMA_R/DMA_W (hardware bits0/4/8/12). Default0. These are register labels;
 // RP2350-E27 changes which ports they affect at FASTPERI/APB. Prior state is restored.
@@ -93,6 +112,9 @@ dual_dma_faults_t dual_dma_faults(void);
 // First sample is bits15:0. nwords1..8 uses only the joined RX FIFO and copies into buffer
 // AFTER outputs stop; 9..4096 uses DMA during acquisition. No full-rate capture is used.
 bool dual_dma_capture(uint32_t *buffer, uint32_t nwords);
+// Same sampler and stride, but each word is one GPIO0..31 snapshot (nwords samples):
+// bits15:0 are the bus and bit28 the DDR clock, all read on one cycle (sync bypassed).
+bool dual_dma_capture_pins(uint32_t *buffer, uint32_t nwords);
 bool dual_dma_capture_done(void);
 uint32_t dual_dma_capture_count(void);            // completed 32-bit words; FIFO buffer valid after stop
 uint32_t dual_dma_capture_errors(void);           // sticky capture-specific error bits

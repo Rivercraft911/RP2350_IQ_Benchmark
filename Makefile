@@ -73,6 +73,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_iqout_raw.py
 	python3 host/test_iqout_odd.py
 	python3 host/test_dual_pio.py
+	python3 host/test_dacclk.py
 	python3 host/test_dual_faults.py
 	python3 host/test_dual_fifo.py
 	python3 host/test_dual_spi.py

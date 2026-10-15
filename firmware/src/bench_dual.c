@@ -47,6 +47,8 @@ static const desc_fn pair_kernels[] = {iqdesc_pair_c, iqdesc_pair_asm, iqdesc_pa
 static const desc_fn quad_kernels[] = {iqdesc_quad_c, iqdesc_quad_asm, iqdesc_quad_interp};
 static const desc_fn quad8_kernels[] = {iqdesc_quad8_c, NULL, iqdesc_quad8_interp};
 static const char *names[] = {"c", "asm", "interp"};
+// Indexed by DUAL_DMA_DAC_CLOCK_*; the DDR modes capture full GPIO0..31 snapshots.
+static const char *const dac_clock_names[] = {"hstx_gp16", "ddr_pio_gp28", "ddr_pio_gp28_inverted"};
 static iqquad_profile_t quad_profile = IQQUAD_PROFILE_L9_KAISER;
 
 bool bench_dual_set_quad_profile(unsigned profile) {
@@ -504,7 +506,9 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
         last_read = high;
         if (cap_words && !captured && now - start >= (uint64_t)ms * 500) {
             cap_symbol_cursor = high;
-            if (!dual_dma_capture(capture, (uint32_t)cap_words)) errors |= DUAL_DMA_ERR_CAPTURE_DMA;
+            const bool started = dual_dma_get_dac_clock() ?
+                dual_dma_capture_pins(capture, (uint32_t)cap_words) : dual_dma_capture(capture, (uint32_t)cap_words);
+            if (!started) errors |= DUAL_DMA_ERR_CAPTURE_DMA;
             captured = true;
         }
         const bool space = low >= (uint64_t)(next - blocks + 1) * block_syms + reuse_guard;
@@ -640,7 +644,8 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
            "\"block_syms\":%u,\"split_bb_stride_words\":%u,\"split_bch_frames\":%lu,\"split_bch_busy\":%.4f,\"split_bch_max_cyc\":%lu,\"split_bch_max_slice_cyc\":%lu,\"split_bch_slices\":%lu,\"split_bch_slice_words\":%u,\"input_waits\":%lu,\"s2_runtime_frames\":%lu,\"s2_busy\":%.4f,\"bch_kernel\":%d,"
            "\"map_kernel\":%u,\"one_core\":%s,\"s2_core\":%d,\"s2_max_frame_cyc\":%lu,\"s2_max_slice_cyc\":%lu,"
            "\"s2_stage_max_cyc\":{\"bb_bch\":%lu,\"ldpc\":%lu,\"map\":%lu},\"s2_incomplete_stage\":%u,"
-           "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%u,\"cap_fifo_only\":%u",
+           "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%u,\"cap_fifo_only\":%u,"
+           "\"dac_clock\":\"%s\",\"dac_clock_pio\":%d,\"dac_clock_sm\":%d,\"cap_format\":\"%s\"",
            GIT_REV, (unsigned long)clock_get_hz(clk_sys), quad ? profile->span : 12u,
            short_pulse ? "null" : quad ? "0.8" : "1.0",
            short_pulse ? profile->id : quad ? "l9_quad" : paired ? "l12_pair" : "l12_single",
@@ -674,7 +679,9 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
            (unsigned long long)cap_symbol_cursor, (unsigned long)count,
            (unsigned long)crc32_update(0, capture, count * 4),
            divider256 == 384 ? 256 : divider256 ? (unsigned)divider256 : (unsigned)cpw * 256,
-           dual_dma_capture_fifo_only());
+           dual_dma_capture_fifo_only(),
+           dac_clock_names[dual_dma_get_dac_clock()], dual_dma_dac_clock_pio(), dual_dma_dac_clock_sm(),
+           dual_dma_get_dac_clock() ? "pins32" : "bus16x2");
     if (spi) print_spi_stats(encoder_budget, bb_prefill, spi_head_start);
     printf("}\n");
     capture_print(capture, count);
