@@ -57,6 +57,9 @@
 #include "bench32bus.h"
 #include "bench_quadlive.h"
 #include "bench_quadptr.h"
+#ifdef IQ4HIST_EXPERIMENT
+#include "bench4live.h"
+#endif
 #include "bench_ptr.h"
 #include "dual_dma.h"
 #include "dvbs2.h"
@@ -243,6 +246,14 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "benchquadptr")) {
         if (!num(a[1], "mode", 1, 0, 1, &code)) return err;
         bench_quadptr(code);
+#ifdef IQ4HIST_EXPERIMENT
+    } else if (!strcmp(cmd, "bench4live")) {
+        int invert;
+        if (!num(a[1], "cpw", 2, 2, 4, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "invert", 0, 0, 1, &invert)) return err;
+        bench4live(r.cpw, r.ms, invert);
+#endif
     } else if (!strcmp(cmd, "quadlive")) {
         int fault;
         if (!num(a[1], "cpw", REQUIRED, 1, 2, &r.cpw) ||

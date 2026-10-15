@@ -6,6 +6,7 @@ include(pico_sdk_import.cmake)
 project(iqbench C CXX ASM)
 pico_sdk_init()
 
+option(IQ4HIST_EXPERIMENT "L7 four-level hardware shaper and aligned borrowed ring" OFF)
 
 set(TX_SOURCES
     src/main.c src/tx.c src/link.c src/iqout.c
@@ -25,6 +26,9 @@ set(TX_SOURCES
     src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c
     src/bench8quad.c src/bench8live.c src/bench16.c src/bench_pvstress.c
     src/bench_quadptr.c src/bench_quadlive.c)
+if(IQ4HIST_EXPERIMENT)
+    list(APPEND TX_SOURCES src/iq4hist.c src/iq4ptr.c src/bench4live.c)
+endif()
 # Exact placement controls: one original instruction stream, separate code banks.
 set(OFFSET_ASM "${CMAKE_CURRENT_SOURCE_DIR}/src/iq32offsets_asm.S")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${OFFSET_ASM}")
@@ -52,6 +56,9 @@ foreach(target iqbench pvflight)
     add_dependencies(${target} git_rev)
     target_include_directories(${target} PRIVATE ${CMAKE_BINARY_DIR})
     target_compile_definitions(${target} PRIVATE IQ_ON_DEVICE=1)
+    if(IQ4HIST_EXPERIMENT)
+        target_compile_definitions(${target} PRIVATE IQ4HIST_EXPERIMENT=1)
+    endif()
     # Lab waveforms share the fixed buffers and never allocate. Keep both2KiB
     # stacks; reserve1KiB minimum heap while retaining the SRAM bank boundary.
     target_compile_definitions(${target} PRIVATE PICO_HEAP_SIZE=1024)
@@ -87,6 +94,13 @@ string(REPLACE "    .heap (NOLOAD):"
 string(REPLACE "    .ram_vector_table (NOLOAD):"
        "    .input_ring (NOLOAD) : { *(.bss.in_buf) *(.bss.link_ring) } > RAM\n\n    .ram_vector_table (NOLOAD):"
        LD "${LD}")
+if(IQ4HIST_EXPERIMENT)
+    # The idle-only experiment borrows the entire existing output ring as one LUT.
+    # Reserve it first, at RAM origin, so PIO can concatenate a 17-bit byte offset.
+    string(REPLACE "    .input_ring (NOLOAD) :"
+           "    .waveform_ring (NOLOAD) : { *(.bss.ring_buf) } > RAM\n\n    .input_ring (NOLOAD) :"
+           LD "${LD}")
+endif()
 if(NOT LD MATCHES "RAM_HI" OR NOT LD MATCHES "sram_hi" OR NOT LD MATCHES "input_ring")
     message(FATAL_ERROR "SDK linker script changed; update the RAM_HI patch")
 endif()
