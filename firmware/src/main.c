@@ -37,6 +37,7 @@
 //   dualclock <0|1|2>                             0 HSTX CLK_IO, 1 GP28 PIO DDR clock, 2 inverted control
 //   quadprofile <0|1> / mapkernel <0|1>          L9/L8 pulse / baseline/packed mapper
 //   ldpcpack <0|1>                               LDPC parity: baseline / streaming in-place pack
+//   bchbank <0|1>                                frontend BCH steps: striped SRAM / scratch-Y copy
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
 //        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=SPI TS, 6=SPI GCS
 //   bootsel                                       reboot to the USB bootloader
@@ -213,6 +214,10 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "kernel", REQUIRED, 0, 1, &code)) return err;
         if (!dvbs2_map_set_kernel((unsigned)code)) return "unknown mapping kernel";
         printf("@{\"cmd\":\"mapkernel\",\"kernel\":%u}\n", dvbs2_map_get_kernel());
+    } else if (!strcmp(cmd, "bchbank")) {
+        if (!num(a[1], "bank", REQUIRED, 0, 1, &code)) return err;
+        if (!dvbs2_frontend_set_bank((unsigned)code)) return "unknown BCH frontend bank";
+        printf("@{\"cmd\":\"bchbank\",\"bank\":%u}\n", dvbs2_frontend_get_bank());
     } else if (!strcmp(cmd, "ldpcpack")) {
         if (!num(a[1], "pack", REQUIRED, 0, 1, &code)) return err;
         if (!dvbs2_ldpc_set_pack((unsigned)code)) return "unknown LDPC packer";

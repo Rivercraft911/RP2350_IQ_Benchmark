@@ -44,7 +44,7 @@ static uint32_t fe[MAX_BITS_W] HI;                      // FECFRAME under constr
 static uint32_t r0[MAX_BODY_W] HI, r1[MAX_BODY_W] HI;      // PL scrambling R(i) bit planes (init)
 static uint32_t hdr[6], body_syms;
 static dvbs2_bch_kernel_t bch_kernel = S2_BCH_BASELINE;
-static unsigned map_kernel, ldpc_pack;
+static unsigned map_kernel, ldpc_pack, frontend_bank;
 
 // ------------------------------------------------------------------ bit-vector helpers
 
@@ -201,7 +201,16 @@ static void HOT(bch160_words)(const uint32_t *m, uint32_t *parity) {
 // registers are restored. Remaining bytes are handled by the caller using the same T0 table.
 void dvbs2_bch160_stream(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
 void dvbs2_bch160_continue(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
+void dvbs2_bch160_continue_y(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
 #endif
+
+bool dvbs2_frontend_set_bank(unsigned bank) {
+    if (bank > 1) return false;
+    frontend_bank = bank;
+    return true;
+}
+
+unsigned dvbs2_frontend_get_bank(void) { return frontend_bank; }
 
 bool dvbs2_bch_set_kernel(dvbs2_bch_kernel_t kernel) {
     if ((unsigned)kernel > S2_BCH_STREAM_ARM) return false;
@@ -693,9 +702,10 @@ bool HOT(dvbs2_frontend_step)(dvbs2_frontend_t *state, uint32_t max_words) {
     const uint32_t take = left < max_words ? left : max_words;
     const uint32_t *m = state->frame + state->cursor;
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    if (state->kernel == S2_BCH_STREAM_ARM)
-        dvbs2_bch160_continue(m, state->parity, bch_tab, take);
-    else
+    if (state->kernel == S2_BCH_STREAM_ARM) {
+        if (frontend_bank) dvbs2_bch160_continue_y(m, state->parity, bch_tab, take);
+        else dvbs2_bch160_continue(m, state->parity, bch_tab, take);
+    } else
 #endif
         bch160_continue_c(m, state->parity, take);
     state->cursor += take;

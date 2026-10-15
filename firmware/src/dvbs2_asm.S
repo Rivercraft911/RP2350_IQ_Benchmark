@@ -6,10 +6,10 @@
 // Five-word BCH remainder. r0=input, r1=parity, r2=table, r3=word count.
 // Keep the parity in r4-r8 and four table rows in r9-r12. Alternating r1/lr loads
 // separate each load from its XOR. Save the output pointer once, outside the word loop.
-// Core 0 fetches this loop from scratch Y, away from striped SRAM DMA traffic.
-    // Core0's 8PSK shaper occupies scratch Y. Keep core1's BCH loop in striped
-    // SRAM so simultaneous instruction fetches do not serialize on that bank.
-    .section .time_critical.dvbs2_bch160_stream, "ax", %progbits
+// The same loop is emitted twice. The striped-SRAM copy suits core 1 while core 0 runs
+// shapers from scratch Y (8PSK). The scratch-Y continue copy is for core-0 frontend
+// steps (QPSK and APSK split modes): its fetches then avoid the striped banks shared
+// with core 1's code and the output sample DMA. Selected by dvbs2_frontend_set_bank.
     .macro BCH160_XOR dst, old, off
     ldr     lr, [r9, #\off]
     ldr     r1, [r10, #\off]
@@ -21,22 +21,11 @@
     eor     \dst, \dst, r1
     .endm
 
-    .align 2
-    .global dvbs2_bch160_stream
-    .type dvbs2_bch160_stream, %function
-    .thumb_func
-dvbs2_bch160_stream:
-    push    {r4-r11, lr}
-    push    {r1}
-    movs    r4, #0
-    movs    r5, #0
-    movs    r6, #0
-    movs    r7, #0
-    movs    r8, #0
-.Lbch_check:
+    .macro BCH160_LOOP check, word, store
+\check:
     cmp     r3, #0
-    beq     .Lbch_store
-.Lbch_word:
+    beq     \store
+\word:
     ldr     lr, [r0], #4
     eor     r4, r4, lr
     ubfx    r9, r4, #24, #8
@@ -62,13 +51,29 @@ dvbs2_bch160_stream:
     eor     r8, r8, r1
     eor     r8, r8, lr
     subs    r3, r3, #1
-    bne     .Lbch_word
-.Lbch_store:
+    bne     \word
+\store:
     pop     {r0}
     stmia   r0!, {r4-r8}
     movs    r1, #0
     str     r1, [r0]
     pop     {r4-r11, pc}
+    .endm
+
+    .section .time_critical.dvbs2_bch160_stream, "ax", %progbits
+    .align 2
+    .global dvbs2_bch160_stream
+    .type dvbs2_bch160_stream, %function
+    .thumb_func
+dvbs2_bch160_stream:
+    push    {r4-r11, lr}
+    push    {r1}
+    movs    r4, #0
+    movs    r5, #0
+    movs    r6, #0
+    movs    r7, #0
+    movs    r8, #0
+    BCH160_LOOP .Lbch_check, .Lbch_word, .Lbch_store
     .size dvbs2_bch160_stream, .-dvbs2_bch160_stream
 
 // Same word loop and epilogue, starting from a previous five-word remainder.
@@ -82,6 +87,19 @@ dvbs2_bch160_continue:
     ldmia   r1, {r4-r8}
     b       .Lbch_check
     .size dvbs2_bch160_continue, .-dvbs2_bch160_continue
+
+    .section .scratch_y.dvbs2_bch160_continue_y, "ax", %progbits
+    .align 2
+    .global dvbs2_bch160_continue_y
+    .type dvbs2_bch160_continue_y, %function
+    .thumb_func
+dvbs2_bch160_continue_y:
+    push    {r4-r11, lr}
+    push    {r1}
+    ldmia   r1, {r4-r8}
+    BCH160_LOOP .Lbchy_check, .Lbchy_word, .Lbchy_store
+    .size dvbs2_bch160_continue_y, .-dvbs2_bch160_continue_y
+    .purgem BCH160_LOOP
     .purgem BCH160_XOR
 
 // In-place 32x32 MSB-first transpose. Fuse stages 16/8 in four-register tiles

@@ -104,6 +104,11 @@ bool dvbs2_frontend_begin(const uint32_t *bbframe, uint32_t *frame, dvbs2_fronte
 // Call only after successful begin. max_words0 makes no progress; completed calls are
 // idempotent and return true. On Arm selector2 continues the streamed assembly recurrence.
 bool dvbs2_frontend_step(dvbs2_frontend_t *state, uint32_t max_words);
+// Instruction placement for frontend steps with selector STREAM_ARM: 0 = striped SRAM
+// (default), 1 = an identical copy in scratch Y, for a core-0 caller. Select while idle.
+// Portable builds accept the setting; the C recurrence is unchanged.
+bool dvbs2_frontend_set_bank(unsigned bank);
+unsigned dvbs2_frontend_get_bank(void);
 // Cooperative full-frame stages, in order. Shared encoder buffers make these non-reentrant:
 // do not init/encode another frame between begin and finish. Allows shaping between stages.
 void dvbs2_frame_begin(const uint32_t *bbframe);              // BB scramble + BCH
