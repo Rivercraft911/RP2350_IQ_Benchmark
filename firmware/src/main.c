@@ -39,6 +39,7 @@
 //   ldpcpack <0|1>                               LDPC parity: baseline / streaming in-place pack
 //   bchbank <0|1>                                frontend BCH steps: striped SRAM / scratch-Y copy
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
+//   dualptr cpw ms source fault                  live SPI/FEC, PIO pointers (source5/6)
 //        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=SPI TS, 6=SPI GCS
 //   bootsel                                       reboot to the USB bootloader
 #include <limits.h>
@@ -320,6 +321,13 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "dualbench")) {
         if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
         bench_descriptors(reps);
+    } else if (!strcmp(cmd, "dualptr")) {
+        int source, fault;
+        if (!num(a[1], "cpw", REQUIRED, 1, 2, &r.cpw) ||
+            !num(a[2], "ms", REQUIRED, 100, 60000, &r.ms) ||
+            !num(a[3], "source", 6, 5, 6, &source) ||
+            !num(a[4], "fault", 0, 0, 1, &fault)) return err;
+        bench_dual_pointer(r.cpw, r.ms, source, fault);
     } else if (!strcmp(cmd, "dualstream")) {
         int kernel, source, fault, schedule, divider256, row_symbols, code_index;
         if (!num(a[1], "cpw", REQUIRED, 1, 4, &r.cpw) ||

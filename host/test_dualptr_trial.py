@@ -1,0 +1,220 @@
+"""Strict live-pointer host checks against real independent TS/GCS samples; no USB."""
+import copy
+import functools
+import unittest
+from unittest import mock
+import zlib
+
+import numpy as np
+
+import dual_spi as spi
+import dualptr_trial as trial
+
+
+def capture_lines(values):
+    return ['@cap '+str(k)+' '+' '.join(f'{int(v):08x}' for v in values[k:k+16])
+            for k in range(0, len(values), 16)]
+
+
+@functools.lru_cache(maxsize=2)
+def spi_stats(source):
+    crc_fields = b''.join(spi.pv.message(k, spi.pv.pattern_payload(k))[-4:] for k in range(16))
+    stats = dict.fromkeys(('lost', 'bad_hdr', 'bad_crc', 'bad_sync', 'null_packets',
+                          'short_msgs', 'long_msgs', 'overflows', 'gcs_underflows'), 0)
+    stats.update(ok=32, runtime_bbframes=2, runtime_messages=8, bbframes=6,
+                 crc_chain=zlib.crc32(crc_fields*2),
+                 bb_crc=spi.first_crcs(gcs=source == 6, rate='5/6'))
+    size = 6*((53840-80)//8)
+    stats.update(bb_mode='gcs' if source == 6 else 'ts', ts_packets=224 if source == 5 else 0,
+                 gcs_packets=(size+187)//188 if source == 6 else 0,
+                 gcs_bytes=size if source == 6 else 0)
+    return stats
+
+
+def fixture(source=6, cpw=1, fault=0, clock_mode=1, clock=128000000):
+    cursor = 123*spi.FRAME_SYMBOLS+1000
+    first, bus = spi.reference_window(cursor, span=8, beta=None, gcs=source == 6,
+                                      rate='5/6', profile=trial.L8_PROFILE)
+    offset = (cursor-first*spi.FRAME_SYMBOLS)*8+13
+    bus = bus[offset+17*np.arange(trial.CAP_WORDS)].astype('<u4')
+    values = bus | ((((bus >> 14) & 1) ^ (clock_mode == 2)) << 28)
+    elapsed = 790000 if fault else 3000000
+    end = 786432 if fault else int(clock*3/(128*cpw))+8
+    reusable, published = end-8, end-8+trial.INPUT_WORDS
+    granted = end if fault else published//512*512
+    budget, deadline = trial.poll_limits(clock)
+    r = dict(cmd='dualptr', git='frozen-test-image', source=source, cpw=cpw, divider256=cpw*256,
+             ms=3000, fault=fault, sps=4, L=8, row_symbols=4, writers=2,
+             row_profile=trial.L8_PROFILE, filter_beta=None, schedule=0, bus_priority_mask=0,
+             code_index=8, s2_code='normal 5/6', kbch=53840, bch_kernel=2, map_kernel=1,
+             ldpc_pack=1, frame_parallel=False, descriptor_gen_busy=0.0, sample_math_busy=0.0,
+             in_words=8192, table_bytes=65536, table_crc=3433922394, restored=True,
+             selectors_restored=True, poll_interval_us=128, max_poll_interval_us=256,
+             read_beyond_grants=False, pointer_other_pio_flags=0, cap_stride=17,
+             cap_divider256=cpw*256, cap_fifo_only=False, cap_format='pins32', dac_clock_pio=2,
+             dac_clock_sm=2,
+             dac_clock=trial.DAC_CLOCK_NAMES['ddr' if clock_mode == 1 else 'inverted'],
+             clk_hz=clock, elapsed_us=elapsed, sym_rate=clock/(8*cpw),
+             core0_work_busy=0.486, supervision_busy=0.034, split_bch_busy=0.452,
+             core1_work_busy=0.82, required_credit_runway_words=2*budget,
+             source_cursor_deadline_us=deadline, min_credit_runway_words=0 if fault else 6500,
+             max_poll_gap_us=200, table_base=0x20040000, input_base=0x20008000,
+             input_issue_words=[end, end], reusable_words=reusable,
+             published_words=published, granted_words=granted, pointer_sm_mask=3,
+             pointer_txstall_mask=3 if fault else 0, pointer_rxstall_mask=3,
+             null_trigger_mask=48 if fault else 0,
+             pointer_errors=24 if fault else 0, output_errors=3 if fault else 0,
+             errors=trial.ERR_POINTER|3 if fault else 0,
+             txstalls_i=bool(fault), txstalls_q=bool(fault),
+             s2_runtime_frames=100, split_bch_frames=100,
+             grants_frozen=bool(fault), frozen_granted_words=granted if fault else 0,
+             capture_started=not fault, capture_count=0 if fault else trial.CAP_WORDS,
+             cap_words=0 if fault else trial.CAP_WORDS,
+             cap_symbol_cursor=cursor, cap_crc=0 if fault else zlib.crc32(values.tobytes()),
+             pv_spi=copy.deepcopy(spi_stats(source)))
+    return r, values, [] if fault else capture_lines(values)
+
+
+class DualptrTrial(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # The real independent references are immutable; reuse them across mutations.
+        cls.references = mock.patch('dual_spi.reference_window',
+                                    functools.lru_cache(maxsize=4)(spi.reference_window))
+        cls.references.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.references.stop()
+
+    def validate(self, r, lines, source=6, cpw=1, fault=0, clock_mode=1):
+        return trial.validate_run(r, lines, cpw, 3000, source, fault, clock_mode,
+                                  128000000, 'frozen-test-image')
+
+    def test_both_live_sources_both_rates_and_all4096_snapshots(self):
+        for source in (5, 6):
+            for cpw in (1, 2):
+                r, _, lines = fixture(source, cpw)
+                result = self.validate(r, lines, source, cpw)
+                self.assertEqual(result['faults'], [])
+                self.assertEqual(result['classification'], 'digital_live_clean')
+                self.assertEqual(result['cap_checked_bus_words'], 4096)
+                self.assertEqual(result['cap_clock_checked'], 4096)
+                self.assertTrue(result['cap_clock_ok'])
+                self.assertFalse(result['negative_control_detected'])
+
+    def test_last_waveform_sample_corruption_has_intact_transport_but_fails(self):
+        r, values, _ = fixture()
+        values = values.copy(); values[-1] ^= 1
+        r['cap_crc'] = zlib.crc32(values.tobytes())
+        result = self.validate(r, capture_lines(values))
+        self.assertTrue(result['cap_transport_ok'])
+        self.assertEqual(result['cap_mismatches'], 1)
+        self.assertEqual(result['cap_first_bad'], 4095)
+        self.assertTrue(result['faults'])
+
+    def test_inverted_clock_needs_correct_data_and_every_clock_snapshot_bad(self):
+        r, values, lines = fixture(clock_mode=2)
+        result = self.validate(r, lines, clock_mode=2)
+        self.assertEqual(result['faults'], [])
+        self.assertEqual(result['classification'], 'inverted_clock_detected')
+        self.assertEqual(result['cap_mismatches'], 0)
+        self.assertEqual(result['cap_clock_mismatches'], 4096)
+        self.assertTrue(result['negative_control_detected'])
+        self.assertTrue(self.validate(r, lines)['faults'])
+        for bit in (0, 28):
+            damaged = values.copy(); damaged[-1] ^= 1 << bit
+            changed = dict(r, cap_crc=zlib.crc32(damaged.tobytes()))
+            result = self.validate(changed, capture_lines(damaged), clock_mode=2)
+            self.assertTrue(result['faults'])
+            self.assertFalse(result['negative_control_detected'])
+
+    def test_finite_grant_control_needs_source_empty_and_terminal_null(self):
+        for stalled in (False, True):
+            r, _, lines = fixture(fault=1)
+            r.update(pointer_errors=24 if stalled else 8, pointer_txstall_mask=3 if stalled else 0,
+                     output_errors=3 if stalled else 0,
+                     errors=trial.ERR_POINTER | (3 if stalled else 0))
+            result = self.validate(r, lines, fault=1)
+            self.assertEqual(result['faults'], [])
+            self.assertEqual(result['classification'], 'credit_starvation_detected')
+            self.assertTrue(result['negative_control_detected'])
+        for change in (dict(pointer_errors=16), dict(pointer_errors=40), dict(output_errors=4),
+                       dict(errors=trial.ERR_POINTER|4), dict(null_trigger_mask=0),
+                       dict(grants_frozen=False), dict(frozen_granted_words=0),
+                       dict(elapsed_us=3000000), dict(cap_words=16), dict(error='parse error')):
+            changed = dict(r, **change)
+            result = self.validate(changed, lines, fault=1)
+            self.assertTrue(result['faults'], change)
+            self.assertFalse(result['negative_control_detected'], change)
+
+    def test_configuration_cleanup_ownership_and_faults_fail_closed(self):
+        r, _, lines = fixture()
+        changes = [dict(source=5), dict(frame_parallel=True), dict(writers=4), dict(ldpc_pack=0),
+                   dict(git='other-image'), dict(clk_hz=150000000), dict(filter_beta=0.8),
+                   dict(table_base=0x20040020), dict(input_base=0x20040000),
+                   dict(restored=False), dict(selectors_restored=False),
+                   dict(descriptor_gen_busy=0.1), dict(read_beyond_grants=True),
+                   dict(pointer_other_pio_flags=1), dict(pointer_sm_mask=1), dict(pointer_rxstall_mask=4),
+                   dict(dac_clock_pio=0), dict(dac_clock_sm=0), dict(dac_clock_sm=4),
+                   dict(errors=1), dict(pointer_errors=8), dict(output_errors=1), dict(txstalls_i=1),
+                   dict(null_trigger_mask=16), dict(underruns=1), dict(own_errors=1),
+                   dict(published_words=r['reusable_words']+8193),
+                   dict(reusable_words=r['input_issue_words'][0]+1),
+                   dict(input_issue_words=[r['granted_words']+1, r['granted_words']]),
+                   dict(granted_words=r['published_words']+512), dict(input_issue_words=[0]),
+                   dict(required_credit_runway_words=0), dict(source_cursor_deadline_us=0),
+                   dict(min_credit_runway_words=1), dict(max_poll_gap_us=257),
+                   dict(s2_runtime_frames=0), dict(split_bch_frames=0),
+                   dict(capture_started=False), dict(capture_count=1), dict(cap_format='bus16x2')]
+        for change in changes:
+            changed = dict(r, **change)
+            self.assertTrue(self.validate(changed, lines)['faults'], change)
+        changed = dict(r); del changed['pointer_errors']
+        self.assertTrue(self.validate(changed, lines)['faults'])
+
+    def test_spi_acceptance_and_bbframe_provenance_are_required(self):
+        for source in (5, 6):
+            r, _, lines = fixture(source)
+            for field, value in (('lost', 1), ('drain_timeouts', 1), ('runtime_bbframes', 0),
+                                 ('runtime_messages', 0), ('bb_crc', [0]*4), ('crc_chain', 0)):
+                changed = copy.deepcopy(r); changed['pv_spi'][field] = value
+                self.assertTrue(self.validate(changed, lines, source)['faults'], field)
+
+    def test_truncated_reordered_crc_and_clock_parity_controls(self):
+        r, values, lines = fixture()
+        for damaged in (lines[:-1], [lines[1], lines[0]]+lines[2:]):
+            self.assertTrue(self.validate(r, damaged)['faults'])
+        self.assertTrue(self.validate(dict(r, cap_crc=r['cap_crc']^1), lines)['faults'])
+        values = values.copy(); values[-1] ^= 1 << 28
+        changed = dict(r, cap_crc=zlib.crc32(values.tobytes()))
+        result = self.validate(changed, capture_lines(values))
+        self.assertEqual(result['cap_mismatches'], 0)
+        self.assertEqual(result['cap_clock_mismatches'], 1)
+        self.assertTrue(result['faults'])
+
+    def test_nonfinite_rate_and_load_never_pass(self):
+        r, _, lines = fixture()
+        for key in ('sym_rate', 'core0_work_busy', 'core1_work_busy', 'supervision_busy', 'split_bch_busy'):
+            for value in (float('nan'), float('inf'), -float('inf')):
+                self.assertTrue(self.validate(dict(r, **{key: value}), lines)['faults'], (key, value))
+        for change in (dict(supervision_busy=0.50), dict(split_bch_busy=0.50), dict(core1_work_busy=1.1)):
+            self.assertTrue(self.validate(dict(r, **change), lines)['faults'], change)
+
+    def test_existing_four_writer_control_has_same_waveform_and_clock_requirements(self):
+        r, values, lines = fixture()
+        r.update(cmd='dualstream', writers=4)
+        result = trial.validate_control(r, lines, 1, 3000, 6, 128000000, 'frozen-test-image')
+        self.assertEqual(result['faults'], [])
+        self.assertEqual(result['classification'], 'cpu_descriptor_control_clean')
+        for change in (dict(writers=2), dict(git='other-image'), dict(elapsed_us=1), dict(errors=1)):
+            self.assertTrue(trial.validate_control(dict(r, **change), lines, 1, 3000, 6,
+                                                   128000000, 'frozen-test-image')['faults'])
+        values = values.copy(); values[-1] ^= 1 << 28
+        changed = dict(r, cap_crc=zlib.crc32(values.tobytes()))
+        self.assertTrue(trial.validate_control(changed, capture_lines(values), 1, 3000, 6,
+                                               128000000, 'frozen-test-image')['faults'])
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -13,6 +13,7 @@
 #include "iqdesc.h"
 #include "iqpair.h"
 #include "iqquad.h"
+#include "iqquadptr.h"
 #include "link.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -686,4 +687,204 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     printf("}\n");
     capture_print(capture, count);
     restore_trial_buffers(spi, paired);
+}
+
+// Live SPI/FEC with hardware-only shaping. The existing FIFO backend has two
+// writers; keep its paired-axis pacing rather than race four DMA readers on two
+// RX FIFOs. Core0 performs bounded BB+BCH slices, core1 retains ordered LDPC/map.
+void bench_dual_pointer(int cpw, int ms, int source, int fault) {
+    enum { PTR_POLL_US = 128, PTR_MAX_POLL_US = 256, PTR_BCH_SLICE_WORDS = 96,
+           ERR_POINTER = 1u << 19, ERR_CAPTURE = 1u << 20, ERR_POLL = 1u << 21,
+           ERR_CONFIG = 1u << 22, ERR_CREDIT = 1u << 23, ERR_CLEANUP = 1u << 24 };
+    if ((cpw != 1 && cpw != 2) || ms < 100 || ms > 60000 ||
+        !spi_source(source) || (fault != 0 && fault != 1) ||
+        dvbs2_bch_get_kernel() != S2_BCH_STREAM_ARM || dvbs2_map_get_kernel() != 1 ||
+        dvbs2_ldpc_get_pack() != 1 || !spi_resources_available() ||
+        iqquadptr_rx_fifo(0) || iqquadptr_rx_fifo(1)) {
+        printf("@{\"cmd\":\"dualptr\",\"error\":\"needs cpw1/2,100..60000ms,source5/6,fault0/1,bchkernel2,mapkernel1,ldpcpack1 and idle resources\"}\n");
+        return;
+    }
+    const unsigned saved_writers = dual_dma_get_writers(), saved_rows = dual_dma_get_row_words();
+    const unsigned saved_schedule = dual_dma_get_schedule(), saved_priority = dual_dma_get_bus_priority();
+    const iqquad_profile_t pulse = IQQUAD_PROFILE_L8_OPTIMIZED_BOTH;
+    const iqquadptr_profile_info_t *profile = iqquadptr_profile_info(pulse);
+    const uint32_t clock_hz = clock_get_hz(clk_sys);
+    const uint32_t denominator = profile->cycles_per_input_word * 1000000u;
+    const uint32_t issue_budget = IQQUADPTR_REUSE_GUARD_WORDS +
+        ((uint64_t)clock_hz * (PTR_MAX_POLL_US + 1u) + denominator - 1u) / denominator;
+    const uintptr_t arena = (uintptr_t)ring_buf, arena_end = arena + sizeof ring_buf;
+    const uintptr_t base = (arena + profile->table_alignment - 1u) & ~(uintptr_t)(profile->table_alignment - 1u);
+    uint32_t *capture = cap_buf + IN_WORDS;
+    uint32_t errors = 0, table_crc = 0, elapsed = 0, max_gap = 0, count = 0;
+    uint32_t bch_frames = 0, bch_slices = 0, max_bch_slice = 0, polls = 0;
+    uint32_t bb_prefill = 0, spi_head_start = 0, pointer_sm_mask = 0, other_pio_flags = 0;
+    uint64_t control_cyc = 0, bch_cyc = 0, cap_symbol_cursor = 0, frozen_granted = 0;
+    uint64_t min_runway = UINT64_MAX;
+    bool spi_started = false, pointer_attempted = false, output_attempted = false, worker_started = false;
+    bool captured = false, frozen = false, bch_active = false, selectors_ok = false, restored = false;
+    const char *reason = "complete";
+    iqquadptr_progress_t p = {0};
+    dual_dma_faults_t output = {0};
+    const iq_kernel_info_t *unused;
+    bool tables_ok;
+    const char *e = tx_shaper("lut_asm_p", 4, 12, &unused, &tables_ok);
+    if (e || !tables_ok || base + 4 * IQQUAD_L8_WORDS > arena_end ||
+        !dual_dma_set_writers(2) || !dual_dma_set_row_words(8) ||
+        !dual_dma_set_schedule(0) || !dual_dma_set_bus_priority(0)) {
+        errors |= ERR_CONFIG; reason = "tables, arena or output selectors unavailable"; goto cleanup;
+    }
+    if (!iqquadptr_build_table_profile((uint32_t *)base, (arena_end - base) / 4, pulse) ||
+        (table_crc = crc32_update(0, (const void *)base, 4 * IQQUAD_L8_WORDS)) != profile->table_crc) {
+        errors |= ERR_CONFIG; reason = "pointer table CRC mismatch"; goto cleanup;
+    }
+    spi_started = true;
+    if (!prefill_spi() || !prefill_encoder(source, in_buf, 0, S2_N5_6, 53840)) {
+        errors |= ERR_INPUT; reason = "SPI/encoder prefill failed"; goto cleanup;
+    }
+    // in_buf is a naturally32KiB-aligned ring. The old descriptor path used it
+    // for descriptors; cap_buf's input portion is no longer read by this path.
+    encoder.consumed = 0;
+    pointer_attempted = true;
+    if (!iqquadptr_prepare_profile(pio2, in_buf, 13, (const uint32_t *)base, 0, encoder.total, pulse)) {
+        errors |= ERR_POINTER; reason = iqquadptr_last_error(); goto cleanup;
+    }
+    for (unsigned sm = 0; sm < NUM_PIO_STATE_MACHINES; sm++)
+        if (iqquadptr_rx_fifo(0) == &pio2->rxf[sm] || iqquadptr_rx_fifo(1) == &pio2->rxf[sm])
+            pointer_sm_mask |= 1u << sm;
+    if (!iqquadptr_start()) { errors |= ERR_POINTER; reason = iqquadptr_last_error(); goto cleanup; }
+    output_attempted = true;
+    if (!dual_dma_start_fifo(iqquadptr_rx_fifo(0), iqquadptr_rx_fifo(1),
+                            iqquadptr_rx_dreq(0), iqquadptr_rx_dreq(1), profile->control_bswap, cpw)) {
+        errors |= ERR_CONFIG; reason = dual_dma_last_error(); goto cleanup;
+    }
+    encoder.bb_cyc = 0; encoder.bb_max_cyc = 0;
+    bb_prefill = encoder.bb_frames; spi_head_start = pvspi.head;
+    const uint32_t start = time_us_32();
+    uint32_t last_poll = start;
+    tx_worker_start(split_backend, 0); worker_started = true;
+    while ((uint32_t)(time_us_32() - start) < (uint32_t)ms * 1000u) {
+        const uint32_t now = time_us_32();
+        if ((uint32_t)(now - last_poll) >= PTR_POLL_US || !polls) {
+            const uint32_t t = cycles(), gap = now - last_poll;
+            last_poll = now; polls++;
+            if (gap > max_gap) max_gap = gap;
+            if (gap > PTR_MAX_POLL_US) { errors |= ERR_POLL; reason = "source supervision deadline"; }
+            if (fault && !frozen && (uint32_t)(now - start) >= (uint32_t)ms * 250u) {
+                frozen = true; frozen_granted = p.granted_words;
+            }
+            const uint32_t total = encoder.total;
+            __dmb(); // acquire backend output before releasing its prefix to DMA
+            p = frozen ? iqquadptr_progress() : iqquadptr_publish(total);
+            output = dual_dma_faults();
+            const uint64_t runway = p.granted_words >= p.input_high_words ?
+                p.granted_words - p.input_high_words : 0;
+            if (runway < min_runway) min_runway = runway;
+            // Unlike the cyclic source, a live encoder publishes once per frame.
+            // Reserve two worst-case poll intervals before the next source poll.
+            if (!frozen && runway < 2u * issue_budget) { errors |= ERR_CREDIT; reason = "source credit runway"; }
+            if (p.errors) { errors |= ERR_POINTER; reason = "pointer producer fault"; }
+            errors |= output.errors;
+            if (encoder.input_failed || pvspi.errors) { errors |= ERR_INPUT; reason = "SPI input fault"; }
+            // Only core1 writes symbols. This guarded low watermark releases words
+            // read by BOTH axis DMAs, never the high issue cursor or output timing.
+            __dmb(); encoder.consumed = (uint32_t)p.reusable_words;
+            if (!errors && !captured && (uint32_t)(now - start) >= (uint32_t)ms * 500u) {
+                cap_symbol_cursor = p.input_high_words * SYMBOLS_PER_WORD;
+                captured = dual_dma_get_dac_clock() ? dual_dma_capture_pins(capture, CAPTURE_WORDS) :
+                    dual_dma_capture(capture, CAPTURE_WORDS);
+                if (!captured) { errors |= ERR_CAPTURE; reason = dual_dma_last_error(); }
+            }
+            control_cyc += cycles() - t;
+            if (errors) break;
+        }
+        if (bch_active || (encoder.fe_produced - encoder.fe_consumed < FRAME_SLOTS &&
+                           encoder.bb_consumed != encoder.bb_produced)) {
+            const uint32_t produced = encoder.fe_produced, t = cycles();
+            bool done;
+            if (!bch_active) {
+                done = !begin_frontend(true, produced);
+                bch_active = !done;
+            } else {
+                done = dvbs2_frontend_step(&encoder.front, PTR_BCH_SLICE_WORDS);
+                if (done) bch_active = false;
+            }
+            const uint32_t dt = cycles() - t;
+            bch_cyc += dt; bch_slices++;
+            if (dt > max_bch_slice) max_bch_slice = dt;
+            if (done) { __dmb(); encoder.fe_produced = produced + 1; bch_frames++; }
+        } else tight_loop_contents();
+    }
+    elapsed = time_us_32() - start;
+    if ((uint32_t)(time_us_32() - last_poll) > PTR_MAX_POLL_US) errors |= ERR_POLL;
+    p = iqquadptr_progress(); output = dual_dma_faults();
+    if (p.errors) errors |= ERR_POINTER;
+    errors |= output.errors;
+cleanup:
+    encoder.stop = true;
+    if (spi_started) pvspi_pause();
+    if (output_attempted) dual_dma_stop(); // stop writers and DDR clock before pointer producer
+    if (pointer_attempted) {
+        other_pio_flags = pio2->fdebug & ((pointer_sm_mask << PIO_FDEBUG_TXOVER_LSB) |
+                                         (pointer_sm_mask << PIO_FDEBUG_RXUNDER_LSB));
+        iqquadptr_stop(); p = iqquadptr_progress();
+    }
+    if (worker_started) tx_worker_wait();
+    if (output_attempted) {
+        output = dual_dma_faults(); errors |= output.errors | dual_dma_capture_errors();
+        count = captured ? dual_dma_capture_count() : 0;
+    }
+    if (encoder.input_failed || (spi_started && pvspi.errors)) errors |= ERR_INPUT;
+    if (spi_started) pvspi_stop();
+    const bool beyond = p.input_high_words > p.granted_words ||
+        (frozen && p.input_high_words > frozen_granted);
+    if (beyond) errors |= ERR_OWNERSHIP;
+    if (p.errors) errors |= ERR_POINTER;
+    if (!fault && count != CAPTURE_WORDS) errors |= ERR_CAPTURE;
+    selectors_ok = dual_dma_set_writers(2) && dual_dma_set_row_words(saved_rows) &&
+        dual_dma_set_writers(saved_writers) && dual_dma_set_schedule(saved_schedule) &&
+        dual_dma_set_bus_priority(saved_priority);
+    if (!selectors_ok || (p.errors & IQQUADPTR_ERR_STOP)) errors |= ERR_CLEANUP;
+    if (!(errors & ERR_CLEANUP)) { restore_trial_buffers(true, true); restored = true; }
+    const double budget = (double)elapsed * clock_hz / 1e6;
+    const double encoder_budget = worker_started ? (encoder.end_us - encoder.start_us) * clock_hz / 1e6 : 1;
+    printf("@{\"cmd\":\"dualptr\",\"git\":\"%s\",\"clk_hz\":%lu,\"source\":%d,\"cpw\":%d,\"divider256\":%d,"
+           "\"ms\":%d,\"fault\":%d,\"elapsed_us\":%lu,\"sym_rate\":%.1f,\"sps\":4,\"L\":8,"
+           "\"row_profile\":\"qpsk_l8_n4_both_m010_far2\",\"filter_beta\":null,\"row_symbols\":4,\"writers\":2,"
+           "\"schedule\":0,\"bus_priority_mask\":0,\"code_index\":8,\"s2_code\":\"normal 5/6\",\"kbch\":53840,"
+           "\"bch_kernel\":2,\"map_kernel\":1,\"ldpc_pack\":1,\"bch_bank\":%u,\"frame_parallel\":false,"
+           "\"descriptor_gen_busy\":0.0,\"sample_math_busy\":0.0,\"table_base\":%lu,\"table_bytes\":65536,\"table_crc\":%lu,"
+           "\"input_base\":%lu,\"in_words\":8192,\"errors\":%lu,\"pointer_errors\":%lu,\"output_errors\":%lu,\"reason\":\"%s\","
+           "\"txstalls_i\":%lu,\"txstalls_q\":%lu,\"pointer_sm_mask\":%lu,\"pointer_txstall_mask\":%lu,"
+           "\"pointer_rxstall_mask\":%lu,\"null_trigger_mask\":%lu,\"pointer_other_pio_flags\":%lu,"
+           "\"input_issue_words\":[%llu,%llu],\"published_words\":%llu,\"granted_words\":%llu,\"reusable_words\":%llu,"
+           "\"read_beyond_grants\":%s,\"grants_frozen\":%s,\"frozen_granted_words\":%llu,"
+           "\"max_poll_gap_us\":%lu,\"poll_interval_us\":%u,\"max_poll_interval_us\":%u,\"polls\":%lu,"
+           "\"min_credit_runway_words\":%llu,\"required_credit_runway_words\":%lu,\"source_cursor_deadline_us\":%lu,"
+           "\"core0_work_busy\":%.6f,\"supervision_busy\":%.6f,\"split_bch_busy\":%.6f,"
+           "\"split_bch_frames\":%lu,\"split_bch_slices\":%lu,\"split_bch_max_slice_cyc\":%lu,\"s2_runtime_frames\":%lu,"
+           "\"restored\":%s,\"selectors_restored\":%s,\"capture_started\":%s,\"capture_count\":%lu,"
+           "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%d,"
+           "\"cap_fifo_only\":false,\"cap_format\":\"%s\",\"dac_clock\":\"%s\",\"dac_clock_pio\":%d,\"dac_clock_sm\":%d",
+           GIT_REV, (unsigned long)clock_hz, source, cpw, cpw * 256, ms, fault, (unsigned long)elapsed,
+           (double)clock_hz / (8 * cpw), dvbs2_frontend_get_bank(), (unsigned long)base, (unsigned long)table_crc,
+           (unsigned long)(uintptr_t)in_buf, (unsigned long)errors, (unsigned long)p.errors, (unsigned long)output.errors, reason,
+           (unsigned long)output.txstalls_i, (unsigned long)output.txstalls_q, (unsigned long)pointer_sm_mask,
+           (unsigned long)p.txstall_mask, (unsigned long)p.rxstall_mask, (unsigned long)p.null_trigger_mask,
+           (unsigned long)other_pio_flags, (unsigned long long)p.input_i_words, (unsigned long long)p.input_q_words,
+           (unsigned long long)p.published_words, (unsigned long long)p.granted_words, (unsigned long long)p.reusable_words,
+           beyond ? "true" : "false", frozen ? "true" : "false", (unsigned long long)frozen_granted,
+           (unsigned long)max_gap, PTR_POLL_US, PTR_MAX_POLL_US, (unsigned long)polls,
+           (unsigned long long)(min_runway == UINT64_MAX ? 0 : min_runway), (unsigned long)(2 * issue_budget),
+           (unsigned long)((uint64_t)(IN_WORDS - IQQUADPTR_REUSE_GUARD_WORDS) * denominator / clock_hz),
+           budget ? (control_cyc + bch_cyc) / budget : 0, budget ? control_cyc / budget : 0,
+           budget ? bch_cyc / budget : 0, (unsigned long)bch_frames, (unsigned long)bch_slices,
+           (unsigned long)max_bch_slice, (unsigned long)(encoder.frames - encoder.prefill),
+           restored ? "true" : "false", selectors_ok ? "true" : "false", captured ? "true" : "false", (unsigned long)count,
+           (unsigned long long)cap_symbol_cursor, (unsigned long)count,
+           (unsigned long)(count ? crc32_update(0, capture, 4 * count) : 0), cpw * 256,
+           dual_dma_get_dac_clock() ? "pins32" : "bus16x2", dac_clock_names[dual_dma_get_dac_clock()],
+           dual_dma_dac_clock_pio(), dual_dma_dac_clock_sm());
+    print_spi_stats(encoder_budget, bb_prefill, spi_head_start);
+    printf("}\n");
+    capture_print(capture, count);
 }
