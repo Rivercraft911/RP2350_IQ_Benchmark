@@ -1,0 +1,16 @@
+A 5 0 759869660 107579 270204 107611
+A 5 1 759869660 103094 265719 103126
+A 5 0 759869660 107579 270204 107611
+A 6 0 4273726099 114426 324402 114430
+A 6 1 4273726099 108957 318933 108961
+A 6 0 4273726099 114426 324402 114430
+A 8 0 1689259845 111074 295711 111077
+A 8 1 1689259845 105132 289769 105135
+A 8 0 1689259845 111074 295711 111077
+A 10 0 1350531209 100172 337191 100175
+A 10 1 1350531209 96278 333297 96281
+A 10 0 1350531209 100172 337191 100175
+B 0 0 {'ldpc_xor': 0, 'ldpc_pack': 1, 'bch_bank': 1, 'elapsed_us': 60000014, 'underruns': 0, 'core0_active_busy': 0.8287, 'core1_work_busy': 0.8188, 's2_busy': 0.6963, 'cap_mismatches': 0, 'cap_clock_mismatches': 0, 'faults': []}
+B 1 1 {'ldpc_xor': 1, 'ldpc_pack': 1, 'bch_bank': 1, 'elapsed_us': 60000039, 'underruns': 0, 'core0_active_busy': 0.938, 'core1_work_busy': 0.874, 's2_busy': 0.7515, 'cap_mismatches': 0, 'cap_clock_mismatches': 0, 'faults': []}
+B 0 2 {'ldpc_xor': 0, 'ldpc_pack': 1, 'bch_bank': 1, 'elapsed_us': 60000030, 'underruns': 0, 'core0_active_busy': 0.8287, 'core1_work_busy': 0.8188, 's2_busy': 0.6963, 'cap_mismatches': 0, 'cap_clock_mismatches': 0, 'faults': []}
+exit=0
