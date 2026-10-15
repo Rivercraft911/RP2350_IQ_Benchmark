@@ -477,7 +477,7 @@ static void print_result(const tx_run_t *r) {
     // No words if the capture never started (cap_ms past the end of the run).
     const uint32_t skip = IQOUT_CAP_SKIP;
     const uint32_t n = run.cap_started && r->cap_words > (int)skip ? (uint32_t)r->cap_words - skip : 0;
-    printf(",\"cap_words\":%lu,\"cap_crc\":%lu}\n", (unsigned long)n,
+    printf(",\"cap_skip\":%lu,\"cap_words\":%lu,\"cap_crc\":%lu}\n", (unsigned long)skip, (unsigned long)n,
            (unsigned long)crc32_update(0, cap_buf + skip, n * 4));
     for (uint32_t i = 0; i < n; i += 16) {                 // raw capture for host alignment
         printf("@cap %lu", (unsigned long)i);

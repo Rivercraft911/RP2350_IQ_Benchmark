@@ -25,8 +25,8 @@ void iqout_start(void);              // first two blocks must be ready
 void iqout_stop(void);
 bool iqout_take_txstall(void);       // PIO TX FIFO ran dry since last call
 
-// Capture the output pins with a second SM started in sync with the output SM. Discard the
-// first IQOUT_CAP_SKIP words (stale FIFO contents). Each word holds two consecutive 16-bit bus words.
-#define IQOUT_CAP_SKIP 8
+// Start a fresh capture with DMA armed before the sampler. Each word holds two consecutive
+// 16-bit bus values, cpw system clocks apart; initial offset within the output stream is unknown.
+#define IQOUT_CAP_SKIP 0
 void iqout_capture_start(uint32_t *dst, uint32_t nwords);
 bool iqout_capture_busy(void);

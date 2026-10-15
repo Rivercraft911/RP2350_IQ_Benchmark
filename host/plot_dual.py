@@ -177,12 +177,14 @@ def dual_clean(r: dict, source: int = 2) -> bool:
 
 
 def legacy_clean(r: dict, one_core: bool = False) -> bool:
+    capture = ((r.get("cap_words"), r.get("cap_bus_words"), r.get("cap_skip", 8))
+               in ((4088, 8176, 8), (4096, 8192, 0)))
     valid = (r.get("cmd") == "stream" and common_clean(r) and r.get("kernel") == "lut_asm_p" and
             r.get("s2_code") == "normal 2/3" and r.get("s2_index") == 5 and
             r.get("s2_runtime_frames", 0) > 0 and r.get("bch_kernel") == 2 and
             r.get("tx_mode") == ("one_core" if one_core else "two_core") and
             r.get("s2_core", 0 if one_core else 1) == (0 if one_core else 1) and r.get("cores") == "0" and
-            r.get("cap_words") == 4088 and r.get("cap_bus_words") == 8176 and
+            capture and
             len(r.get("core", [])) == 1 and r["core"][0].get("id") == 0 and
             0 <= r["core"][0].get("busy", -1) <= 1)
     if one_core and valid:
@@ -322,7 +324,7 @@ def plot_load(selected: dict, out: Path) -> bool:
                      linewidth=0.4, label="Generation" if y == 0 else None)
         axes[0].barh(y, control * 100, left=generation * 100, height=0.42,
                      color="white", hatch="////", edgecolor=GREEN, linewidth=0.6,
-                     label="Control" if y == 0 else None)
+                     label="Supervision" if y == 0 else None)
         axes[0].annotate(f"{(generation + control) * 100:.1f}",
                          ((generation + control) * 100, y), xytext=(4, 0),
                          textcoords="offset points", va="center", fontsize=8)
@@ -340,7 +342,7 @@ def plot_load(selected: dict, out: Path) -> bool:
     times = ", ".join(duration(r) for r in rows)
     save_figure(fig, out / "dual_dma_load.png",
                 "8 Msym/s at 128 MHz; QPSK 2/3 + pilots, L = 12, 4 samples/symbol. " + same_binary + " Tests: " + times + ".\n"
-                "Sample-buffer housekeeping is untimed; direct DMA includes control. Unmeasured time is not an idle measurement.")
+                "Sample-buffer housekeeping is untimed; direct DMA includes CPU supervision. Unmeasured time is not an idle measurement.")
     return True
 
 
@@ -434,7 +436,7 @@ def plot_one_core(selected: dict, out: Path) -> bool:
             left = 0
             for amount, part_color, hatch, label in ((generation, BLUE, None, "Generation"),
                                                        (encoding, RED, None, "FEC"),
-                                                       (control, GREEN, "////", "Control")):
+                                                       (control, GREEN, "////", "Supervision")):
                 axes[1].barh(y, amount * 100, left=left * 100, height=0.43,
                              color="white" if hatch else part_color, edgecolor=part_color,
                              hatch=hatch, linewidth=0.5, label=label if y == 0 else None)
@@ -480,7 +482,7 @@ def plot_pipeline(selected: dict, out: Path) -> bool:
         left = 0
         parts = ((r["gen_busy"], BLUE, None, "Pointers"),
                  (r["split_bch_busy"], RED, None, "FEC"),
-                 (r["control_busy"], GREEN, "////", "Control"))
+                 (r["control_busy"], GREEN, "////", "Supervision"))
         for amount, color, hatch, label in parts:
             axes[0].barh(y, amount * 100, left=left * 100, height=0.26,
                          color="white" if hatch else color, edgecolor=color, hatch=hatch,
@@ -582,6 +584,9 @@ def self_test():
                    core=[dict(id=0, busy=0.45)], s2_busy=0.4, one_core_busy=0.85,
                    cap_words=4088, cap_bus_words=8176, sym_rate=128e6 / 24)
     assert legacy_clean(old_one, True)
+    assert legacy_clean(dict(old_one, cap_words=4096, cap_bus_words=8192, cap_skip=0), True)
+    assert not legacy_clean(dict(old_one, cap_skip=0), True)
+    assert not legacy_clean(dict(old_one, cap_words=4096, cap_bus_words=8192), True)
     assert select([one, old_one])["one_core"][0]["direct"] == one
     assert select([one, old_one])["sustained"] == []
     split = dict(good, label="dual-row2-128000-src4-k2-cpw1-fault0-writers4-ceiling-probe",

@@ -150,7 +150,7 @@ void iqout_start(void) {
     dma_channel_start(ch[0]);
     while (!pio_sm_is_tx_fifo_full(pio, sm_out)) tight_loop_contents();
     pio->fdebug = 1u << (PIO_FDEBUG_TXSTALL_LSB + sm_out);
-    pio_enable_sm_mask_in_sync(pio, (1u << sm_out) | (1u << sm_cap));
+    pio_enable_sm_mask_in_sync(pio, 1u << sm_out);
 }
 
 void iqout_stop(void) {
@@ -187,15 +187,19 @@ bool iqout_take_txstall(void) {
 }
 
 void iqout_capture_start(uint32_t *dst, uint32_t n) {
+    pio_sm_set_enabled(pio, sm_cap, false);
+    pio_sm_clear_fifos(pio, sm_cap);
+    pio_sm_restart(pio, sm_cap);
+    pio_sm_exec(pio, sm_cap, pio_encode_jmp(off_cap));
     dma_channel_config d = dma_channel_get_default_config(ch_cap);
     channel_config_set_transfer_data_size(&d, DMA_SIZE_32);
     channel_config_set_read_increment(&d, false);
     channel_config_set_write_increment(&d, true);
     channel_config_set_dreq(&d, pio_get_dreq(pio, sm_cap, false));
     channel_config_set_high_priority(&d, true);
-    // The joined RX FIFO (8 entries) holds stale samples from before the start and a gap
-    // follows them; the caller discards the first 8 words.
+    // Arm DMA before the first sample, so no stale-FIFO/live-data handoff is captured.
     dma_channel_configure(ch_cap, &d, dst, &pio->rxf[sm_cap], n, true);
+    pio_sm_set_enabled(pio, sm_cap, true);
 }
 
 bool iqout_capture_busy(void) { return dma_channel_is_busy(ch_cap); }
