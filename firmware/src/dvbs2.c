@@ -1,5 +1,6 @@
 #include "dvbs2.h"
 
+#include <stddef.h>
 #include <string.h>
 
 #ifdef IQ_ON_DEVICE
@@ -197,50 +198,6 @@ static void HOT(bch160_words)(const uint32_t *m, uint32_t *parity) {
 // registers are restored. Remaining bytes are handled by the caller using the same T0 table.
 void dvbs2_bch160_stream(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
 void dvbs2_bch160_continue(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
-#define BCH160_XOR(DST, OLD, OFF) \
-    "ldr lr, [r9, #" #OFF "]\n" \
-    "ldr r1, [r10, #" #OFF "]\n" \
-    "eor " #DST ", " #OLD ", lr\n" \
-    "ldr lr, [r11, #" #OFF "]\n" \
-    "eor " #DST ", " #DST ", r1\n" \
-    "ldr r1, [r12, #" #OFF "]\n" \
-    "eor " #DST ", " #DST ", lr\n" \
-    "eor " #DST ", " #DST ", r1\n"
-__asm__(".syntax unified\n.thumb\n"
-        ".section .time_critical.dvbs2_bch160_stream,\"ax\",%progbits\n"
-        ".align 2\n.global dvbs2_bch160_stream\n.type dvbs2_bch160_stream,%function\n"
-        ".thumb_func\ndvbs2_bch160_stream:\n"
-        "push {r4-r11, lr}\n"
-        "push {r1}\n"
-        "movs r4, #0\nmovs r5, #0\nmovs r6, #0\nmovs r7, #0\nmovs r8, #0\n"
-        "3:\ncmp r3, #0\nbeq 2f\n"
-        "1:\n"
-        "ldr lr, [r0], #4\n"
-        "eor r4, r4, lr\n"
-        "ubfx r9, r4, #24, #8\n"
-        "add r9, r2, r9, lsl #5\nadd r9, r9, #24576\n"
-        "ubfx r10, r4, #16, #8\n"
-        "add r10, r2, r10, lsl #5\nadd r10, r10, #16384\n"
-        "ubfx r11, r4, #8, #8\n"
-        "add r11, r2, r11, lsl #5\nadd r11, r11, #8192\n"
-        "uxtb r12, r4\nadd r12, r2, r12, lsl #5\n"
-        BCH160_XOR(r4, r5, 0)
-        BCH160_XOR(r5, r6, 4)
-        BCH160_XOR(r6, r7, 8)
-        BCH160_XOR(r7, r8, 12)
-        "ldr r8, [r9, #16]\nldr lr, [r10, #16]\nldr r1, [r11, #16]\n"
-        "eor r8, r8, lr\nldr lr, [r12, #16]\neor r8, r8, r1\neor r8, r8, lr\n"
-        "subs r3, r3, #1\nbne 1b\n"
-        "2:\npop {r0}\nstmia r0!, {r4-r8}\nmovs r1, #0\nstr r1, [r0]\n"
-        "pop {r4-r11, pc}\n.size dvbs2_bch160_stream, .-dvbs2_bch160_stream\n"
-        // The continuation entry loads the previous remainder and shares the unchanged
-        // streamed word loop/epilogue. Its output pointer is saved exactly as above.
-        ".align 2\n.global dvbs2_bch160_continue\n.type dvbs2_bch160_continue,%function\n"
-        ".thumb_func\ndvbs2_bch160_continue:\n"
-        "push {r4-r11, lr}\npush {r1}\nldmia r1, {r4-r8}\nb 3b\n"
-        ".size dvbs2_bch160_continue, .-dvbs2_bch160_continue\n"
-        ".text\n");
-#undef BCH160_XOR
 #endif
 
 bool dvbs2_bch_set_kernel(dvbs2_bch_kernel_t kernel) {
@@ -295,16 +252,69 @@ void dvbs2_ldpc_serial(const uint32_t *info, uint32_t *parity) {
         if (bit_at(parity, i - 1)) parity[i >> 5] ^= 1u << (31 - (i & 31));
 }
 
-// 32x32 bit-matrix transpose, MSB-first rows (Hacker's Delight, 2nd ed., fig. 7-6), with each
-// stage unrolled so shifts and masks are immediates.
-#define TSTAGE(J, MASK)                                                                    \
-    _Pragma("GCC unroll 16") for (uint32_t k = 0; k < 32; k = (k + J + 1) & ~(uint32_t)J) { \
-        const uint32_t t = (a[k] ^ (a[k + J] >> J)) & MASK;                                 \
-        a[k] ^= t, a[k + J] ^= t << J;                                                      \
+// 32×32 bit-matrix transpose, MSB-first rows (Hacker's Delight, fig. 7-6). Fuse stages 16/8
+// in four-register tiles and stages 4/2/1 in eight-register tiles: each matrix word is loaded
+// and stored twice, instead of once for each of five stages. The Arm leaf fits core 1's
+// scratch bank, avoiding instruction fetches through the output DMA's striped SRAM banks.
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+void dvbs2_transpose32(uint32_t *a);
+#define transpose32 dvbs2_transpose32
+#else
+#define TB(A, B, SHIFT, MASK) do { \
+    const uint32_t t = ((A) ^ ((B) >> (SHIFT))) & (MASK); \
+    (A) ^= t; (B) ^= t << (SHIFT); \
+} while (0)
+static void __attribute__((noinline)) transpose32(uint32_t *a) {
+    for (unsigned k = 0; k < 8; k++) {
+        uint32_t x = a[k], y = a[k + 8], z = a[k + 16], w = a[k + 24];
+        TB(x, z, 16, 0x0000ffffu); TB(y, w, 16, 0x0000ffffu);
+        TB(x, y, 8, 0x00ff00ffu); TB(z, w, 8, 0x00ff00ffu);
+        a[k] = x; a[k + 8] = y; a[k + 16] = z; a[k + 24] = w;
     }
-static inline void transpose32(uint32_t *a) {
-    TSTAGE(16, 0x0000FFFFu) TSTAGE(8, 0x00FF00FFu) TSTAGE(4, 0x0F0F0F0Fu)
-    TSTAGE(2, 0x33333333u) TSTAGE(1, 0x55555555u)
+    for (unsigned k = 0; k < 32; k += 8) {
+        uint32_t v[8];
+        memcpy(v, a + k, sizeof v);
+        TB(v[0], v[4], 4, 0x0f0f0f0fu); TB(v[1], v[5], 4, 0x0f0f0f0fu);
+        TB(v[2], v[6], 4, 0x0f0f0f0fu); TB(v[3], v[7], 4, 0x0f0f0f0fu);
+        TB(v[0], v[2], 2, 0x33333333u); TB(v[1], v[3], 2, 0x33333333u);
+        TB(v[4], v[6], 2, 0x33333333u); TB(v[5], v[7], 2, 0x33333333u);
+        TB(v[0], v[1], 1, 0x55555555u); TB(v[2], v[3], 1, 0x55555555u);
+        TB(v[4], v[5], 1, 0x55555555u); TB(v[6], v[7], 1, 0x55555555u);
+        memcpy(a + k, v, sizeof v);
+    }
+}
+#undef TB
+#endif
+
+// Normal 2/3 has q = 60: each transposed column contributes 60 consecutive parity bits.
+// The unused tail of the worst-case P workspace can hold 360 pairs of words while
+// the live rows and final padded transpose tile remain intact below that workspace.
+// Packing groups of eight columns produces 15 complete words, with no scattered OR stores.
+static void HOT(ldpc_pack60)(uint32_t *parity) {
+    uint32_t (*columns)[2] = (uint32_t (*)[2])(P + 60 + 32);
+    for (unsigned block = 0; block < 2; block++) {
+        for (unsigned k = 0; k < 12; k++) {
+            uint32_t bits[32];
+            for (unsigned row = 0; row < 32; row++) bits[row] = P[32 * block + row][k];
+            transpose32(bits);
+            const unsigned n = k == 11 ? 8 : 32;
+            for (unsigned col = 0; col < n; col++) columns[32 * k + col][block] = bits[col];
+        }
+    }
+    uint32_t *out = parity;
+    for (unsigned col = 0; col < 360; col += 8) {
+        *out++ = columns[col][0];
+        uint32_t carry = columns[col][1];
+        _Pragma("GCC unroll 7")
+        for (unsigned j = 1; j < 8; j++) {
+            const uint32_t lo = columns[col + j][0], hi = columns[col + j][1];
+            const unsigned shift = 4 * j;
+            *out++ = carry | (lo >> (32 - shift));
+            *out++ = (lo << shift) | (hi >> (32 - shift));
+            carry = hi << shift;
+        }
+    }
+    parity[21600 / 32] = 0; // preserve the generic parity buffer's extra zero guard word
 }
 
 // row[0..11] ^= 12 words of src starting sh bits in (0 <= sh < 32).
@@ -345,7 +355,9 @@ static inline void xor_rot(uint32_t *row, const uint32_t *src, uint32_t sh) {
 void HOT(dvbs2_ldpc)(const uint32_t *info, uint32_t *parity) {
     const uint32_t q = C->q;
     PROF(0);
-    memset(P, 0, sizeof P);
+    // Only live rows and the last 32-row transpose tile need initialization. Every edge
+    // addresses a live row; the remaining worst-case workspace may serve as output scratch.
+    memset(P, 0, ((q + 31u) & ~31u) * sizeof P[0]);
     for (uint32_t g = 0; g < C->n_groups; g++) {
         // u = the group's 360 bits (word-aligned copy); u2 = u || u, so rotation is extraction.
         uint32_t u[13], u2[25];
@@ -374,9 +386,12 @@ void HOT(dvbs2_ldpc)(const uint32_t *info, uint32_t *parity) {
     for (int k = 11; k >= 0; k--) cx[k] = (cx[k] >> 1) | (k ? cx[k - 1] << 31 : 0);
     for (uint32_t r = 0; r < q; r++)
         for (int k = 0; k < 12; k++) P[r][k] ^= cx[k];
-    for (uint32_t r = q; r < q + 32; r++) memset(P[r], 0, sizeof P[r]);
-
     PROF(2);
+    if (q == 60) {
+        ldpc_pack60(parity);
+        PROF(3);
+        return;
+    }
     memset(parity, 0, (M + 63) / 32 * 4);
     for (uint32_t rb = 0; rb < q; rb += 32) {
         const uint32_t n = q - rb < 32 ? q - rb : 32;
@@ -409,8 +424,29 @@ static inline uint32_t map_scramble16(uint32_t w, uint32_t swap, uint32_t flip) 
     uint32_t x = rbit(w);
     const uint32_t t = (x ^ (x >> 1)) & swap;
     x ^= t | t << 1;
-    return unshuffle(x ^ flip);
+    x ^= flip;
+    // pl_setup has finished consuming r0's Gold bit plane, so its first 1 KiB now holds
+    // byte gathers: four I bits in [3:0], four Q bits in [19:16]. No extra table SRAM.
+    return r0[x & 255u] | r0[(x >> 8) & 255u] << 4 |
+           r0[(x >> 16) & 255u] << 8 | r0[x >> 24] << 12;
 }
+
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+// Complete 16-symbol words leave the stream's partial-word fill unchanged. Keep its state
+// in registers for the whole run and fetch this small leaf from core 1's scratch bank.
+_Static_assert(sizeof(symstream_t) == 24 && offsetof(symstream_t, fill) == 20 &&
+               offsetof(symstream_t, acc_i) == 12, "map_words requires the six-word stream layout");
+void dvbs2_map_words(const uint32_t *frame, const uint32_t *swap, const uint32_t *flip,
+                     uint32_t nwords, symstream_t *stream, const uint32_t *table);
+#define map_words dvbs2_map_words
+#else
+static void map_words(const uint32_t *frame, const uint32_t *swap, const uint32_t *flip,
+                      uint32_t nwords, symstream_t *stream, const uint32_t *table) {
+    (void)table;
+    for (uint32_t k = 0; k < nwords; k++)
+        symstream_put16(stream, map_scramble16(frame[k], swap[k], flip[k]));
+}
+#endif
 
 // PL scrambling of 16 symbols by R = 2 r1 + r0 (5.5.4): R=1 (-Q, I), R=2 (-I, -Q), R=3 (Q, -I).
 // In sign bits: I' = (r0 ? bQ : bI) ^ (r0 ^ r1), Q' = (r0 ? bI : bQ) ^ r1. rm = r0 | r1 << 16.
@@ -492,6 +528,7 @@ static void pl_setup(void) {
         const uint32_t bi = (k & 1) ? !bitv : bitv;            // k even = 1-based odd symbol
         hdr[k >> 4] |= bi << (k & 15) | bitv << (16 + (k & 15));
     }
+    for (uint32_t k = 0; k < 256; k++) r0[k] = unshuffle(k);
 }
 
 uint32_t dvbs2_plframe_symbols(void) { return 90 + body_syms; }
@@ -586,8 +623,14 @@ void HOT(dvbs2_frame_begin_into)(const uint32_t *bb, uint32_t *frame) {
 
 void HOT(dvbs2_frame_ldpc_into)(uint32_t *frame) {
     static uint32_t lpar[MAX_BITS_W] HI;
-    dvbs2_ldpc(frame, lpar);
-    copy_bits(frame, C->kldpc, lpar, M);
+    if (!(C->kldpc & 31u)) {
+        // LDPC consumes all information before writing parity, so a word-aligned tail
+        // can be the destination directly. FE storage includes the parity guard words.
+        dvbs2_ldpc(frame, frame + C->kldpc / 32u);
+    } else {
+        dvbs2_ldpc(frame, lpar);
+        copy_bits(frame, C->kldpc, lpar, M);
+    }
     PROF(6);
 }
 
@@ -599,7 +642,9 @@ void HOT(dvbs2_frame_finish_from)(const uint32_t *frame, symstream_t *out) {
     const uint32_t *f = frame, *sw = swapm, *fl = flipm;
     for (uint32_t left = nsym, blk = 0; left;) {               // runs of 1440 data symbols
         const uint32_t run = blk < n_pil && left > 1440 ? 1440 : left;
-        for (uint32_t i = 0; i < run / 16; i++) symstream_put16(&s, map_scramble16(*f++, *sw++, *fl++));
+        const uint32_t words = run / 16;
+        map_words(f, sw, fl, words, &s, r0);
+        f += words; sw += words; fl += words;
         if (run % 16) symstream_put(&s, map_scramble16(*f, *sw, *fl), run % 16);
         if (blk < n_pil && left > 1440) {
             symstream_put16(&s, pil[blk][0]), symstream_put16(&s, pil[blk][1]);

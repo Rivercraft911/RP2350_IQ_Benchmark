@@ -15,12 +15,14 @@
 //        PigeonVision TX: TS over PV-SPI v1 (docs/pv-spi-spec.md) -> DVB-S2 normal QPSK 2/3 with
 //        pilots -> shaper (N = 4, L = 12). selftest 1 = on-chip emulated CM5 master.
 //   snifftest                                     DMA sniffer CRC modes
+//   pvbench [reps] / ptrbench [reps]              packet preparation / pin-free PIO pointers
 //   bchkernel <0|1|2>                             baseline, C words, ARM stream
 //   bench8psk [reps]                              experimental split-LUT shaping
 //   ddrtest [ms]                                  experimental PIO data + HSTX DDR clock
 //   dualbench [reps]                             descriptor generation experiment
 //   dualwriters <2|4> / dualprio <0..15>          idle experimental DMA settings
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols]
+//        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=split PV-SPI
 //   bootsel                                       reboot to the USB bootloader
 #include <limits.h>
 #include <stdio.h>
@@ -28,6 +30,7 @@
 #include <string.h>
 
 #include "bench.h"
+#include "bench_ptr.h"
 #include "dual_dma.h"
 #include "dvbs2.h"
 #include "dvbs2_codes.h"
@@ -164,6 +167,12 @@ static const char *dispatch(char *line) {
         reset_usb_boot(0, 0);
     } else if (!strcmp(cmd, "snifftest")) {
         bench_sniffer();
+    } else if (!strcmp(cmd, "pvbench")) {
+        if (!num(a[1], "reps", 8, 1, 1000, &reps)) return err;
+        bench_pv(reps);
+    } else if (!strcmp(cmd, "ptrbench")) {
+        if (!num(a[1], "reps", 8, 1, 100, &reps)) return err;
+        bench_pointers(reps);
     } else if (!strcmp(cmd, "bchkernel")) {
         if (!num(a[1], "kernel", REQUIRED, 0, 2, &code)) return err;
         if (!dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)code)) return "unknown BCH kernel";
@@ -190,7 +199,7 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "cpw", REQUIRED, 1, 4, &r.cpw) ||
             !num(a[2], "ms", REQUIRED, 10, 60000, &r.ms) ||
             !num(a[3], "kernel", 1, 0, 2, &kernel) ||
-            !num(a[4], "source", 1, 0, 4, &source) ||
+            !num(a[4], "source", 1, 0, 5, &source) ||
             !num(a[5], "cap_words", 4096, 0, 4096, &r.cap_words) ||
             !num(a[6], "fault", 0, 0, 2, &fault) ||
             !num(a[7], "schedule", 0, 0, 3, &schedule) ||
@@ -198,6 +207,8 @@ static const char *dispatch(char *line) {
             !num(a[9], "row_symbols", 1, 1, 2, &row_symbols)) return err;
         if (divider256 && divider256 != 384) return "optional divider256 must be384 (1.5 clocks)";
         if (fault && !source) return "fault injection requires live descriptors";
+        if (source == 5 && (row_symbols != 2 || dual_dma_get_writers() != 4))
+            return "PV-SPI trial needs paired rows and four writers";
         bench_dual_stream(r.cpw, r.ms, kernel, source, r.cap_words, fault, schedule, divider256, row_symbols);
     } else if (!strcmp(cmd, "clock")) {
         if (!num(a[1], "khz", REQUIRED, 1, 150000, &khz)) return err;

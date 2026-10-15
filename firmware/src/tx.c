@@ -346,7 +346,7 @@ const char *tx_run(const tx_run_t *r) {
     if (r->pv >= 0) {
         pv_init(r->pv ? PV_EMU_MSGS : 65536);
         if (r->pv == 1) {
-            pvspi_start(in_buf, true, cap_buf + CAP_WORDS_MAX - PV_EMU_WORDS, 3);
+            pvspi_start(pio2, in_buf, true, cap_buf + CAP_WORDS_MAX - PV_EMU_WORDS, 3);
             run.active = true;
         }
         // self-test: the first BBFRAME needs 28.6 packets (> 4 messages); queue 8 so no null
@@ -369,7 +369,7 @@ const char *tx_run(const tx_run_t *r) {
     run.end_us = r->ms ? t0 + (uint64_t)r->ms * 1000u : UINT64_MAX;
     run.cap_at_us = t0 + (r->cap_ms >= 0 ? (uint64_t)r->cap_ms * 1000u : (uint64_t)r->ms * 500u);
     iqout_start();
-    if (r->pv == 0) pvspi_start(in_buf, false, NULL, 3);
+    if (r->pv == 0) pvspi_start(pio2, in_buf, false, NULL, 3);
     run.active = true;
     const uint32_t stride = (c0 && c1) ? 2 : 1;
     run.stride = stride;

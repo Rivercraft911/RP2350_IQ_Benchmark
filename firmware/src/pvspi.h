@@ -1,10 +1,11 @@
-// PV-SPI v1 slave on the RP2350 (docs/pv-spi-spec.md): PIO2 receives SPI mode 0 on GP17 (SCK),
+// PV-SPI v1 slave on the RP2350 (docs/pv-spi-spec.md): selected PIO receives mode 0 on GP17 (SCK),
 // GP18 (MOSI), GP19 (CS_N); DMA writes each 1332-byte message into a queue slot; a CS_N rising
 // edge interrupt closes the slot; READY on GP22 is high while a free slot is armed.
 // Self-test: a third SM emulates the CM5 master on the same pins from a pattern buffer.
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
+#include "hardware/pio.h"
 
 #include "pvproto.h"
 
@@ -20,7 +21,9 @@ typedef struct {
 extern pvspi_stats_t pvspi;
 
 // slots: PV_SLOTS * PV_MSG_WORDS words. emu: PV_EMU_WORDS when selftest (else unused).
-void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half);
+// Start/stop on the IRQ-owning core, with the consumer quiescent during stop. The selected
+// PIO must have three free SMs, 17 instruction slots and exclusive IRQ0 flag0 available.
+void pvspi_start(PIO bus, uint32_t *slots, bool selftest, uint32_t *emu, int emu_half);
 void pvspi_pause(void);                    // withdraw READY; prevents consumer reassertion
 void pvspi_stop(void);
 uint8_t *pvspi_next_packet(void);            // consumer (one core): next accepted TS packet or NULL

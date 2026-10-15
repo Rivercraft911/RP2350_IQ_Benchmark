@@ -103,7 +103,12 @@ def validate_capture(r: dict, lines: list[str], source: int,
                     cap_checked_bus_words=0, cap_transport_ok=False, cap_reference_failed=False)
 
     bus = got.view("<u2")
-    ref = reference_bus(source, int(r.get("seed", SEED)), int(r.get("row_symbols", 1)), int(r.get("split_bb_stride_words", 0)))
+    if source == 5:
+        from dual_spi import reference_window
+        first_frame, ref = reference_window(int(r["cap_symbol_cursor"]))
+    else:
+        first_frame = None
+        ref = reference_bus(source, int(r.get("seed", SEED)), int(r.get("row_symbols", 1)), int(r.get("split_bb_stride_words", 0)))
     # Uniform clocks use17 logical bus slots per IN. With output divider1.5,
     # capture runs at SYSCLK to avoid the feedback path aliasing one I/Q axis. Every
     # candidate uses one fixed physical-time phase for the ENTIRE snapshot.
@@ -119,6 +124,8 @@ def validate_capture(r: dict, lines: list[str], source: int,
         steps = ((np.arange(len(bus), dtype=np.int64) * 34 + phase) // 3
                  if divider == 384 else np.arange(len(bus), dtype=np.int64) * CAPTURE_STRIDE)
         candidates = np.flatnonzero(ref == bus[0])
+        if source == 5:
+            candidates = candidates[(candidates >= 12 * 8) & (candidates + steps[-1] < len(ref))]
         for j in range(1, min(16, len(bus))):
             candidates = candidates[ref[(candidates + steps[j]) % len(ref)] == bus[j]]
             if not len(candidates):
@@ -140,6 +147,7 @@ def validate_capture(r: dict, lines: list[str], source: int,
     axes = np.bincount((bus >> 14) & 1, minlength=2)
     both_axes = bool(axes.min() >= len(bus) // 4)
     return dict(cap_aligned=both_axes, cap_offset=best_offset, cap_phase=best_phase,
+                cap_reference_first_frame=first_frame,
                 cap_axis_counts=axes.tolist(), cap_mismatches=int(len(best_bad)),
                 cap_transport_ok=True, cap_reference_failed=bool(len(best_bad)) or not both_axes,
                 cap_first_bad=first, cap_checked_bus_words=len(bus),
@@ -165,10 +173,13 @@ def stream_faults(r: dict, capture: bool, source: int) -> list[str]:
     # axis_gap_max is a queue-lead diagnostic; a nonzero bounded lead is legitimate.
     if capture and not (r.get("cap_aligned") and r.get("cap_mismatches") == 0):
         faults.append(r.get("cap_error") or "strided capture mismatches")
-    if source in (2, 3, 4) and not r.get("s2_runtime_frames"):
+    if source in (2, 3, 4, 5) and not r.get("s2_runtime_frames"):
         faults.append("no complete DVB-S2 encoder frame during timed run")
-    if source == 4 and not r.get("split_bch_frames"):
+    if source in (4, 5) and not r.get("split_bch_frames"):
         faults.append("no runtime frontend BCH frame")
+    if source == 5:
+        from dual_spi import packet_faults
+        faults.extend(packet_faults(r))
     return list(dict.fromkeys(faults))
 
 
@@ -256,17 +267,23 @@ def self_test():
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("profile", nargs="?", choices=("quick", "soak", "priority", "onecore", "split", "qualify"), default="quick")
+    p.add_argument("profile", nargs="?", choices=("quick", "soak", "priority", "onecore", "split", "spi", "qualify"), default="quick")
     p.add_argument("--out", type=Path)
     p.add_argument("--build", type=Path, default=Path("firmware/build-limits"))
     p.add_argument("--port")
     p.add_argument("--ms", type=int, help="duration per dual stream; quick=3000, soak=60000")
-    p.add_argument("--clocks", nargs="+", type=int, choices=(128000, 150000), default=[128000, 150000])
+    p.add_argument("--clocks", nargs="+", type=int, choices=(128000, 150000))
     p.add_argument("--self-test", action="store_true")
     p.add_argument("--writers", type=int, choices=(2, 4), default=2)
     p.add_argument("--priority-mask", type=int, choices=range(16), default=0)
     p.add_argument("--row-symbols", type=int, choices=(1, 2), default=1)
     a = p.parse_args()
+    if a.clocks is None:
+        a.clocks = [128000] if a.profile == "spi" else [128000, 150000]
+    if a.profile == "spi":
+        a.writers, a.row_symbols = 4, 2
+        if a.clocks != [128000]:
+            p.error("the SPI profile is qualified at --clocks 128000 only")
     if a.writers == 4 and a.row_symbols != 2:
         p.error("four writers require --row-symbols 2")
     if a.self_test:
@@ -352,7 +369,7 @@ def main():
         return record(f"descriptor-bench-{clock}", run)
 
     def dual(clock, cpw, kernel, source, fault=0, schedule=0, divider256=0, trial_ms=None, cap_words=4096):
-        exploratory = cpw == 1 or divider256 != 0
+        exploratory = (cpw == 1 or divider256 != 0) and a.profile not in ("qualify", "spi")
         suffix = "-negative-control" if fault else "-ceiling-probe" if exploratory else ""
         variant = f"-sched{schedule}-div{divider256}" if schedule or divider256 else ""
         variant += f"-cap{cap_words}" if cap_words != 4096 else ""
@@ -367,6 +384,8 @@ def main():
             if "error" not in r and cap_words:
                 r.update(validate_capture(r, lines, source, cap_words))
             r["faults"] = stream_faults(r, bool(cap_words), source)
+            if not fault and r.get("elapsed_us", 0) < ms * 1000:
+                r["faults"].append("run ended before the requested duration")
             expected_config = dict(row_symbols=a.row_symbols, schedule=schedule,
                                    divider256=divider256 or cpw * 256,
                                    clk_hz=clock * 1000, source=source,
@@ -446,6 +465,11 @@ def main():
             elif a.profile == "split":
                 for cpw, divider in ((2, 0), (1, 384), (1, 0)):
                     dual(clock, cpw, 2, 4, divider256=divider)
+            elif a.profile == "spi":
+                a.writers, a.row_symbols = 4, 2
+                raw("dualwriters 4")
+                dual(clock, 2, 2, 5)
+                dual(clock, 1, 2, 5)
             elif a.profile == "onecore":
                 record(f"legacy-onecore-{clock}", lambda: iq.run_txs2(
                     board, 5, 1, "lut_asm_p", 4, 12, 3, 3000, 4096, "dual-onecore", True))

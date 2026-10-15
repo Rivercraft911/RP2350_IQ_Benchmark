@@ -4,8 +4,8 @@ Examples:
   python3 host/plot_dual.py --root results/dual-dma/2026-10-14 --check
   python3 host/plot_dual.py --runs results/dual-dma/2026-10-14/soak-1/runs.jsonl
 
-Writes dual_dma_load, dual_dma_rates and dual_dma_onecore as PNG/SVG/PDF in --out (results/plots by
-default), plus the exact selected records in dual_dma_selection.json. --check only
+Writes dual_dma_load, dual_dma_rates, dual_dma_onecore and dual_dma_pipeline as PNG/SVG/PDF
+in --out (results/plots by default), plus selected records in dual_dma_selection.json. --check only
 prints selection/provenance; --self-test checks the selection rules with synthetic data.
 The rate panel contains real repeated DVB-S2 encoding, never precomputed descriptors.
 """
@@ -22,10 +22,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reference"))
 
-DEFAULT_ROOT = ROOT / "results/dual-dma/2026-10-14"
+DEFAULT_ROOT = ROOT / "results/dual-dma"
 FAULT_FIELDS = ("errors", "underruns", "own_errors", "txstalls_i", "txstalls_q",
                 "txstalls", "link_overruns", "input_overruns")
-LABEL = re.compile(r"^dual(?:-row(?P<row>[12]))?-(?P<clock>\d+)-src(?P<source>[01234])"
+LABEL = re.compile(r"^dual(?:-row(?P<row>[12]))?-(?P<clock>\d+)-src(?P<source>[012345])"
                    r"-k(?P<kernel>[012])-cpw(?P<cpw>[1-4])-fault(?P<fault>[012])"
                    r"(?:-sched(?P<schedule>[0-3])-div(?P<divider>\d+))?(?:-|$)")
 
@@ -99,6 +99,35 @@ def common_clean(r: dict) -> bool:
             not r.get("cap_error"))
 
 
+def spi_clean(r: dict) -> bool:
+    """Require the independent packet/BB checks and a bounded four-PLFRAME capture window."""
+    from dual_spi import FRAME_SYMBOLS, packet_faults
+
+    digest = r.get("_uf2_sha256", "")
+    if not (isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest)):
+        return False
+    try:
+        if packet_faults(r):
+            return False
+    except (TypeError, ValueError):
+        return False
+    cursor, offset, first = (r.get(key) for key in
+                             ("cap_symbol_cursor", "cap_offset", "cap_reference_first_frame"))
+    if not (isinstance(cursor, int) and cursor >= 0 and isinstance(offset, int) and
+            first == max(0, cursor // FRAME_SYMBOLS - 1)):
+        return False
+    fractional = r.get("divider256", 256) == 384
+    last_step = ((8191 * 34 + r.get("cap_phase", -1)) // 3 if fractional else 8191 * 17)
+    if not (offset >= 12 * 8 and offset + last_step < 4 * FRAME_SYMBOLS * 8):
+        return False
+    backend, ts, total = (r.get(key, float("nan")) for key in
+                           ("s2_busy", "ts_busy", "core1_work_busy"))
+    return (r.get("pv_spi", {}).get("sck_hz") == r["clk_hz"] / 4 and
+            active_work(r) is not None and
+            all(isinstance(value, (int, float)) and math.isfinite(value) and 0 <= value <= 1
+                for value in (backend, ts, total)) and abs(backend + ts - total) <= 0.00031)
+
+
 def dual_clean(r: dict, source: int = 2) -> bool:
     """Full encoder + interpolation only, complete intact sparse snapshot, known config."""
     if not (r.get("cmd") == "dualstream" and common_clean(r) and configuration_ok(r) and
@@ -126,14 +155,17 @@ def dual_clean(r: dict, source: int = 2) -> bool:
                 isinstance(encoding, (int, float)) and math.isfinite(encoding) and 0 <= encoding <= 1):
             return False
         expected = sum(values[:2]) + encoding
-    elif source == 4:
+    elif source in (4, 5):
         bch = r.get("split_bch_busy", float("nan"))
         axes = r.get("cap_axis_counts", [])
-        if not (r.get("writers") == 4 and row_symbols(r) == 2 and r.get("split_bb_stride_words") == 64 and
+        if not (r.get("writers") == 4 and row_symbols(r) == 2 and
+                r.get("split_bb_stride_words") == (64 if source == 4 else 0) and
                 r.get("split_bch_slice_words") == 128 and r.get("split_bch_frames", 0) > 0 and
                 r.get("split_bch_slices", 0) > 0 and not r.get("one_core", True) and r.get("s2_core") == 1 and
                 r.get("cap_phase") in (0, 1, 2) and len(axes) == 2 and sum(axes) == 8192 and min(axes) >= 2048 and
                 isinstance(bch, (int, float)) and math.isfinite(bch) and 0 <= bch <= 1):
+            return False
+        if source == 5 and not spi_clean(r):
             return False
         expected = sum(values[:2]) + bch
     else:
@@ -238,7 +270,7 @@ def select(rows: list[dict]) -> dict:
     # First retain the longest clean test of each physical configuration. Then display the
     # fastest observed configuration per architecture/clock, with its actual duration printed.
     rates = {}
-    split = [r for r in rows if dual_clean(r, 4)]
+    split = [r for r in rows if dual_clean(r, 4) or dual_clean(r, 5)]
     for r in longest_configurations(dual + split):
         key = (r.get("writers", 2), r.get("source"), row_symbols(r), r["clk_hz"])
         if key not in rates or (r["sym_rate"], order(r)) > (rates[key]["sym_rate"], order(rates[key])):
@@ -249,82 +281,127 @@ def select(rows: list[dict]) -> dict:
                 sustained=[rates[key] for key in sorted(rates)], one_core=select_one_core(rows))
 
 
+def duration(r: dict) -> str:
+    seconds = r.get("elapsed_us", r.get("ms", 0) * 1000) / 1e6
+    return f"{seconds:.3g} s"
+
+
+def active_work(r: dict) -> float | None:
+    """Whole active-loop timing is separate from the sum of instrumented regions."""
+    value = r.get("core0_active_busy")
+    total = r.get("core0_work_busy", 0)
+    if (isinstance(value, (int, float)) and math.isfinite(value) and
+            total - 0.0005 <= value <= 1):
+        return value
+    return None
+
+
+def percent_axis(ax):
+    ax.set_xlim(0, 109)
+    ax.set_xticks([0, 25, 50, 75, 100])
+    ax.set_xlabel("Instrumented work (%)")
+    ax.grid(axis="x")
+    ax.set_axisbelow(True)
+
+
 def plot_load(selected: dict, out: Path) -> bool:
-    from plotstyle import BLUE, GREEN, INK, WIDTH, plt, save_figure
+    from plotstyle import BLUE, GREEN, INK, RED, WIDTH, lollipop, plt, save_figure
 
     baseline, direct = selected["load_baseline"], selected["load_direct"]
     if not baseline or not direct:
         return False
-    labels = ["Legacy generation only"] + [f"Direct DMA, {row_symbols(r)} symbol{'s' if row_symbols(r) == 2 else ''}/row" +
-                                          (f" (priority {r['bus_priority_mask']})" if r.get("bus_priority_mask", 0) else "")
-                                          for r in direct]
-    gen = [baseline["core"][0]["busy"] * 100] + [r["gen_busy"] * 100 for r in direct]
-    control = [0] + [r["control_busy"] * 100 for r in direct]
-    fig, ax = plt.subplots(figsize=(WIDTH, 3.1))
-    y = list(range(len(labels)))
-    ax.barh(y, gen, height=0.48, color=BLUE, edgecolor=INK, linewidth=0.4, label="Generation")
-    ax.barh(y, control, left=gen, height=0.48, color="white", hatch="////", edgecolor=GREEN,
-            linewidth=0.6, label="Ownership / fault checks")
-    for j, (generation, checks) in enumerate(zip(gen, control)):
-        ax.text(generation + checks + 1.5, j, f"{generation + checks:.1f}%", va="center", fontsize=8)
-    ax.set_yticks(y, labels)
-    ax.invert_yaxis()
-    ax.set_xlim(0, 100)
-    ax.set_xticks([0, 25, 50, 75, 100])
-    ax.set_xlabel("Instrumented core 0 work (%)")
-    ax.grid(axis="x", zorder=0)
-    ax.set_axisbelow(True)
-    ax.legend(loc="lower right")
-    ax.set_title("DVB-S2 normal QPSK 2/3 with pilots: 8 Msym/s, 128 MHz, L = 12, 4 samples/symbol")
-    binary_note = "Same UF2 snapshot for all bars." if selected["load_identical_binary"] else "Firmware snapshots differ between bars."
+    rows = [baseline, *direct]
+    labels = ["Sample buffer"] + [f"Pointers, {row_symbols(r)} symbol{'s' if row_symbols(r) == 2 else ''}/row"
+                                    for r in direct]
+    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 2.65), sharey=True,
+                             gridspec_kw={"width_ratios": [1.35, 1]})
+    for y, r in enumerate(rows):
+        generation = r["core"][0]["busy"] if y == 0 else r["gen_busy"]
+        control = 0 if y == 0 else r["control_busy"]
+        axes[0].barh(y, generation * 100, height=0.42, color=BLUE, edgecolor=INK,
+                     linewidth=0.4, label="Generation" if y == 0 else None)
+        axes[0].barh(y, control * 100, left=generation * 100, height=0.42,
+                     color="white", hatch="////", edgecolor=GREEN, linewidth=0.6,
+                     label="Control" if y == 0 else None)
+        axes[0].annotate(f"{(generation + control) * 100:.1f}",
+                         ((generation + control) * 100, y), xytext=(4, 0),
+                         textcoords="offset points", va="center", fontsize=8)
+        encoding = r.get("s2_busy")
+        if isinstance(encoding, (int, float)) and math.isfinite(encoding):
+            lollipop(axes[1], y, encoding * 100, RED, fmt="{:.1f}")
+    axes[0].set_yticks(range(len(rows)), labels)
+    axes[0].set_ylim(len(rows) - 0.5, -0.5)
+    axes[0].set_title("(a) Output preparation, core 0")
+    axes[1].set_title("(b) FEC, core 1")
+    for ax in axes:
+        percent_axis(ax)
+    axes[0].legend(loc="lower right", fontsize=7, handlelength=1.3)
+    same_binary = "Same UF2." if selected["load_identical_binary"] else "Firmware snapshots differ."
+    times = ", ".join(duration(r) for r in rows)
     save_figure(fig, out / "dual_dma_load.png",
-                "Legacy housekeeping was not instrumented. Direct DMA includes generation and monitored control work.\n"
-                "Idle waits and untimed overhead are excluded; IRQ time counts only inside timed regions. " + binary_note)
+                "8 Msym/s at 128 MHz; QPSK 2/3 + pilots, L = 12, 4 samples/symbol. " + same_binary + " Tests: " + times + ".\n"
+                "Sample-buffer housekeeping is untimed; direct DMA includes control. Unmeasured time is not an idle measurement.")
     return True
 
 
+def rate_architecture(r: dict) -> tuple:
+    return (r.get("writers", 2), r.get("source"), row_symbols(r),
+            r.get("pv_spi", {}).get("sck_hz", 0))
+
+
+def architecture_label(key: tuple) -> str:
+    writers, source, symbols, sck = key
+    if source == 5:
+        return f"On-chip SPI, {sck / 1e6:g} MHz"
+    if source == 4:
+        return f"Split FEC, {writers} writers"
+    return f"{symbols} symbol{'s' if symbols == 2 else ''}/row, {writers} writers"
+
+
 def plot_rates(selected: dict, out: Path) -> bool:
-    from plotstyle import BLUE, GREEN, MID, RED, WIDTH, plt, save_figure
+    from matplotlib.lines import Line2D
+    from plotstyle import BLUE, DARK, MID, RED, WIDTH, plt, save_figure
 
     rows = selected["sustained"]
     if not rows:
         return False
-    fig, ax = plt.subplots(figsize=(WIDTH, max(3.0, 0.42 * len(rows) + 1.4)))
-    labels = []
-    outside = False
-    show_writers = any(r.get("writers", 2) != 2 for r in rows)
-    show_distribution = any(r.get("source") == 4 for r in rows)
-    for y, r in enumerate(rows):
-        symbols = row_symbols(r)
-        rate = r["sym_rate"] / 1e6
-        too_fast = r["sym_rate"] * 4 > 65e6
-        outside |= too_fast
-        color = RED if too_fast else BLUE if symbols == 1 else GREEN
-        marker = "X" if too_fast else "D" if r.get("source") == 4 else "o" if symbols == 1 else "s"
-        ax.hlines(y, 0, rate, color=color, lw=0.8)
-        ax.plot(rate, y, marker=marker, color=color, ms=4)
-        seconds = r["elapsed_us"] / 1e6
-        suffix = "; >65 MS/s" if too_fast else ""
-        fractional = r.get("divider256", r["cpw"] * 256) % 256 != 0
-        suffix += "; fractional" if fractional else ""
-        ax.annotate(f"{rate:.3f} ({seconds:.3g} s{suffix})", (rate, y), xytext=(6, 0),
-                    textcoords="offset points", va="center", fontsize=8)
-        writers = f"{r.get('writers', 2)} writers, " if show_writers else ""
-        distribution = ("split FEC" if r.get("source") == 4 else "FEC on core 1") if show_distribution else ""
-        labels.append(writers + distribution + ("\n" if distribution else "") +
-                      f"{symbols} symbol{'s' if symbols == 2 else ''}/row, {r['clk_hz'] / 1e6:g} MHz")
+    groups = sorted({rate_architecture(r) for r in rows})
+    clocks = sorted({r["clk_hz"] for r in rows})
+    colors, markers = (BLUE, RED, DARK), ("o", "s", "^")
+    fig, ax = plt.subplots(figsize=(WIDTH, max(2.55, 0.5 * len(groups) + 1.05)))
+    for y, key in enumerate(groups):
+        group = sorted((r for r in rows if rate_architecture(r) == key), key=lambda r: r["clk_hz"])
+        rates = [r["sym_rate"] / 1e6 for r in group]
+        if len(group) > 1:
+            ax.hlines(y, min(rates), max(rates), color=MID, linewidth=0.6)
+        for r, rate in zip(group, rates):
+            ci = clocks.index(r["clk_hz"])
+            outside = rate * 4 > 65
+            color, marker = (RED, "x") if outside else (colors[ci % 3], markers[ci % 3])
+            ax.plot(rate, y, marker=marker, color=color, ms=4)
+            above = ci % 2 == 0
+            ax.annotate(f"{rate:.3f} · {duration(r)}", (rate, y), xytext=(0, 7 if above else -8),
+                        textcoords="offset points", ha="center", va="bottom" if above else "top",
+                        fontsize=7.2, color=color)
     maximum = max(r["sym_rate"] / 1e6 for r in rows)
-    ax.set_xlim(0, maximum * 1.55)
-    if outside:
-        ax.axvline(65 / 4, color=MID, ls="--", lw=0.7)
-    ax.set_yticks(range(len(rows)), labels)
-    ax.invert_yaxis()
-    ax.set_xlabel("Fastest fully checked observed rate (Msym/s); duration in parentheses")
+    ax.set_xlim(0, max(12, maximum + 2.1))
+    ax.set_ylim(len(groups) - 0.6, -0.65)
+    ax.set_yticks(range(len(groups)), [architecture_label(key) for key in groups])
+    ax.set_xlabel("Measured symbol rate (Msym/s)")
     ax.grid(axis="x")
-    ax.set_title("Direct DMA with real DVB-S2 encoding: longest clean test per configuration")
+    secondary = ax.secondary_xaxis("top", functions=(lambda x: x * 4, lambda x: x / 4))
+    secondary.set_xlabel("Per-axis sample rate (MS/s)")
+    secondary.tick_params(labelsize=7)
+    handles = [Line2D([], [], color=colors[i % 3], marker=markers[i % 3], linestyle="none",
+                      markersize=4, label=f"{clock / 1e6:g} MHz") for i, clock in enumerate(clocks)]
+    outside = maximum * 4 > 65
+    if outside:
+        handles.append(Line2D([], [], color=RED, marker="x", linestyle="none", label=">65 MS/s"))
+        ax.axvline(65 / 4, color=MID, ls="--", lw=0.7)
+    ax.legend(handles=handles, loc="upper left", fontsize=7.5, handlelength=1)
     save_figure(fig, out / "dual_dma_rates.png",
-                "L12, 4 samples/symbol; all 8192 observations checked. Split FEC: core 0 BCH, core 1 LDPC/framing.\n"
-                "Digital bench only; finite captures do not check every sample or qualify AFE timing. Red X exceeds 65 MS/s.")
+                "Real QPSK 2/3 encoding, pilots, L = 12, 4 samples/symbol. On-chip SPI uses an emulated master.\n"
+                "Fastest clean configuration; longest test at that setting. Sparse exact captures and continuous fault counters; digital bench only.")
     return True
 
 
@@ -334,48 +411,121 @@ def plot_one_core(selected: dict, out: Path) -> bool:
     cases = selected["one_core"]
     if not cases:
         return False
-    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, max(3.4, 0.68 * len(cases) + 1.7)), sharey=True,
-                             gridspec_kw={"width_ratios": [1, 1.3]})
+    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, max(2.8, 0.72 * len(cases) + 1.3)), sharey=True,
+                             gridspec_kw={"width_ratios": [1, 1.25]})
     labels = []
     for case_index, case in enumerate(cases):
         for variant_index, key in enumerate(("legacy", "direct")):
             y = case_index * 2 + variant_index
             r = case[key]
-            is_direct = key == "direct"
-            generation = r["gen_busy"] if is_direct else r["core"][0]["busy"]
-            control = r["control_busy"] if is_direct else 0
+            direct = key == "direct"
+            generation = r["gen_busy"] if direct else r["core"][0]["busy"]
+            control = r["control_busy"] if direct else 0
             encoding = r["s2_busy"]
             total = generation + encoding + control
             rate = r["sym_rate"] / 1e6
-            seconds = r.get("elapsed_us", r["ms"] * 1000) / 1e6
-            name = f"Direct DMA, {row_symbols(r)} symbols/row" if is_direct else "Legacy samples"
-            labels.append(f"{case['clk_hz'] / 1e6:g} MHz: {name}")
-            axes[0].barh(y, rate, height=0.52, color=GREEN if is_direct else BLUE, edgecolor=INK, linewidth=0.4)
-            axes[0].text(rate + 0.15, y, f"{rate:.3f}\n({seconds:.3g} s)", va="center", fontsize=7.5)
-            axes[1].barh(y, generation * 100, height=0.52, color=BLUE, edgecolor=INK, linewidth=0.4,
-                         label="Generation" if y == 0 else None)
-            axes[1].barh(y, encoding * 100, left=generation * 100, height=0.52, color=RED, edgecolor=INK,
-                         linewidth=0.4, label="Encoding" if y == 0 else None)
-            axes[1].barh(y, control * 100, left=(generation + encoding) * 100, height=0.52,
-                         color="white", hatch="////", edgecolor=GREEN, linewidth=0.6,
-                         label="Control" if y == 0 else None)
-            axes[1].text(total * 100 + 1, y, f"{total * 100:.1f}%", va="center", fontsize=7.5)
+            color = GREEN if direct else BLUE
+            name = "Pointers" if direct else "Samples"
+            labels.append(f"{case['clk_hz'] / 1e6:g} MHz · {name}")
+            axes[0].hlines(y, 0, rate, color=color, linewidth=0.7)
+            axes[0].plot(rate, y, marker="s" if direct else "o", color=color, ms=3.5)
+            axes[0].annotate(f"{rate:.3f} · {duration(r)}", (rate, y), xytext=(5, 0),
+                             textcoords="offset points", va="center", fontsize=7.2)
+            left = 0
+            for amount, part_color, hatch, label in ((generation, BLUE, None, "Generation"),
+                                                       (encoding, RED, None, "FEC"),
+                                                       (control, GREEN, "////", "Control")):
+                axes[1].barh(y, amount * 100, left=left * 100, height=0.43,
+                             color="white" if hatch else part_color, edgecolor=part_color,
+                             hatch=hatch, linewidth=0.5, label=label if y == 0 else None)
+                left += amount
+            axes[1].annotate(f"{total * 100:.1f}", (total * 100, y), xytext=(4, 0),
+                             textcoords="offset points", va="center", fontsize=7.5)
+        if case_index + 1 < len(cases):
+            for ax in axes:
+                ax.axhline(case_index * 2 + 1.5, color="#dddddd", linewidth=0.4)
     axes[0].set_yticks(range(len(labels)), labels)
-    axes[0].invert_yaxis()
-    axes[0].set_xlim(0, max(r[k]["sym_rate"] for r in cases for k in ("legacy", "direct")) / 1e6 * 1.4)
-    axes[0].set_xlabel("Fastest checked rate (Msym/s)")
-    axes[1].set_xlim(0, 105)
-    axes[1].set_xticks([0, 25, 50, 75, 100])
-    axes[1].set_xlabel("Timed core 0 work (%)")
-    axes[1].legend(loc="upper center", bbox_to_anchor=(0.5, 1.18), ncol=3, handlelength=1.2,
-                   columnspacing=0.8)
-    for ax in axes:
-        ax.grid(axis="x")
-        ax.set_axisbelow(True)
-    fig.suptitle("One core: repeated DVB-S2 test BBFRAME → L12 / 4-sample shaping → output", fontsize=10)
+    axes[0].set_ylim(len(labels) - 0.5, -0.5)
+    maximum = max(case[key]["sym_rate"] for case in cases for key in ("legacy", "direct")) / 1e6
+    axes[0].set_xlim(0, maximum * 1.48)
+    axes[0].set_xlabel("Measured rate (Msym/s)")
+    axes[0].set_title("(a) One-core rate")
+    axes[1].set_title("(b) Work on the same core")
+    percent_axis(axes[1])
+    handles, legend_labels = axes[1].get_legend_handles_labels()
+    fig.legend(handles, legend_labels, loc="upper center", bbox_to_anchor=(0.65, 1.02),
+               fontsize=7, ncol=3, handlelength=1.2, columnspacing=0.9)
+    axes[0].grid(axis="x")
     save_figure(fig, out / "dual_dma_onecore.png",
-                "Fastest clean configuration per architecture/clock; longest test of that configuration. Rates differ between bars.\n"
-                "Legacy housekeeping is untimed. Direct work = generation + control + encoding; idle and untimed overhead excluded.")
+                "Real QPSK 2/3 encoding + pilots and L12 / 4-sample shaping; each pair uses the same clock, at different rates.\n"
+                "Fastest clean configuration, longest test at that setting. Sample-buffer housekeeping is untimed; blank space is not measured idle.")
+    return True
+
+
+def plot_pipeline(selected: dict, out: Path) -> bool:
+    """Expose both core budgets for the fastest qualified split-FEC records."""
+    from matplotlib.lines import Line2D
+    from plotstyle import BLUE, DARK, GREEN, INK, RED, WIDTH, lollipop, plt, save_figure
+
+    rows = [r for r in selected["sustained"] if r.get("source") in (4, 5)]
+    if not rows:
+        return False
+    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, max(2.1, len(rows) * 0.48 + 1.4)), sharey=True,
+                             gridspec_kw={"width_ratios": [1.5, 1]})
+    labels, has_active = [], False
+    for y, r in enumerate(rows):
+        label = (f"On-chip SPI, {r['pv_spi']['sck_hz'] / 1e6:g} MHz" if r["source"] == 5
+                 else "Generated BBFRAMEs")
+        labels.append(f"{label}\n{r['sym_rate'] / 1e6:g} Msym/s · {r['clk_hz'] / 1e6:g} MHz")
+        left = 0
+        parts = ((r["gen_busy"], BLUE, None, "Pointers"),
+                 (r["split_bch_busy"], RED, None, "FEC"),
+                 (r["control_busy"], GREEN, "////", "Control"))
+        for amount, color, hatch, label in parts:
+            axes[0].barh(y, amount * 100, left=left * 100, height=0.26,
+                         color="white" if hatch else color, edgecolor=color, hatch=hatch,
+                         linewidth=0.5, label=label if y == 0 else None)
+            left += amount
+        axes[0].annotate(f"{left * 100:.1f}", (left * 100, y), xytext=(4, 7),
+                         textcoords="offset points", fontsize=7.5, va="bottom")
+        active = active_work(r)
+        if active is not None:
+            has_active = True
+            axes[0].plot(active * 100, y, marker="D", color=INK, ms=4,
+                         markerfacecolor="white", zorder=4)
+            axes[0].annotate(f"{active * 100:.1f} active", (active * 100, y), xytext=(0, -12),
+                             textcoords="offset points", ha="center", va="top", fontsize=7)
+        if r["source"] == 5:
+            axes[1].barh(y, r["s2_busy"] * 100, height=0.26, color=RED, linewidth=0.5)
+            axes[1].barh(y, r["ts_busy"] * 100, left=r["s2_busy"] * 100, height=0.26,
+                         color=DARK, linewidth=0.5, label="TS assembly")
+            total = r["core1_work_busy"] * 100
+            axes[1].annotate(f"{total:.1f}", (total, y), xytext=(0, 7),
+                             textcoords="offset points", ha="right", va="bottom", fontsize=7.5)
+        else:
+            lollipop(axes[1], y, r["s2_busy"] * 100, RED, fmt="{:.1f}")
+        axes[1].annotate(duration(r), (0, y), xytext=(4, 7), textcoords="offset points", fontsize=7)
+    axes[0].set_yticks(range(len(rows)), labels)
+    axes[0].set_ylim(len(rows) - 0.55, -0.6)
+    axes[0].set_title("(a) Core 0: BB/BCH + output")
+    spi_title = " + TS" if any(r["source"] == 5 for r in rows) else ""
+    axes[1].set_title("(b) Core 1: LDPC + framing" + spi_title)
+    for ax in axes:
+        percent_axis(ax)
+    axes[1].set_xlim(0, 112)
+    handles, legend_labels = axes[0].get_legend_handles_labels()
+    if has_active:
+        handles.append(Line2D([], [], color=INK, marker="D", markerfacecolor="white", linestyle="none"))
+        legend_labels.append("Active loop")
+    spi_handles, spi_labels = axes[1].get_legend_handles_labels()
+    if spi_handles:
+        handles.append(spi_handles[0])
+        legend_labels.append(spi_labels[0])
+    fig.legend(handles, legend_labels, loc="upper center", bbox_to_anchor=(0.57, 1.02),
+               ncol=len(handles), fontsize=6.9, handlelength=1.2, columnspacing=0.8)
+    save_figure(fig, out / "dual_dma_pipeline.png",
+                "Split FEC, four writers, paired rows; QPSK 2/3 + pilots, L12 at 4 samples/symbol. SPI uses an on-chip master.\n"
+                "Bars sum timed regions; diamonds include the whole active loop when reported. Excluded time is not an idle measurement.")
     return True
 
 
@@ -447,6 +597,31 @@ def self_test():
     selection = select([split, good])
     assert selection["load_direct"] == [good] and split in selection["sustained"]
     assert selection["one_core"] == []
+    spi_pending = dict(split, label=split["label"].replace("src4", "src5"), source=5)
+    assert not dual_clean(spi_pending, 5) and select([spi_pending])["sustained"] == []
+    from dual_spi import first_crcs, pv
+    import zlib
+    fields = b"".join(pv.message(k, pv.pattern_payload(k))[-4:] for k in range(16))
+    spi = dict(spi_pending, _uf2_sha256="a" * 64, split_bb_stride_words=0,
+               gen_busy=0.3, control_busy=0.1, split_bch_busy=0.3,
+               core0_work_busy=0.7, core0_active_busy=0.72,
+               s2_busy=0.6, ts_busy=0.15, core1_work_busy=0.75,
+               cap_symbol_cursor=100000, cap_reference_first_frame=2, cap_offset=300000,
+               pv_spi=dict(sck_hz=32_000_000, ok=48, ts_packets=336, runtime_bbframes=6,
+                           runtime_messages=24, crc_chain=zlib.crc32(fields * 3), bb_crc=first_crcs(),
+                           lost=0, bad_hdr=0, bad_crc=0, bad_sync=0, null_packets=0,
+                           short_msgs=0, long_msgs=0, overflows=0))
+    assert dual_clean(spi, 5) and select([spi])["sustained"] == [spi]
+    for changes in ({"_uf2_sha256": ""}, {"core1_work_busy": 0.6},
+                    {"core0_active_busy": 0.5}, {"cap_reference_first_frame": 0},
+                    {"cap_offset": 4 * 33282 * 8 - 1},
+                    {"pv_spi": dict(spi["pv_spi"], null_packets=1)},
+                    {"pv_spi": dict(spi["pv_spi"], crc_chain=0)},
+                    {"pv_spi": dict(spi["pv_spi"], bb_crc=[0] * 4)}):
+        assert not dual_clean(dict(spi, **changes), 5), changes
+    assert active_work(dict(split, core0_active_busy=0.99)) == 0.99
+    assert active_work(dict(split, core0_active_busy=0.8)) is None
+    assert active_work(dict(split, core0_active_busy=float("nan"))) is None
     assert good == original
     print("plot_dual self-test: configuration, capture, negative-control and longest-run selection checked")
 
@@ -471,7 +646,7 @@ def main():
         print(json.dumps(selected, indent=2))
         return
     count = (int(plot_load(selected, args.out)) + int(plot_rates(selected, args.out)) +
-             int(plot_one_core(selected, args.out)))
+             int(plot_one_core(selected, args.out)) + int(plot_pipeline(selected, args.out)))
     if not count:
         parser.error("no eligible clean full-DVB records; no figures written")
     args.out.mkdir(parents=True, exist_ok=True)

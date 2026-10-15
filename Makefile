@@ -6,7 +6,7 @@ BUILD := firmware/build
 UF2 := $(BUILD)/iqbench.uf2
 export PICO_SDK_PATH PICO_TOOLCHAIN_PATH
 
-.PHONY: build flash bootsel test analyze coeffs bench smoke plots clean
+.PHONY: build flash bootsel test check analyze coeffs bench smoke plots clean
 
 build: $(BUILD)/build.ninja
 	ninja -C $(BUILD)
@@ -22,6 +22,22 @@ bootsel:
 
 test:                  ## host-native kernels vs Python model, bit-exact
 	python3 host/test_native.py
+
+check: test            ## encoder, protocol, PIO/DMA models and result validation; no USB
+	python3 host/test_dvbs2_native.py
+	python3 host/test_dvbs2_buffers.py
+	python3 host/test_dvbs2_fec.py
+	python3 host/test_pv_native.py
+	python3 host/test_startup.py
+	python3 host/test_flight_service.py
+	python3 host/test_iqdesc.py
+	python3 host/test_iqpair.py
+	python3 host/test_dual_pio.py
+	python3 host/test_dual_faults.py
+	python3 host/test_dual_spi.py
+	python3 host/test_ptrprog.py
+	python3 host/dual_trial.py --self-test
+	python3 host/plot_dual.py --self-test
 
 analyze:               ## filter sweep and samples/symbol figures
 	python3 reference/analyze.py

@@ -8,6 +8,7 @@
 void bench_kernel(const iq_kernel_info_t *k, int reps, bool tables_ok);
 void bench_dvbs2(int code, bool pilots, int reps);
 void bench_sniffer(void);
+void bench_pv(int reps);
 void bench_8psk(int reps);
 void bench_hstx_ddr(int ms);
 void bench_descriptors(int reps);

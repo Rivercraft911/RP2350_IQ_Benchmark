@@ -62,6 +62,33 @@ static uint32_t time_min(void (*f)(void), int reps) {
     return best;
 }
 
+static volatile uint8_t pv_bench_crc;
+static uint32_t pv_bench_packet;
+
+static void t_pv_crc8(void) {
+    pv_bench_crc = pv_crc8((uint8_t *)cap_buf + 13, PV_TS - 1);
+}
+
+static uint8_t *pv_bench_next(void) {
+    return (uint8_t *)cap_buf + 12 + PV_TS * (pv_bench_packet++ % 7);
+}
+
+static void t_pv_frame(void) {
+    pv_bbframe((uint8_t *)bb_buf, 43040, 0xF2, pv_bench_next);
+}
+
+void bench_pv(int reps) {
+    pv_init(65536);
+    pv_pattern_message((uint8_t *)cap_buf, 0, 65536);
+    pv_bench_packet = 0;
+    const uint32_t crc_cyc = time_min(t_pv_crc8, reps);
+    const uint32_t frame_cyc = time_min(t_pv_frame, reps);
+    printf("@{\"cmd\":\"pvbench\",\"git\":\"%s\",\"clk_hz\":%lu,\"reps\":%d,"
+           "\"crc8_bytes\":187,\"crc8\":%u,\"crc8_cyc\":%lu,\"bbframe_cyc\":%lu}\n",
+           GIT_REV, (unsigned long)clock_get_hz(clk_sys), reps, pv_bench_crc,
+           (unsigned long)crc_cyc, (unsigned long)frame_cyc);
+}
+
 static void t_bch(void) { dvbs2_bch(bb_buf, par_buf); }
 static void t_bch_serial(void) { dvbs2_bch_serial(bb_buf, par_buf); }
 static void t_ldpc(void) { dvbs2_ldpc(bb_buf, par_buf); }

@@ -18,7 +18,9 @@ static volatile bool admitting;
 static uint8_t *msg;                                 // consumer: slot being read (reset per run)
 static int npk, ipk;
 
-static PIO const pio = pio2;
+static PIO pio;
+static uint irq_num;
+static bool active;
 static uint sm_rx, sm_cs, sm_emu, off_rx, off_cs, off_emu;
 static int ch_rx = -1, ch_emu = -1, ch_ctl = -1;
 static uint32_t *emu_base;                            // read by ch_ctl to rewind ch_emu
@@ -100,22 +102,29 @@ static void __not_in_flash_func(cs_isr)(void) {
     spin_unlock(lock, s);
 }
 
-void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half) {
+void pvspi_start(PIO bus, uint32_t *slots, bool selftest, uint32_t *emu, int emu_half) {
+    if (active) pvspi_stop();
+    pio = bus;
+    irq_num = PIO0_IRQ_0 + 2 * pio_get_index(pio);
     slot_mem = slots;
     pvspi = (pvspi_stats_t){0};
     armed = false;
     msg = 0, npk = ipk = 0;                               // no stale pointer into last run's slots
-    if (ch_rx < 0) {
-        ch_rx = dma_claim_unused_channel(true);
-        ch_emu = dma_claim_unused_channel(true);
-        ch_ctl = dma_claim_unused_channel(true);
-        sm_rx = pio_claim_unused_sm(pio, true);
-        sm_cs = pio_claim_unused_sm(pio, true);
-        sm_emu = pio_claim_unused_sm(pio, true);
-        lock = spin_lock_instance(spin_lock_claim_unused(true));
-        irq_set_exclusive_handler(PIO2_IRQ_0, cs_isr);
+    ch_rx = dma_claim_unused_channel(true);
+    ch_emu = dma_claim_unused_channel(true);
+    ch_ctl = dma_claim_unused_channel(true);
+    const int channels[] = {ch_rx, ch_emu, ch_ctl};
+    for (unsigned n = 0; n < 3; n++) {
+        const int ch = channels[n];
+        dma_channel_cleanup(ch);
+        dma_hw->ch[ch].al1_ctrl = DMA_CH0_CTRL_TRIG_READ_ERROR_BITS |
+            DMA_CH0_CTRL_TRIG_WRITE_ERROR_BITS | (uint32_t)ch << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB;
     }
-    pio_clear_instruction_memory(pio);
+    sm_rx = pio_claim_unused_sm(pio, true);
+    sm_cs = pio_claim_unused_sm(pio, true);
+    sm_emu = pio_claim_unused_sm(pio, true);
+    lock = spin_lock_instance(spin_lock_claim_unused(true));
+    irq_set_exclusive_handler(irq_num, cs_isr);
     build(emu_half);
     off_rx = pio_add_program(pio, &(pio_program_t){.instructions = prog_rx, .length = 4, .origin = -1});
     off_cs = pio_add_program(pio, &(pio_program_t){.instructions = prog_cs, .length = 3, .origin = -1});
@@ -126,7 +135,7 @@ void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half) {
     gpio_put(PIN_READY, 0);
     for (uint p = PIN_SCK; p <= PIN_CS; p++) pio_gpio_init(pio, p);
     gpio_pull_up(PIN_CS);                                    // idle high if the master is absent
-    // PIO output enables outlive the SM that set them: after a self-test PIO2 would still drive
+    // PIO output enables outlive the SM that set them: after a self-test PIO would still drive
     // SCK/MOSI/CS against the CM5. Start every run with them as inputs.
     pio_sm_set_consecutive_pindirs(pio, sm_rx, PIN_SCK, 3, false);
 
@@ -194,7 +203,8 @@ void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half) {
         dma_channel_configure(ch_ctl, &d, &dma_hw->ch[ch_emu].al3_read_addr_trig, &emu_base, 1, false);
     }
 
-    irq_set_enabled(PIO2_IRQ_0, true);
+    active = true;
+    irq_set_enabled(irq_num, true);
     pio_sm_set_enabled(pio, sm_cs, true);
     pio_sm_set_enabled(pio, sm_rx, true);
     const uint32_t s = spin_lock_blocking(lock);
@@ -208,6 +218,7 @@ void pvspi_start(uint32_t *slots, bool selftest, uint32_t *emu, int emu_half) {
 }
 
 void pvspi_pause(void) {
+    if (!active) return;
     const uint32_t s = spin_lock_blocking(lock);
     admitting = false;
     gpio_put(PIN_READY, 0);
@@ -215,27 +226,48 @@ void pvspi_pause(void) {
 }
 
 void pvspi_stop(void) {
-    gpio_put(PIN_READY, 0);
+    if (!active) return;
+    pvspi_pause();
+    irq_set_enabled(irq_num, false);
+    pio_set_irq0_source_enabled(pio, pis_interrupt0, false);
     pio_set_sm_mask_enabled(pio, (1u << sm_rx) | (1u << sm_cs) | (1u << sm_emu), false);
-    irq_set_enabled(PIO2_IRQ_0, false);
-    dma_channel_abort(ch_rx);
+    pio_interrupt_clear(pio, 0);
+    irq_clear(irq_num);
+    irq_remove_handler(irq_num, cs_isr);
+    active = false;
+    const int channels[] = {ch_rx, ch_emu, ch_ctl};
+    // Break all trigger paths before aborting any channel (RP2350-E5).
+    for (unsigned n = 0; n < 3; n++)
+        hw_write_masked(&dma_hw->ch[channels[n]].al1_ctrl,
+            (uint32_t)channels[n] << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB,
+            DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS | DMA_CH0_CTRL_TRIG_EN_BITS);
+    for (unsigned n = 0; n < 3; n++) dma_channel_cleanup(channels[n]);
     dma_sniffer_disable();
     if (emu_on) {
-        dma_channel_config d = dma_get_channel_config(ch_emu);
-        channel_config_set_chain_to(&d, ch_emu);             // break the loop before aborting
-        dma_channel_set_config(ch_emu, &d, false);
-        dma_channel_abort(ch_ctl);
-        dma_channel_abort(ch_emu);
         pio_sm_set_pins_with_mask(pio, sm_emu, 1u << PIN_CS, 1u << PIN_CS);
     }
     pio_sm_set_consecutive_pindirs(pio, sm_rx, PIN_SCK, 3, false);
     for (uint p = PIN_SCK; p <= PIN_CS; p++) gpio_set_dir(p, GPIO_IN), gpio_set_function(p, GPIO_FUNC_SIO);
+    pio_remove_program(pio, &(pio_program_t){.instructions = prog_rx, .length = 4, .origin = -1}, off_rx);
+    pio_remove_program(pio, &(pio_program_t){.instructions = prog_cs, .length = 3, .origin = -1}, off_cs);
+    pio_remove_program(pio, &(pio_program_t){.instructions = prog_emu, .length = len_emu, .origin = -1}, off_emu);
+    pio_sm_unclaim(pio, sm_rx);
+    pio_sm_unclaim(pio, sm_cs);
+    pio_sm_unclaim(pio, sm_emu);
+    for (unsigned n = 0; n < 3; n++) dma_channel_unclaim(channels[n]);
+    spin_lock_unclaim(spin_lock_get_num(lock));
+    lock = NULL;
+    ch_rx = ch_emu = ch_ctl = -1;
+    armed = emu_on = false;
+    msg = NULL;
+    npk = ipk = 0;
 }
 
 // Consumer: packets of the oldest closed slot; a slot is released (and READY re-evaluated) once
 // its packets have been handed out and the caller asks for the next one.
 
 uint8_t *__not_in_flash_func(pvspi_next_packet)(void) {
+    if (!active) return NULL;
     for (;;) {
         if (msg && ipk < npk) return msg + 12 + PV_TS * ipk++;
         if (msg) {

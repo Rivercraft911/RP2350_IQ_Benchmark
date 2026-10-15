@@ -80,7 +80,7 @@ iqdesc_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
     }
 }
 
-void __attribute__((section(".time_critical.iqdesc_pair_interp")))
+void __attribute__((section(".scratch_y.iqdesc_pair_interp")))
 iqdesc_pair_interp(uint32_t *di, uint32_t *dq, const uint32_t *in, uint32_t nwords,
                    uint32_t prev, uint32_t base_i, uint32_t base_q) {
     if (!nwords) return;

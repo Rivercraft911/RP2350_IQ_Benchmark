@@ -52,11 +52,13 @@ typedef struct {
     int sm[4], control[4], data[4], sm_cap, cap_dma;
     uint out_offset, out_q_offset, cap_offset;
     bool out_added, out_q_added, cap_added, saved, hstx_changed, hstx_was_reset, priority_changed;
-    bool owned, running, capture_started, capture_fifo_only;
+    bool owned, running, capture_started, capture_fifo_only, capture_complete, capture_frozen;
     uint32_t count, mask, divider256, schedule, row_words, writers, sys_hz, last[4], last_poll_us, poll_limit_us;
     uint64_t rows[4];
     const uint32_t *desc_i, *desc_q;
     uint32_t capture_requested, captured;
+    uint32_t output_sm_mask, txstall_i_mask, txstall_q_mask, output_debug_mask;
+    uint32_t output_dma_mask, capture_dma_mask, capture_debug_mask;
     uint32_t *capture_buffer;
     dual_dma_progress_t result;
     uint32_t gpio_ctrl[17], gpio_pad[17], sio_out, sio_oe, pio_out, pio_oe, sync_bypass;
@@ -74,10 +76,7 @@ static unsigned selected_bus_priority;
 static unsigned selected_writers = 2;
 
 static uint32_t out_mask(void) {
-    uint32_t mask = 0;
-    for (unsigned s = 0; s < state.writers; s++)
-        if (state.sm[s] >= 0) mask |= 1u << state.sm[s];
-    return mask;
+    return state.output_sm_mask;
 }
 
 static const pio_program_t *i_output_program(void) {
@@ -107,21 +106,24 @@ static void __not_in_flash_func(halt_outputs)(void) {
     state.running = state.result.running = false;
 }
 
-static void __not_in_flash_func(sample_capture)(void) {
+static void __not_in_flash_func(sample_capture)(uint32_t dma_interrupts) {
     if (!state.capture_started || state.cap_dma < 0) return;
-    state.captured = state.capture_fifo_only ? pio_sm_get_rx_fifo_level(pio1, state.sm_cap) :
-        state.capture_requested - dma_hw->ch[state.cap_dma].transfer_count;
+    if (!state.capture_complete && !state.capture_frozen) {
+        state.captured = state.capture_fifo_only ? pio_sm_get_rx_fifo_level(pio1, state.sm_cap) :
+            state.capture_requested - dma_hw->ch[state.cap_dma].transfer_count;
+        if (state.captured == state.capture_requested) {
+            pio_sm_set_enabled(pio1, state.sm_cap, false);
+            state.capture_complete = true;
+        }
+    }
     const uint32_t flags = pio1->fdebug;
-    const uint32_t bad = (1u << (PIO_FDEBUG_RXSTALL_LSB + state.sm_cap)) |
-                         (1u << (PIO_FDEBUG_RXUNDER_LSB + state.sm_cap));
+    const uint32_t bad = state.capture_debug_mask;
     if (flags & bad) {
         state.result.errors |= DUAL_DMA_ERR_CAPTURE_STALL;
         pio1->fdebug = flags & bad;
     }
-    if (!state.capture_fifo_only &&
-        (dma_hw->ch[state.cap_dma].ctrl_trig & DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS))
+    if (!state.capture_fifo_only && (dma_interrupts & state.capture_dma_mask))
         state.result.errors |= DUAL_DMA_ERR_CAPTURE_DMA;
-    if (state.captured == state.capture_requested) pio_sm_set_enabled(pio1, state.sm_cap, false);
     if (state.result.errors & (DUAL_DMA_ERR_CAPTURE_STALL | DUAL_DMA_ERR_CAPTURE_DMA)) halt_outputs();
 }
 
@@ -161,11 +163,7 @@ static void __not_in_flash_func(sample_reads)(bool check_time) {
 
 static void __not_in_flash_func(sample_faults)(void) {
     const uint32_t flags = state.output_pio->fdebug;
-    uint32_t fi = 0, fq = 0;
-    for (unsigned s = 0; s < state.writers; s++) {
-        const uint32_t bit = 1u << (PIO_FDEBUG_TXSTALL_LSB + state.sm[s]);
-        if (s & 1u) fq |= bit; else fi |= bit;
-    }
+    const uint32_t fi = state.txstall_i_mask, fq = state.txstall_q_mask;
     if (flags & fi) {
         state.result.txstalls_i += (uint32_t)__builtin_popcount(flags & fi);
         state.result.errors |= DUAL_DMA_ERR_TXSTALL_I;
@@ -174,15 +172,15 @@ static void __not_in_flash_func(sample_faults)(void) {
         state.result.txstalls_q += (uint32_t)__builtin_popcount(flags & fq);
         state.result.errors |= DUAL_DMA_ERR_TXSTALL_Q;
     }
-    const uint32_t overflow = out_mask() << PIO_FDEBUG_TXOVER_LSB;
+    const uint32_t overflow = state.output_sm_mask << PIO_FDEBUG_TXOVER_LSB;
     if (flags & overflow) state.result.errors |= DUAL_DMA_ERR_OUTPUT_DMA;
-    state.output_pio->fdebug = flags & (fi | fq | overflow);
-    int channels[9];
-    const unsigned count = channels_in_use(channels) - 1; // capture checked separately
-    for (unsigned c = 0; c < count; c++)
-        if (dma_hw->ch[channels[c]].ctrl_trig & DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS)
-            state.result.errors |= DUAL_DMA_ERR_OUTPUT_DMA;
-    sample_capture();
+    if (flags & state.output_debug_mask)
+        state.output_pio->fdebug = flags & state.output_debug_mask;
+    // All owned channels use IRQ_QUIET: raw IRQ means a bus error or unexpected null
+    // trigger (§12.6.5), both fatal. Leave it sticky until cleanup, even with IRQs masked.
+    const uint32_t dma_interrupts = dma_hw->intr;
+    if (dma_interrupts & state.output_dma_mask) state.result.errors |= DUAL_DMA_ERR_OUTPUT_DMA;
+    sample_capture(dma_interrupts);
 }
 
 dual_dma_progress_t __not_in_flash_func(dual_dma_progress)(void) {
@@ -356,10 +354,18 @@ bool dual_dma_start_div256(const uint32_t *desc_i, const uint32_t *desc_q,
         state.sm[s] = pio_claim_unused_sm(state.output_pio, false);
         if (state.sm[s] < 0)
             return start_failed("dual DMA output PIO SMs unavailable", DUAL_DMA_ERR_CONFIG);
+        state.output_sm_mask |= 1u << state.sm[s];
+        const uint32_t stall = 1u << (PIO_FDEBUG_TXSTALL_LSB + state.sm[s]);
+        if (s & 1u) state.txstall_q_mask |= stall;
+        else state.txstall_i_mask |= stall;
     }
+    state.output_debug_mask = state.txstall_i_mask | state.txstall_q_mask |
+        (state.output_sm_mask << PIO_FDEBUG_TXOVER_LSB);
     state.sm_cap = pio_claim_unused_sm(pio1, false);
     if (state.sm_cap < 0)
         return start_failed("dual DMA needs one free PIO1 SM", DUAL_DMA_ERR_CONFIG);
+    state.capture_debug_mask = (1u << (PIO_FDEBUG_RXSTALL_LSB + state.sm_cap)) |
+        (1u << (PIO_FDEBUG_RXUNDER_LSB + state.sm_cap));
     state.capture_code[0] = pio_encode_in(pio_pins, 16) | pio_encode_delay(15);
     state.capture_code[1] = pio_encode_jmp_x_dec(0);
     state.capture_code[2] = pio_encode_jmp(2);
@@ -394,6 +400,9 @@ bool dual_dma_start_div256(const uint32_t *desc_i, const uint32_t *desc_q,
         if (*channels[c] < 0) return start_failed("dual DMA channels unavailable", DUAL_DMA_ERR_CONFIG);
         prepare_channel(*channels[c]);
     }
+    for (unsigned s = 0; s < state.writers; s++)
+        state.output_dma_mask |= (1u << state.control[s]) | (1u << state.data[s]);
+    state.capture_dma_mask = 1u << state.cap_dma;
     save_hardware();
     for (uint p = PIN_D0; p < PIN_D0 + 16; p++) {
         pio_gpio_init(state.output_pio, p);
@@ -526,17 +535,17 @@ bool dual_dma_capture(uint32_t *buffer, uint32_t nwords) {
 }
 
 bool dual_dma_capture_done(void) {
-    if (state.owned) { sample_capture(); if (state.result.errors) halt_outputs(); }
+    if (state.owned) { sample_capture(dma_hw->intr); if (state.result.errors) halt_outputs(); }
     return state.capture_started && state.captured == state.capture_requested;
 }
 
 uint32_t dual_dma_capture_count(void) {
-    if (state.owned) sample_capture();
+    if (state.owned) sample_capture(dma_hw->intr);
     return state.captured;
 }
 
 uint32_t dual_dma_capture_errors(void) {
-    if (state.owned) sample_capture();
+    if (state.owned) sample_capture(dma_hw->intr);
     return state.result.errors & (DUAL_DMA_ERR_CAPTURE_STALL | DUAL_DMA_ERR_CAPTURE_DMA);
 }
 
@@ -553,20 +562,34 @@ void dual_dma_stop(void) {
     // Break every chain before aborting any channel (RP2350 DMA abort errata).
     int channels[9];
     const unsigned channel_count = channels_in_use(channels);
+    uint32_t abort_mask = 0;
     for (unsigned c = 0; c < channel_count; c++) if (channels[c] >= 0)
+    {
         hw_write_masked(&dma_hw->ch[channels[c]].al1_ctrl,
                         (uint32_t)channels[c] << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB,
                         DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS | DMA_CH0_CTRL_TRIG_EN_BITS);
+        abort_mask |= 1u << channels[c];
+    }
     // ABORT clears TRANS_COUNT (§12.6.8.3). Latch completed capture words beforehand;
     // otherwise an incomplete aborted capture would falsely appear fully transferred.
-    if (state.capture_started) sample_capture();
+    if (state.saved) sample_faults();
+    if (state.saved && state.control[0] >= 0 && state.control[1] >= 0) sample_reads(false);
+    state.capture_frozen = true;
+    dma_hw->abort = abort_mask;
+    while (dma_hw->abort & abort_mask) tight_loop_contents();
+    // ABORT may raise a spurious IRQ. Check sticky AHB flags after all in-flight accesses
+    // finish, before SDK cleanup can clear them; keep pre-abort capture counts unchanged.
+    for (unsigned c = 0; c < channel_count; c++) if (channels[c] >= 0 &&
+            (dma_hw->ch[channels[c]].ctrl_trig & DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS)) {
+        if (channels[c] == state.cap_dma) state.result.errors |= DUAL_DMA_ERR_CAPTURE_DMA;
+        else state.result.errors |= DUAL_DMA_ERR_OUTPUT_DMA;
+    }
     if (state.capture_started && state.capture_fifo_only) {
         // Both outputs and capture execution are stopped. No DMA or CPU FIFO reads took
         // place during acquisition; drain only now, preserving the latched completed count.
         for (uint32_t n = 0; n < state.captured; n++)
             state.capture_buffer[n] = pio_sm_get(pio1, state.sm_cap);
     }
-    if (state.saved && state.control[0] >= 0 && state.control[1] >= 0) sample_reads(false);
     for (unsigned c = 0; c < channel_count; c++) if (channels[c] >= 0) dma_channel_cleanup(channels[c]);
     if (state.priority_changed && !apply_bus_priority(state.bus_priority)) {
         state.result.errors |= DUAL_DMA_ERR_CONFIG;

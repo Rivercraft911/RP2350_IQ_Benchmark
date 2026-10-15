@@ -55,7 +55,7 @@ class StartupOrdering(unittest.TestCase):
 
     def test_external_spi_after_output_and_pause_before_stop(self):
         run = body(self.tx, 'tx_run')
-        external = 'if (r->pv == 0) pvspi_start(in_buf, false, NULL, 3);'
+        external = 'if (r->pv == 0) pvspi_start(pio2, in_buf, false, NULL, 3);'
         self.assertLess(run.index('produce(s);'), run.index('iqout_start();'))
         self.assertLess(run.index('iqout_start();'), run.index(external))
         self.assertLess(run.index('pvspi_pause();'), run.index('iqout_stop();'))
