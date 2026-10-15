@@ -36,6 +36,7 @@ RETAINED_WORDS = {16: 2, 32: 4}
 MODCOD = {16: 21, 32: 26}
 AMPLITUDE_POLICY = 'outer_radius_one'
 STANDARD = 'https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf'
+SPLIT_SLICE_WORDS = 96  # firmware BCH_SLICE_WORDS
 
 
 @functools.lru_cache(maxsize=2)
@@ -215,8 +216,9 @@ def first_fec_crcs():
             for index in range(4)]
 
 
-def expected_profile(modulation, clock_khz, cpw, ms):
+def expected_profile(modulation, clock_khz, cpw, ms, split=0):
     profile = ref16 if modulation == 16 else ref32
+    extra = dict(split_bch=1, bch_slice_words=SPLIT_SLICE_WORDS) if split else {}
     return dict(cmd='benchapskfec', modulation=modulation, clk_hz=clock_khz*1000, cpw=cpw, ms=ms,
                 code_index=8, s2_code='normal 5/6', modcod=MODCOD[modulation], kbch=BB_BITS,
                 pilots=True, gold=0, bb_matype1=114, outer_radius=1, header_pilot_radius=1,
@@ -233,13 +235,13 @@ def expected_profile(modulation, clock_khz, cpw, ms):
                 words_per_block=BLOCK_SYMBOLS//SYMBOLS_PER_WORD[modulation],
                 retained_words=RETAINED_WORDS[modulation], publication_words=64,
                 block_symbols=BLOCK_SYMBOLS, out_blocks=OUT_BLOCKS, out_words=2*BLOCK_SYMBOLS,
-                bch_kernel=2, idle_wait='timer_poll_1us', **prefill_reference(modulation))
+                bch_kernel=2, idle_wait='timer_poll_1us', **extra, **prefill_reference(modulation))
 
 
-def configuration_faults(result, modulation, clock, cpw, ms, expected_git=None):
+def configuration_faults(result, modulation, clock, cpw, ms, expected_git=None, split=0):
     if result.get('error'):
         return [f"firmware error: {result['error']}"]
-    expected = expected_profile(modulation, clock, cpw, ms)
+    expected = expected_profile(modulation, clock, cpw, ms, split)
     if expected_git is not None:
         expected['git'] = expected_git
     faults = [f'{key}={result.get(key)!r}, expected {want!r}'
@@ -253,9 +255,9 @@ def configuration_faults(result, modulation, clock, cpw, ms, expected_git=None):
     return faults
 
 
-def stream_faults(result, modulation, clock, cpw, ms, expected_git=None):
+def stream_faults(result, modulation, clock, cpw, ms, expected_git=None, split=0):
     r = result
-    faults = configuration_faults(r, modulation, clock, cpw, ms, expected_git)
+    faults = configuration_faults(r, modulation, clock, cpw, ms, expected_git, split)
     if r.get('error'):
         return faults
     for key in ('errors', 'underruns', 'own_errors', 'idle_sent', 'txstalls'):
@@ -279,7 +281,8 @@ def stream_faults(result, modulation, clock, cpw, ms, expected_git=None):
         faults.append('output block count differs from elapsed clock rate')
     if r['generated_blocks'] != blocks+OUT_BLOCKS or not 0 <= r['generated_blocks']-r['done_blocks'] <= OUT_BLOCKS:
         faults.append('output block publication/credit mismatch')
-    if frames <= 1 or r['encoder_runtime_frames'] != frames-1 or attempts-frames not in (0, 1):
+    # Split mode holds up to one built BB plus two FE slots (BCH and LDPC/map) in flight.
+    if frames <= 1 or r['encoder_runtime_frames'] != frames-1 or not 0 <= attempts-frames <= (3 if split else 1):
         faults.append('encoder completed/attempted frame accounting mismatch')
     if type(r.get('encoder_partial_frame')) is not bool or r['encoder_partial_frame'] != (attempts != frames):
         faults.append('partial-frame marker mismatch')
@@ -325,10 +328,12 @@ def stream_faults(result, modulation, clock, cpw, ms, expected_git=None):
         faults.append('16APSK unexpectedly charged coordinate preparation')
     stage, maxima = r.get('encoder_stage_cycles'), r.get('encoder_stage_max_cyc')
     names = {'bb', 'bb_bch', 'ldpc', 'map'}
-    valid = (isinstance(stage, dict) and set(stage) == names and
-             all(type(value) is int and value > 0 for value in stage.values()))
-    valid_max = (isinstance(maxima, dict) and set(maxima) == names and
-                 all(type(value) is int and value > 0 for value in maxima.values()))
+    # Split mode charges core-1 work only; BB scrambling + BCH run on core 0 (reported below).
+    positive = names-{'bb_bch'} if split else names
+    valid = (isinstance(stage, dict) and set(stage) == names and all(type(value) is int for value in stage.values()) and
+             all(stage[key] > 0 for key in positive) and (not split or stage['bb_bch'] == 0))
+    valid_max = (isinstance(maxima, dict) and set(maxima) == names and all(type(value) is int for value in maxima.values()) and
+                 all(maxima[key] > 0 for key in positive) and (not split or maxima['bb_bch'] == 0))
     if not valid or not valid_max:
         faults.append('encoder stage cycle accounting missing/invalid')
     else:
@@ -341,6 +346,24 @@ def stream_faults(result, modulation, clock, cpw, ms, expected_git=None):
             faults.append('encoder work/budget fraction mismatch')
         if sum(stage.values())+r['encoder_credit_wait_cycles'] > enc_budget*1.005:
             faults.append('encoder work plus credit wait exceeds elapsed budget')
+    if split:
+        core0 = ('core0_bch_cycles', 'core0_bch_slices', 'core0_bch_max_slice_cyc', 'core0_bch_frames',
+                 'core1_bch_wait_cycles')
+        if any(type(r.get(key)) is not int or r[key] < 0 for key in core0):
+            faults.append('split BCH accounting missing/invalid')
+        else:
+            # Frame 0 is serial and frames 1-2 are primed; core 0 builds every later FE slot.
+            # At most two runtime BBs remain unfinished: one in bb_buf and one mid-BCH.
+            if not max(frames-3, attempts-5) <= r['core0_bch_frames'] <= attempts-3:
+                faults.append('core-0 BCH frame count differs from encoder frames')
+            if not r['core0_bch_cycles'] or r['core0_bch_max_slice_cyc'] > r['core0_bch_cycles'] or \
+                    r['core0_bch_slices'] < r['core0_bch_frames']*(1+math.ceil(BB_BITS/32/SPLIT_SLICE_WORDS)):
+                faults.append('core-0 BCH slice accounting inconsistent')
+            if r['producer_work_cycles'] < r['prepare_cycles']+r['shape_cycles']+r['core0_bch_cycles']:
+                faults.append('producer work omits core-0 BCH')
+            if (type(r.get('core0_bch_busy')) not in (int, float) or not budget or
+                    not math.isclose(r['core0_bch_cycles']/budget, r['core0_bch_busy'], abs_tol=2e-6)):
+                faults.append('core0_bch_busy cycle budget mismatch')
     spi = r.get('pv_spi')
     if not isinstance(spi, dict):
         faults.append('missing PV-SPI metadata')
@@ -384,7 +407,7 @@ def selected_cases(modulations, clocks, cpws):
                              if mod in (16, 32) and clock in (128000, 150000) and 3 <= cpw <= 32))
 
 
-def metadata_fixture(modulation, clock, cpw, ms):
+def metadata_fixture(modulation, clock, cpw, ms, split=0):
     """A coherent offline result used to test strict accounting independently of USB."""
     hz, frame, spw = clock*1000, FRAME_SYMBOLS[modulation], SYMBOLS_PER_WORD[modulation]
     rs = hz/(4*cpw)
@@ -392,7 +415,7 @@ def metadata_fixture(modulation, clock, cpw, ms):
     generated = blocks+OUT_BLOCKS
     mapped = generated*BLOCK_SYMBOLS+4096
     frames, fill = divmod(mapped, frame)
-    attempts = frames+int(bool(fill))
+    attempts = frames+int(bool(fill))+(2 if split else 0)
     native, native_fill = divmod(mapped, spw)
     denominator = 8000*cpw*frame
     boundary = ((hz*ms+denominator-1)//denominator)*frame
@@ -405,12 +428,18 @@ def metadata_fixture(modulation, clock, cpw, ms):
     cap, lines = capture_lines(bus[offset:offset+2*CAP_WORDS])
     runtime_attempts = attempts-1
     stages = {key: runtime_attempts*cost for key, cost in
-              dict(bb=10000, bb_bch=115000, ldpc=126000, map=80000).items()}
+              dict(bb=10000, bb_bch=0 if split else 115000, ldpc=126000, map=80000).items()}
     elapsed, budget = ms*1000, ms*hz/1000
     prepare = (11 if modulation == 32 else 0)*blocks*BLOCK_SYMBOLS
     shape = 20*blocks*BLOCK_SYMBOLS
-    work = prepare+shape+100*blocks
-    result = dict(expected_profile(modulation, clock, cpw, ms), git='offline-self-test',
+    core0_frames = attempts-3 if split else 0
+    bch = core0_frames*1000  # synthetic: keeps every fixture profile under one core
+    work = prepare+shape+100*blocks+bch
+    split_fields = dict(core0_bch_cycles=bch, core0_bch_busy=bch/budget,
+                        core0_bch_slices=core0_frames*(1+math.ceil(BB_BITS/32/SPLIT_SLICE_WORDS)),
+                        core0_bch_max_slice_cyc=900 if split else 0, core0_bch_frames=core0_frames,
+                        core1_bch_wait_cycles=0) if split else {}
+    result = dict(expected_profile(modulation, clock, cpw, ms, split), git='offline-self-test', **split_fields,
                   sym_rate=rs, bb_payload_bps=rs*(BB_BITS-80)/frame, elapsed_us=elapsed, cleanup_us=100,
                   errors=0, underruns=0, own_errors=0, idle_sent=0, txstalls=0, blocks=blocks,
                   generated_blocks=generated, done_blocks=blocks+1, input_waits=0, min_input_words=100,
@@ -424,7 +453,7 @@ def metadata_fixture(modulation, clock, cpw, ms):
                   encoder_partial_frame=bool(fill), encoder_elapsed_us=elapsed,
                   encoder_credit_wait_cycles=0, encoder_max_frame_work_cyc=331000,
                   encoder_busy=sum(stages.values())/budget, encoder_stage_cycles=stages,
-                  encoder_stage_max_cyc={key: value//runtime_attempts+100 for key, value in stages.items()},
+                  encoder_stage_max_cyc={key: value//runtime_attempts+(100 if value else 0) for key, value in stages.items()},
                   cap_symbol_cursor=cursor, cap_frame_boundary=boundary,
                   cap_input_words=cursor//spw+1000, cap_done_blocks=done_at_capture,
                   cap_search_symbols=SEARCH_SYMBOLS, fe_crc=first_fec_crcs(), **cap)
@@ -479,9 +508,24 @@ def self_test():
         for clock in (128000, 150000):
             for cpw in (8, 12, 32):
                 for ms in (100, 3000):
+                    split_r, _ = metadata_fixture(modulation, clock, cpw, ms, split=1)
+                    faults = stream_faults(split_r, modulation, clock, cpw, ms, 'offline-self-test', split=1)
+                    assert not faults, faults
+                    assert stream_faults(split_r, modulation, clock, cpw, ms, 'offline-self-test')
+                    for mutation in ('bch_on_core1', 'core0_frames_high', 'core0_frames_low', 'core0_missing',
+                                     'depth', 'work'):
+                        bad = copy.deepcopy(split_r)
+                        if mutation == 'bch_on_core1': bad['encoder_stage_cycles']['bb_bch'] = 1
+                        elif mutation == 'core0_frames_high': bad['core0_bch_frames'] += 1
+                        elif mutation == 'core0_frames_low': bad['core0_bch_frames'] -= 3
+                        elif mutation == 'core0_missing': del bad['core0_bch_cycles']
+                        elif mutation == 'depth': bad['encoder_attempted_frames'] += 2
+                        else: bad['producer_work_cycles'] -= bad['core0_bch_cycles']
+                        assert stream_faults(bad, modulation, clock, cpw, ms, 'offline-self-test', split=1), mutation
                     r, _ = metadata_fixture(modulation, clock, cpw, ms)
                     faults = stream_faults(r, modulation, clock, cpw, ms, 'offline-self-test')
                     assert not faults, faults
+                    assert stream_faults(r, modulation, clock, cpw, ms, 'offline-self-test', split=1)
                     for key in ('modcod', 'prefill_crc', 'mapped_symbols', 'input_published_words',
                                 'cap_frame_boundary', 'errors'):
                         bad = copy.deepcopy(r); bad[key] += 1
@@ -517,6 +561,8 @@ def main():
     p.add_argument('--clocks', type=int, nargs='+', choices=(128000, 150000), default=[128000, 150000])
     p.add_argument('--cpw', type=int, nargs='+', choices=range(3, 33), default=[16])
     p.add_argument('--expect-deadline-fault', action='store_true')
+    p.add_argument('--split', action='store_true', help='BB scrambling + BCH on core 0 (benchapskfec split 1)')
+    p.add_argument('--ldpc-pack', type=int, choices=(0, 1), help='send ldpcpack N before each case')
     p.add_argument('--self-test', action='store_true')
     p.add_argument('--port'); p.add_argument('--expected-git')
     p.add_argument('--build', type=Path, default=iq.ROOT/'firmware/build-limits')
@@ -555,6 +601,7 @@ def main():
                     cpu='Timed producer/encoder stage work; credit wait excluded from encoder map work; polling is separate',
                     normalization='ETSI-admitted outer-radius1 data and unit-radius PL header/pilots',
                     standard=STANDARD, expect_deadline_fault=a.expect_deadline_fault,
+                    split_bch=a.split, ldpc_pack=a.ldpc_pack,
                     provenance='Runner archives sources/images; external verified flashing binds them to the board')
     (a.out/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')
     first_fec_crcs(); dual_spi.first_crcs(gcs=True, rate=RATE)
@@ -574,13 +621,19 @@ def main():
             changed, _ = board.cmd(f'clock {clock}'); record(f'clock-{clock}', changed)
             if changed.get('clk_hz') != clock*1000:
                 raise RuntimeError('clock configuration failed')
-            result, lines = board.cmd(f'benchapskfec {mod} {cpw} {a.ms}', timeout=a.ms/1000+60)
+            if a.ldpc_pack is not None:
+                packed, _ = board.cmd(f'ldpcpack {a.ldpc_pack}'); record('ldpcpack', packed)
+                if packed.get('pack') != a.ldpc_pack:
+                    raise RuntimeError('LDPC packer selection failed')
+            result, lines = board.cmd(f'benchapskfec {mod} {cpw} {a.ms} {int(a.split)}', timeout=a.ms/1000+60)
             filename = f'capture-{mod}-{clock}-cpw{cpw}.txt'
             (a.out/filename).write_text('\n'.join(lines)+'\n')
             if not result.get('error') and result.get('cap_words'):
                 result.update(validate_capture(result, lines))
-            faults = (deadline_faults if a.expect_deadline_fault else stream_faults)(
-                result, mod, clock, cpw, a.ms, a.expected_git)
+            faults = (deadline_faults(result, mod, clock, cpw, a.ms, a.expected_git) if a.expect_deadline_fault else
+                      stream_faults(result, mod, clock, cpw, a.ms, a.expected_git, int(a.split)))
+            if a.ldpc_pack is not None and result.get('ldpc_pack') != a.ldpc_pack and not result.get('error'):
+                faults.append('record LDPC packer differs from selection')
             result.update(faults=faults, passed=not faults, capture_file=filename,
                           classification='failed' if faults else 'expected-deadline-fault' if a.expect_deadline_fault else 'clean')
             record(f'{mod}apsk-fec-{clock}-cpw{cpw}', result)

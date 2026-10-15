@@ -23,6 +23,7 @@ enum {
     OUT_WORDS = 2 * BLOCK_SYMBOLS, OUT_BLOCKS = 4, CAP_WORDS = 4096,
     BB_BITS = 53840, BB_BYTES = BB_BITS / 8, BB_WORDS_USED = (BB_BITS + 31) / 32,
     PREFILL_MESSAGES = 8, PREFILL_TIMEOUT_US = 100000, PUBLICATION_WORDS = 64,
+    FE_SLOTS = 2, BCH_SLICE_WORDS = 96,
     GCS_MATYPE1 = 0x72, GCS_SYNC = 0xb9,
     STAGE_BB = 0, STAGE_BCH, STAGE_LDPC, STAGE_MAP, STAGES,
     ERR_INPUT = 1, ERR_UNDERRUN = 2, ERR_OWNERSHIP = 4,
@@ -37,6 +38,15 @@ typedef struct {
     uint32_t modulation, words_per_block, retained_words, symbols_per_word;
     uint32_t frames, attempts, bb_crc[4], fe_crc[4], max_frame_cycles, max_stage_cycles[STAGES];
     uint64_t stage_cycles[STAGES], credit_wait_cycles, start_us, end_us;
+    // Split mode: core 0 runs BB scrambling + BCH through the bounded frontend between
+    // shaped blocks; core 1 builds BBFRAMEs and runs LDPC + PL mapping. One BB buffer,
+    // two FE slots; counters are monotonic and published with barriers.
+    uint32_t *fe_slots[FE_SLOTS];
+    volatile uint32_t bb_produced, bb_consumed, fe_produced, fe_consumed;
+    dvbs2_frontend_t front;
+    bool split, front_active;
+    uint32_t bch_frames, bch_slices, bch_max_slice;
+    uint64_t bch_cycles, bch_wait_cycles;
 } live_t;
 
 // All arenas are borrowed while ordinary TX is idle. Context uses the8KiB tail
@@ -82,9 +92,8 @@ static bool mapper_service(void *unused, uint32_t produced) {
     return true;
 }
 
-static bool encode_frame(void) {
-    uint32_t stage[STAGES];
-    const uint32_t begin = cycles();
+// GCS BBFRAME into bb_buf as MSB-first words with a zeroed partial tail word.
+static bool build_bbframe(void) {
     if (!pv_gcs_bbframe((uint8_t *)bb_buf, BB_BITS, GCS_MATYPE1, GCS_SYNC, pvspi_next_packet)) {
         live.encoder_errors |= ERR_INPUT;
         return false;
@@ -93,9 +102,26 @@ static bool encode_frame(void) {
     ++live.attempts;
     for (unsigned byte = BB_BYTES; byte < 4 * BB_WORDS_USED; ++byte) ((uint8_t *)bb_buf)[byte] = 0;
     for (unsigned word = 0; word < BB_WORDS_USED; ++word) bb_buf[word] = __builtin_bswap32(bb_buf[word]);
+    if (transport_failed()) { live.encoder_errors |= ERR_PV; return false; }
+    return true;
+}
+
+static void charge(const uint32_t stage[STAGES]) {
+    uint32_t work = 0;
+    for (unsigned n = 0; n < STAGES; ++n) {
+        live.stage_cycles[n] += stage[n];
+        if (stage[n] > live.max_stage_cycles[n]) live.max_stage_cycles[n] = stage[n];
+        work += stage[n];
+    }
+    if (work > live.max_frame_cycles) live.max_frame_cycles = work;
+}
+
+static bool encode_frame(void) {
+    uint32_t stage[STAGES];
+    const uint32_t begin = cycles();
+    if (!build_bbframe()) return false;
     uint32_t start = cycles();
     stage[STAGE_BB] = start - begin;
-    if (transport_failed()) { live.encoder_errors |= ERR_PV; return false; }
     dvbs2_frame_begin(bb_buf);
     uint32_t end = cycles();
     stage[STAGE_BCH] = end - start;
@@ -111,13 +137,7 @@ static bool encode_frame(void) {
     const uint32_t elapsed = end - start;
     const uint32_t waited = (uint32_t)(live.credit_wait_cycles - wait_before);
     stage[STAGE_MAP] = elapsed - waited;
-    uint32_t work = 0;
-    for (unsigned n = 0; n < STAGES; ++n) {
-        live.stage_cycles[n] += stage[n];
-        if (stage[n] > live.max_stage_cycles[n]) live.max_stage_cycles[n] = stage[n];
-        work += stage[n];
-    }
-    if (work > live.max_frame_cycles) live.max_frame_cycles = work;
+    charge(stage);
     if (mapped) ++live.frames;
     else if (!live.stop) live.encoder_errors |= ERR_INPUT;
     __dmb();
@@ -125,12 +145,101 @@ static bool encode_frame(void) {
     return mapped;
 }
 
+// Split mode, core 1: refill the single BB buffer once core 0 has copied it, otherwise
+// LDPC + map the oldest FE slot whose BB scrambling and BCH core 0 has completed.
+// Stage BB counts BBFRAME construction; core-0 BCH is reported separately.
+static bool split_encode_step(void) {
+    uint32_t stage[STAGES] = {0};
+    if (live.bb_produced == live.bb_consumed) {
+        __dmb(); // acquire core 0's release of bb_buf
+        const uint32_t begin = cycles();
+        if (!build_bbframe()) return false;
+        stage[STAGE_BB] = cycles() - begin;
+        charge(stage);
+        __dmb();
+        live.bb_produced = live.bb_produced + 1;
+        return true;
+    }
+    const uint32_t taken = live.fe_consumed;
+    if (taken == live.fe_produced) {
+        const uint32_t start = cycles();
+        while (!live.stop && taken == live.fe_produced) tight_loop_contents();
+        live.bch_wait_cycles += (uint32_t)(cycles() - start);
+        return !live.stop;
+    }
+    __dmb(); // acquire the complete scrambled BBFRAME + BCH slot
+    uint32_t *const frame = live.fe_slots[taken % FE_SLOTS];
+    uint32_t start = cycles();
+    dvbs2_frame_ldpc_into(frame);
+    const uint32_t index = taken + 1;                 // frame 0 is the serial prefill frame
+    if (index < 4) live.fe_crc[index] = pv_crc32(0, frame, 64800 / 8);
+    uint32_t end = cycles();
+    stage[STAGE_LDPC] = end - start;
+    start = end;
+    const uint64_t wait_before = live.credit_wait_cycles;
+    const bool mapped = dvbs2_apsk_frame(&live.profile, frame, &live.stream);
+    end = cycles();
+    stage[STAGE_MAP] = (end - start) - (uint32_t)(live.credit_wait_cycles - wait_before);
+    charge(stage);
+    if (mapped) ++live.frames;
+    else if (!live.stop) live.encoder_errors |= ERR_INPUT;
+    __dmb();
+    live.total = live.stream.n;
+    __dmb(); // release the FE slot only after its output is published
+    live.fe_consumed = taken + 1;
+    return mapped;
+}
+
 static void encoder_task(uint32_t unused) {
     (void)unused;
     live.start_us = time_us_64();
-    while (!live.stop && encode_frame()) {}
+    if (live.split) while (!live.stop && split_encode_step()) {}
+    else while (!live.stop && encode_frame()) {}
     live.end_us = time_us_64();
     __dmb();
+}
+
+// Split mode, before output: BB + scrambling + BCH for both FE slots, then one more BB.
+static bool split_prime(void) {
+    for (unsigned slot = 0; slot < FE_SLOTS; ++slot) {
+        if (!build_bbframe()) return false;
+        dvbs2_frame_begin_into(bb_buf, live.fe_slots[slot]);
+    }
+    if (!build_bbframe()) return false;
+    live.fe_produced = FE_SLOTS;
+    live.bb_produced = 1;
+    __dmb();
+    return true;
+}
+
+// Split mode, core 0: one bounded unit of frontend work, or none. Begin copies and
+// scrambles the whole BBFRAME (then releases bb_buf); each step consumes at most
+// BCH_SLICE_WORDS words. Returns the cycles spent, which the caller charges as work.
+static uint32_t bch_service(void) {
+    if (!live.split || live.stop) return 0;
+    const uint32_t start = cycles();
+    if (!live.front_active) {
+        const uint32_t produced = live.fe_produced;
+        if (live.bb_produced == live.bb_consumed || produced - live.fe_consumed >= FE_SLOTS) return 0;
+        __dmb(); // acquire the BBFRAME and the released FE slot
+        if (!dvbs2_frontend_begin(bb_buf, live.fe_slots[produced % FE_SLOTS], &live.front)) {
+            live.encoder_errors |= ERR_INPUT;
+            return 0;
+        }
+        __dmb();
+        live.bb_consumed = live.bb_consumed + 1;
+        live.front_active = true;
+    } else if (dvbs2_frontend_step(&live.front, BCH_SLICE_WORDS)) {
+        __dmb(); // publish the complete FE slot
+        live.fe_produced = live.fe_produced + 1;
+        live.front_active = false;
+        ++live.bch_frames;
+    }
+    const uint32_t spent = cycles() - start;
+    live.bch_cycles += spent;
+    ++live.bch_slices;
+    if (spent > live.bch_max_slice) live.bch_max_slice = spent;
+    return spent;
 }
 
 static bool resources_available(void) {
@@ -202,16 +311,17 @@ static void capture_print(const uint32_t *capture) {
     printf("@capend\n");
 }
 
-void bench_apsk_fec(int modulation, int cpw, int ms) {
+void bench_apsk_fec(int modulation, int cpw, int ms, int split) {
     const uint32_t hz = clock_get_hz(clk_sys);
     if ((modulation != 16 && modulation != 32) || cpw < 3 || cpw > 32 || ms < 100 || ms > 60000 ||
-        (hz != 128000000u && hz != 150000000u) || !resources_available()) {
-        printf("@{\"cmd\":\"benchapskfec\",\"error\":\"needs16/32APSK,cpw3..32,100..60000ms,128/150MHz and idle PIO/SPI resources\"}\n");
+        (split != 0 && split != 1) || (hz != 128000000u && hz != 150000000u) || !resources_available()) {
+        printf("@{\"cmd\":\"benchapskfec\",\"error\":\"needs16/32APSK,cpw3..32,100..60000ms,split0/1,128/150MHz and idle PIO/SPI resources\"}\n");
         return;
     }
     const dvbs2_bch_kernel_t previous_bch = dvbs2_bch_get_kernel();
     memset(&live, 0, sizeof live);
     live.modulation = modulation;
+    live.split = split;
     live.symbols_per_word = modulation == 16 ? 4 : 2;
     live.words_per_block = BLOCK_SYMBOLS / live.symbols_per_word;
     live.retained_words = 8 / live.symbols_per_word;
@@ -228,6 +338,15 @@ void bench_apsk_fec(int modulation, int cpw, int ms) {
     if (!dvbs2_apsk_init(&live.profile, &DVBS2_CODES[S2_N5_6], modulation, true, 0, gold, gold_words)) {
         restore_buffers(previous_bch);
         printf("@{\"cmd\":\"benchapskfec\",\"error\":\"PL mapper initialization failed\"}\n");
+        return;
+    }
+    // Second FE slot directly after the Gold words actually used; FE0 is the encoder's own.
+    const uint32_t gold_used = dvbs2_apsk_arena_words(&DVBS2_CODES[S2_N5_6], modulation, true);
+    live.fe_slots[0] = dvbs2_frame_buffer();
+    live.fe_slots[1] = gold + gold_used;
+    if (split && gold_used + DVBS2_FE_WORDS > gold_words) {
+        restore_buffers(previous_bch);
+        printf("@{\"cmd\":\"benchapskfec\",\"error\":\"split FE slot does not fit the Gold arena\"}\n");
         return;
     }
     const int spi_half = hz == 128000000u ? 2 : 3;
@@ -248,6 +367,14 @@ void bench_apsk_fec(int modulation, int cpw, int ms) {
         pvspi_stop();
         restore_buffers(previous_bch);
         printf("@{\"cmd\":\"benchapskfec\",\"error\":\"SPI/FEC/PL native prefill CRC mismatch\"}\n");
+        return;
+    }
+    // Prime both FE slots (BB + scrambling + BCH) and the BB buffer before output starts,
+    // so core 1 begins with LDPC while core 0 has a full frame period for the next BCH.
+    if (split && !split_prime()) {
+        pvspi_stop();
+        restore_buffers(previous_bch);
+        printf("@{\"cmd\":\"benchapskfec\",\"error\":\"split FE priming failed\"}\n");
         return;
     }
     uint32_t *const capture = cap_buf + OUT_BLOCKS * OUT_WORDS;
@@ -292,12 +419,19 @@ void bench_apsk_fec(int modulation, int cpw, int ms) {
             iqout_capture_start(capture, CAP_WORDS);
             captured = true;
         }
-        if (sequence-ring.done >= OUT_BLOCKS) { busy_wait_us_32(1); continue; }
+        if (sequence-ring.done >= OUT_BLOCKS) {
+            const uint32_t spent = bch_service();
+            if (spent) work_cycles += spent;
+            else busy_wait_us_32(1);
+            continue;
+        }
         const uint32_t need = (sequence+1)*live.words_per_block, total = live.total;
         if ((int32_t)(total-need) < 0) {
             if (!waiting) ++input_waits;
             waiting = true;
-            busy_wait_us_32(1);
+            const uint32_t spent = bch_service();
+            if (spent) work_cycles += spent;
+            else busy_wait_us_32(1);
             continue;
         }
         if (total-need < min_input) min_input = total-need;
@@ -320,6 +454,7 @@ void bench_apsk_fec(int modulation, int cpw, int ms) {
         live.consumed = sequence*live.words_per_block-live.retained_words;
         waiting = false;
         work_cycles += (uint32_t)(cycles()-stamp);
+        work_cycles += bch_service(); // one proactive frontend unit per shaped block
     }
     const uint64_t elapsed_us = time_us_64()-start;
     live.stop = 1;
@@ -392,6 +527,12 @@ void bench_apsk_fec(int modulation, int cpw, int ms) {
            (unsigned long)live.max_stage_cycles[STAGE_LDPC],(unsigned long)live.max_stage_cycles[STAGE_MAP]);
     printf("\"fe_crc\":[%lu,%lu,%lu,%lu],",(unsigned long)live.fe_crc[0],(unsigned long)live.fe_crc[1],
            (unsigned long)live.fe_crc[2],(unsigned long)live.fe_crc[3]);
+    printf("\"split_bch\":%d,\"bch_slice_words\":%u,\"core0_bch_cycles\":%llu,\"core0_bch_busy\":%.6f,"
+           "\"core0_bch_slices\":%lu,\"core0_bch_max_slice_cyc\":%lu,\"core0_bch_frames\":%lu,"
+           "\"core1_bch_wait_cycles\":%llu,",
+           split,split?BCH_SLICE_WORDS:0,(unsigned long long)live.bch_cycles,budget?live.bch_cycles/budget:0,
+           (unsigned long)live.bch_slices,(unsigned long)live.bch_max_slice,(unsigned long)live.bch_frames,
+           (unsigned long long)live.bch_wait_cycles);
     printf("\"cap_words\":%u,\"cap_crc\":%lu,\"cap_stride\":1,\"cap_symbol_cursor\":%llu,\"cap_search_symbols\":4128,"
            "\"cap_frame_boundary\":%llu,\"cap_input_words\":%lu,\"cap_done_blocks\":%lu,\"pv_spi\":{\"bb_mode\":\"gcs\",\"sck_hz\":%lu,"
            "\"bbframes\":%lu,\"runtime_bbframes\":%lu,\"runtime_messages\":%lu,\"crc_chain\":%lu,"

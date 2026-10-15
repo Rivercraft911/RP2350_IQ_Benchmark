@@ -26,7 +26,7 @@
 //   bench32native8 reps                          32APSK shaper components
 //   bench32out cpw ms kernel                     32APSK rolling-key output, no FEC
 //   benchapsklive cpw ms schedule mapper mod placement    runtimeAPSK, 1/2 cores
-//   benchapskfec mod cpw ms                     APSK with live SPI and FEC
+//   benchapskfec mod cpw ms [split]             APSK with live SPI and FEC; split1 = BCH on core 0
 //   bench32map reps                              matched32APSK mapper components
 //   bench32bus mode group                        no-output bus contention diagnosis
 //   benchquadptr mode / quadlive cpw ms fault     finite / live PIO address generation
@@ -270,8 +270,9 @@ static const char *dispatch(char *line) {
         int modulation;
         if (!num(a[1], "modulation", 16, 16, 32, &modulation) ||
             !num(a[2], "cpw", 12, 3, 32, &r.cpw) ||
-            !num(a[3], "ms", 3000, 100, 60000, &r.ms)) return err;
-        bench_apsk_fec(modulation, r.cpw, r.ms);
+            !num(a[3], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[4], "split", 0, 0, 1, &code)) return err;
+        bench_apsk_fec(modulation, r.cpw, r.ms, code);
     } else if (!strcmp(cmd, "bench32bus")) {
         int mode, group;
         if (!num(a[1], "mode", 0, 0, 4, &mode) ||
