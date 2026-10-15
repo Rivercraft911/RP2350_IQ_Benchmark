@@ -642,7 +642,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
            "\"gen_cyc_per_sym\":%.4f,\"gen_busy\":%.4f,\"control_busy\":%.4f,\"core0_work_busy\":%.4f,\"core0_active_busy\":%.4f,"
            "\"max_gen_cyc\":%lu,\"max_poll_gap_us\":%lu,\"poll_interval_us\":%u,\"min_lead_syms\":%lld,"
            "\"block_syms\":%u,\"split_bb_stride_words\":%u,\"split_bch_frames\":%lu,\"split_bch_busy\":%.4f,\"split_bch_max_cyc\":%lu,\"split_bch_max_slice_cyc\":%lu,\"split_bch_slices\":%lu,\"split_bch_slice_words\":%u,\"input_waits\":%lu,\"s2_runtime_frames\":%lu,\"s2_busy\":%.4f,\"bch_kernel\":%d,"
-           "\"map_kernel\":%u,\"one_core\":%s,\"s2_core\":%d,\"s2_max_frame_cyc\":%lu,\"s2_max_slice_cyc\":%lu,"
+           "\"map_kernel\":%u,\"ldpc_pack\":%u,\"ldpc_xor\":%u,\"bch_bank\":%u,\"one_core\":%s,\"s2_core\":%d,\"s2_max_frame_cyc\":%lu,\"s2_max_slice_cyc\":%lu,"
            "\"s2_stage_max_cyc\":{\"bb_bch\":%lu,\"ldpc\":%lu,\"map\":%lu},\"s2_incomplete_stage\":%u,"
            "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%u,\"cap_fifo_only\":%u,"
            "\"dac_clock\":\"%s\",\"dac_clock_pio\":%d,\"dac_clock_sm\":%d,\"cap_format\":\"%s\"",
@@ -670,7 +670,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
            (unsigned long)bch_slices, BCH_SLICE_WORDS, (unsigned long)input_waits,
            (unsigned long)(source >= SOURCE_DVBS2_CORE1 ? encoder.frames - encoder.prefill : 0),
            source >= SOURCE_DVBS2_CORE1 && encoder_budget ? encoder.busy_cyc / encoder_budget : 0,
-           (int)dvbs2_bch_get_kernel(), dvbs2_map_get_kernel(), source == SOURCE_DVBS2_CORE0 ? "true" : "false", source >= SOURCE_DVBS2_CORE1 ? (source == SOURCE_DVBS2_CORE0 ? 0 : 1) : -1,
+           (int)dvbs2_bch_get_kernel(), dvbs2_map_get_kernel(), dvbs2_ldpc_get_pack(), dvbs2_ldpc_get_kernel(), dvbs2_frontend_get_bank(), source == SOURCE_DVBS2_CORE0 ? "true" : "false", source >= SOURCE_DVBS2_CORE1 ? (source == SOURCE_DVBS2_CORE0 ? 0 : 1) : -1,
            (unsigned long)(source >= SOURCE_DVBS2_CORE1 ? encoder.max_frame_cyc : 0),
            (unsigned long)(source == SOURCE_DVBS2_CORE0 ? encoder.max_slice_cyc : source == SOURCE_DVBS2_CORE1 ? encoder.max_frame_cyc : 0),
            (unsigned long)(source == SOURCE_DVBS2_CORE0 ? encoder.max_stage_cyc[0] : 0),

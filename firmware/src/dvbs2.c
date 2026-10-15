@@ -45,6 +45,7 @@ static uint32_t r0[MAX_BODY_W] HI, r1[MAX_BODY_W] HI;      // PL scrambling R(i)
 static uint32_t hdr[6], body_syms;
 static dvbs2_bch_kernel_t bch_kernel = S2_BCH_BASELINE;
 static unsigned map_kernel, ldpc_pack, frontend_bank;
+static unsigned ldpc_kernel;
 
 // ------------------------------------------------------------------ bit-vector helpers
 
@@ -359,6 +360,23 @@ static inline void xor_rot(uint32_t *row, const uint32_t *src, uint32_t sh) {
 }
 #endif
 
+// The scheduled kernel consumes the same metadata storage, with row byte offsets and
+// (source byte offset << 8) | bit shift precomputed instead of row/bit indices.
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+void dvbs2_ldpc_xor_entries(uint32_t *matrix, const uint32_t *src, const uint16_t *rows,
+                            const uint16_t *offsets, uint32_t count);
+#else
+static void dvbs2_ldpc_xor_entries(uint32_t *matrix, const uint32_t *src, const uint16_t *rows,
+                                   const uint16_t *offsets, uint32_t count) {
+    for (uint32_t a = 0; a < count; a++) {
+        uint32_t *row = matrix + rows[a] / sizeof *matrix;
+        const uint32_t *in = src + (offsets[a] >> 8) / sizeof *src;
+        const uint32_t sh = offsets[a] & 31u;
+        for (int k = 0; k < 12; k++) row[k] ^= sh ? in[k] << sh ^ in[k + 1] >> (32 - sh) : in[k];
+    }
+}
+#endif
+
 // Column-major streaming pack for q <= 64 (all normal codes from 2/3 up, every short code
 // except 1/4). Column c supplies parity bits c*q .. c*q+q-1, i.e. rows 0..q-1 of P after a
 // 32x32 transpose: one full 32-row tile then the remaining q-32 rows when q > 32. Output is
@@ -421,8 +439,11 @@ static void __attribute__((noinline)) HOT(ldpc_matrix)(const uint32_t *info) {
         u2[11] = u[11] | u[0] >> 8;
         for (int k = 0; k < 11; k++) u2[12 + k] = u[k] << 24 | u[k + 1] >> 8;
         u2[23] = u2[24] = 0;
-        for (uint32_t a = grp[g]; a < grp[g + 1]; a++)
-            xor_rot(P[a_row[a]], u2 + (a_off[a] >> 5), a_off[a] & 31);
+        if (ldpc_kernel)
+            dvbs2_ldpc_xor_entries(P[0], u2, a_row + grp[g], a_off + grp[g], grp[g + 1] - grp[g]);
+        else
+            for (uint32_t a = grp[g]; a < grp[g + 1]; a++)
+                xor_rot(P[a_row[a]], u2 + (a_off[a] >> 5), a_off[a] & 31);
     }
     PROF(1);
     for (uint32_t r = 1; r < q; r++)
@@ -448,6 +469,24 @@ bool dvbs2_ldpc_set_pack(unsigned pack) {
 }
 
 unsigned dvbs2_ldpc_get_pack(void) { return ldpc_pack; }
+
+static void ldpc_metadata(void) {
+    for (uint32_t a = 0; a < C->grp[C->n_groups]; a++) {
+        const uint32_t row = C->addr[a] % C->q, off = 360 - C->addr[a] / C->q;
+        a_row[a] = (uint16_t)(ldpc_kernel ? row * sizeof P[0] : row);
+        a_off[a] = (uint16_t)(ldpc_kernel ? ((off >> 5) * 4 << 8) | (off & 31u) : off);
+    }
+}
+
+bool dvbs2_ldpc_set_kernel(unsigned kernel) {
+    if (kernel > 1) return false;
+    if (kernel == ldpc_kernel) return true;
+    ldpc_kernel = kernel;
+    if (C) ldpc_metadata();
+    return true;
+}
+
+unsigned dvbs2_ldpc_get_kernel(void) { return ldpc_kernel; }
 
 static inline bool stream_pack(void) { return ldpc_pack && C->q <= 64; }
 
@@ -648,10 +687,7 @@ void dvbs2_init(const dvbs2_code_t *c, bool pil_on) {
     C = c, pilots = pil_on, M = c->nldpc - c->kldpc;
     bch_setup();
     memcpy(grp, c->grp, (c->n_groups + 1u) * sizeof grp[0]);
-    for (uint32_t a = 0; a < c->grp[c->n_groups]; a++) {
-        a_row[a] = c->addr[a] % c->q;
-        a_off[a] = (uint16_t)(360 - c->addr[a] / c->q);
-    }
+    ldpc_metadata();
     uint32_t sr = 0x4A80;                                      // 100101010000000 (5.2.2)
     memset(bb_prbs, 0, sizeof bb_prbs);
     for (uint32_t i = 0; i < c->kbch; i++) {

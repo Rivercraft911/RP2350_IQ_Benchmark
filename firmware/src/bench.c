@@ -166,13 +166,13 @@ void bench_dvbs2(int code, bool pilots, int reps) {
     const uint32_t c_ldpc = time_min(t_ldpc, reps), c_ldpcs = time_min(t_ldpc_serial, 1);
     const uint32_t c_frame = time_min(t_frame, reps), c_prbs = time_min(t_prbs, reps);
     printf("@{\"cmd\":\"dvbs2\",\"git\":\"%s\",\"clk_hz\":%lu,\"code\":\"%s\",\"index\":%d,"
-           "\"pilots\":%d,\"syms\":%lu,\"words\":%lu,\"crc\":%lu,\"init_us\":%lu,\"reps\":%d,\"bch_kernel\":%d,\"map_kernel\":%u,\"ldpc_pack\":%u,"
+           "\"pilots\":%d,\"syms\":%lu,\"words\":%lu,\"crc\":%lu,\"init_us\":%lu,\"reps\":%d,\"bch_kernel\":%d,\"map_kernel\":%u,\"ldpc_pack\":%u,\"ldpc_xor\":%u,"
            "\"cyc_bch\":%lu,\"cyc_bch_serial\":%lu,\"cyc_ldpc\":%lu,\"cyc_ldpc_serial\":%lu,"
            "\"cyc_frame\":%lu,\"prof\":{\"ldpc_groups\":%lu,\"ldpc_accum\":%lu,"
            "\"ldpc_transpose\":%lu,\"f_bb_bch\":%lu,\"f_ldpc\":%lu,\"f_map\":%lu}}\n",
            GIT_REV, (unsigned long)clock_get_hz(clk_sys), c->name, code, pilots,
            (unsigned long)dvbs2_plframe_symbols(), (unsigned long)s.n, (unsigned long)crc,
-           (unsigned long)init_us, reps, dvbs2_bch_get_kernel(), dvbs2_map_get_kernel(), dvbs2_ldpc_get_pack(), (unsigned long)c_bch, (unsigned long)c_bchs,
+           (unsigned long)init_us, reps, dvbs2_bch_get_kernel(), dvbs2_map_get_kernel(), dvbs2_ldpc_get_pack(), dvbs2_ldpc_get_kernel(), (unsigned long)c_bch, (unsigned long)c_bchs,
            (unsigned long)c_ldpc, (unsigned long)c_ldpcs, (unsigned long)(c_frame - c_prbs),
            (unsigned long)(dvbs2_prof[1] - dvbs2_prof[0]), (unsigned long)(dvbs2_prof[2] - dvbs2_prof[1]),
            (unsigned long)(dvbs2_prof[3] - dvbs2_prof[2]), (unsigned long)(dvbs2_prof[5] - dvbs2_prof[4]),

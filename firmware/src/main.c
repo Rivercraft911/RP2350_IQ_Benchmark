@@ -37,6 +37,7 @@
 //   dualclock <0|1|2>                             0 HSTX CLK_IO, 1 GP28 PIO DDR clock, 2 inverted control
 //   quadprofile <0|1> / mapkernel <0|1>          L9/L8 pulse / baseline/packed mapper
 //   ldpcpack <0|1>                               LDPC parity: baseline / streaming in-place pack
+//   ldpcxor <0|1>                                LDPC rows: baseline / scheduled XOR loads
 //   bchbank <0|1>                                frontend BCH steps: striped SRAM / scratch-Y copy
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
 //        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=SPI TS, 6=SPI GCS
@@ -222,6 +223,10 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "pack", REQUIRED, 0, 1, &code)) return err;
         if (!dvbs2_ldpc_set_pack((unsigned)code)) return "unknown LDPC packer";
         printf("@{\"cmd\":\"ldpcpack\",\"pack\":%u}\n", dvbs2_ldpc_get_pack());
+    } else if (!strcmp(cmd, "ldpcxor")) {
+        if (!num(a[1], "kernel", REQUIRED, 0, 1, &code)) return err;
+        if (!dvbs2_ldpc_set_kernel((unsigned)code)) return "unknown LDPC XOR kernel";
+        printf("@{\"cmd\":\"ldpcxor\",\"kernel\":%u}\n", dvbs2_ldpc_get_kernel());
     } else if (!strcmp(cmd, "bench8psk")) {
         if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
         bench_8psk(reps);

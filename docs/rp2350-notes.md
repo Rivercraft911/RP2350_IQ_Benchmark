@@ -96,7 +96,9 @@ The bus sits in order on one header row with 4 GND pins between the signals.
 
 **Cortex-M33 timings** (§3.7.4.9 p137–144; Arm publishes no cycle table)
 - LDR 1 cycle + 1 result-use penalty; STR 1; UBFX/BFI no penalty; MUL/MLA 1 + 1.
-- "Complex" shifts (other than LSL #0–3) and SEL take the result-use penalty.
+- Data-processing instructions with shifted operands other than LSL #0–3, and SEL,
+  take the result-use penalty. Standalone LSL/LSR/ASR/ROR (immediate or register
+  amount) do not (§3.7.4.9.2 p138–139).
 - Taken branch ≥ 2 cycles; IT and NOP fold with a 16-bit neighbour.
 - LDRD, STM, PKHBT/PKHTB cycle counts: unverified (measured in context only).
 

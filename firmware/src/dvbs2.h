@@ -39,6 +39,11 @@ unsigned dvbs2_map_get_kernel(void);
 // unchanged q = 60 packer). Select while the encoder is idle; parity bits are identical.
 bool dvbs2_ldpc_set_pack(unsigned pack);
 unsigned dvbs2_ldpc_get_pack(void);
+// Opt-in LDPC row updates: 0 = baseline, 1 = scheduled Thumb-2 with byte-offset
+// metadata in the existing arrays. Select only while idle; retained across init.
+// Changing the setting rebuilds metadata for the current code, without an init.
+bool dvbs2_ldpc_set_kernel(unsigned kernel);
+unsigned dvbs2_ldpc_get_kernel(void);
 void dvbs2_bbscramble(uint32_t *bbframe);                      // kbch bits, in place
 void dvbs2_bch(const uint32_t *bbframe, uint32_t *parity);    // kbch -> 16t or 14t parity bits
 void dvbs2_bch_serial(const uint32_t *bbframe, uint32_t *parity);   // bit-serial reference
