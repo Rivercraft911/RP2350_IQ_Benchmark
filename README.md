@@ -20,6 +20,15 @@ flow control.
 Of course, none of this shows RF performance: spectrum and EVM after the AFE, clock jitter, LO leakage, PA
 behaviour and so much more. This is purely the waveform generation.
 
+## Yapogee limits experiments
+
+The `experiment/yapogee-limits` branch adds an opt-in one-core encoder/shaper scheduler,
+selectable BCH kernels, an isolated 8PSK shaper and a PIO/HSTX DDR component test.
+The [2026-10-14 experiment report](results/limits/2026-10-14/README.md) records stock-clock
+Pico measurements, failed ceiling probes, reproduction commands and remaining hardware work.
+The two-core startup profile and baseline BCH kernel remain the defaults. The historical
+measurements below describe the original baseline; the experiment report covers the new modes.
+
 ## Autonomous digital startup
 
 The flight transmitter targets the RP2350B chip. The current firmware build and
@@ -144,7 +153,7 @@ internally. Details are in `docs/derivations.md` §2.
 
 | resource | used |
 |---|---|
-| SRAM0–3 (256 KB) | 30.8 KB .data (hot code) + 213 KB .bss (DMA ring 128 KB, input rings 2 × 32 KB, idle block) |
+| SRAM0–3 (256 KiB, experimental build) | 33.9 KiB .data (hot code), 149.0 KiB .bss (including DMA ring 128 KiB), 64 KiB input rings in a separately aligned NOLOAD section; 2 KiB heap |
 | SRAM4–7 (256 KB) | 251.6 KB: shaper tables 64 KB, capture 56 KB, DVB-S2 buffers and tables. 4.4 KB free |
 | SRAM8 | 1.2 KB hot kernels (plus core-1 stack) |
 | PIO | PIO0: output SM, capture SM (verification). PIO1: 4-lane link (test). PIO2: PV-SPI receiver, CS watcher, emulator (test) |
@@ -186,7 +195,8 @@ hardware/    transmitter hardware draft: interfaces, shared RF core, IREC and SA
 1. Decode with gr-dvbs2rx: capture encoder symbols on the board (about 6 frames fit) and shape
    them with the bit-exact host model.
 2. Encoder load for all 21 codes at 8 Msym/s; normal 3/4 already costs 10 % more than 2/3.
-   BCH in streaming asm would save about 25 k cycles/frame?
+   The experimental degree-160 BCH assembly saves about 32 k cycles/frame; higher code rates
+   still need integrated streaming measurements.
 3. Extra long soak test
 5. RF daughterboard on the Pico Plus 2 (`hardware/devboard/README.md`): spectrum, mask, images, LO
    leakage.
