@@ -1,0 +1,62 @@
+{
+  "passed": true,
+  "hardware_checks": {
+    "full8psk60s": {
+      "path": "results/8psk-live/2026-10-15/integration-soak-1/summary.json",
+      "passed": true,
+      "sha256": "8e0fb7ca9bb5f7042d2be3cbabfc58150dece566e71e3d6ce31ca134fd454366"
+    },
+    "vcm60s_revalidation": {
+      "path": "results/vcm/2026-10-15/soak-1/revalidation.json",
+      "passed": true,
+      "sha256": "eb3cf936b604af4e81622057713ec519e9628cac479b711a499b31fe1dcf43d1"
+    },
+    "vcm_final_image_quick": {
+      "path": "results/vcm/2026-10-15/integration-quick-1/summary.json",
+      "passed": true,
+      "sha256": "8e0fb7ca9bb5f7042d2be3cbabfc58150dece566e71e3d6ce31ca134fd454366"
+    },
+    "fullqpsk16_final60s": {
+      "path": "results/qpsk-codes/2026-10-15/integration-soak-1/summary.json",
+      "passed": true,
+      "sha256": "0f9732071aabc96662979198c067859ad0bf8058fe95745ce8da23df1428a44c"
+    },
+    "onecore60s": {
+      "path": "results/pulse-design/2026-10-15/onecore-soak-1/summary.json",
+      "passed": true,
+      "sha256": "e16ca442323370aea2cd57e4d5dcc18d51cce5add5285db1487b43b1779e06c2"
+    },
+    "piopointer60s": {
+      "path": "results/quad-pointers/2026-10-15/poll128-soak-1/summary.json",
+      "passed": true,
+      "sha256": "0158aa1df000a8f01425aaa70cd1c0fcafd936855903e2de2e2cac45ad6155c8"
+    },
+    "piopointer_faultcontrols": {
+      "path": "results/quad-pointers/2026-10-15/poll128-quick-1/summary.json",
+      "passed": true,
+      "sha256": "0c9b4ed5a608c4a6d718795110d646eed734bc2548888ee380d8f8b37d43631e"
+    }
+  },
+  "native_command": "make check",
+  "native_exit_code": 0,
+  "firmware_targets": [
+    "iqbench",
+    "pvflight"
+  ],
+  "build_exit_code": 0,
+  "compiler_warnings": 0,
+  "measurement_scope": "Digital on-chip SPI and GPIO captures; stock voltage,128/150MHz; no AFE/RF/receiver qualification",
+  "branch": "experiment/yapogee-next-waveforms",
+  "preserved_qualified_commit": "4b779c018f3bbdf8d3f70ccb9e864920095ad793",
+  "historical_failures": "Preserved immutable logs include rejected misconfiguration, identity mismatch, contention and polling-limit probes; passed describes the selected qualified configurations",
+  "logs": {
+    "native-tests": {
+      "path": "native-tests.txt",
+      "sha256": "90a37f5ed5c5264d92115018b0be9681caf39a446e90e16b61e02b6c11875f8b"
+    },
+    "firmware-build": {
+      "path": "firmware-build.txt",
+      "sha256": "60b2e377f81dd409c71b4240a08c9ba990822ebce6e3d1f7873bb85e8af742bb"
+    }
+  }
+}

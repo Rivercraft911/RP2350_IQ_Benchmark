@@ -1,0 +1,1 @@
+Host attempted to open CDC before the verified flash/reboot finished. No board test ran. Original host message: no RP2350 CDC port found. Retried in fresh directory soak-two-2.

@@ -1,0 +1,6 @@
+{
+  "positive_60s_runs": 6,
+  "all_positive_rows_clean": true,
+  "negative_controls_detected": 2,
+  "note": "Explicit row audit; cpw1 profile rows were labelled ceiling probes by runner."
+}

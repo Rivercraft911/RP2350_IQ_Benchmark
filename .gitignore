@@ -4,6 +4,10 @@ host/build/
 __pycache__/
 *.pyc
 .DS_Store
+# Keep local hardware images alongside their SHA-bound result manifests.
+# Frozen source archives and measurements are reviewed; generated binaries stay local.
+results/**/*.elf
+results/**/*.uf2
 # large downloaded datasheets: see docs/sources/SOURCES.md for URLs and hashes
 docs/sources/*.pdf
 docs/sources/*.txt

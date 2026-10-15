@@ -1,0 +1,1 @@
+Unqualified: host expected-git argument used an incorrectly transcribed SHA suffix dc9e679aeb. Actual firmware dc9e67977a-dirty matched the explicitly flashed and archived UF2/source snapshot. Both hardware runs lasted3s, errors0, captured8192halfwords matched, but host identity requirement failed. A fresh correct-identity campaign follows; original logs retained unchanged.

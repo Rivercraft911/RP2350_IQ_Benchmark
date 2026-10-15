@@ -1,0 +1,28 @@
+ninja: Entering directory `firmware/build-limits'
+[1/27] cd /Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/build-limits && /opt/homebrew/bin/cmake -DSRC=/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware -DOUT=/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/build-limits/git_rev.h -P /Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/firmware/git_rev.cmake
+[2/27] Building C object CMakeFiles/iqbench.dir/src/bench_pvstress.c.o
+[3/27] Building C object CMakeFiles/iqbench.dir/src/bench8quad.c.o
+[4/27] Building C object CMakeFiles/iqbench.dir/src/bench16.c.o
+[5/27] Building C object CMakeFiles/iqbench.dir/src/bench_ddr.c.o
+[6/27] Building C object CMakeFiles/pvflight.dir/src/bench_ddr.c.o
+[7/27] Building C object CMakeFiles/iqbench.dir/src/bench.c.o
+[8/27] Building C object CMakeFiles/pvflight.dir/src/bench.c.o
+[9/27] Building C object CMakeFiles/iqbench.dir/src/bench8live.c.o
+[10/27] Building C object CMakeFiles/iqbench.dir/src/bench_ptr.c.o
+[11/27] Building C object CMakeFiles/pvflight.dir/src/bench8quad.c.o
+[12/27] Building C object CMakeFiles/iqbench.dir/src/bench_quadlive.c.o
+[13/27] Building C object CMakeFiles/iqbench.dir/src/tx.c.o
+[14/27] Building C object CMakeFiles/pvflight.dir/src/main.c.o
+[15/27] Building C object CMakeFiles/pvflight.dir/src/tx.c.o
+[16/27] Building C object CMakeFiles/iqbench.dir/src/main.c.o
+[17/27] Building C object CMakeFiles/pvflight.dir/src/bench16.c.o
+[18/27] Building C object CMakeFiles/iqbench.dir/src/bench_quadptr.c.o
+[19/27] Building C object CMakeFiles/pvflight.dir/src/bench_pvstress.c.o
+[20/27] Building C object CMakeFiles/pvflight.dir/src/bench_ptr.c.o
+[21/27] Building C object CMakeFiles/pvflight.dir/src/bench8live.c.o
+[22/27] Building C object CMakeFiles/iqbench.dir/src/bench_dual.c.o
+[23/27] Building C object CMakeFiles/pvflight.dir/src/bench_quadlive.c.o
+[24/27] Building C object CMakeFiles/pvflight.dir/src/bench_dual.c.o
+[25/27] Building C object CMakeFiles/pvflight.dir/src/bench_quadptr.c.o
+[26/27] Linking CXX executable iqbench.elf
+[27/27] Linking CXX executable pvflight.elf

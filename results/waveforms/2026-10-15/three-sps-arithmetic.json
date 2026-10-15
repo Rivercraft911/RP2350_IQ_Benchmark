@@ -1,0 +1,37 @@
+{
+  "scope": "Arithmetic projections only; no new hardware results",
+  "symbol_rate": 21333333.333333332,
+  "axis_sample_rate": 64000000.0,
+  "rf_nominal_width": 25599999.999999996,
+  "modes": [
+    {
+      "rate": "2/3",
+      "kbch": 43040,
+      "rs": 21333333.333333332,
+      "payload_mbps": 27.536806682290727,
+      "frame_budget_cycles": 199692.0,
+      "c0_frontend_fraction": null
+    },
+    {
+      "rate": "3/4",
+      "kbch": 48408,
+      "rs": 21333333.333333332,
+      "payload_mbps": 30.97762554333674,
+      "frame_budget_cycles": 199692.0,
+      "c0_frontend_fraction": null
+    },
+    {
+      "rate": "5/6",
+      "kbch": 53840,
+      "rs": 21333333.333333332,
+      "payload_mbps": 34.45946758007331,
+      "frame_budget_cycles": 199692.0,
+      "c0_frontend_fraction": null
+    }
+  ],
+  "spi": {
+    "wire_payload_mbps": 31.615615615615617,
+    "selftest_payload_mbps": 30.86965684702433
+  },
+  "pointer_capacity_symbols_per_second": 41795918.36734694
+}

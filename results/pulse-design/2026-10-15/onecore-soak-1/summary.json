@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "onecore_60s_rows": 6,
+  "highest_rates_hz": [
+    10666666.7,
+    12500000.0
+  ],
+  "scope": "Synthetic BB, real FEC/PL/output; no live SPI ingress; broader active-loop timer"
+}

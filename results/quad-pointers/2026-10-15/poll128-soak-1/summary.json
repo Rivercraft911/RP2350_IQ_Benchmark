@@ -1,0 +1,31 @@
+{
+  "passed": true,
+  "complete_matrix": true,
+  "checks": [
+    {
+      "key": [
+        128000,
+        1,
+        0,
+        0
+      ],
+      "classification": "digital_live_clean",
+      "faults": [],
+      "capture_sha256": "90daf73cb1b256c40049123357eb4feac7a54e4eaedd7f35adde5822fe8c67a4"
+    },
+    {
+      "key": [
+        150000,
+        1,
+        0,
+        0
+      ],
+      "classification": "digital_live_clean",
+      "faults": [],
+      "capture_sha256": "6f21fc0ceb27cf6129e9f0ba5af5124a1f2574ada2aad88dcba5f68f75d74943"
+    }
+  ],
+  "policy": "Saved frozen validator; additive summary, original logs unchanged",
+  "driver_sha256": "7325e75c08a6aaff3bdbc9d6a0303b7a848bcda2ac4291b0bfe3dba46763713e",
+  "runs_sha256": "2bef0f2befab5efbaa3e58ebdc96132a6868adee70f9e3c5a8d3601507d046ee"
+}

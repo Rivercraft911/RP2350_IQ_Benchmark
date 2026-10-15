@@ -1,0 +1,8 @@
+{
+  "source_archive_sha256": "77c751341e11f9785891247293db68429785d5f3dce1336440792a318fbd53d5",
+  "firmware_sha256": {
+    "iqbench.elf": "45e40318832f2e6b7fccfd7e4bfa1a3c7a87b975786225ea8d06cefa7b178a1b",
+    "iqbench.uf2": "f5b44f5703b7ca7aa4816447e212d0e47553b87d878f9329f01c82361606220d"
+  },
+  "scope": "Additive source archive and binary identity; original manifests and results remain unchanged"
+}

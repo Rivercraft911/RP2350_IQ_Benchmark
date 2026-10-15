@@ -1,0 +1,102 @@
+{
+  "passed": true,
+  "scope": "Same-source BCH section-placement A/B/A; 3s per clean run, expected underrun control",
+  "runs": {
+    "a1-ramlow": [
+      {
+        "clk_hz": 128000000,
+        "elapsed_us": 3000061,
+        "errors": 0,
+        "gen_cyc_per_sym": 12.0806,
+        "encoder_busy": 0.9211,
+        "encoder_runtime_frames": 1082,
+        "encoder_stage_cycles": {
+          "bb": 29756643,
+          "bb_bch": 131430867,
+          "ldpc": 139093891,
+          "map": 53556273
+        },
+        "classification": "clean"
+      },
+      {
+        "clk_hz": 150000000,
+        "elapsed_us": 3000016,
+        "errors": 0,
+        "gen_cyc_per_sym": 12.0996,
+        "encoder_busy": 0.9212,
+        "encoder_runtime_frames": 1268,
+        "encoder_stage_cycles": {
+          "bb": 34857616,
+          "bb_bch": 154065862,
+          "ldpc": 163005660,
+          "map": 62803886
+        },
+        "classification": "clean"
+      }
+    ],
+    "b-scratchy": [
+      {
+        "clk_hz": 128000000,
+        "elapsed_us": 22076,
+        "errors": 2,
+        "gen_cyc_per_sym": 13.3434,
+        "encoder_busy": 0.9997,
+        "encoder_runtime_frames": 8,
+        "encoder_stage_cycles": {
+          "bb": 291299,
+          "bb_bch": 1411194,
+          "ldpc": 1028878,
+          "map": 394172
+        },
+        "classification": "failed"
+      },
+      {
+        "clk_hz": 150000000,
+        "elapsed_us": 18833,
+        "errors": 2,
+        "gen_cyc_per_sym": 13.346,
+        "encoder_busy": 0.9997,
+        "encoder_runtime_frames": 8,
+        "encoder_stage_cycles": {
+          "bb": 290005,
+          "bb_bch": 1410321,
+          "ldpc": 1029362,
+          "map": 394675
+        },
+        "classification": "failed"
+      }
+    ],
+    "a2-ramlow": [
+      {
+        "clk_hz": 128000000,
+        "elapsed_us": 3000060,
+        "errors": 0,
+        "gen_cyc_per_sym": 12.0805,
+        "encoder_busy": 0.9211,
+        "encoder_runtime_frames": 1082,
+        "encoder_stage_cycles": {
+          "bb": 29756811,
+          "bb_bch": 131430842,
+          "ldpc": 139093625,
+          "map": 53556344
+        },
+        "classification": "clean"
+      },
+      {
+        "clk_hz": 150000000,
+        "elapsed_us": 3000016,
+        "errors": 0,
+        "gen_cyc_per_sym": 12.0995,
+        "encoder_busy": 0.9212,
+        "encoder_runtime_frames": 1268,
+        "encoder_stage_cycles": {
+          "bb": 34859143,
+          "bb_bch": 154067210,
+          "ldpc": 163005145,
+          "map": 62803640
+        },
+        "classification": "clean"
+      }
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "scope": "16APSK data-coordinate shaper component only; no PL header/pilot energy-normalization or RF qualification",
+  "sha256": {
+    "iqbench.uf2": "f5b44f5703b7ca7aa4816447e212d0e47553b87d878f9329f01c82361606220d",
+    "iqbench.elf": "45e40318832f2e6b7fccfd7e4bfa1a3c7a87b975786225ea8d06cefa7b178a1b",
+    "firmware-source.tar.gz": "07ac4404bcc89db2eb97f2c4ff23f894dc07c6adb3ea2e46fdc3762fff93421e"
+  }
+}

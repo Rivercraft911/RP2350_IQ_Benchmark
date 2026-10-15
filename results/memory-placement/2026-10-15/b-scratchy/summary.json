@@ -1,0 +1,32 @@
+{
+  "passed": false,
+  "failures": [
+    {
+      "clock_khz": 128000,
+      "faults": [
+        "cap_words=0, expected4096",
+        "errors",
+        "underruns",
+        "idle_sent",
+        "elapsed duration differs from request",
+        "capture cursor differs from generated block boundary",
+        "capture cursor is outside the middle-of-run output window",
+        "incomplete capture: got0, reported0"
+      ]
+    },
+    {
+      "clock_khz": 150000,
+      "faults": [
+        "cap_words=0, expected4096",
+        "errors",
+        "underruns",
+        "idle_sent",
+        "elapsed duration differs from request",
+        "capture cursor differs from generated block boundary",
+        "capture cursor is outside the middle-of-run output window",
+        "incomplete capture: got0, reported0"
+      ]
+    }
+  ],
+  "fatal": null
+}

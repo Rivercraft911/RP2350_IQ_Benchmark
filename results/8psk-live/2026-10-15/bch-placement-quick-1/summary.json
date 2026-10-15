@@ -1,0 +1,18 @@
+{
+  "passed": false,
+  "failures": [
+    {
+      "clock_khz": 128000,
+      "faults": [
+        "firmware git identity missing or differs from request"
+      ]
+    },
+    {
+      "clock_khz": 150000,
+      "faults": [
+        "firmware git identity missing or differs from request"
+      ]
+    }
+  ],
+  "fatal": null
+}

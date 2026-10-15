@@ -1,0 +1,97 @@
+{
+  "passed": true,
+  "complete_matrix": true,
+  "checks": [
+    {
+      "key": [
+        128000,
+        2,
+        0,
+        0
+      ],
+      "classification": "digital_live_clean",
+      "faults": [],
+      "capture_sha256": "ce704ff4bf73dff8d56a00bfd377ed23ce029b0bf7c2ba48f3af8ccf23020423"
+    },
+    {
+      "key": [
+        128000,
+        2,
+        1,
+        0
+      ],
+      "classification": "credit_starvation_detected",
+      "faults": [],
+      "capture_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "key": [
+        128000,
+        1,
+        0,
+        0
+      ],
+      "classification": "digital_live_clean",
+      "faults": [],
+      "capture_sha256": "f96494ac709fc28756938ae9323760f5d70b4c54f2962917b4113484b39b4bae"
+    },
+    {
+      "key": [
+        128000,
+        1,
+        1,
+        0
+      ],
+      "classification": "credit_starvation_detected",
+      "faults": [],
+      "capture_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "key": [
+        150000,
+        2,
+        0,
+        0
+      ],
+      "classification": "digital_live_clean",
+      "faults": [],
+      "capture_sha256": "e98e0bb78046f83cc8b9c50a05b119fae6d34f6767fc941021b47da5da363d74"
+    },
+    {
+      "key": [
+        150000,
+        2,
+        1,
+        0
+      ],
+      "classification": "credit_starvation_detected",
+      "faults": [],
+      "capture_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "key": [
+        150000,
+        1,
+        0,
+        0
+      ],
+      "classification": "digital_live_clean",
+      "faults": [],
+      "capture_sha256": "61001e65e39ce147c97d8ba876e3165e696c3c0cf1e9b4bb8412d206eac2bb3b"
+    },
+    {
+      "key": [
+        150000,
+        1,
+        1,
+        0
+      ],
+      "classification": "credit_starvation_detected",
+      "faults": [],
+      "capture_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    }
+  ],
+  "policy": "Saved frozen validator; additive summary, original logs unchanged",
+  "driver_sha256": "7325e75c08a6aaff3bdbc9d6a0303b7a848bcda2ac4291b0bfe3dba46763713e",
+  "runs_sha256": "e2377c4fe99c6cf7adbd56000b6348e3a813bb089e542ff118138e752b5b169d"
+}

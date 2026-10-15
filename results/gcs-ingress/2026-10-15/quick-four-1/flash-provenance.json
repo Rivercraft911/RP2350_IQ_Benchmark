@@ -1,0 +1,5 @@
+{
+  "firmware_commit": "fdb39503ea",
+  "uf2_archive": "../../../8psk-quad/2026-10-15/quick-1/iqbench.uf2",
+  "verification": "picotool load -v complete; retained flash.txt; newer working-tree sources in runner manifest were not flashed"
+}

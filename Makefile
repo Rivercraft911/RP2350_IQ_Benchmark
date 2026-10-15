@@ -57,6 +57,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_ptrprog.py
 	python3 host/dual_trial.py --self-test
 	python3 host/plot_dual.py --self-test
+	python3 host/plot_waveforms.py --self-test
 
 analyze:               ## filter sweep and samples/symbol figures
 	python3 reference/analyze.py
@@ -73,6 +74,7 @@ smoke:                 ## every command once on the board, briefly; not logged
 
 plots:
 	python3 host/plot_progress.py
+	python3 host/plot_waveforms.py
 
 clean:
 	rm -rf $(BUILD) host/build

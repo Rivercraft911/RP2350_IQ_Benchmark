@@ -1,0 +1,6 @@
+{
+  "head": "70e659820983cb0142cd18589882f1d4655f7102",
+  "uf2_sha256": "e048b216974811d2167a6f011a9de2bbcc7fc4c64fe612bbca5bee24a25d57e9",
+  "verification": "picotool load -v completed, flash.txt retained",
+  "device": "D7304C6F543390D2"
+}

@@ -1,0 +1,109 @@
+{
+  "passed": false,
+  "complete_matrix": true,
+  "checks": [
+    {
+      "key": [
+        128000,
+        2,
+        0,
+        0
+      ],
+      "classification": "failed",
+      "faults": [
+        "supervision poll deadline",
+        "positive live hardware fault",
+        "positive run duration",
+        "positive capture incomplete",
+        "unexpected partial capture transport"
+      ],
+      "capture_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "key": [
+        128000,
+        2,
+        1,
+        0
+      ],
+      "classification": "failed",
+      "faults": [
+        "supervision poll deadline",
+        "source read beyond frozen finite credit",
+        "negative pointer fault scope",
+        "negative output/bench fault scope",
+        "negative did not terminate after grant freeze"
+      ],
+      "capture_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "key": [
+        128000,
+        1,
+        0,
+        0
+      ],
+      "classification": "digital_live_clean",
+      "faults": [],
+      "capture_sha256": "af487b6f7c832526314f14dc8a9585db9c36fa94b819b890ec2299448961f66e"
+    },
+    {
+      "key": [
+        128000,
+        1,
+        1,
+        0
+      ],
+      "classification": "credit_starvation_detected",
+      "faults": [],
+      "capture_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "key": [
+        150000,
+        2,
+        0,
+        0
+      ],
+      "classification": "digital_live_clean",
+      "faults": [],
+      "capture_sha256": "5c12b9b15f414105c1f05a59e24dc6b77272c9af175c4291c94f15357ae78a94"
+    },
+    {
+      "key": [
+        150000,
+        2,
+        1,
+        0
+      ],
+      "classification": "credit_starvation_detected",
+      "faults": [],
+      "capture_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "key": [
+        150000,
+        1,
+        0,
+        0
+      ],
+      "classification": "digital_live_clean",
+      "faults": [],
+      "capture_sha256": "8b91b15746d1d7ae43db1b635638b3404521a55cfbded52e804983c8ca35c9d1"
+    },
+    {
+      "key": [
+        150000,
+        1,
+        1,
+        0
+      ],
+      "classification": "credit_starvation_detected",
+      "faults": [],
+      "capture_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    }
+  ],
+  "policy": "Saved frozen validator; additive summary, original logs unchanged",
+  "driver_sha256": "e43595a866f0461262eb13fbeef2d73ea0ca9276f6836da7079c631b65999fe1",
+  "runs_sha256": "7da77c9ff60799193660b75b9c1324cc122ef2dbd84a71ad138b57aa38186628"
+}

@@ -1,0 +1,781 @@
+{
+  "baseline_actual_8psk_L9_preEQ": {
+    "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+    "walsh_translation_classes": 512,
+    "plane_factors_q30": [
+      701455651,
+      290552444
+    ],
+    "hold": true,
+    "periodic_mean_lsb_per_phase": [
+      0.0,
+      0.0
+    ],
+    "periodic_mean_power_lsb2": 0.0,
+    "continuous_dc_bias_lsb": 0.0,
+    "iid_sample_rms_lsb": 3124.10863787577,
+    "rx_main_gain_lsb_per_target_coordinate": 4260.917161986484,
+    "combined_exact_axis_peak": 6744,
+    "nonlinear_output_rms_fraction": 0.00013025331935119012,
+    "rx_isi_plus_distortion_percent": 1.6743040989976175,
+    "rx_dc_bias_fraction": 0.0,
+    "upper_margin_db": 0.23255389607953136,
+    "lower_margin_db": 0.23099270562989438,
+    "far_margin_db": 8.783241980391942,
+    "certified_upper_linear_slack": 0.006352689097145795,
+    "certified_lower_linear_slack": 0.023970448476001608,
+    "certified_continuous_mask": true
+  },
+  "schema": "yapogee-short-pulse-independent-rounded-lut-audit-v1",
+  "source_manifest": "/tmp/yapogee-short-pulse-selected.json",
+  "source_manifest_sha256": "a800c69ac3ccda72bbe70816915a373a68402f3df9a50b3dbaea5b4d68bf3d49",
+  "audit_source": "/tmp/yapogee_short_pulse_review.py",
+  "audit_source_sha256": "e059bbd280fead85506c3a4c30d0e6af2689ea045c9a2aed6f39f7e24d5b8eb5",
+  "export_source_sha256": "c6053893df7cce21066bb6cf42b877ad176b1fa610b6ac6d815577803b64a1fc",
+  "primary_source": "https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf",
+  "scope": "Exact coefficient/row CRCs and headroom; linear-FIR continuous masks; exact zero-mean iid ensemble PSD and ideal-RRC ISI including LUT rounding. Deterministic periodic-mean spectral lines are reported separately, not included in the continuous PSD mask.",
+  "exclusions": [
+    "no Pico timing or PIO-address proof",
+    "no AFE analog/phase/RF qualification",
+    "no image claim beyond N4 [0,6] or N2 [0,2] f/(Rs/2)",
+    "no universal iid claim for deterministic PLHEADER/pilot/coded payload sequences"
+  ],
+  "profiles": [
+    {
+      "id": "qpsk_l8_n4_both_m010_far2",
+      "independent_byte_and_row_checks": {
+        "coefficient_bytes_sha256": "28a65e7881d8649dcae694866b798491a57b36d4c43528b58fe44a66b32a1dcd",
+        "canonical_quad_crc32_u14_le32": 629259652,
+        "bswap_pointer_order_crc32_u14_le32": 3433922394
+      },
+      "linear_fir_with_hold": {
+        "scope_fn": [
+          0,
+          6.0
+        ],
+        "points": 1048586,
+        "max_step_fn": 5.7220458984375e-06,
+        "upper_margin_db": 0.21930635266765852,
+        "upper_worst_fn": 0.7261676788330078,
+        "lower_margin_db": 0.10146090568523225,
+        "lower_worst_fn": 0.89,
+        "far_margin_db": 2.755436246029163,
+        "far_worst_fn": 1.7,
+        "min_upper_linear_amplitude_slack": 0.001359584944327804,
+        "min_lower_linear_amplitude_slack": 0.010351979886261575,
+        "response_derivative_bound": 3.915161999719487,
+        "upper_between_grid_uncertainty": 2.547273615842121e-05,
+        "lower_between_grid_uncertainty": 2.442687714670694e-05,
+        "certified_upper_linear_slack": 0.0013341122081693827,
+        "certified_lower_linear_slack": 0.010327553009114868,
+        "certified_continuous_mask": true
+      },
+      "linear_isi_with_hold": {
+        "isi_percent": 1.4201300752732233,
+        "main_over_dc": 0.9827994367788504,
+        "alias_mean": 0.9827994367788503,
+        "side_samples": {
+          "1": 0.006636219478734225,
+          "2": 0.0014247437437909913,
+          "5": 0.0006861547670470798,
+          "20": -0.00015286678653308547,
+          "80": -1.007344600186565e-05
+        }
+      },
+      "exact_binary_headroom": {
+        "L": 8,
+        "history_count": 256,
+        "exact_max_abs_sample": 7300,
+        "headroom_db": 1.0002813162433455,
+        "exact_positive_peak": 7300,
+        "exact_negative_peak": -7300,
+        "phase_l1_q8": [
+          1548119,
+          1868862,
+          1868862,
+          1548119
+        ],
+        "zero_mean_rounding_bias_lsb": [
+          0.0,
+          0.0078125,
+          0.0078125,
+          0.0
+        ],
+        "max_rounding_error_lsb": 0.5
+      },
+      "rounded_binary_with_hold": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 128,
+        "plane_factors_q30": null,
+        "hold": true,
+        "periodic_mean_lsb_per_phase": [
+          0.0,
+          0.0078125,
+          0.0078125,
+          0.0
+        ],
+        "periodic_mean_power_lsb2": 3.0517578125e-05,
+        "continuous_dc_bias_lsb": 0.00390625,
+        "iid_sample_rms_lsb": 4226.717975883445,
+        "rx_main_gain_lsb_per_target_coordinate": 4185.01580233946,
+        "combined_exact_axis_peak": 7300,
+        "nonlinear_output_rms_fraction": 6.737015380715554e-05,
+        "rx_isi_plus_distortion_percent": 1.419996351912619,
+        "rx_dc_bias_fraction": 9.333895460601063e-07,
+        "upper_margin_db": 0.2193678847413113,
+        "lower_margin_db": 0.10141932765983186,
+        "far_margin_db": 2.7586893827933494,
+        "certified_upper_linear_slack": 0.001334929132119513,
+        "certified_lower_linear_slack": 0.010323286023298909,
+        "certified_continuous_mask": true
+      },
+      "rounded_binary_without_hold": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 128,
+        "plane_factors_q30": null,
+        "hold": false,
+        "periodic_mean_lsb_per_phase": [
+          0.0,
+          0.0078125,
+          0.0078125,
+          0.0
+        ],
+        "periodic_mean_power_lsb2": 3.0517578125e-05,
+        "continuous_dc_bias_lsb": 0.00390625,
+        "iid_sample_rms_lsb": 4226.717975883445,
+        "rx_main_gain_lsb_per_target_coordinate": 4221.877249096124,
+        "combined_exact_axis_peak": 7300,
+        "nonlinear_output_rms_fraction": 6.737015380715554e-05,
+        "rx_isi_plus_distortion_percent": 1.038773147064556,
+        "rx_dc_bias_fraction": 9.252400696482358e-07,
+        "upper_margin_db": 0.09990753201376368,
+        "lower_margin_db": 0.2203375080090265,
+        "far_margin_db": 2.089862990784468,
+        "certified_upper_linear_slack": 0.00024383953029710146,
+        "certified_lower_linear_slack": 0.024511913758391762,
+        "certified_continuous_mask": true
+      },
+      "actual_8psk_twinplanes": null,
+      "midpoint_hold_isi": [
+        {
+          "oversample_per_dac_sample": 16,
+          "K": 256,
+          "isi_percent": 1.417970899029581,
+          "main_over_dc": 0.9828328670999726,
+          "symmetry_max_error": 2.168404344971009e-18
+        },
+        {
+          "oversample_per_dac_sample": 64,
+          "K": 256,
+          "isi_percent": 1.4199947565009194,
+          "main_over_dc": 0.9828015260868253,
+          "symmetry_max_error": 4.336808689942018e-19
+        },
+        {
+          "oversample_per_dac_sample": 256,
+          "K": 256,
+          "isi_percent": 1.4201213473542182,
+          "main_over_dc": 0.9827995673602574,
+          "symmetry_max_error": 1.214306433183765e-17
+        }
+      ]
+    },
+    {
+      "id": "qpsk_l8_n4_hold_m010_far2",
+      "independent_byte_and_row_checks": {
+        "coefficient_bytes_sha256": "d0038b21c7427a0756f429e0bcf14ba4f7b1ce19816c5cd024e6812653006a26",
+        "canonical_quad_crc32_u14_le32": 745171003,
+        "bswap_pointer_order_crc32_u14_le32": 2280957424
+      },
+      "linear_fir_with_hold": {
+        "scope_fn": [
+          0,
+          6.0
+        ],
+        "points": 1048586,
+        "max_step_fn": 5.7220458984375e-06,
+        "upper_margin_db": 0.0999468172913538,
+        "upper_worst_fn": 1.4748687744140625,
+        "lower_margin_db": 0.25,
+        "lower_worst_fn": 0.0,
+        "far_margin_db": 2.099497138144635,
+        "far_worst_fn": 2.0944347381591797,
+        "min_upper_linear_amplitude_slack": 0.000263028728211245,
+        "min_lower_linear_amplitude_slack": 0.02837204842289387,
+        "response_derivative_bound": 4.031196112461044,
+        "upper_between_grid_uncertainty": 2.580471241786704e-05,
+        "lower_between_grid_uncertainty": 2.4758853406152772e-05,
+        "certified_upper_linear_slack": 0.00023722401579337796,
+        "certified_lower_linear_slack": 0.028347289569487715,
+        "certified_continuous_mask": true
+      },
+      "linear_isi_with_hold": {
+        "isi_percent": 0.8089800185890136,
+        "main_over_dc": 0.9963886721823125,
+        "alias_mean": 0.9963886721823125,
+        "side_samples": {
+          "1": 0.0024977842927511157,
+          "2": 3.0377519027302095e-05,
+          "5": 0.0004334093428140681,
+          "20": -0.00015404080420176473,
+          "80": -1.0147595770810869e-05
+        }
+      },
+      "exact_binary_headroom": {
+        "L": 8,
+        "history_count": 256,
+        "exact_max_abs_sample": 7300,
+        "headroom_db": 1.0002813162433455,
+        "exact_positive_peak": 7300,
+        "exact_negative_peak": -7300,
+        "phase_l1_q8": [
+          1559500,
+          1868860,
+          1868860,
+          1559500
+        ],
+        "zero_mean_rounding_bias_lsb": [
+          0.0,
+          0.00390625,
+          0.00390625,
+          0.0
+        ],
+        "max_rounding_error_lsb": 0.5
+      },
+      "rounded_binary_with_hold": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 128,
+        "plane_factors_q30": null,
+        "hold": true,
+        "periodic_mean_lsb_per_phase": [
+          0.0,
+          0.00390625,
+          0.00390625,
+          0.0
+        ],
+        "periodic_mean_power_lsb2": 7.62939453125e-06,
+        "continuous_dc_bias_lsb": 0.001953125,
+        "iid_sample_rms_lsb": 4225.794480821402,
+        "rx_main_gain_lsb_per_target_coordinate": 4183.717834554888,
+        "combined_exact_axis_peak": 7300,
+        "nonlinear_output_rms_fraction": 6.543883069655849e-05,
+        "rx_isi_plus_distortion_percent": 0.8089215054192834,
+        "rx_dc_bias_fraction": 4.6683956166173804e-07,
+        "upper_margin_db": 0.09867342693360115,
+        "lower_margin_db": 0.25,
+        "far_margin_db": 2.0899905536109884,
+        "certified_upper_linear_slack": 0.0002300756017689815,
+        "certified_lower_linear_slack": 0.028347289579254153,
+        "certified_continuous_mask": true
+      },
+      "rounded_binary_without_hold": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 128,
+        "plane_factors_q30": null,
+        "hold": false,
+        "periodic_mean_lsb_per_phase": [
+          0.0,
+          0.00390625,
+          0.00390625,
+          0.0
+        ],
+        "periodic_mean_power_lsb2": 7.62939453125e-06,
+        "continuous_dc_bias_lsb": 0.001953125,
+        "iid_sample_rms_lsb": 4225.794480821402,
+        "rx_main_gain_lsb_per_target_coordinate": 4220.765607351434,
+        "combined_exact_axis_peak": 7300,
+        "nonlinear_output_rms_fraction": 6.543883069655849e-05,
+        "rx_isi_plus_distortion_percent": 0.7882101832590317,
+        "rx_dc_bias_fraction": 4.6274187711304883e-07,
+        "upper_margin_db": -1.532310804645924,
+        "lower_margin_db": 0.25,
+        "far_margin_db": -1.532310804645924,
+        "certified_upper_linear_slack": -0.008831799575823184,
+        "certified_lower_linear_slack": 0.028348185428733293,
+        "certified_continuous_mask": false
+      },
+      "actual_8psk_twinplanes": null,
+      "midpoint_hold_isi": [
+        {
+          "oversample_per_dac_sample": 16,
+          "K": 256,
+          "isi_percent": 0.8073513637354249,
+          "main_over_dc": 0.9964227459167503,
+          "symmetry_max_error": 1.6263032587282567e-18
+        },
+        {
+          "oversample_per_dac_sample": 64,
+          "K": 256,
+          "isi_percent": 0.8088774924259183,
+          "main_over_dc": 0.9963908017017524,
+          "symmetry_max_error": 6.5052130349130266e-18
+        },
+        {
+          "oversample_per_dac_sample": 256,
+          "K": 256,
+          "isi_percent": 0.8089731285675694,
+          "main_over_dc": 0.9963888052769296,
+          "symmetry_max_error": 3.7947076036992655e-18
+        }
+      ]
+    },
+    {
+      "id": "psk8_l8_n2_hold_m010_far2",
+      "independent_byte_and_row_checks": {
+        "coefficient_bytes_sha256": "16936cb50f5de62e68b10367624b868afea4ad49f8dfc4481526de4712fda5ae",
+        "canonical_quad_crc32_u14_le32": 3950223960,
+        "actual_8psk_plane_table_crc32_signed16_le32": [
+          2953792899,
+          1769103366
+        ]
+      },
+      "linear_fir_with_hold": {
+        "scope_fn": [
+          0,
+          2.0
+        ],
+        "points": 1048585,
+        "max_step_fn": 1.9073486328125e-06,
+        "upper_margin_db": 0.09998521791483338,
+        "upper_worst_fn": 0.7277088165283203,
+        "lower_margin_db": 0.21905310368130726,
+        "lower_worst_fn": 0.89,
+        "far_margin_db": 2.099928877841876,
+        "far_worst_fn": 1.7,
+        "min_upper_linear_amplitude_slack": 0.00023933267742471537,
+        "min_lower_linear_amplitude_slack": 0.02250209431400052,
+        "response_derivative_bound": 4.434576976763177,
+        "upper_between_grid_uncertainty": 8.98626477597038e-06,
+        "lower_between_grid_uncertainty": 8.637645105398956e-06,
+        "certified_upper_linear_slack": 0.000230346412648745,
+        "certified_lower_linear_slack": 0.022493456668895122,
+        "certified_continuous_mask": true
+      },
+      "linear_isi_with_hold": {
+        "isi_percent": 1.165030808071371,
+        "main_over_dc": 0.9937194099898735,
+        "alias_mean": 0.9937194099898735,
+        "side_samples": {
+          "1": 0.004056727249506724,
+          "2": 0.000582115570687778,
+          "5": 0.0004693012553251299,
+          "20": -0.0001634446245829941,
+          "80": -1.0708964606420508e-05
+        }
+      },
+      "exact_binary_headroom": {
+        "L": 8,
+        "history_count": 256,
+        "exact_max_abs_sample": 7300,
+        "headroom_db": 1.0002813162433455,
+        "exact_positive_peak": 7300,
+        "exact_negative_peak": -7300,
+        "phase_l1_q8": [
+          1868862,
+          1868862
+        ],
+        "zero_mean_rounding_bias_lsb": [
+          0.00390625,
+          0.00390625
+        ],
+        "max_rounding_error_lsb": 0.5
+      },
+      "rounded_binary_with_hold": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 128,
+        "plane_factors_q30": null,
+        "hold": true,
+        "periodic_mean_lsb_per_phase": [
+          0.00390625,
+          0.00390625
+        ],
+        "periodic_mean_power_lsb2": 1.52587890625e-05,
+        "continuous_dc_bias_lsb": 0.00390625,
+        "iid_sample_rms_lsb": 4594.449012718364,
+        "rx_main_gain_lsb_per_target_coordinate": 4423.297363709709,
+        "combined_exact_axis_peak": 7300,
+        "nonlinear_output_rms_fraction": 6.163295046804812e-05,
+        "rx_isi_plus_distortion_percent": 1.1644825177122666,
+        "rx_dc_bias_fraction": 8.831081609046346e-07,
+        "upper_margin_db": 0.09964696015351393,
+        "lower_margin_db": 0.21925121600540076,
+        "far_margin_db": 2.0953042169126164,
+        "certified_upper_linear_slack": 0.00022908823400771025,
+        "certified_lower_linear_slack": 0.0225140654979058,
+        "certified_continuous_mask": true
+      },
+      "rounded_binary_without_hold": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 128,
+        "plane_factors_q30": null,
+        "hold": false,
+        "periodic_mean_lsb_per_phase": [
+          0.00390625,
+          0.00390625
+        ],
+        "periodic_mean_power_lsb2": 1.52587890625e-05,
+        "continuous_dc_bias_lsb": 0.00390625,
+        "iid_sample_rms_lsb": 4594.449012718364,
+        "rx_main_gain_lsb_per_target_coordinate": 4585.31415992525,
+        "combined_exact_axis_peak": 7300,
+        "nonlinear_output_rms_fraction": 6.163295046804812e-05,
+        "rx_isi_plus_distortion_percent": 2.817582443549975,
+        "rx_dc_bias_fraction": 8.519045508680433e-07,
+        "upper_margin_db": -1.9756413602613456,
+        "lower_margin_db": 0.25,
+        "far_margin_db": -1.3350119151753432,
+        "certified_upper_linear_slack": -0.05288266562632618,
+        "certified_lower_linear_slack": 0.028364024929184183,
+        "certified_continuous_mask": false
+      },
+      "actual_8psk_twinplanes": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 256,
+        "plane_factors_q30": [
+          701455651,
+          290552444
+        ],
+        "hold": true,
+        "periodic_mean_lsb_per_phase": [
+          0.01171875,
+          0.01171875
+        ],
+        "periodic_mean_power_lsb2": 0.0001373291015625,
+        "continuous_dc_bias_lsb": 0.01171875,
+        "iid_sample_rms_lsb": 3248.770122470161,
+        "rx_main_gain_lsb_per_target_coordinate": 4423.301175792938,
+        "combined_exact_axis_peak": 6744,
+        "nonlinear_output_rms_fraction": 0.00012192730375338283,
+        "rx_isi_plus_distortion_percent": 1.1644472214915975,
+        "rx_dc_bias_fraction": 3.746707383221325e-06,
+        "upper_margin_db": 0.09731449161814965,
+        "lower_margin_db": 0.2192128736390353,
+        "far_margin_db": 2.0886908170887324,
+        "certified_upper_linear_slack": 0.00022344605159011947,
+        "certified_lower_linear_slack": 0.02251007703333492,
+        "certified_continuous_mask": true
+      },
+      "midpoint_hold_isi": [
+        {
+          "oversample_per_dac_sample": 16,
+          "K": 256,
+          "isi_percent": 1.1581342385991806,
+          "main_over_dc": 0.9938550959465191,
+          "symmetry_max_error": 2.168404344971009e-18
+        },
+        {
+          "oversample_per_dac_sample": 64,
+          "K": 256,
+          "isi_percent": 1.1645967342969077,
+          "main_over_dc": 0.9937278889459693,
+          "symmetry_max_error": 1.0842021724855044e-17
+        },
+        {
+          "oversample_per_dac_sample": 256,
+          "K": 256,
+          "isi_percent": 1.1650032962530268,
+          "main_over_dc": 0.9937199399190986,
+          "symmetry_max_error": 2.3852447794681098e-17
+        }
+      ]
+    },
+    {
+      "id": "psk8_l8_n2_hold_m010_far8",
+      "independent_byte_and_row_checks": {
+        "coefficient_bytes_sha256": "13fadcba33586a1a9652db37c1c79197101ce0b5a3682b3fae8f739728a946f4",
+        "canonical_quad_crc32_u14_le32": 3292836405,
+        "actual_8psk_plane_table_crc32_signed16_le32": [
+          3967104394,
+          2525953941
+        ]
+      },
+      "linear_fir_with_hold": {
+        "scope_fn": [
+          0,
+          2.0
+        ],
+        "points": 1048585,
+        "max_step_fn": 1.9073486328125e-06,
+        "upper_margin_db": 0.09999992912995784,
+        "upper_worst_fn": 0.7288837432861328,
+        "lower_margin_db": 0.15721261464928815,
+        "lower_worst_fn": 0.89,
+        "far_margin_db": 8.099731828200703,
+        "far_worst_fn": 1.7,
+        "min_upper_linear_amplitude_slack": 0.00020359889119406227,
+        "min_lower_linear_amplitude_slack": 0.016091974184191726,
+        "response_derivative_bound": 4.271547896372939,
+        "upper_between_grid_uncertainty": 8.83078812917488e-06,
+        "lower_between_grid_uncertainty": 8.482168458603456e-06,
+        "certified_upper_linear_slack": 0.00019476810306488738,
+        "certified_lower_linear_slack": 0.016083492015733124,
+        "certified_continuous_mask": true
+      },
+      "linear_isi_with_hold": {
+        "isi_percent": 1.590250738330257,
+        "main_over_dc": 0.9905068503623244,
+        "alias_mean": 0.9905068503623244,
+        "side_samples": {
+          "1": 0.005858604786369936,
+          "2": 0.001051194181085904,
+          "5": 0.0007621440690677744,
+          "20": -0.00017218050905795093,
+          "80": -1.1237344975421314e-05
+        }
+      },
+      "exact_binary_headroom": {
+        "L": 8,
+        "history_count": 256,
+        "exact_max_abs_sample": 7300,
+        "headroom_db": 1.0002813162433455,
+        "exact_positive_peak": 7300,
+        "exact_negative_peak": -7300,
+        "phase_l1_q8": [
+          1868860,
+          1868860
+        ],
+        "zero_mean_rounding_bias_lsb": [
+          0.01171875,
+          0.01171875
+        ],
+        "max_rounding_error_lsb": 0.5
+      },
+      "rounded_binary_with_hold": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 128,
+        "plane_factors_q30": null,
+        "hold": true,
+        "periodic_mean_lsb_per_phase": [
+          0.01171875,
+          0.01171875
+        ],
+        "periodic_mean_power_lsb2": 0.0001373291015625,
+        "continuous_dc_bias_lsb": 0.01171875,
+        "iid_sample_rms_lsb": 4640.622788299136,
+        "rx_main_gain_lsb_per_target_coordinate": 4467.634434337633,
+        "combined_exact_axis_peak": 7300,
+        "nonlinear_output_rms_fraction": 6.18501034088931e-05,
+        "rx_isi_plus_distortion_percent": 1.5899637540110483,
+        "rx_dc_bias_fraction": 2.6230324285109976e-06,
+        "upper_margin_db": 0.09493796340084515,
+        "lower_margin_db": 0.15758750383782383,
+        "far_margin_db": 8.115006903223374,
+        "certified_upper_linear_slack": 0.00018447900941260907,
+        "certified_lower_linear_slack": 0.01612221388917656,
+        "certified_continuous_mask": true
+      },
+      "rounded_binary_without_hold": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 128,
+        "plane_factors_q30": null,
+        "hold": false,
+        "periodic_mean_lsb_per_phase": [
+          0.01171875,
+          0.01171875
+        ],
+        "periodic_mean_power_lsb2": 0.0001373291015625,
+        "continuous_dc_bias_lsb": 0.01171875,
+        "iid_sample_rms_lsb": 4640.622788299136,
+        "rx_main_gain_lsb_per_target_coordinate": 4630.864459340672,
+        "combined_exact_axis_peak": 7300,
+        "nonlinear_output_rms_fraction": 6.18501034088931e-05,
+        "rx_isi_plus_distortion_percent": 2.7019030729923057,
+        "rx_dc_bias_fraction": 2.5305750368838217e-06,
+        "upper_margin_db": -2.016377926617295,
+        "lower_margin_db": 0.25,
+        "far_margin_db": 4.666987147506006,
+        "certified_upper_linear_slack": -0.04776189186741393,
+        "certified_lower_linear_slack": 0.028364172222546648,
+        "certified_continuous_mask": false
+      },
+      "actual_8psk_twinplanes": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 256,
+        "plane_factors_q30": [
+          701455651,
+          290552444
+        ],
+        "hold": true,
+        "periodic_mean_lsb_per_phase": [
+          0.0,
+          0.0
+        ],
+        "periodic_mean_power_lsb2": 0.0,
+        "continuous_dc_bias_lsb": 0.0,
+        "iid_sample_rms_lsb": 3281.4000882340606,
+        "rx_main_gain_lsb_per_target_coordinate": 4467.615048080445,
+        "combined_exact_axis_peak": 6744,
+        "nonlinear_output_rms_fraction": 0.00012380386087532233,
+        "rx_isi_plus_distortion_percent": 1.590244690245975,
+        "rx_dc_bias_fraction": 0.0,
+        "upper_margin_db": 0.0985102444872723,
+        "lower_margin_db": 0.1571314998683323,
+        "far_margin_db": 8.094529500819206,
+        "certified_upper_linear_slack": 0.0001917119278749461,
+        "certified_lower_linear_slack": 0.01607511404638956,
+        "certified_continuous_mask": true
+      },
+      "midpoint_hold_isi": [
+        {
+          "oversample_per_dac_sample": 16,
+          "K": 256,
+          "isi_percent": 1.5831052907285403,
+          "main_over_dc": 0.9906417651894072,
+          "symmetry_max_error": 7.37257477290143e-18
+        },
+        {
+          "oversample_per_dac_sample": 64,
+          "K": 256,
+          "isi_percent": 1.58980198817847,
+          "main_over_dc": 0.9905152811325475,
+          "symmetry_max_error": 6.5052130349130266e-18
+        },
+        {
+          "oversample_per_dac_sample": 256,
+          "K": 256,
+          "isi_percent": 1.590222384378766,
+          "main_over_dc": 0.9905073772799695,
+          "symmetry_max_error": 1.0408340855860843e-17
+        }
+      ]
+    },
+    {
+      "id": "qpsk_l7_n4_hold_m010_far2",
+      "independent_byte_and_row_checks": {
+        "coefficient_bytes_sha256": "d23d0e76d95169efb8b96466f8db7f81e0b5e3158849f594a419641586ca4796",
+        "canonical_quad_crc32_u14_le32": 1750756034
+      },
+      "linear_fir_with_hold": {
+        "scope_fn": [
+          0,
+          6.0
+        ],
+        "points": 1048586,
+        "max_step_fn": 5.7220458984375e-06,
+        "upper_margin_db": 0.09981579838144938,
+        "upper_worst_fn": 1.4972591400146484,
+        "lower_margin_db": 0.21693753661614723,
+        "lower_worst_fn": 0.89,
+        "far_margin_db": 2.0996610867384646,
+        "far_worst_fn": 2.1632423400878906,
+        "min_upper_linear_amplitude_slack": 0.0002094636029078452,
+        "min_lower_linear_amplitude_slack": 0.02228204893258623,
+        "response_derivative_bound": 3.787074323446497,
+        "upper_between_grid_uncertainty": 2.5106274377092085e-05,
+        "lower_between_grid_uncertainty": 2.406041536537781e-05,
+        "certified_upper_linear_slack": 0.0001843573285307531,
+        "certified_lower_linear_slack": 0.022257988517220852,
+        "certified_continuous_mask": true
+      },
+      "linear_isi_with_hold": {
+        "isi_percent": 1.4698386519752236,
+        "main_over_dc": 0.9934268036600203,
+        "alias_mean": 0.9934268036600203,
+        "side_samples": {
+          "1": 0.005533744114532212,
+          "2": 0.001813425764020309,
+          "5": 0.0007332265714973642,
+          "20": -0.0001675021003304254,
+          "80": -1.095033227242632e-05
+        }
+      },
+      "exact_binary_headroom": {
+        "L": 7,
+        "history_count": 128,
+        "exact_max_abs_sample": 7300,
+        "headroom_db": 1.0002813162433455,
+        "exact_positive_peak": 7300,
+        "exact_negative_peak": -7300,
+        "phase_l1_q8": [
+          1868861,
+          1546526,
+          1546526,
+          1868861
+        ],
+        "zero_mean_rounding_bias_lsb": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "max_rounding_error_lsb": 0.4921875
+      },
+      "rounded_binary_with_hold": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 64,
+        "plane_factors_q30": null,
+        "hold": true,
+        "periodic_mean_lsb_per_phase": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "periodic_mean_power_lsb2": 0.0,
+        "continuous_dc_bias_lsb": 0.0,
+        "iid_sample_rms_lsb": 4270.799456776213,
+        "rx_main_gain_lsb_per_target_coordinate": 4227.490281155329,
+        "combined_exact_axis_peak": 7300,
+        "nonlinear_output_rms_fraction": 6.513890869174522e-05,
+        "rx_isi_plus_distortion_percent": 1.4697760313038322,
+        "rx_dc_bias_fraction": 0.0,
+        "upper_margin_db": 0.0988004646098446,
+        "lower_margin_db": 0.21695101759416324,
+        "far_margin_db": 2.0929188570444097,
+        "certified_upper_linear_slack": 0.00018224209062295805,
+        "certified_lower_linear_slack": 0.02225939056365007,
+        "certified_continuous_mask": true
+      },
+      "rounded_binary_without_hold": {
+        "description": "Exact zero-mean iid ensemble PSD of rounded LUT; deterministic periodic mean lines reported separately; ideal-RRC EVM includes DC bias",
+        "walsh_translation_classes": 64,
+        "plane_factors_q30": null,
+        "hold": false,
+        "periodic_mean_lsb_per_phase": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "periodic_mean_power_lsb2": 0.0,
+        "continuous_dc_bias_lsb": 0.0,
+        "iid_sample_rms_lsb": 4270.799456776213,
+        "rx_main_gain_lsb_per_target_coordinate": 4264.79652522699,
+        "combined_exact_axis_peak": 7300,
+        "nonlinear_output_rms_fraction": 6.513890869174522e-05,
+        "rx_isi_plus_distortion_percent": 1.2246492774645392,
+        "rx_dc_bias_fraction": 0.0,
+        "upper_margin_db": -1.0385258907322168,
+        "lower_margin_db": 0.25,
+        "far_margin_db": -1.0385258907322168,
+        "certified_upper_linear_slack": -0.007392255907059683,
+        "certified_lower_linear_slack": 0.02834886861558258,
+        "certified_continuous_mask": false
+      },
+      "actual_8psk_twinplanes": null,
+      "midpoint_hold_isi": [
+        {
+          "oversample_per_dac_sample": 16,
+          "K": 256,
+          "isi_percent": 1.468114230075619,
+          "main_over_dc": 0.9934606589960169,
+          "symmetry_max_error": 1.7889335846010823e-18
+        },
+        {
+          "oversample_per_dac_sample": 64,
+          "K": 256,
+          "isi_percent": 1.4697304356760703,
+          "main_over_dc": 0.9934289195301906,
+          "symmetry_max_error": 9.75781955236954e-19
+        },
+        {
+          "oversample_per_dac_sample": 256,
+          "K": 256,
+          "isi_percent": 1.4698315798411068,
+          "main_over_dc": 0.9934269359015617,
+          "symmetry_max_error": 1.0191500421363742e-17
+        }
+      ]
+    }
+  ]
+}
