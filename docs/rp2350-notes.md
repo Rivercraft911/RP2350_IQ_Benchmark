@@ -11,9 +11,13 @@ means arithmetic here; "unverified" means no source states it.
    in-spec (≤ 150 MHz) setting with whole PIO cycles per word at both bus rates: 4 at 32 MW/s,
    2 at 64 MW/s. 144 or 150 MHz would need a fractional divider and add one clk_sys (≈ 6.7 ns) of
    edge jitter (derived; §8.6.3 p576, §11.5.5 p911).
-2. **PIO output:** one SM, OUT on 15 contiguous pins (D13:0 + IQ_FLAG), side-set on CLK_IO,
-   autopull 32, FJOIN_TX. FDEBUG.TXSTALL is a sticky underrun flag (§11.5.1 p902, Table 984 p946).
-3. **DMA:** 16 M words/s at 64 MW/s is one write per 8 clk_sys; the DMA/PIO limit is one per clock.
+2. **PIO output:** the ring transmitter (`iqout.c`) uses one SM with OUT on GPIO0–15 and
+   side-set on CLK_IO (RAW_PAIRS: OUT on D13:0, side-set on IQ_FLAG, bit 15 and CLK_IO),
+   autopull 32, FJOIN_TX. The direct-LUT engine (`dual_dma.c`) alternates two or four writer SMs
+   on the shared bus and drives CLK_IO from HSTX. FDEBUG.TXSTALL is a sticky underrun flag
+   (§11.5.1 p902, Table 984 p946).
+3. **DMA:** at 64 MW/s on the bus, two 16-bit bus words per 32-bit FIFO word give 32 M DMA writes/s,
+   one per 4 clk_sys at 128 MHz; the DMA/PIO limit is one per clock.
    PIO FIFOs, DMA registers and USB share the FASTPERI port, so don't poll PIO/DMA from the CPU
    (§2.1 p24, §11.5.3 p906).
 4. **Placement:** hot code in SRAM, never XIP. Tables in SRAM4–7, DMA ring in SRAM0–3, hot kernels
@@ -48,7 +52,7 @@ Pin use. `firmware/src/config.h` is the authority.
 | 0–13 | 1, 2, 4–7, 9–12, 14–17 | AFE D0–D13 |
 | 14 | 19 | IQ_FLAG |
 | 15 | 20 | spare bus bit (always 0) |
-| 16 | 21 | CLK_IO (PIO side-set) |
+| 16 | 21 | CLK_IO (PIO side-set in `iqout.c`, HSTX in `dual_dma.c`) |
 | 17, 18, 19, 20, 22 | 22, 24, 25, 26, 29 | PV-SPI SCK, MOSI, CS_N, MISO, READY (or the 4-lane link) |
 
 The bus sits in order on one header row with 4 GND pins between the signals.
@@ -61,7 +65,7 @@ The bus sits in order on one header row with 4 GND pins between the signals.
   integer only.
 - A non-12 MHz XIN breaks default USB BOOTSEL unless OTP BOOTSEL_PLL_CFG/XOSC_CFG are set
   (§5.2.8.1 p375).
-- GPOUT ≤ 50 MHz, so 64 MHz CLK_IO must come from PIO side-set (§8.1 p514).
+- GPOUT ≤ 50 MHz, so 64 MHz CLK_IO must come from PIO side-set or HSTX (§8.1 p514).
 
 **PIO** (§11)
 - 3 blocks × 4 SMs, 32 instructions per block, 1 instruction per clk_sys.

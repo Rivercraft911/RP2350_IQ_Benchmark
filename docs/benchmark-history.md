@@ -100,9 +100,10 @@ the linked derivation records the comparison.
 ![Modeled spectra at two and four samples/symbol](../results/plots/why_4_samples_per_symbol.png)
 
 The earlier parallel-bus setup/hold estimate was about 5.7 ns at 64 Mword/s, against a stated
-1 ns requirement. It used RP2350 QMI pad data rather than a PIO timing specification;
-see the [development-board notes](../hardware/devboard/README.md). This remains an estimate,
-not a measured PIO-to-AFE timing margin.
+1 ns requirement. It used RP2350 QMI pad data rather than a PIO timing specification:
+one 7.8 ns SYS period at 128 MHz minus the 2.1 ns Bank-0 output skew, less trace skew. The
+derivation was in the [development-board draft](../hardware/devboard/README.md) until commit
+`48ea9c9` removed it. This remains an estimate, not a measured PIO-to-AFE timing margin.
 
 ## Historical resource snapshot
 

@@ -6,8 +6,9 @@ Both paths passed 60-second digital trials at 128 and 150 MHz. The fastest teste
 BB data-field rate remains **25.844 Mb/s with QPSK at 16 Msym/s**. Higher-order
 modulation currently provides a narrower-band alternative.
 
-These experiments are on `experiment/yapogee-next-waveforms`. The earlier qualified
-`experiment/yapogee-limits` checkpoint at `4b779c0` is retained. All hardware tests
+These experiments were recorded on branch `experiment/yapogee-next-waveforms`, the name
+their manifests carry. That work is now consolidated on `experiment/yapogee-limits`, whose
+history also retains the earlier qualified checkpoint `4b779c0`. All hardware tests
 used a Pimoroni Pico Plus 2, RP2350B rev A2, stock voltage, USB only, with external
 GPIOs disconnected. The input master and waveform capture are on-chip. There is
 no new external payload, AFE7071, RF spectrum/EVM or receiver-decode qualification.
