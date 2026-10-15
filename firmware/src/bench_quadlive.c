@@ -23,8 +23,9 @@ _Static_assert(2 * IQQUAD_L8_WORDS <= N_BLOCKS * BLOCK_WORDS, "64KiB-aligned tab
 
 static uint32_t poll_issue_budget(uint32_t clock_hz, unsigned cycles_per_word) {
     const uint32_t denominator = cycles_per_word * 1000000u;
+    // Integer timer deltas <=MAX_POLL_US admit a real span <MAX_POLL_US+1.
     return IQQUADPTR_REUSE_GUARD_WORDS +
-        ((uint64_t)clock_hz * MAX_POLL_US + denominator - 1u) / denominator;
+        ((uint64_t)clock_hz * (MAX_POLL_US + 1u) + denominator - 1u) / denominator;
 }
 
 static bool credit_runway_ok(const iqquadptr_progress_t *p, uint32_t budget, uint64_t *minimum) {

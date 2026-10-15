@@ -156,7 +156,7 @@ bool check_runway(uint64_t granted,uint64_t issued,uint32_t budget,uint64_t *min
                             self.assertEqual(tracked.value,remaining)
                             self.assertEqual(grants[(granted//512)%16],0)
             minima[clock]=minimum
-        self.assertEqual(minima,{128000000:6987,150000000:6872})
+        self.assertEqual(minima,{128000000:6984,150000000:6869})
 
     def test_arbitrary_axis_skew_low_credit_runway_rejects_before_starvation(self):
         for clock in (128000000,150000000):
@@ -249,6 +249,16 @@ bool check_runway(uint64_t granted,uint64_t issued,uint32_t budget,uint64_t *min
             modified=dict(info);modified.update(change)
             with self.assertRaises(ValueError):
                 trial.validate_clock(modified,128000,'frozen-test-image')
+
+    def test_nonfinite_rate_and_cpu_fractions_never_pass(self):
+        r,_,lines=fixture()
+        fields=('sym_rate','supervision_busy','core0_work_busy')
+        for field in fields:
+            for value in (float('nan'),float('inf'),-float('inf')):
+                changed=dict(r);changed[field]=value
+                self.assertTrue(trial.validate_run(changed,lines,1,1000,0)['faults'],(field,value))
+        changed=dict(r,**{field:float('nan') for field in fields})
+        self.assertTrue(trial.validate_run(changed,lines,1,1000,0)['faults'])
 
 
 if __name__=='__main__':

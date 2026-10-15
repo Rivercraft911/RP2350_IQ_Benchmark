@@ -11,6 +11,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import math
 from pathlib import Path
 import shutil
 import subprocess
@@ -28,7 +29,7 @@ POLL_US, MAX_POLL_US, INPUT_BURST_GUARD, PIO_CYCLES_PER_WORD = 128, 256, 8, 49
 
 def poll_limits(clock_hz: int):
     denominator = PIO_CYCLES_PER_WORD*1000000
-    issues = INPUT_BURST_GUARD + (clock_hz*MAX_POLL_US + denominator-1)//denominator
+    issues = INPUT_BURST_GUARD + (clock_hz*(MAX_POLL_US+1) + denominator-1)//denominator
     cursor_us = (INPUT_WORDS-INPUT_BURST_GUARD)*denominator//clock_hz
     return issues, cursor_us
 
@@ -62,7 +63,8 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, fault: int,
         if (r.get('poll_issue_budget_words') != issue_budget or r.get('required_credit_runway_words') != 2*issue_budget or
                 r.get('source_cursor_deadline_us') != cursor_deadline or int(r['min_credit_runway_words']) < 2*issue_budget):
             faults.append('derived source cursor/credit runway guard')
-        if abs(float(r['sym_rate']) - clock/(8*cpw)) > 0.1:
+        symbol_rate = float(r['sym_rate'])
+        if not math.isfinite(symbol_rate) or abs(symbol_rate - clock/(8*cpw)) > 0.1:
             faults.append('symbol rate/divider')
         base, arena, origin = int(r['table_base']), int(r['ring_base']), int(r['input_base'])
         if base & 65535 or not 0x20000000 <= base <= 0x20070000:
@@ -77,7 +79,8 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, fault: int,
             faults.append('immutable PRBS ring/initial history')
         elapsed, cycles = int(r['elapsed_us']), int(r['supervision_cycles'])
         busy = cycles/(elapsed*clock/1e6) if elapsed > 0 else -1
-        if not 0 <= busy <= 1 or any(abs(float(r[key])-busy) > 1e-6 for key in ('supervision_busy','core0_work_busy')):
+        reported_busy = [float(r[key]) for key in ('supervision_busy','core0_work_busy')]
+        if not 0 <= busy <= 1 or any(not math.isfinite(value) or abs(value-busy) > 1e-6 for value in reported_busy):
             faults.append('supervision cycle fraction')
         if not 0 < int(r['polls']) or not POLL_US <= int(r['max_poll_gap_us']) <= MAX_POLL_US:
             faults.append('supervision poll deadline')
