@@ -34,3 +34,18 @@ which fits instruction-fetch contention in that one bank; this is a hypothesis, 
 measured cause. The test is `ldpcxor 1` with `bchbank 0` (and the leaf moved out of
 SCRATCH_Y if space can be found). Isolated stage savings do not predict live gains when hot
 code shares a bank.
+
+**Placement follow-up (`bank0-runs.jsonl`, `flash-bank0.txt`):** the same A/B/A with
+`bchbank 0`, which moves core 0's BCH copy out of SCRATCH_Y:
+
+| Run | Core 0 active | Core 1 work |
+|---|---:|---:|
+| A: xor 0, bank 0 | 86.72% | 82.22% |
+| B: xor 1, bank 0 | 89.30% | 81.90% |
+| A2: xor 0, bank 0 | 86.72% | 82.22% |
+
+With core 0's BCH out of SCRATCH_Y the xor-1 penalty falls from +11.0 / +5.5 points to
++2.6 / −0.3 points (core 0 / core 1). That supports instruction-fetch contention in
+SCRATCH_Y as the cause. There is still no net gain over the best measured configuration
+(bank 1, xor 0: 82.9% / 81.9%), so `ldpcxor` should stay off unless its leaf can be placed
+outside SCRATCH_Y.
