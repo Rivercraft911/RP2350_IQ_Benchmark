@@ -86,7 +86,7 @@ def check_stream(stream, memory, points, ring_mask):
     for plane, values in zip(accum,tail):
         assert plane == sum(int(v)<<j for j,v in enumerate(values))
 
-def run_case(lib, index, rate, short, pilots, fecs, gold=0, prefix=0, ring=False):
+def run_case(lib, index, rate, short, pilots, fecs, gold=0, prefix=0, ring=False, ring_groups=256):
     code = lib.test_code(index)
     need = lib.dvbs2_8psk_arena_words(code,pilots)
     assert 0 < need <= 1384
@@ -95,14 +95,21 @@ def run_case(lib, index, rate, short, pilots, fecs, gold=0, prefix=0, ring=False
     cfg = (ctypes.c_uint64*32)() # suitably aligned opaque storage, exact C size checked below
     assert lib.dvbs2_8psk_init(cfg,code,pilots,gold,ap,need)
     frame_len = (5598 if pilots else 5490) if short else (22194 if pilots else 21690)
+    rotations = ref.pl_scrambling_sequence(frame_len-90,gold)
+    data_positions = np.arange(len(rotations))%1476 < 1440 if pilots else np.ones(len(rotations),bool)
+    stored = np.concatenate([rotations[data_positions],rotations[~data_positions]])
+    gold_words = np.ctypeslib.as_array(ap,shape=(need,)).reshape(-1,2)
+    gold_bits = ((gold_words[:,:,None] >> np.arange(32,dtype=np.uint32)) & 1).transpose(0,2,1).reshape(-1,2)
+    np.testing.assert_array_equal(gold_bits[:len(stored)],np.stack([stored&1,stored>>1],axis=1))
+    assert not np.any(gold_bits[len(stored):])
     groups = (prefix+len(fecs)*frame_len+15)//16
-    size = 256 if ring else groups+1
+    size = ring_groups if ring else groups+1
     raw = (Input*(size+2))()
     raw[0] = raw[-1] = Input(CANARY,CANARY)
     memory = ctypes.cast(ctypes.byref(raw,ctypes.sizeof(Input)),ctypes.POINTER(Input))
     stream = Stream(out=memory,mask=size-1 if ring else 0xffffffff)
     points = np.full(prefix,np.exp(1j*np.pi/8))
-    if prefix: stream.fill=1;stream.acc_bq=1
+    if prefix: stream.fill=prefix;stream.acc_bq=(1<<prefix)-1
     for fec in fecs:
         data = frame_words(fec)
         original = data.copy()
@@ -153,6 +160,13 @@ def main():
         for gold in (1,99999,262142):
             fec=rng.integers(0,2,64800,dtype=np.uint8)
             extra.append(run_case(lib,8,'5/6',False,True,[fec]*3,gold=gold))
+        # Exercise each packed carry alignment directly, including the pair that
+        # straddles the end of the smallest useful two-group ring.
+        for rate,index in (('3/5',4),('5/6',8)):
+            fec=rng.integers(0,2,64800,dtype=np.uint8)
+            for prefix in range(16):
+                extra.append(run_case(lib,index,rate,False,bool(prefix&1),[fec],
+                                      prefix=prefix,ring=True,ring_groups=2))
         rejected=[]
         for index in (0,1,2,3,7,11,12,13,14,18):
             assert lib.dvbs2_8psk_arena_words(lib.test_code(index),True)==0;rejected.append(index)

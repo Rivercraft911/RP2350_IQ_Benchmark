@@ -37,7 +37,7 @@ bool dvbs2_8psk_init(dvbs2_8psk_cfg_t *cfg, const dvbs2_code_t *code, bool pilot
                    uint32_t gold_code, uint32_t *arena, uint32_t arena_words) {
     const uint32_t need = dvbs2_8psk_arena_words(code, pilots);
     if (!cfg || !arena || !need || arena_words < need || gold_code >= 262143u) return false;
-    *cfg = (dvbs2_8psk_cfg_t){.code = code, .gold0 = arena, .gold1 = arena + need / 2,
+    *cfg = (dvbs2_8psk_cfg_t){.code = code, .gold = (dvbs2_8psk_gold_t *)arena,
         .data_symbols = code->nldpc / 3u, .gold_code = gold_code,
         .modcod = (uint8_t)modcod8(code), .pilots = pilots, .is_short = code->is_short,
         .column_reverse = code->modcod == 5};
@@ -49,9 +49,15 @@ bool dvbs2_8psk_init(dvbs2_8psk_cfg_t *cfg, const dvbs2_code_t *code, bool pilot
     for (uint32_t i = 0; i < gold_code; i++) xa = xstep(xa);
     uint32_t xb = xa;
     for (uint32_t i = 0; i < 131072u; i++) { xb = xstep(xb); yb = ystep(yb); }
+    uint32_t data = 0, pilot = cfg->data_symbols;
     for (uint32_t i = 0; i < cfg->body_symbols; i++) {
-        cfg->gold0[i >> 5] |= ((xa ^ ya) & 1u) << (i & 31);
-        cfg->gold1[i >> 5] |= ((xb ^ yb) & 1u) << (i & 31);
+        // Advance Gold in transmission order, but store the data bits first and
+        // pilot bits last. Normal FE columns and both data Gold planes then have
+        // the same word boundaries, including across 36-symbol pilot blocks.
+        const bool is_pilot = pilots && i % 1476u >= 1440u;
+        const uint32_t bit = is_pilot ? pilot++ : data++;
+        cfg->gold[bit >> 5].r0 |= ((xa ^ ya) & 1u) << (bit & 31);
+        cfg->gold[bit >> 5].r1 |= ((xb ^ yb) & 1u) << (bit & 31);
         xa = xstep(xa); ya = ystep(ya); xb = xstep(xb); yb = ystep(yb);
     }
     // ETSI5.5.2: SOF and bi-orthogonal PLS, followed by pi/2-BPSK.
@@ -95,9 +101,13 @@ static inline uint32_t column32(const uint32_t *frame, uint32_t bit) {
     return reverse32(v);
 }
 
-static inline uint32_t gold32(const uint32_t *plane, uint32_t position) {
+static inline dvbs2_8psk_gold_t gold32(const dvbs2_8psk_gold_t *gold, uint32_t position) {
     const uint32_t word = position >> 5, shift = position & 31u;
-    return shift ? plane[word] >> shift | plane[word + 1] << (32 - shift) : plane[word];
+    const dvbs2_8psk_gold_t a = gold[word];
+    if (!shift) return a;
+    const dvbs2_8psk_gold_t b = gold[word + 1];
+    return (dvbs2_8psk_gold_t){a.r0 >> shift | b.r0 << (32 - shift),
+                             a.r1 >> shift | b.r1 << (32 - shift)};
 }
 
 typedef struct { uint32_t ai, aq, bi, bq; } planes_t;
@@ -144,6 +154,94 @@ static inline void put(dvbs2_8psk_stream_t *s, planes_t p, uint32_t count) {
     put_small(s, p, count);
 }
 
+static inline void put_pilot(const dvbs2_8psk_cfg_t *cfg, dvbs2_8psk_stream_t *s, uint32_t block) {
+    const uint32_t position = cfg->data_symbols + 36u * block;
+    const dvbs2_8psk_gold_t a = gold32(cfg->gold, position), b = gold32(cfg->gold, position + 32);
+    put32(s, map32(0, 0, 0, a.r0, a.r1));
+    put_small(s, map32(0, 0, 0, b.r0, b.r1), 4);
+}
+
+// Short columns are 5400 bits long, so their FE boundaries need the general
+// extractor. Keep this complete, infrequently used path in flash on the Pico.
+static void __attribute__((noinline)) map_short(const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
+                                               dvbs2_8psk_stream_t *s) {
+    uint32_t data = 0, block = 0;
+    const uint32_t col0 = cfg->column_reverse ? 2 * cfg->data_symbols : 0;
+    const uint32_t col2 = cfg->column_reverse ? 0 : 2 * cfg->data_symbols;
+    while (data < cfg->data_symbols) {
+        uint32_t run = cfg->data_symbols - data;
+        if (cfg->pilots && run > 1440) run = 1440;
+        const uint32_t end = data + run;
+        while (data < end) {
+            const uint32_t count = end - data < 32 ? end - data : 32;
+            const dvbs2_8psk_gold_t gold = gold32(cfg->gold, data);
+            planes_t p = map32(column32(frame, col0 + data), column32(frame, cfg->data_symbols + data),
+                              column32(frame, col2 + data), gold.r0, gold.r1);
+            put(s, p, count); data += count;
+        }
+        if (block < cfg->pilot_blocks && data < cfg->data_symbols) {
+            put_pilot(cfg, s, block++);
+        }
+    }
+}
+
+static inline uint32_t rotate_left(uint32_t word, uint32_t shift) {
+    return (word << shift) | (word >> ((0u - shift) & 31u));
+}
+
+// Append both I/Q lanes together. Rotating a packed 16-symbol word by fill
+// leaves the overflow in the opposite lane; ROR16 brings it back into place.
+static inline uint32_t packed_append(uint32_t *carry, uint32_t word, uint32_t fill, uint32_t mask) {
+    const uint32_t v = rotate_left(word, fill), spill = v & mask;
+    const uint32_t out = (v & ~mask) | *carry;
+    *carry = (spill << 16) | (spill >> 16);
+    return out;
+}
+
+static void MAP_HOT __attribute__((noinline)) map_normal(const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
+                                                        dvbs2_8psk_stream_t *s) {
+    // 64800/3 = 21600 bits/column = 675 whole words. Reverse 3/5 once.
+    const uint32_t *a = frame + (cfg->column_reverse ? 1350 : 0), *b = frame + 675,
+                   *c = frame + (cfg->column_reverse ? 0 : 1350);
+    uint32_t word = 0, block = 0;
+    while (word < 675) {
+        const uint32_t end = cfg->pilots && word + 45 < 675 ? word + 45 : 675;
+        const uint32_t fill = s->fill, mask = ((1u << fill) - 1u) * 0x10001u;
+        uint32_t carry_a = s->acc_ai | (s->acc_aq << 16), carry_b = s->acc_bi | (s->acc_bq << 16);
+        uint32_t n = s->n;
+        while (word < end) {
+            const uint32_t index = n & s->mask, after = s->mask - index;
+            // floor((after+1)/2), without wrapping for a linear buffer's ~0 mask.
+            uint32_t count = (after >> 1) + (after & 1u);
+            const bool wrap_pair = count == 0;
+            iq8_input_t crossing[2], *out = wrap_pair ? crossing : s->out + index;
+            if (wrap_pair) count = 1;
+            if (count > end - word) count = end - word;
+            const uint32_t stop = word + count;
+            do {
+                const dvbs2_8psk_gold_t gold = cfg->gold[word];
+                const planes_t p = map32(reverse32(a[word]), reverse32(b[word]), reverse32(c[word]),
+                                          gold.r0, gold.r1);
+                // Pack the earlier and later halves of each I/Q amplitude plane.
+                out[0].a = packed_append(&carry_a, (p.ai & 0xffffu) | (p.aq << 16), fill, mask);
+                out[0].b = packed_append(&carry_b, (p.bi & 0xffffu) | (p.bq << 16), fill, mask);
+                out[1].a = packed_append(&carry_a, (p.ai >> 16) | (p.aq & 0xffff0000u), fill, mask);
+                out[1].b = packed_append(&carry_b, (p.bi >> 16) | (p.bq & 0xffff0000u), fill, mask);
+                out += 2;
+            } while (++word < stop);
+            if (wrap_pair) {
+                s->out[index] = crossing[0];
+                s->out[0] = crossing[1];
+            }
+            n += 2 * count;
+        }
+        s->n = n;
+        s->acc_ai = carry_a & 0xffffu; s->acc_aq = carry_a >> 16;
+        s->acc_bi = carry_b & 0xffffu; s->acc_bq = carry_b >> 16;
+        if (block < cfg->pilot_blocks && word < 675) put_pilot(cfg, s, block++);
+    }
+}
+
 void MAP_HOT dvbs2_8psk_frame(const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
                              dvbs2_8psk_stream_t *stream) {
     dvbs2_8psk_stream_t s = *stream;
@@ -151,26 +249,8 @@ void MAP_HOT dvbs2_8psk_frame(const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame
         const iq8_input_t h = cfg->header[j];
         put_small(&s, (planes_t){h.a & 0xffffu, h.a >> 16, h.b & 0xffffu, h.b >> 16}, j == 5 ? 10 : 16);
     }
-    uint32_t data = 0, position = 0, block = 0;
-    while (data < cfg->data_symbols) {
-        uint32_t run = cfg->data_symbols - data;
-        if (cfg->pilots && run > 1440) run = 1440;
-        const uint32_t end = data + run;
-        while (data < end) {
-            const uint32_t count = end - data < 32 ? end - data : 32;
-            const uint32_t col0 = cfg->column_reverse ? 2 * cfg->data_symbols : 0;
-            const uint32_t col2 = cfg->column_reverse ? 0 : 2 * cfg->data_symbols;
-            planes_t p = map32(column32(frame, col0 + data), column32(frame, cfg->data_symbols + data),
-                              column32(frame, col2 + data), gold32(cfg->gold0, position), gold32(cfg->gold1, position));
-            put(&s, p, count); data += count; position += count;
-        }
-        if (block < cfg->pilot_blocks && data < cfg->data_symbols) {
-            put32(&s, map32(0, 0, 0, gold32(cfg->gold0, position), gold32(cfg->gold1, position)));
-            position += 32;
-            put_small(&s, map32(0, 0, 0, gold32(cfg->gold0, position), gold32(cfg->gold1, position)), 4);
-            position += 4; block++;
-        }
-    }
+    if (cfg->is_short) map_short(cfg, frame, &s);
+    else map_normal(cfg, frame, &s);
     *stream = s;
 }
 

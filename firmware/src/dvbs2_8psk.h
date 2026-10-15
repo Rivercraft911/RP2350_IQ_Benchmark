@@ -6,9 +6,11 @@
 #include "dvbs2.h"
 #include "iq8.h"
 
+typedef struct { uint32_t r0, r1; } dvbs2_8psk_gold_t;
+
 typedef struct {
     const dvbs2_code_t *code;
-    uint32_t *gold0, *gold1;
+    dvbs2_8psk_gold_t *gold; // paired Gold words: data first, then pilot bits
     uint32_t data_symbols, body_symbols, frame_symbols, gold_code, pilot_blocks;
     uint8_t modcod, pilots, is_short, column_reverse;
     iq8_input_t header[6]; // 90 symbols: five complete groups and ten symbols
@@ -23,8 +25,9 @@ typedef struct {
     uint32_t acc_ai, acc_aq, acc_bi, acc_bq, fill;
 } dvbs2_8psk_stream_t;
 
-// Returns zero for unsupported QPSK code-table entries. Arena holds two Gold
-// bitplanes and one guard word each (at most 5536 bytes), with no heap or globals.
+// Returns zero for unsupported QPSK code-table entries. Arena holds paired Gold
+// words plus one guard pair (at most 5536 bytes), with no heap or globals. Gold
+// advances in transmission order; storage groups data bits before pilot bits.
 uint32_t dvbs2_8psk_arena_words(const dvbs2_code_t *code, bool pilots);
 // gold_code range0..262142. Config, code and arena must outlive frame calls and
 // remain unchanged during a frame. False leaves config and arena unchanged.
