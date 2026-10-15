@@ -301,6 +301,7 @@ def provenance(selected):
     for row in selected.values():
         artifacts.update(row.get('_validation', {}).get('file_sha256', {}))
     return dict(schema='yapogee-waveform-figures-v1', script_sha256=digest(Path(__file__)),
+                style=dict(path='reference/plotstyle.py', sha256=digest(ROOT/'reference/plotstyle.py')),
                 vcm_revalidation=vcm_certificate(selected),
                 selected=selected, artifact_sha256=artifacts,
                 derived=dict(nominal_width_hz='(1+0.20)*sym_rate; nominal RRC width, not measured RF',
@@ -378,92 +379,81 @@ def self_test():
 
 
 def style():
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-    plt.rcParams.update({'font.family': 'DejaVu Sans', 'font.size': 10, 'axes.titlesize': 11,
-        'axes.labelsize': 10, 'axes.spines.top': False, 'axes.spines.right': False,
-        'axes.edgecolor': '#9aa4ad', 'axes.labelcolor': '#27343e', 'text.color': '#27343e',
-        'xtick.color': '#596773', 'ytick.color': '#596773', 'axes.titleweight': 'semibold',
-        'figure.facecolor': 'white', 'axes.facecolor': 'white', 'savefig.facecolor': 'white',
-        'pdf.fonttype': 42, 'ps.fonttype': 42, 'svg.fonttype': 'none'})
+    import os
+    import sys
+    import tempfile
+    os.environ.setdefault('MPLCONFIGDIR', str(Path(tempfile.gettempdir())/'yapogee-mpl-cache'))
+    sys.path.insert(0, str(ROOT/'reference'))
+    from plotstyle import BLUE, DARK, GREEN, MID, RED, plt
+    COLORS.update(qpsk=BLUE, eight=RED, vcm=GREEN, teal=GREEN, gray=MID, bad=RED)
     return plt
 
 
 def save(fig, out, name):
-    for suffix in ('png', 'svg', 'pdf'):
-        fig.savefig(out/f'{name}.{suffix}', dpi=240, bbox_inches='tight')
+    from plotstyle import save_figure
+    save_figure(fig, out/f'{name}.png')
 
 
 def rates_figure(plt, s, out):
-    fig, (ax, bx) = plt.subplots(1, 2, figsize=(11.8, 5.0), gridspec_kw={'width_ratios': [1.25, 1]})
-    fig.subplots_adjust(left=.075, right=.97, top=.83, bottom=.24, wspace=.31)
-    fig.suptitle('Useful payload, finite channel width', x=.075, ha='left', fontsize=18, weight='semibold', y=.98)
-    fig.text(.075, .895, 'Complete Normal 5/6 + pilots + on-chip GCS input; every selected run passed 60 s', fontsize=10, color='#596773')
-    records = [('qpsk_l8', 'QPSK', 'qpsk', 's'), ('eight_128', '8PSK', 'eight', 'o'),
-               ('eight_150', '8PSK', 'eight', 'o'), ('vcm_128', 'VCM', 'vcm', 'D'), ('vcm_150', 'VCM', 'vcm', 'D')]
-    for key, label, color, marker in records:
-        row = s[key]; x = 1.2*row['sym_rate']/1e6; y = payload(row)/1e6
-        ax.scatter(x, y, s=80, marker=marker, c=COLORS[color], edgecolors='white', linewidths=.8, zorder=4)
-        offset = {'qpsk_l8': (-6, -40), 'eight_128': (10, 10), 'eight_150': (10, 8),
-                  'vcm_128': (10, -20), 'vcm_150': (10, -20)}[key]
-        text = f'{label}  {y:.2f} Mb/s\n{row["sym_rate"]/1e6:g} Msym/s · {row["clk_hz"]/1e6:g} MHz'
-        ax.annotate(text, (x, y), xytext=offset, textcoords='offset points', fontsize=8.5,
-                    ha='right' if key == 'qpsk_l8' else 'left', color=COLORS[color])
-    for kind in ('eight', 'vcm'):
-        rows = [s[f'{kind}_{clock}'] for clock in (128, 150)]
-        ax.plot([1.2*r['sym_rate']/1e6 for r in rows], [payload(r)/1e6 for r in rows],
-                color=COLORS[kind], lw=1.1, alpha=.55, zorder=1)
-    ax.set(xlim=(8.3, 21), ylim=(12, 29), xlabel='Nominal RRC width  (1 + α)Rs  [MHz]', ylabel='BB data payload  [Mb/s]')
-    ax.set_title('A  Measured digital operating points', loc='left', pad=15)
-    ax.grid(axis='y', color='#e8ecef', zorder=0)
+    from plotstyle import WIDTH, dots, lollipop
+    fig, (ax, bx) = plt.subplots(1, 2, figsize=(WIDTH, 2.8),
+                                gridspec_kw={'width_ratios': [1.25, 1]})
+    for kind, keys, label, marker, linestyle in (
+            ('qpsk', ['qpsk_l8'], 'QPSK', 's', '-'),
+            ('eight', ['eight_128', 'eight_150'], '8PSK', 'o', '--'),
+            ('vcm', ['vcm_128', 'vcm_150'], 'VCM', 'D', ':')):
+        rows = [s[key] for key in keys]
+        dots(ax, [1.2*r['sym_rate']/1e6 for r in rows], [payload(r)/1e6 for r in rows],
+             COLORS[kind], label, marker=marker, linestyle=linestyle)
+    ax.set(xlim=(8.3, 21), ylim=(12, 29), xlabel='Nominal bandwidth (MHz)', ylabel='BB payload (Mb/s)')
+    ax.set_title('(a) Payload rate')
+    ax.grid(axis='y')
+    ax.legend(loc='upper left')
     keys = ['qpsk_l8', 'vcm_150', 'eight_150']
-    values = [payload(s[k])/(1.2*s[k]['sym_rate']) for k in keys]
-    bars = bx.barh(np.arange(3), values, color=[COLORS[c] for c in ('qpsk', 'vcm', 'eight')], height=.56)
-    for bar, value in zip(bars, values):
-        bx.text(value+.035, bar.get_y()+bar.get_height()/2, f'{value:.3f}', va='center', fontsize=11, weight='semibold')
-    bx.set(yticks=np.arange(3), yticklabels=['QPSK\n16 Msym/s', 'VCM alternating frames\n9.375 Msym/s', '8PSK\n9.375 Msym/s'],
-           xlim=(0, 2.4), xlabel='Payload / nominal width  [bit/s/Hz]', ylim=(-.65, 2.65))
-    bx.invert_yaxis(); bx.set_title('B  Capacity per nominal hertz', loc='left', pad=15)
-    bx.grid(axis='x', color='#e8ecef'); bx.set_axisbelow(True)
-    fig.text(.075, .12, 'QPSK: L8 / 4 SPS; 8PSK and VCM: L9 / 2 SPS. α=0.20. Payload excludes the 80-bit BBHEADER; VCM alternates complete frames.', fontsize=8)
-    fig.text(.075, .08, 'Q: pulse-design/.../pico-matched-soak-1:2   8:8psk-live/.../bch-placement-soak-1:4,6   V:vcm/.../soak-1:1,2', fontsize=7.2, color='#69747e')
-    fig.text(.075, .04, 'Digital GPIO/packet/frame evidence; nominal width is a formula. AFE, sampling images and RF response remain unqualified. Full paths/hashes: waveform_selection.json.', fontsize=7.2, color='#69747e')
-    save(fig, out, 'waveform_capacity'); plt.close(fig)
+    values = [payload(s[key])/(1.2*s[key]['sym_rate']) for key in keys]
+    for y, value, kind in zip(range(3), values, ('qpsk', 'vcm', 'eight')):
+        lollipop(bx, y, value, COLORS[kind], fmt='{:.3f}')
+    bx.set(yticks=np.arange(3), yticklabels=['QPSK', 'VCM', '8PSK'],
+           xlim=(0, 2.4), xlabel='Payload / bandwidth (bit/s/Hz)', ylim=(2.6, -.6))
+    bx.set_title('(b) Nominal efficiency')
+    bx.grid(axis='x')
+    save(fig, out, 'waveform_capacity')
+    plt.close(fig)
 
 
 def component_figure(plt, s, out):
-    fig, axes = plt.subplots(1, 3, figsize=(12.2, 5.3), gridspec_kw={'width_ratios': [.95, 1, 1.5]})
-    fig.subplots_adjust(left=.06, right=.98, top=.80, bottom=.34, wspace=.53)
-    fig.suptitle('Change the representation, remove the work', x=.06, ha='left', fontsize=18, weight='semibold', y=.98)
-    fig.text(.06, .895, 'Memory, mapper time and shaping time are separate metrics; no inferred full 16APSK throughput', fontsize=10, color='#596773')
-    ax, bx, cx = axes
+    from plotstyle import WIDTH, INK, lollipop
+    fig, (ax, bx, cx) = plt.subplots(1, 3, figsize=(WIDTH, 2.8),
+                                    gridspec_kw={'width_ratios': [.9, 1, 1.65]})
     memory = [table_bytes(s['qpsk_l9'])/1024, table_bytes(s['qpsk_l8'])/1024]
-    ax.barh([0, 1], memory, color=[COLORS['gray'], COLORS['teal']], height=.5)
-    for y, value in enumerate(memory): ax.text(value+3, y, f'{value:g} KiB', va='center', weight='semibold')
-    ax.set(yticks=[0, 1], yticklabels=['L9 quad', 'L8 quad'], xlim=(0, 160), xlabel='Shared I/Q lookup table  [KiB]', ylim=(-.7, 1.7))
-    ax.invert_yaxis(); ax.set_title('A  Half the QPSK table', loc='left', pad=15)
-    ax.grid(axis='x', color='#e8ecef'); ax.set_axisbelow(True)
+    for y, value in enumerate(memory):
+        lollipop(ax, y, value, COLORS['qpsk'], fmt='{:g}')
+    ax.set(yticks=[0, 1], yticklabels=['L9', 'L8'], xlim=(0, 165),
+           xlabel='Table size (KiB)', ylim=(1.6, -.6))
+    ax.set_title('(a) QPSK tables')
+    ax.grid(axis='x')
     map_values = [s['map_old']['map_cyc']/1000, s['map_new']['map_cyc']/1000]
-    bx.bar([0, 1], map_values, color=[COLORS['gray'], COLORS['eight']], width=.55)
-    for x, value in enumerate(map_values): bx.text(x, value+2, f'{value:.2f}', ha='center', weight='semibold')
-    bx.set(xticks=[0, 1], xticklabels=['Initial', 'Packed\ncarry'], ylim=(0, 112), ylabel='Mapper cycles / PLFRAME  [thousands]')
-    bx.set_title('B  8PSK mapper', loc='left', pad=15); bx.grid(axis='y', color='#e8ecef'); bx.set_axisbelow(True)
-    bx.text(.5, .75, f'−{100*(1-map_values[1]/map_values[0]):.1f}%', transform=bx.transAxes, fontsize=17, color=COLORS['eight'], ha='center', weight='semibold')
-    old_k = {k['name']: k for k in s['sixteen_l9']['kernels']}; new_k = {k['name']: k for k in s['sixteen_l8']['kernels']}
+    bx.bar([0, 1], map_values, color=COLORS['qpsk'], edgecolor=INK, linewidth=.4, width=.55)
+    for x, value in enumerate(map_values):
+        bx.annotate(f'{value:.2f}', (x, value), xytext=(0, 4), textcoords='offset points', ha='center', fontsize=7.5)
+    bx.set(xticks=[0, 1], xticklabels=['Initial', 'Packed'], ylim=(0, 112),
+           ylabel='Cycles per frame (×10³)')
+    bx.set_title('(b) 8PSK mapper')
+    bx.grid(axis='y')
+    bx.set_axisbelow(True)
+    old_k = {k['name']: k for k in s['sixteen_l9']['kernels']}
+    new_k = {k['name']: k for k in s['sixteen_l8']['kernels']}
     values = [old_k[k]['cyc_per_sym'] for k in ('reverse_bits', 'reverse_map', 'burst_map')]+[new_k['native_burst']['cyc_per_sym']]
-    labels = ['L9 C\nbit reverse', 'L9 C\nmap', 'L9 ASM\nbursts', 'L8 ASM\nnative3/4/4']
-    cx.bar(np.arange(4), values, color=[COLORS['gray'], '#8ca7bb', COLORS['qpsk'], COLORS['teal']], width=.6)
-    for x, value in enumerate(values): cx.text(x, value+.55, f'{value:.2f}', ha='center', fontsize=9, weight='semibold')
-    cx.axhline(24, color='#a78463', ls=(0, (3, 3)), lw=1)
-    cx.text(3.38, 24.5, '24 cy/sym', color='#8f7054', fontsize=7, ha='right')
-    cx.set(xticks=np.arange(4), xticklabels=labels, ylim=(0, 35), ylabel='Shaper cycles / symbol')
-    cx.set_title('C  16APSK component, R2=1', loc='left', pad=15); cx.grid(axis='y', color='#e8ecef'); cx.set_axisbelow(True)
-    fig.text(.06, .22, f'A: matched 60 s descriptors: {s["qpsk_l9"]["gen_cyc_per_sym"]:.4f} → {s["qpsk_l8"]["gen_cyc_per_sym"]:.4f} cycles/symbol; table memory halves while CPU work stays unchanged.', fontsize=8)
-    fig.text(.06, .16, 'B: normal 5/6 + pilots, 128 MHz; recorded call averages. C: 32,768 data symbols, 128 MHz, flash cached; last bar changes pulse and quantizer.', fontsize=8)
-    fig.text(.06, .10, '24 cy/symbol = 150 MHz / 6.25 Msym/s before output/control/FEC. All component CRCs match; this is not a full 16APSK modem qualification.', fontsize=8)
-    fig.text(.06, .04, 'Sources: pulse-design/.../pico-matched-soak-1:1–2; higher-mapping/.../first-1,fast-1;16apsk-chunk/.../burst-1,native-l8-1. Exact rows/hashes: waveform_selection.json.', fontsize=7.1, color='#69747e')
-    save(fig, out, 'waveform_representation'); plt.close(fig)
+    labels = ['L9 C\nbits', 'L9 C\nmap', 'L9 ASM\nbursts', 'L8 ASM\nnative']
+    cx.bar(np.arange(4), values, color=COLORS['qpsk'], edgecolor=INK, linewidth=.4, width=.6)
+    for x, value in enumerate(values):
+        cx.annotate(f'{value:.2f}', (x, value), xytext=(0, 4), textcoords='offset points', ha='center', fontsize=7.5)
+    cx.set(xticks=np.arange(4), xticklabels=labels, ylim=(0, 35), ylabel='Cycles per symbol')
+    cx.set_title('(c) 16APSK shaper')
+    cx.grid(axis='y')
+    cx.set_axisbelow(True)
+    save(fig, out, 'waveform_representation')
+    plt.close(fig)
 
 
 def capture_iq(row):
@@ -485,85 +475,76 @@ def capture_iq(row):
 
 
 def evidence_figure(plt, s, out):
-    fig, (ax, bx) = plt.subplots(1, 2, figsize=(12.2, 5.0), gridspec_kw={'width_ratios': [1, 1.75]})
-    fig.subplots_adjust(left=.075, right=.98, top=.79, bottom=.25, wspace=.28)
-    fig.suptitle('The bus is part of the algorithm', x=.075, ha='left', fontsize=18, weight='semibold', y=.98)
-    fig.text(.075, .895, 'A controlled SRAM experiment and a captured, continuous modulation change', fontsize=10, color='#596773')
+    from plotstyle import WIDTH, dots
+    fig, (ax, bx) = plt.subplots(1, 2, figsize=(WIDTH, 2.8),
+                                gridspec_kw={'width_ratios': [1, 1.9]})
     rows = [s[key] for key in ('a1', 'b', 'a2')]
     values = [r['encoder_stage_max_cyc']['bb_bch']/1000 for r in rows]
-    ax.plot(range(3), values, color=COLORS['gray'], lw=1.3, zorder=1)
-    ax.scatter(range(3), values, s=75, c=[COLORS['teal'], COLORS['bad'], COLORS['teal']], zorder=3)
-    for x, (value, row) in enumerate(zip(values, rows)):
-        ax.annotate(f'{value:.2f}k\n'+(f'underrun at\n{row["elapsed_us"]/1000:.2f} ms' if x == 1 else '3 s clean'),
-                    (x, value), xytext=(0, 12 if x != 1 else -48), textcoords='offset points',
-                    ha='center', fontsize=9, color=COLORS['bad'] if x == 1 else COLORS['teal'])
-    ax.set(xticks=range(3), xticklabels=['A1\nBCH in RAM', 'B\nshared scratch Y', 'A2\nBCH in RAM'],
-           xlim=(-.35, 2.35), ylim=(100, 208), ylabel='Maximum BB+BCH stage  [thousand cycles]')
-    ax.set_title('A  Same-source A/B/A, 128 MHz', loc='left', pad=15); ax.grid(axis='y', color='#e8ecef')
-    row = s['vcm_128']; t, i, q, path = capture_iq(row)
+    dots(ax, range(3), values, COLORS['qpsk'])
+    ax.plot([1], [values[1]], marker='x', color=COLORS['bad'], ms=5, linestyle='none')
+    for x, value in enumerate(values):
+        ax.annotate(f'{value:.1f}', (x, value), xytext=(0, 5), textcoords='offset points',
+                    ha='center', fontsize=7.5)
+    ax.set(xticks=range(3), xticklabels=['A1\nRAM', 'B (failed)\nScratch Y', 'A2\nRAM'],
+           xlim=(-.35, 2.35), ylim=(100, 208), ylabel='Max. BB+BCH cycles (×10³)')
+    ax.set_title('(a) Memory placement')
+    ax.grid(axis='y')
+    row = s['vcm_128']
+    t, i, q, path = capture_iq(row)
     keep = (t >= -12) & (t <= 112)
-    bx.axvspan(-12, 0, color=COLORS['eight'], alpha=.08)
-    bx.axvspan(0, 26, color=COLORS['teal'], alpha=.09)
-    bx.axvspan(26, 90, color=COLORS['teal'], alpha=.045)
-    bx.axvspan(90, 112, color=COLORS['qpsk'], alpha=.07)
-    bx.plot(t[keep], i[keep], color=COLORS['qpsk'], lw=.9, label='I')
-    bx.plot(t[keep], q[keep], color=COLORS['eight'], lw=.85, alpha=.8, label='Q')
-    for x in (0, 26, 90): bx.axvline(x, color='#a8b4ba', ls=(0, (3, 3)), lw=.8)
+    bx.plot(t[keep], i[keep]/1000, color=COLORS['qpsk'], lw=.65, label='I')
+    bx.plot(t[keep], q[keep]/1000, color=COLORS['eight'], lw=.65, linestyle='--', label='Q')
+    for x in (0, 26, 90):
+        bx.axvline(x, color='#707070', ls=(0, (3, 3)), lw=.5)
     for x, label in ((-6, '8PSK'), (13, 'SOF'), (58, 'PLS'), (101, 'QPSK')):
-        bx.text(x, 7900, label, ha='center', fontsize=8, color='#596773')
-    bx.set(xlim=(-12, 112), ylim=(-8700, 8700), xlabel='Input-symbol position relative to mode boundary', ylabel='Captured signed14-bit sample  [LSB]')
-    bx.set_title('B  One FIR history across the 90-symbol PLHEADER', loc='left', pad=15)
-    bx.legend(loc='lower right', ncol=2, fontsize=8, frameon=True, framealpha=.95)
-    fig.text(.075, .13, 'A: placement control requested 3 s; the shared-bank case is an explicitly failed diagnostic, not a qualified performance point. No error bars inferred.', fontsize=8)
-    fig.text(.075, .085, 'B: 8 Msym/s, 2 SPS, 128 MHz; 60 s VCM run. 8,192 captured GPIO slots checked against an independent full-frame reference: 0 mismatches.', fontsize=8)
-    fig.text(.075, .04, 'Input labels include FIR delay/transients. Sources: memory-placement/.../a1-ramlow,b-scratchy,a2-ramlow:4;vcm/.../soak-1:1 + capture-128000.txt. Full hashes: waveform_selection.json.', fontsize=7.1, color='#69747e')
-    save(fig, out, 'waveform_bus_and_boundary'); plt.close(fig)
+        bx.text(x, 8.0, label, ha='center', fontsize=7)
+    bx.set(xlim=(-12, 112), ylim=(-8.7, 8.7), xlabel='Symbol position', ylabel='Sample (×10³ LSB)')
+    bx.set_title('(b) Modulation boundary')
+    bx.legend(loc='lower right', ncol=2, handlelength=1.8)
+    save(fig, out, 'waveform_bus_and_boundary')
+    plt.close(fig)
     return path
 
 
 def pointer_figure(plt, s, out):
-    fig, (ax, bx) = plt.subplots(1, 2, figsize=(12.2, 5.7), gridspec_kw={'width_ratios': [1.1, 1]})
-    fig.subplots_adjust(left=.075, right=.96, top=.79, bottom=.32, wspace=.30)
-    fig.suptitle('Hardware does the work; supervision can wait', x=.075, ha='left', fontsize=18, weight='semibold', y=.98)
-    fig.text(.075, .895, 'Raw PRBS only · PIO pointers → FIFO-paced sample DMA · L8 / 4 SPS · Core1 idle · four clean 60 s runs', fontsize=10, color='#596773')
+    from plotstyle import WIDTH, INK
+    fig, (ax, bx) = plt.subplots(1, 2, figsize=(WIDTH, 2.8),
+                                gridspec_kw={'width_ratios': [1.15, 1]})
     x = np.arange(2)
-    percentages = {}
-    for policy, offset, color, label in (('old', -.18, COLORS['gray'], '24 µs target'),
-                                       ('new', .18, COLORS['teal'], '128 µs target')):
-        values = []
-        for clock in (128, 150):
-            r = s[f'pointer_{policy}_{clock}']
-            values.append(100*r['supervision_cycles']/(r['elapsed_us']*r['clk_hz']/1e6))
-        percentages[policy] = values
-        bars = ax.bar(x+offset, values, width=.32, color=color, label=label, zorder=3)
+    for policy, offset, color, hatch, label in (
+            ('old', -.18, COLORS['qpsk'], None, '24 µs'),
+            ('new', .18, 'white', '///', '128 µs')):
+        values = [100*s[f'pointer_{policy}_{clock}']['supervision_cycles']/
+                  (s[f'pointer_{policy}_{clock}']['elapsed_us']*s[f'pointer_{policy}_{clock}']['clk_hz']/1e6)
+                  for clock in (128, 150)]
+        bars = ax.bar(x+offset, values, width=.32, color=color, edgecolor=INK,
+                      linewidth=.5, hatch=hatch, label=label, zorder=3)
         for bar, value in zip(bars, values):
-            ax.text(bar.get_x()+bar.get_width()/2, value+.45, f'{value:.2f}%',
-                    ha='center', va='bottom', fontsize=10, weight='semibold')
-    ax.set(xticks=x, xticklabels=['128 MHz ·16 Msym/s\n64 MS/s per axis',
-                                 '150 MHz ·18.75 Msym/s\n75 MS/s per axis*'],
-           ylim=(0, 21), ylabel='Measured supervision cycles / elapsed cycle budget  [%]')
-    ax.set_title('A  Same raw source and output rate within each pair', loc='left', pad=15)
-    ax.grid(axis='y', color='#e8ecef', zorder=0); ax.set_axisbelow(True)
-    ax.legend(loc='upper right', frameon=False, fontsize=8.5)
+            ax.annotate(f'{value:.2f}', (bar.get_x()+bar.get_width()/2, value),
+                        xytext=(0, 4), textcoords='offset points', ha='center', fontsize=7.5)
+    ax.set(xticks=x, xticklabels=['128 MHz\n16 Msym/s', '150 MHz\n18.75 Msym/s'],
+           ylim=(0, 22), ylabel='Supervision (%)')
+    ax.set_title('(a) Poll interval')
+    ax.grid(axis='y')
+    ax.set_axisbelow(True)
+    ax.legend(loc='upper right', ncol=2, handlelength=1.3, columnspacing=1)
     observed = [s[f'pointer_new_{clock}']['min_credit_runway_words'] for clock in (128, 150)]
     required = [s[f'pointer_new_{clock}']['required_credit_runway_words'] for clock in (128, 150)]
-    bx.barh(x, observed, color=COLORS['teal'], alpha=.23, height=.45)
     for y, minimum, bound in zip(x, observed, required):
-        bx.plot([bound, bound], [y-.29, y+.29], color=COLORS['teal'], lw=2.4)
-        bx.text(bound+130, y+.29, f'{bound:,} required', va='bottom', fontsize=8, color=COLORS['teal'])
-        bx.text(minimum+130, y, f'{minimum:,}', va='center', fontsize=10, weight='semibold')
-    bx.set(yticks=x, yticklabels=['128 MHz', '150 MHz'], xlim=(0, 8500), ylim=(1.65, -.65),
-           xlabel='Remaining finite input credit  [16-symbol words]')
-    bx.set_title('B  Instrumented 128 µs policy: minimum runway', loc='left', pad=15)
-    bx.grid(axis='x', color='#e8ecef'); bx.set_axisbelow(True)
-    delta = np.array(percentages['old'])-np.array(percentages['new'])
-    spans = [s[f'pointer_new_{clock}']['max_source_snapshot_span_us'] for clock in (128, 150)]
-    fig.text(.075, .225, f'A: −{delta[0]:.2f} / −{delta[1]:.2f} percentage points of supervision at 128 / 150 MHz. Remaining C0 time spins; this is not total active CPU or an energy measurement.', fontsize=8)
-    fig.text(.075, .175, f'B: required runway 2B; B=8+ceil(fclk×257µs/49). Both-axis snapshot spans {spans[0]} / {spans[1]} µs ≤256 µs; cursor deadlines 3,132 / 2,673 µs.', fontsize=8)
-    fig.text(.075, .125, 'Finite zero-credit sentinel stops unpublished reads. Old 24 µs runs did not record minimum runway or source-snapshot spans. All 4 captures: 8,192 observations, 0 mismatches.', fontsize=8)
-    fig.text(.075, .075, '*75 MS/s/axis exceeds the proposed 65 MS/s AFE limit. Digital GPIO evidence only; no FEC, SPI ingress, AFE or RF qualification.', fontsize=8, color=COLORS['bad'])
-    fig.text(.075, .025, 'Sources: quad-pointers/2026-10-15/{live-soak-1,poll128-soak-1}/runs.jsonl:1–2. Frozen validators, raw captures, bound formulas and hashes: waveform_selection.json.', fontsize=7.1, color='#69747e')
-    save(fig, out, 'waveform_pointer_supervision'); plt.close(fig)
+        bx.hlines(y, bound, minimum, color=COLORS['qpsk'], lw=.7)
+        bx.plot([minimum], [y], marker='o', color=COLORS['qpsk'], linestyle='none',
+                label='Observed' if y == 0 else None)
+        bx.plot([bound], [y], marker='|', color=COLORS['eight'], ms=8, linestyle='none',
+                label='Required' if y == 0 else None)
+        bx.annotate(f'{minimum:,}', (minimum, y), xytext=(5, 0), textcoords='offset points', va='center', fontsize=7.5)
+        bx.annotate(f'{bound:,}', (bound, y), xytext=(0, -10), textcoords='offset points', ha='center', va='top', fontsize=7.5)
+    bx.set(yticks=x, yticklabels=['128 MHz', '150 MHz'], xlim=(0, 8500),
+           ylim=(1.55, -.9), xlabel='Remaining credit (words)')
+    bx.set_title('(b) Minimum input credit')
+    bx.grid(axis='x')
+    bx.legend(loc='upper left', ncol=2, handlelength=1.2, columnspacing=.8, fontsize=7)
+    save(fig, out, 'waveform_pointer_supervision')
+    plt.close(fig)
 
 
 def main():

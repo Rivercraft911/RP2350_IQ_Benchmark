@@ -36,6 +36,9 @@ typedef struct {
 #define TX_CAP_SELFTEST_MAX (CAP_WORDS_MAX - PV_EMU_WORDS)
 
 void tx_init(void);                                 // PRBS input, core 1 task loop
+// Idle-only lab worker. Keep one task outstanding and join before reusing its buffers.
+void tx_worker_start(void (*fn)(uint32_t), uint32_t arg);
+void tx_worker_wait(void);
 // Select coefficient set and kernel. Returns NULL or an error message.
 const char *tx_shaper(const char *kernel, int sps, int L, const iq_kernel_info_t **k,
                       bool *tables_ok);

@@ -25,6 +25,9 @@
 //   bench16planar cpw ms                         experimental dual-axis planar output
 //   bench32native8 reps                          32APSK shaper components
 //   bench32out cpw ms kernel                     32APSK rolling-key output, no FEC
+//   benchapsklive cpw ms schedule mapper mod placement    runtimeAPSK, 1/2 cores
+//   bench32map reps                              matched32APSK mapper components
+//   bench32bus mode group                        no-output bus contention diagnosis
 //   benchquadptr mode / quadlive cpw ms fault     finite / live PIO address generation
 //   pvstress ms irq_mask_us                      on-chip SPI admission test
 //   ddrtest [ms]                                  experimental PIO data + HSTX DDR clock
@@ -44,6 +47,9 @@
 #include "bench16out.h"
 #include "bench16planar.h"
 #include "bench32out.h"
+#include "bench_apsk_live.h"
+#include "bench32map.h"
+#include "bench32bus.h"
 #include "bench_quadlive.h"
 #include "bench_quadptr.h"
 #include "bench_ptr.h"
@@ -243,6 +249,23 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "bench16native8")) {
         if (!num(a[1], "reps", 8, 1, 100, &reps)) return err;
         bench_16native8(reps);
+    } else if (!strcmp(cmd, "benchapsklive")) {
+        int schedule, mapper, modulation, placement;
+        if (!num(a[1], "cpw", 6, 3, 8, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "schedule", 2, 0, 2, &schedule) ||
+            !num(a[4], "mapper", 0, 0, 3, &mapper) ||
+            !num(a[5], "modulation", 32, 16, 32, &modulation) ||
+            !num(a[6], "placement", 0, 0, 1, &placement)) return err;
+        bench_apsk_live(r.cpw, r.ms, schedule, mapper, modulation, placement);
+    } else if (!strcmp(cmd, "bench32bus")) {
+        int mode, group;
+        if (!num(a[1], "mode", 0, 0, 4, &mode) ||
+            !num(a[2], "group", 0, 0, 1, &group)) return err;
+        bench_32bus(mode, group);
+    } else if (!strcmp(cmd, "bench32map")) {
+        if (!num(a[1], "reps", 32, 1, 1000, &reps)) return err;
+        bench_32map(reps);
     } else if (!strcmp(cmd, "bench32out")) {
         int kernel;
         if (!num(a[1], "cpw", 6, 4, 8, &r.cpw) ||

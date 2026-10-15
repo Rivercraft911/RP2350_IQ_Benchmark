@@ -49,6 +49,11 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_iq32pairkey.py
 	python3 host/test_iq32keys.py
 	python3 host/test_iq32mix.py
+	python3 host/test_iq32mapkeys.py
+	python3 host/test_iq32mapkeys_pair.py
+	python3 host/test_iq32offsets.py
+	python3 host/test_apsk_live.py
+	python3 host/apsk_live_trial.py --self-test
 	python3 host/test_iq16out.py
 	python3 host/iq16out_trial.py --self-test
 	python3 host/test_iq16planar.py
@@ -62,6 +67,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_quadptr_trial.py
 	python3 host/test_quadlive_trial.py
 	python3 host/test_iqout_raw.py
+	python3 host/test_iqout_odd.py
 	python3 host/test_dual_pio.py
 	python3 host/test_dual_faults.py
 	python3 host/test_dual_fifo.py
@@ -72,6 +78,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/plot_dual.py --self-test
 	python3 host/plot_waveforms.py --self-test
 	python3 host/plot_apsk_frontier.py --self-test
+	python3 host/plot_apsk_dual.py --self-test
 
 analyze:               ## filter sweep and samples/symbol figures
 	python3 reference/analyze.py

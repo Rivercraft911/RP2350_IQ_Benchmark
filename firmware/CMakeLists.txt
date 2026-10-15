@@ -16,11 +16,27 @@ set(TX_SOURCES
     src/iq16fast_asm.S src/iq16fast_planar_asm.S src/bench16out.c src/bench16planar.c
     src/iq32native8.c src/iq32native8_asm.S src/bench32.c
     src/iq32keys.c src/iq32keys_asm.S src/iq32pairkey.c src/iq32pairkey_asm.S src/bench32out.c
+    src/iq32mapkeys.c src/iq32mapkeys_pair.c src/iq16maplabels.c
+    src/iq32offsets.c src/iq32offsets_asm.S
+    src/bench_apsk_live.c src/bench32map.c src/bench32bus.c
     src/dvbs2.c src/dvbs2_8psk.c src/dvbs2_qpsk8.c src/dvbs2_asm.S src/dvbs2_map_asm.S
     src/pvproto.c src/pvspi.c
     src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c
     src/bench8quad.c src/bench8live.c src/bench16.c src/bench_pvstress.c
     src/bench_quadptr.c src/bench_quadlive.c)
+# Exact placement controls: one original instruction stream, separate code banks.
+set(OFFSET_ASM "${CMAKE_CURRENT_SOURCE_DIR}/src/iq32offsets_asm.S")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${OFFSET_ASM}")
+file(READ "${OFFSET_ASM}" OFFSET_SOURCE)
+foreach(bank x y)
+    string(REPLACE "    .text" "    .section .scratch_${bank}.iq32offsets, \"ax\", %progbits"
+           PLACED_SOURCE "${OFFSET_SOURCE}")
+    string(REPLACE "iq32offsets_kernel_asm" "iq32offsets_kernel_sram_${bank}"
+           PLACED_SOURCE "${PLACED_SOURCE}")
+    set(PLACED_ASM "${CMAKE_CURRENT_BINARY_DIR}/iq32offsets_sram_${bank}.S")
+    file(WRITE "${PLACED_ASM}" "${PLACED_SOURCE}")
+    list(APPEND TX_SOURCES "${PLACED_ASM}")
+endforeach()
 add_executable(iqbench ${TX_SOURCES})
 add_executable(pvflight ${TX_SOURCES})
 # git_rev.h is rewritten on every build (only when the revision changes), so logged firmware

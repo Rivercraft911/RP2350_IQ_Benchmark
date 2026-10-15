@@ -1,0 +1,42 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "arguments": [
+        "--modulations",
+        "16",
+        "--mappers",
+        "3"
+      ],
+      "exit_code": 2,
+      "no_output_created": true,
+      "rejected_before_usb": true
+    },
+    {
+      "arguments": [
+        "--modulations",
+        "16",
+        "--placements",
+        "1"
+      ],
+      "exit_code": 2,
+      "no_output_created": true,
+      "rejected_before_usb": true
+    },
+    {
+      "arguments": [
+        "--modulations",
+        "32",
+        "--mappers",
+        "0",
+        "1",
+        "2",
+        "--placements",
+        "1"
+      ],
+      "exit_code": 2,
+      "no_output_created": true,
+      "rejected_before_usb": true
+    }
+  ]
+}

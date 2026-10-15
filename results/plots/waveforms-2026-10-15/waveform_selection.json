@@ -1,6 +1,10 @@
 {
   "schema": "yapogee-waveform-figures-v1",
-  "script_sha256": "2c169a234e64ed265dedc4f9605cce6c43c80ad97f3266b995a37d1698cfc63c",
+  "script_sha256": "abe009c1eab72e06475e2be46bc6583047125693ae05715802daef460624152e",
+  "style": {
+    "path": "reference/plotstyle.py",
+    "sha256": "6cfdab0284e8a896088d70cf95bb7165f0a1d24e2643afa9c7e85cf0c1eaf23e"
+  },
   "vcm_revalidation": {
     "path": "results/vcm/2026-10-15/soak-1/revalidation.json",
     "sha256": "eb3cf936b604af4e81622057713ec519e9628cac479b711a499b31fe1dcf43d1",
@@ -2240,23 +2244,23 @@
     "pointers": "Immutable raw PRBS only, no FEC/SPI; measured poll-body supervision, remaining C0 spins;150MHz75MS/s/axis exceeds proposed65MS/s AFE"
   },
   "figure_script_sha256": {
-    "waveform_capacity": "f9c4a3c0c10aad7ac4dbdf2b9cbbe103c5ad821223c68108822e9fada3624abc",
-    "waveform_representation": "f9c4a3c0c10aad7ac4dbdf2b9cbbe103c5ad821223c68108822e9fada3624abc",
-    "waveform_bus_and_boundary": "f9c4a3c0c10aad7ac4dbdf2b9cbbe103c5ad821223c68108822e9fada3624abc",
-    "waveform_pointer_supervision": "2c169a234e64ed265dedc4f9605cce6c43c80ad97f3266b995a37d1698cfc63c"
+    "waveform_capacity": "abe009c1eab72e06475e2be46bc6583047125693ae05715802daef460624152e",
+    "waveform_representation": "abe009c1eab72e06475e2be46bc6583047125693ae05715802daef460624152e",
+    "waveform_bus_and_boundary": "abe009c1eab72e06475e2be46bc6583047125693ae05715802daef460624152e",
+    "waveform_pointer_supervision": "abe009c1eab72e06475e2be46bc6583047125693ae05715802daef460624152e"
   },
   "output_sha256": {
-    "waveform_bus_and_boundary.pdf": "4a52a73f383568bb501ec17078ddcee977ddebe7f7da455b537aa22c31fe0582",
-    "waveform_bus_and_boundary.png": "615157ec03aedce1e79bb065e34d7d4a2d432ec5875f2970b4b15df8ac6b9a6f",
-    "waveform_bus_and_boundary.svg": "8602222b9238ab8282e655930c8e9f8193b3be0e684914ecd480e1763e0365b7",
-    "waveform_capacity.pdf": "dcd198c6483861bb1d153cefb254732e948040f0cce12e3af9597d248f20ed66",
-    "waveform_capacity.png": "608b022352b54fd227d167d404a8a60c5549d20cc8d4e64e64cbb4faef29a1a6",
-    "waveform_capacity.svg": "2958c575e37d382e7e8f38395964bdee85a8a7bdddc85eb5ff507651cf600060",
-    "waveform_pointer_supervision.pdf": "3bb8caac7ff50ac29571aef1c6ecd8c034dcd3da391d26b0bb3e0884a16cf4a0",
-    "waveform_pointer_supervision.png": "ca2cfaf2fc68d86dc3cc56d8b897948204eadae9d31f087d38e10602ed9fc273",
-    "waveform_pointer_supervision.svg": "d0a84d7c635c27a415166871e5f548d67059781fe32b8afcab9788aa597fb30f",
-    "waveform_representation.pdf": "cf033f4b83630e1e901d156096efc69edf26d69d530cd002f827249eaf46370c",
-    "waveform_representation.png": "60dd0bb7d2ec67971f345e1c04a7d9f474f65212811dfd1e20497ff7c411ab0c",
-    "waveform_representation.svg": "a42cbef8d3d40c461aa8003fd4a57eb83da03330bce6e39232bca03fc57f38c6"
+    "waveform_bus_and_boundary.pdf": "731b46150e372bfe90105b0dfb8f7e091537937cb7d6275c7659cbcacb9e9192",
+    "waveform_bus_and_boundary.png": "3c8712aed0106cbb35da41a5d658b9ff599883d77cb26bc87cb6e33d99346b3b",
+    "waveform_bus_and_boundary.svg": "005aa3e4b770ff6c0d9af079d1fe4fe19e6a703e74311308f2e0bf6480530b84",
+    "waveform_capacity.pdf": "9f4a566df11bf05923632fc45ab9549ed683e3aa41f397059a18c33f501972e9",
+    "waveform_capacity.png": "545717069f7e4124d31dc33ed9c741cf6be348eff6420ad3047fcef6055e5713",
+    "waveform_capacity.svg": "be67cc368bbe5c90afce73e2561d5d1e928d2b07c82c07e29480db184a2a3be9",
+    "waveform_pointer_supervision.pdf": "eac6fd0099a1b70b364cd8e82844ba137c0d1d9f272bebd69cfccd53ba117699",
+    "waveform_pointer_supervision.png": "7f0fa6b7a34b92dc56b08becc2200accedd214e7e63672395d83cce4bfeb6476",
+    "waveform_pointer_supervision.svg": "7b4f48795d13b56dc74de100d4ffedbd0f3dc9245d8435f6f412ad2b343643df",
+    "waveform_representation.pdf": "dbc4264053822039a2f76aa0c2a0765a552e3b709621210a7320661cffcef115",
+    "waveform_representation.png": "65c5ba2550df437142136c8a0ea2f38aaa1a5adee56dfa75d4f7d194a7d0ff31",
+    "waveform_representation.svg": "b0bd2f553c35d7f9125e5252b479312535df6891cc81db37a72f6a5b89713c90"
   }
 }

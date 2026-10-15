@@ -1,0 +1,102 @@
+"""Decode the actual RAW_PAIRS program at every supported integer slot width.
+
+Odd widths retain a uniform word period with floor(cpw/2) low clocks and the
+remaining clocks high. This proves digital schedule and values, not pad timing.
+"""
+from __future__ import annotations
+
+import ctypes as ct
+import json
+from pathlib import Path
+import re
+import subprocess
+import unittest
+
+import numpy as np
+
+import test_iqout_raw as raw
+
+
+class IntegerSlots(raw.RawPairs):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        source = (raw.ROOT / "firmware/src/iqout.c").read_text()
+        capture = re.search(r"prog_cap\[0\] = .*?prog_cap\[2\] = .*?;", source, re.S)
+        assert capture, "capture program missing"
+        temp = Path(cls.tmp.name)
+        wrapper = (
+            "#include " + json.dumps(str(raw.sdk_header())) + "\n"
+            "void capture_program(uint16_t *prog_cap, int cpw) {\n" +
+            capture[0] + "\n}\n"
+        )
+        (temp / "capture.c").write_text(wrapper)
+        subprocess.run(["cc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
+                        "-shared", "-fPIC", "-I" + str(temp), str(temp / "capture.c"),
+                        "-o", str(temp / "capture.so")], check=True)
+        cls.capture_lib = ct.CDLL(str(temp / "capture.so"))
+        cls.capture_lib.capture_program.argtypes = [ct.POINTER(ct.c_uint16), ct.c_int]
+
+    def test_all_signed_halfwords_and_clock_schedule(self):
+        i = np.arange(65536, dtype=np.uint32)
+        q = (i * 40503 + 91) & 0xFFFF
+        words = self.pair_words(i, q)
+        expected = np.stack([(i & 0x3FFF) | 0x4000, q & 0x3FFF], axis=1).ravel()
+        for cpw in range(3, 9):
+            with self.subTest(cpw=cpw):
+                code = self.program(cpw)
+                self.assertEqual(len(code), 9)
+                low, high = cpw // 2, cpw - cpw // 2
+                self.assertEqual([(op >> 10) & 7 for op in code],
+                                 [1, 5, 5, 0, 4, 1, 5, 0, 4])
+                self.assertEqual([(op >> 8) & 3 for op in code],
+                                 [low - 1, 0, high - 2, low - 1, high - 1,
+                                  low - 1, high - 1, low - 1, high - 1])
+                self.assertEqual(sum(1 + ((op >> 8) & 3) for op in code), 4 * cpw)
+                bus, clock = self.trace(code, words, len(expected) * cpw)
+                np.testing.assert_array_equal(bus, np.repeat(expected, cpw))
+                slot = np.asarray([0] * low + [1] * high, dtype=np.uint8)
+                np.testing.assert_array_equal(clock, np.tile(slot, len(expected)))
+                rising = np.flatnonzero(np.diff(clock.astype(int), prepend=0) == 1)
+                np.testing.assert_array_equal(rising, np.arange(len(expected)) * cpw + low)
+                np.testing.assert_array_equal(bus[rising], expected)
+                self.assertFalse(np.any(bus & 0x8000))
+
+    def test_raw_timing_range_and_pin_assignment(self):
+        self.assertEqual([cpw for cpw in range(-2, 35) if self.lib.raw_valid(cpw)],
+                         list(range(3, 9)))
+        config = (raw.ROOT / "firmware/src/config.h").read_text()
+        self.assertRegex(config, r"#define\s+PIN_D0\s+0\b")
+        self.assertRegex(config, r"#define\s+PIN_CLKIO\s+16\b")
+
+    def test_even_program_opcodes_unchanged(self):
+        for cpw in (4, 6, 8):
+            half = cpw // 2
+            # Exact previous instruction words: OUT14, OUT NULL2, OUT X16,
+            # OUT14, OUT NULL2, MOV PINS X, NOP, OUT14, OUT NULL2.
+            opcodes = [0x600E, 0x6062, 0x6030, 0x600E, 0x6062,
+                       0xA001, 0xA042, 0x600E, 0x6062]
+            side = [1, 5, 5, 0, 4, 1, 5, 0, 4]
+            delay = [half - 1, 0, half - 2] + [half - 1] * 6
+            expected = [op | (s << 10) | (d << 8)
+                        for op, s, d in zip(opcodes, side, delay)]
+            self.assertEqual(self.program(cpw), expected)
+
+    def test_capture_samples_keep_uniform_word_period(self):
+        for cpw in range(3, 9):
+            code = (ct.c_uint16 * 3)()
+            self.capture_lib.capture_program(code, cpw)
+            self.assertEqual([op >> 13 for op in code], [2, 2, 4])
+            self.assertEqual([op & 31 for op in code[:2]], [16, 16])
+            self.assertEqual([(op >> 8) & 31 for op in code], [cpw - 1, cpw - 2, 0])
+            clock, samples = 0, []
+            for n in range(60):
+                op = code[n % 3]
+                if op >> 13 == 2:
+                    samples.append(clock)
+                clock += 1 + ((op >> 8) & 31)
+            self.assertEqual(samples, [cpw * n for n in range(40)])
+
+
+if __name__ == "__main__":
+    unittest.main()

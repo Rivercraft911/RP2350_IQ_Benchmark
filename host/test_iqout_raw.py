@@ -136,27 +136,28 @@ class RawPairs(unittest.TestCase):
         q = (i * 40503 + 91) & 0xFFFF
         words = self.pair_words(i, q)
         expected = np.stack([(i & 0x3FFF) | 0x4000, q & 0x3FFF], axis=1).ravel()
-        for cpw in (4, 6, 8):
+        for cpw in range(3, 9):
             with self.subTest(cpw=cpw):
                 code = self.program(cpw)
                 self.assertEqual(len(code), 9)
-                half = cpw // 2
+                low, high = cpw // 2, cpw - cpw // 2
                 # Decode the SDK's actual opcodes, with mandatory 3-bit side-set.
                 self.assertEqual([(op >> 10) & 7 for op in code], [1, 5, 5, 0, 4, 1, 5, 0, 4])
                 self.assertEqual([(op >> 8) & 3 for op in code],
-                                 [half - 1, 0, half - 2] + [half - 1] * 6)
+                                 [low - 1, 0, high - 2, low - 1, high - 1,
+                                  low - 1, high - 1, low - 1, high - 1])
                 self.assertEqual(sum(1 + ((op >> 8) & 3) for op in code), 4 * cpw)
                 bus, clock = self.trace(code, words, len(i) * 2 * cpw)
                 np.testing.assert_array_equal(bus, np.repeat(expected, cpw))
-                edges = np.asarray([0] * half + [1] * half, dtype=np.uint8)
+                edges = np.asarray([0] * low + [1] * high, dtype=np.uint8)
                 np.testing.assert_array_equal(clock, np.tile(edges, len(expected)))
                 rising = np.flatnonzero(np.diff(clock.astype(int), prepend=0) == 1)
-                np.testing.assert_array_equal(rising, np.arange(len(expected)) * cpw + half)
+                np.testing.assert_array_equal(rising, np.arange(len(expected)) * cpw + low)
                 np.testing.assert_array_equal(bus[rising], expected)
                 self.assertFalse(np.any(bus & 0x8000))
 
     def test_raw_timing_range_and_pin_assignment(self):
-        self.assertEqual([cpw for cpw in range(-2, 35) if self.lib.raw_valid(cpw)], [4, 6, 8])
+        self.assertEqual([cpw for cpw in range(-2, 35) if self.lib.raw_valid(cpw)], list(range(3, 9)))
         config = (ROOT / "firmware/src/config.h").read_text()
         self.assertRegex(config, r"#define\s+PIN_D0\s+0\b")
         self.assertRegex(config, r"#define\s+PIN_CLKIO\s+16\b")

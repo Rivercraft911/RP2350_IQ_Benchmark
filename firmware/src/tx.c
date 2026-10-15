@@ -48,6 +48,16 @@ static void core1_run(void (*fn)(uint32_t), uint32_t arg) {
     multicore_fifo_push_blocking(arg);
 }
 
+void tx_worker_start(void (*fn)(uint32_t), uint32_t arg) {
+    __dmb();
+    core1_run(fn, arg);
+}
+
+void tx_worker_wait(void) {
+    (void)multicore_fifo_pop_blocking();
+    __dmb();
+}
+
 void tx_init(void) {
     gpio_init(PIN_IN_READY);
     gpio_put(PIN_IN_READY, false);

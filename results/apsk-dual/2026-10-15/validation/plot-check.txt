@@ -1,0 +1,1 @@
+{"self_test": "passed", "negative_controls": 23, "real_legacy_runs_revalidated": 2, "synthetic_modern_metadata_only": true, "capture_observations_per_run": 8192}

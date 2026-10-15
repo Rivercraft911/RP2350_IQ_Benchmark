@@ -136,81 +136,54 @@ def self_test():
 
 def render(out):
     import os
+    import sys
     import tempfile
     os.environ.setdefault('MPLCONFIGDIR', str(Path(tempfile.gettempdir())/'yapogee-mpl-cache'))
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
+    sys.path.insert(0, str(ROOT/'reference'))
+    from plotstyle import BLUE, GREEN, INK, WIDTH, plt, save_figure
     from matplotlib.patches import Patch
+
     selected = {order: load(order) for order in SOURCES}
-    plt.rcParams.update({'font.family': 'DejaVu Sans', 'font.size': 10, 'axes.labelcolor': '#26394a',
-                         'text.color': '#162b3e', 'xtick.color': '#405466', 'ytick.color': '#405466',
-                         'axes.spines.top': False, 'axes.spines.right': False, 'axes.spines.left': False,
-                         'axes.edgecolor': '#b8c4cc', 'svg.fonttype': 'none', 'savefig.facecolor': 'white'})
-    fig, axes = plt.subplots(1, 2, figsize=(12.4, 7), gridspec_kw={'width_ratios': [1.15, 1]})
-    fig.subplots_adjust(left=.072, right=.98, bottom=.29, top=.765, wspace=.22)
-    fig.text(.072, .94, 'APSK: move work out of the inner loop', fontsize=21, weight='semibold')
-    fig.text(.072, .891, 'Exact waveform arithmetic · L8 / 2 SPS · cached Flash · isolated, interrupt-masked component timing',
-             fontsize=10, color='#526677')
-    fig.text(.072, .847, 'Both 128 and 150 MHz checked; bars show 128 MHz. Input conversion is charged separately.',
-             fontsize=9, color='#526677')
-    colors = ['#aebecb', '#587895', '#487d91', '#16867b', '#647799']
+    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 2.8), sharey=True,
+                             gridspec_kw={'width_ratios': [1.15, 1]})
     for ax, order in zip(axes, (16, 32)):
         values = [selected[order][0]['kernels'][name] for name, _ in KERNELS[order]]
         x = np.arange(len(values))
-        shape = np.array([v['shape'] for v in values]); conversion = np.array([v['conversion'] for v in values])
-        barcolors = colors if order == 16 else ['#aebecb', '#587895', '#647799', '#16867b']
-        ax.bar(x, shape, color=barcolors, width=.62, zorder=3)
+        shape = np.array([v['shape'] for v in values])
+        conversion = np.array([v['conversion'] for v in values])
+        ax.bar(x, shape, color=BLUE, edgecolor=INK, linewidth=.4, width=.62, zorder=3)
         if order == 32:
-            ax.bar(x, conversion, bottom=shape, color='#e9c27b', edgecolor='#bb9148', hatch='///',
-                   linewidth=.5, width=.62, zorder=3)
-        for index, (s, c) in enumerate(zip(shape, conversion)):
-            ax.text(index, s+c+.65, f'{s+c:.2f}', ha='center', va='bottom', fontsize=10, weight='semibold')
-            if c:
-                ax.text(index, s+c/2, f'+{c:.2f}', ha='center', va='center', fontsize=9, color='#59451d')
-                ax.text(index, s-1.0, f'{s:.2f}', ha='center', va='top', fontsize=9, color='white', weight='semibold')
-        ax.set_xticks(x, [v['label'] for v in values], fontsize=9)
-        ax.tick_params(axis='both', length=0, pad=8)
-        ax.set_ylim(0, 53); ax.set_yticks(np.arange(0, 51, 10))
-        ax.set_axisbelow(True); ax.grid(axis='y', color='#e4e9ed', linewidth=.8)
-        ax.set_title(f'{"A" if order == 16 else "B"}   {order}APSK', loc='left', fontsize=14, weight='semibold', pad=18)
-        for budget, linestyle, color in ((24, (0, (5, 3)), '#977555'), (32, (0, (2, 3)), '#78828c')):
-            ax.axhline(budget, color=color, linestyle=linestyle, linewidth=1, zorder=2)
-        if order == 16:
-            improvement = 100*(1-values[3]['shape']/values[1]['shape'])
-            ax.text(.03, .92, f'Paired schedule: {improvement:.1f}% less kernel work', transform=ax.transAxes,
-                    color='#14796f', fontsize=10, weight='semibold', va='top')
-            ax.text(.03, .85, 'Sparse history row + fewer loop branches\nSame canonical output; planar changes store order.',
-                    transform=ax.transAxes, fontsize=9, color='#526677', linespacing=1.6, va='top')
-    axes[0].set_ylabel('Measured CPU cycles / symbol', labelpad=14)
-    from matplotlib.lines import Line2D
-    fig.legend(handles=[Patch(facecolor='#587895', label='Shaper kernel'),
-                        Patch(facecolor='#e9c27b', edgecolor='#bb9148', hatch='///', label='Input conversion'),
-                        Line2D([0], [0], color='#977555', linestyle=(0, (5, 3)), label='24 cy/sym budget'),
-                        Line2D([0], [0], color='#78828c', linestyle=(0, (2, 3)), label='32 cy/sym budget')],
-               loc='lower center', bbox_to_anchor=(.52, .19), ncol=4, frameon=False, fontsize=8.5,
-               handlelength=2, columnspacing=2.2)
-    fig.text(.072, .16, '16APSK: γ=2.70; 136 KiB LUTs; 3+4+4 partial rounding. 32APSK: γ₁=2.64, γ₂=4.64; 115.1 KiB LUTs; 3+3+3 partial rounding.',
-             fontsize=8.3, color='#405466')
-    fig.text(.072, .12, 'Budgets: 150 MHz / 6.25 Msym/s = 24 cy/sym; 150 MHz / 4.6875 Msym/s = 32 cy/sym. Output/control/input/FEC work is additional.',
-             fontsize=8.3, color='#405466')
-    fig.text(.072, .08, 'Canonical waveform CRCs match; clock pairs agree within 0.01 cy/sym. No statistical error bars inferred. Component costs, without a net throughput claim.',
-             fontsize=8.1, color='#405466')
-    source_names = ', '.join(Path(SOURCES[o]).parent.name for o in (16, 32))
-    fig.text(.072, .04, f'Sources: apsk-frontier/2026-10-15/{{{source_names}}}/runs.jsonl. Exact rows and hashes: selection.json. No AFE or RF claim.',
-             fontsize=7.8, color='#6a7883')
-    if Path(SOURCES[32]).parent.name == 'component-3':
-        fig.text(.98, .805, '32APSK exploratory source; stack fix awaiting remeasurement',
-                 ha='right', fontsize=7.6, color='#a3593e')
+            ax.bar(x, conversion, bottom=shape, facecolor='white', edgecolor=GREEN,
+                   hatch='///', linewidth=.6, width=.62, zorder=3)
+        for index, (shaping, converted) in enumerate(zip(shape, conversion)):
+            ax.annotate(f'{shaping+converted:.2f}', (index, shaping+converted),
+                        xytext=(0, 4), textcoords='offset points', ha='center', fontsize=7.5)
+            if converted:
+                ax.text(index, shaping/2, f'{shaping:.2f}', color='white',
+                        ha='center', va='center', fontsize=7.5)
+        ax.set_xticks(x, [v['label'] for v in values])
+        ax.set_ylim(0, 53)
+        ax.set_yticks(np.arange(0, 51, 10))
+        ax.set_axisbelow(True)
+        ax.grid(axis='y')
+        ax.set_title(f'({"a" if order == 16 else "b"}) {order}APSK')
+    axes[0].set_ylabel('Cycles per symbol')
+    axes[1].legend(handles=[Patch(facecolor=BLUE, edgecolor=INK, linewidth=.4, label='Shaping'),
+                            Patch(facecolor='white', edgecolor=GREEN, hatch='///', label='Conversion')],
+                   loc='upper right', fontsize=7)
     out.mkdir(parents=True, exist_ok=True)
-    for extension in ('svg', 'png'):
-        fig.savefig(out/f'apsk_frontier.{extension}', dpi=220)
-    plt.close(fig)
+    save_figure(fig, out/'apsk_frontier.png')
     (out/'selection.json').write_text(json.dumps(dict(sources=selected, display_clock_hz=128000000,
         clock_agreement_tolerance_cycles_per_symbol=.01, deadline_cycles_per_symbol=[24, 32],
         conversion_accounting='separate stacked measured cost; native kernels consume coordinate input directly',
-        scope='isolated IRQ-masked component work; no inferred complete-modem or RF throughput'), indent=2)+'\n')
-    print(json.dumps(dict(output=str(out), figures=['apsk_frontier.svg', 'apsk_frontier.png'],
+        waveform_profiles=PROFILES, pulse_profile='psk8_l8_n2_hold_m010_far2',
+        coefficient_sha256=COEFFICIENT_SHA,
+        scope='isolated IRQ-masked component work; no inferred complete-modem or RF throughput',
+        style=dict(path='reference/plotstyle.py', sha256=hashlib.sha256((ROOT/'reference/plotstyle.py').read_bytes()).hexdigest()),
+        script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        output_sha256={f'apsk_frontier.{ext}': hashlib.sha256((out/f'apsk_frontier.{ext}').read_bytes()).hexdigest()
+                       for ext in ('png', 'svg', 'pdf')}), indent=2)+'\n')
+    print(json.dumps(dict(output=str(out), figures=['apsk_frontier.svg', 'apsk_frontier.png', 'apsk_frontier.pdf'],
                           provenance='selection.json')))
 
 

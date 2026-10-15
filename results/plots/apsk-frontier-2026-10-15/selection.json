@@ -200,5 +200,43 @@
     32
   ],
   "conversion_accounting": "separate stacked measured cost; native kernels consume coordinate input directly",
-  "scope": "isolated IRQ-masked component work; no inferred complete-modem or RF throughput"
+  "waveform_profiles": {
+    "16": {
+      "cmd": "bench16native8",
+      "row_profile": "apsk16_l8_n2_hold_m010_far2_native344",
+      "quantizer": "native_3_4_4",
+      "table_bytes": 139264,
+      "input_crc": 787286031,
+      "old_crc": 1009880281,
+      "middle_crc": 2648433961,
+      "future_crc": 3030949170,
+      "gamma100": 270
+    },
+    "32": {
+      "cmd": "bench32native8",
+      "row_profile": "apsk32_l8_n2_native333",
+      "quantizer": "native_3_3_3",
+      "table_bytes": 117912,
+      "input_crc": 1106835987,
+      "old_crc": 3255586384,
+      "middle_crc": 916828675,
+      "future_crc": 1817262751,
+      "gamma1_100": 264,
+      "gamma2_100": 464,
+      "outer_radius": 1
+    }
+  },
+  "pulse_profile": "psk8_l8_n2_hold_m010_far2",
+  "coefficient_sha256": "16936cb50f5de62e68b10367624b868afea4ad49f8dfc4481526de4712fda5ae",
+  "scope": "isolated IRQ-masked component work; no inferred complete-modem or RF throughput",
+  "style": {
+    "path": "reference/plotstyle.py",
+    "sha256": "6cfdab0284e8a896088d70cf95bb7165f0a1d24e2643afa9c7e85cf0c1eaf23e"
+  },
+  "script_sha256": "cae5ed570c63a15ed71d171a1326b9cde4699106b7ca7f252bb7ac0e237f2048",
+  "output_sha256": {
+    "apsk_frontier.png": "6db9ac5890d92791e21ed2d9ae8dcfacafc86e6d46a4217485c1b3afab088825",
+    "apsk_frontier.svg": "c034ef5b233800d94df69c2e04f81a05f8a0c2e501cbaa478b25d78e58aadbd7",
+    "apsk_frontier.pdf": "f61fe0006d8ffcab37281aa0f5b5d10a52d8d063096c470457436f9b27bb4473"
+  }
 }

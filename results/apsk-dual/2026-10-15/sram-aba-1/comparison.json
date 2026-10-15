@@ -1,0 +1,45 @@
+{
+  "passed": true,
+  "scope": "Same final flashed image; only shaper placement changes. A1 and A2 SRAM; B flash. 150MHz, 9.375Msym/s, 32APSK mapper3/schedule2/CPW4.",
+  "source": "results/apsk-dual/2026-10-15/sram-aba-1/runs.jsonl",
+  "source_sha256": "9fe7072f102f54d81e6dec4ea09ea4a2702fb32fb79d1da1ccb93d2cb04549b8",
+  "build_manifest": "results/apsk-dual/2026-10-15/build-4/manifest.json",
+  "uf2_sha256": "554bb69b6bc0b2b29dfc12ab92a959dc50b58c15d15bd812e010ab4cfcd90e32",
+  "trials": [
+    {
+      "label": "A1",
+      "placement": 1,
+      "elapsed_us": 3000259,
+      "errors": 0,
+      "underruns": 0,
+      "own_errors": 0,
+      "idle_sent": 0,
+      "txstalls": 0,
+      "cap_mismatches": 0,
+      "expected_result_confirmed": true
+    },
+    {
+      "label": "B",
+      "placement": 0,
+      "elapsed_us": 477,
+      "errors": 1,
+      "underruns": 2,
+      "own_errors": 0,
+      "idle_sent": 2,
+      "txstalls": 0,
+      "expected_result_confirmed": true
+    },
+    {
+      "label": "A2",
+      "placement": 1,
+      "elapsed_us": 3000257,
+      "errors": 0,
+      "underruns": 0,
+      "own_errors": 0,
+      "idle_sent": 0,
+      "txstalls": 0,
+      "cap_mismatches": 0,
+      "expected_result_confirmed": true
+    }
+  ]
+}

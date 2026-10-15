@@ -1,0 +1,731 @@
+{
+  "recorded_at_utc": "2026-10-15T20:42:00.515491+00:00",
+  "status": "passed",
+  "failed_checks": [],
+  "scope": "Read-only provenance, native evidence, generated ASM identity and ELF/static memory audit; no USB or SDK build performed.",
+  "build_manifest": "../build-4/manifest.json",
+  "build_manifest_sha256": "f207dc7a64b831936e3cf9b1bc98a541e4e681f1f582334273139e1020bc3cb4",
+  "firmware_git": "#define GIT_REV \"16f9a51be7-dirty\"",
+  "source_identity": {
+    "current_firmware_file_count": 101,
+    "source_set_sha256": "aa8234600815ac4c6f151f360335e9a2a47262faaabdf928a581d222e1397959",
+    "source_set_hash_format": "sorted relative path +TAB+SHA256+LF",
+    "current_mismatches": [],
+    "unexpected_current_source_files": [],
+    "snapshot_manifest_files_checked": 106,
+    "snapshot_mismatches": [],
+    "source_archive": "../build-4/firmware-source.tar.gz",
+    "source_archive_sha256": "49947e60c063b55264fbbac4e58ee7702d3b32590338883c0ca94f04a7d29b80",
+    "archive_mismatches": []
+  },
+  "full_native_suite": {
+    "command": "make check",
+    "exit_code": 0,
+    "confirmation": "Root directly observed unified-exec session11663 exit0 and confirmed it while this archive was made.",
+    "archived_log": "make-check.txt",
+    "sha256": "1ae3469e7cbfef9ecf7aea240b9b4c8a55608cf66090a45fc0b4e89b0fb91940",
+    "python_commands_logged": 55,
+    "later_scope_note": "Root added the APSK dual plot self-test hook and fixed empty valid runner selections after this full suite; post_suite_host_checks records targeted post-fix success. No firmware changed."
+  },
+  "native_proofs": {
+    "geometric_mapper": {
+      "original_log": "yapogee-dual-map-proof.txt",
+      "original_sha256": "19d9775c9caaf3d512d828bb9dce905f05a95fdb76cfda83828d6b3d120eddfb",
+      "result": {
+        "status": "PASS",
+        "scope": "native exact geometric/key component; no device timing",
+        "coordinate_checks": 660,
+        "rolling_key_checks": 2906870,
+        "exhaustive_token_triples": 2299968,
+        "valid_tokens": 132,
+        "state_bytes": 8,
+        "const_table_bytes": 1584,
+        "fixture_symbols": 16384,
+        "fixture_label_crc": 2499330378,
+        "fixture_key_crc": 189197925,
+        "fixture_final_seed": 2226242452,
+        "fixture_history": "repeated unitpilot"
+      }
+    },
+    "pair_mapper": {
+      "original_log": "yapogee-dual-pair-proof.txt",
+      "original_sha256": "7fdf3dd222c67f04974bd0d52ac4fce5cecf048e31472b1136d0e4aa6038ff24",
+      "result": {
+        "status": "PASS",
+        "scope": "native exact pair-key component; no device timing",
+        "checked_values": 6964696,
+        "exhaustive_token_triples_per_leaf": 2299968,
+        "pair_table_bytes": 16384,
+        "canonical_table_bytes": 132,
+        "mutable_global_bytes": 0,
+        "pair_table_crc": 2680011457
+      }
+    },
+    "byte_offsets": {
+      "original_log": "yapogee-dual-offsets-proof.txt",
+      "original_sha256": "6a1b8d1e6d3b2feae881fccf17baefdffa428621476a6d5cd9aeefcf920f0c98",
+      "result": {
+        "status": "PASS",
+        "scope": "native C and actual-source ISA semantics; no timing",
+        "cases": 201,
+        "executed_semantic_operations": 204204,
+        "rate_profiles": 5,
+        "input_bytes_per_symbol": 4,
+        "input_offset_lane_max": 39296,
+        "address_keys_exhaustive": 4913,
+        "scaled_pair_symbols": 14336,
+        "pair_scaled_input_requires_even_count": true,
+        "asm_frame_bytes": 48,
+        "actual_loop_instructions_per_two_symbols": 27,
+        "previous_loop_instructions_per_two_symbols": 33
+      }
+    },
+    "live_blocks_and_host": {
+      "original_log": "yapogee-dual-live-native-4.txt",
+      "original_sha256": "dbc866fcb9fa5586affa80a106d304dc15d71b5e5e749e7bb74fd8032c4dcb22",
+      "results": [
+        {
+          "native_block_history": "passed",
+          "independently_ordered_blocks": 720,
+          "profiles": [
+            {
+              "modulation": 16,
+              "mapper": 0
+            },
+            {
+              "modulation": 32,
+              "mapper": 0
+            },
+            {
+              "modulation": 32,
+              "mapper": 1
+            },
+            {
+              "modulation": 32,
+              "mapper": 2
+            },
+            {
+              "modulation": 32,
+              "mapper": 3
+            }
+          ],
+          "tested_schedules": [
+            "sequential",
+            "even_then_odd",
+            "random"
+          ],
+          "exact_bus_halfwords_per_block": 4096,
+          "cyclic_source_wraps": 6,
+          "exhaustive16_packing_combinations": 65536,
+          "label_crcs": {
+            "16": 3809491934,
+            "32": 1233905124
+          }
+        },
+        {
+          "self_test": "passed",
+          "capture_cases": 12,
+          "checked_halfwords": 8192,
+          "bounded_search_symbols": 4128,
+          "source_words": 8192,
+          "source_crc": 2091885109,
+          "periodic_bus_crc": 2015101740,
+          "metadata_profiles": 8,
+          "negative_controls": [
+            "missing_line",
+            "duplicate_line",
+            "truncation",
+            "serial_crc",
+            "sample_corruption",
+            "outside_bounded_window",
+            "history_reset",
+            "wrong_input_or_table",
+            "wrong_clock_mode",
+            "work_accounting",
+            "missing_fault_counter",
+            "capture_time"
+          ]
+        },
+        {
+          "self_test": "passed",
+          "schedule_metadata_cases": 126,
+          "capture_profiles": 6,
+          "label_crcs": {
+            "16": 3809491934,
+            "32": 1233905124
+          },
+          "period_bus_crcs": {
+            "16": 3794241200,
+            "32": 2015101740
+          },
+          "independent_fir_capture_halfwords": 8192
+        }
+      ]
+    },
+    "raw_pairs_pio": {
+      "original_log": "yapogee-dual-raw-test.txt",
+      "original_sha256": "e20af4928c90dba16422347bd106f68ea1155531e4279efdad01fc97b628f08e",
+      "tests": 3,
+      "passed": true
+    },
+    "odd_cpw_pio": {
+      "original_log": "yapogee-dual-odd-test.txt",
+      "original_sha256": "0fc13279e7897fb1545fccd3103091efaddaae0ac4e93d1bc4366eb1ac07b9e4",
+      "tests": 5,
+      "passed": true
+    }
+  },
+  "generated_asm": {
+    "x": {
+      "matches_exact_symbol_section_substitution": true,
+      "sha256": "c27e794a86a9457d6683e6511171c8c94d0cc66264c3adca33496d08a096ba34",
+      "bytes": 1294
+    },
+    "y": {
+      "matches_exact_symbol_section_substitution": true,
+      "sha256": "d886b4fccd844e10e8b325dde7b3aff2641ebfec38aadc1503cc96574ee65ac7",
+      "bytes": 1294
+    }
+  },
+  "elfs": {
+    "iqbench": {
+      "elf_sha256": "356fed74ca128443804e948871251fb78e1ef49c4c04648d20519173d3b32814",
+      "functions": {
+        "iq32offsets_kernel_asm": {
+          "address": "0x1000b7c4",
+          "bytes": 162,
+          "sha256": "adbe7f8c0aeb8e94db8fa71abd93e8d817509cb139e7bae27470859e23eddbd8",
+          "c_call_instruction_offset": 32,
+          "c_call_target": "0x1000b6c4",
+          "c_call_reaches_same_c_prefix": true,
+          "sha256_after_zeroing_only_relocated_bl": "70f95ba66e7a8167432b5294075c9781cf1f3ac7cc572a6c1f4f64ed5952dce2"
+        },
+        "iq32offsets_kernel_sram_x": {
+          "address": "0x20080744",
+          "bytes": 162,
+          "sha256": "c9e3eeea1cfbe20b94da81caf4d1b808b8c73e4d414e39e55b8921f2a243221c",
+          "c_call_instruction_offset": 32,
+          "c_call_target": "0x200807e8",
+          "c_call_reaches_same_c_prefix": true,
+          "sha256_after_zeroing_only_relocated_bl": "70f95ba66e7a8167432b5294075c9781cf1f3ac7cc572a6c1f4f64ed5952dce2"
+        },
+        "iq32offsets_kernel_sram_y": {
+          "address": "0x20081530",
+          "bytes": 162,
+          "sha256": "2b641252d6f0ccfbbd297631163fb3c3e12111b8e658042dd23c28caaa5f164f",
+          "c_call_instruction_offset": 32,
+          "c_call_target": "0x200815d8",
+          "c_call_reaches_same_c_prefix": true,
+          "sha256_after_zeroing_only_relocated_bl": "70f95ba66e7a8167432b5294075c9781cf1f3ac7cc572a6c1f4f64ed5952dce2"
+        }
+      },
+      "all_asm_bytes_equal_except_the_four_bl_relocation_bytes": true,
+      "all_c_prefix_call_targets_verified": true,
+      "low_ram": {
+        "heap_start": "0x2003f91c",
+        "heap_limit": "0x20040000",
+        "available_to_heap_limit_including_reserved_heap_bytes": 1764,
+        "minimum_heap_reservation_bytes": 1024,
+        "additional_gap_after_minimum_heap_reservation_bytes": 740,
+        "note": "The available-to-limit figure includes the 1024-byte .heap reservation; it is not extra free space beyond that reservation. No runtime heap or stack high-water measurement is claimed."
+      },
+      "high_ram": {
+        "region_bytes": 262144,
+        "used_bytes": 257680,
+        "unused_bytes": 4464
+      },
+      "scratch_banks": {
+        "x": {
+          "code_end": "0x200807f0",
+          "stack_bottom": "0x20080800",
+          "stack_top": "0x20081000",
+          "stack_reserved_bytes": 2048,
+          "unused_code_gap_before_stack_bytes": 16,
+          "used_scratch_code_bytes": 2032
+        },
+        "y": {
+          "code_end": "0x200815e0",
+          "stack_bottom": "0x20081800",
+          "stack_top": "0x20082000",
+          "stack_reserved_bytes": 2048,
+          "unused_code_gap_before_stack_bytes": 544,
+          "used_scratch_code_bytes": 1504
+        }
+      }
+    },
+    "pvflight": {
+      "elf_sha256": "640b09208bf9b28e9316efb570100245bd5e56facb5079bbccddc3416319d308",
+      "functions": {
+        "iq32offsets_kernel_asm": {
+          "address": "0x1000bb3c",
+          "bytes": 162,
+          "sha256": "adbe7f8c0aeb8e94db8fa71abd93e8d817509cb139e7bae27470859e23eddbd8",
+          "c_call_instruction_offset": 32,
+          "c_call_target": "0x1000ba3c",
+          "c_call_reaches_same_c_prefix": true,
+          "sha256_after_zeroing_only_relocated_bl": "70f95ba66e7a8167432b5294075c9781cf1f3ac7cc572a6c1f4f64ed5952dce2"
+        },
+        "iq32offsets_kernel_sram_x": {
+          "address": "0x20080744",
+          "bytes": 162,
+          "sha256": "c9e3eeea1cfbe20b94da81caf4d1b808b8c73e4d414e39e55b8921f2a243221c",
+          "c_call_instruction_offset": 32,
+          "c_call_target": "0x200807e8",
+          "c_call_reaches_same_c_prefix": true,
+          "sha256_after_zeroing_only_relocated_bl": "70f95ba66e7a8167432b5294075c9781cf1f3ac7cc572a6c1f4f64ed5952dce2"
+        },
+        "iq32offsets_kernel_sram_y": {
+          "address": "0x20081530",
+          "bytes": 162,
+          "sha256": "2b641252d6f0ccfbbd297631163fb3c3e12111b8e658042dd23c28caaa5f164f",
+          "c_call_instruction_offset": 32,
+          "c_call_target": "0x200815d8",
+          "c_call_reaches_same_c_prefix": true,
+          "sha256_after_zeroing_only_relocated_bl": "70f95ba66e7a8167432b5294075c9781cf1f3ac7cc572a6c1f4f64ed5952dce2"
+        }
+      },
+      "all_asm_bytes_equal_except_the_four_bl_relocation_bytes": true,
+      "all_c_prefix_call_targets_verified": true,
+      "low_ram": {
+        "heap_start": "0x2003fb3c",
+        "heap_limit": "0x20040000",
+        "available_to_heap_limit_including_reserved_heap_bytes": 1220,
+        "minimum_heap_reservation_bytes": 1024,
+        "additional_gap_after_minimum_heap_reservation_bytes": 196,
+        "note": "The available-to-limit figure includes the 1024-byte .heap reservation; it is not extra free space beyond that reservation. No runtime heap or stack high-water measurement is claimed."
+      },
+      "high_ram": {
+        "region_bytes": 262144,
+        "used_bytes": 257680,
+        "unused_bytes": 4464
+      },
+      "scratch_banks": {
+        "x": {
+          "code_end": "0x200807f0",
+          "stack_bottom": "0x20080800",
+          "stack_top": "0x20081000",
+          "stack_reserved_bytes": 2048,
+          "unused_code_gap_before_stack_bytes": 16,
+          "used_scratch_code_bytes": 2032
+        },
+        "y": {
+          "code_end": "0x200815e0",
+          "stack_bottom": "0x20081800",
+          "stack_top": "0x20082000",
+          "stack_reserved_bytes": 2048,
+          "unused_code_gap_before_stack_bytes": 544,
+          "used_scratch_code_bytes": 1504
+        }
+      }
+    }
+  },
+  "static_stack_audit": {
+    "compiler": "GCC Arm14.2, SDK2.2.0 device build flags, -O3 -fstack-usage -Werror; isolated /tmp objects",
+    "frames": {
+      "map_block": {
+        "source": "firmware/src/bench_apsk_live.c",
+        "frame_bytes": 48,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-offset-audit/bench_apsk_live.su",
+        "audit_log_sha256": "8ad7c50647d779036ba95febfdb21e9108a18b3a69220c49e8e543b969a89211"
+      },
+      "shape_block": {
+        "source": "firmware/src/bench_apsk_live.c",
+        "frame_bytes": 24,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-offset-audit/bench_apsk_live.su",
+        "audit_log_sha256": "8ad7c50647d779036ba95febfdb21e9108a18b3a69220c49e8e543b969a89211"
+      },
+      "worker": {
+        "source": "firmware/src/bench_apsk_live.c",
+        "frame_bytes": 24,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-offset-audit/bench_apsk_live.su",
+        "audit_log_sha256": "8ad7c50647d779036ba95febfdb21e9108a18b3a69220c49e8e543b969a89211"
+      },
+      "bench_apsk_live": {
+        "source": "firmware/src/bench_apsk_live.c",
+        "frame_bytes": 480,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-offset-audit/bench_apsk_live.su",
+        "audit_log_sha256": "8ad7c50647d779036ba95febfdb21e9108a18b3a69220c49e8e543b969a89211"
+      },
+      "iq16maplabels_encode": {
+        "source": "firmware/src/iq16maplabels.c",
+        "frame_bytes": 12,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq16maplabels.su",
+        "audit_log_sha256": "a7fefc1cc18967db33074508e038a42cf466edef3defa987d4d2584ad7662202"
+      },
+      "iq16native8_coefficients": {
+        "source": "firmware/src/iq16native8.c",
+        "frame_bytes": 0,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq16native8.su",
+        "audit_log_sha256": "77fd8bd4951413430e1a5213a989023843d0eb4a7b11b7ee4e0842712b452a37"
+      },
+      "iq16native8_build": {
+        "source": "firmware/src/iq16native8.c",
+        "frame_bytes": 648,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq16native8.su",
+        "audit_log_sha256": "77fd8bd4951413430e1a5213a989023843d0eb4a7b11b7ee4e0842712b452a37"
+      },
+      "iq16native8_kernel_c": {
+        "source": "firmware/src/iq16native8.c",
+        "frame_bytes": 56,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq16native8.su",
+        "audit_log_sha256": "77fd8bd4951413430e1a5213a989023843d0eb4a7b11b7ee4e0842712b452a37"
+      },
+      "iq32keys_encode": {
+        "source": "firmware/src/iq32keys.c",
+        "frame_bytes": 12,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32keys.su",
+        "audit_log_sha256": "e3a228c25b0db3de24cc1089041ae4c5b292d3e3843edafa558b284885b2220b"
+      },
+      "iq32keys_history": {
+        "source": "firmware/src/iq32keys.c",
+        "frame_bytes": 48,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32keys.su",
+        "audit_log_sha256": "e3a228c25b0db3de24cc1089041ae4c5b292d3e3843edafa558b284885b2220b"
+      },
+      "iq32keys_kernel_c": {
+        "source": "firmware/src/iq32keys.c",
+        "frame_bytes": 72,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32keys.su",
+        "audit_log_sha256": "e3a228c25b0db3de24cc1089041ae4c5b292d3e3843edafa558b284885b2220b"
+      },
+      "iq32mapkeys_coordinate": {
+        "source": "firmware/src/iq32mapkeys.c",
+        "frame_bytes": 0,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32mapkeys.su",
+        "audit_log_sha256": "9103cd06879b01820153b945ca0dff2a268b2b286f75ee9d41011ae9c41fe345"
+      },
+      "iq32mapkeys_init": {
+        "source": "firmware/src/iq32mapkeys.c",
+        "frame_bytes": 4,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32mapkeys.su",
+        "audit_log_sha256": "9103cd06879b01820153b945ca0dff2a268b2b286f75ee9d41011ae9c41fe345"
+      },
+      "iq32mapkeys_encode": {
+        "source": "firmware/src/iq32mapkeys.c",
+        "frame_bytes": 24,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32mapkeys.su",
+        "audit_log_sha256": "9103cd06879b01820153b945ca0dff2a268b2b286f75ee9d41011ae9c41fe345"
+      },
+      "iq32mapkeys_history": {
+        "source": "firmware/src/iq32mapkeys.c",
+        "frame_bytes": 20,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32mapkeys.su",
+        "audit_log_sha256": "9103cd06879b01820153b945ca0dff2a268b2b286f75ee9d41011ae9c41fe345"
+      },
+      "iq32mapkeys_canonical": {
+        "source": "firmware/src/iq32mapkeys_pair.c",
+        "frame_bytes": 0,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32mapkeys_pair.su",
+        "audit_log_sha256": "663cae8d4d5dae754e980b6476b7ea90d7e6f07902dd35aa012490fe13003770"
+      },
+      "iq32mapkeys_pair_build": {
+        "source": "firmware/src/iq32mapkeys_pair.c",
+        "frame_bytes": 32,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32mapkeys_pair.su",
+        "audit_log_sha256": "663cae8d4d5dae754e980b6476b7ea90d7e6f07902dd35aa012490fe13003770"
+      },
+      "iq32mapkeys_pair_encode": {
+        "source": "firmware/src/iq32mapkeys_pair.c",
+        "frame_bytes": 48,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32mapkeys_pair.su",
+        "audit_log_sha256": "663cae8d4d5dae754e980b6476b7ea90d7e6f07902dd35aa012490fe13003770"
+      },
+      "iq32mapkeys_pair_canonical": {
+        "source": "firmware/src/iq32mapkeys_pair.c",
+        "frame_bytes": 48,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-extended-audit/iq32mapkeys_pair.su",
+        "audit_log_sha256": "663cae8d4d5dae754e980b6476b7ea90d7e6f07902dd35aa012490fe13003770"
+      },
+      "restore_buffers": {
+        "source": "firmware/src/bench_apsk_live.c",
+        "frame_bytes": 16,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-offset-audit/bench_apsk_live.su",
+        "audit_log_sha256": "8ad7c50647d779036ba95febfdb21e9108a18b3a69220c49e8e543b969a89211"
+      },
+      "iq32offsets_encode": {
+        "source": "firmware/src/iq32offsets.c",
+        "frame_bytes": 0,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-offset-audit/iq32offsets.su",
+        "audit_log_sha256": "5fdadcc81afb44fb01d78708524ab4b746653c0f4a50eab0f47cd8c890e2253b"
+      },
+      "iq32offsets_kernel_c": {
+        "source": "firmware/src/iq32offsets.c",
+        "frame_bytes": 72,
+        "classification": "static",
+        "audit_log": "/tmp/yapogee-apsklive-offset-audit/iq32offsets.su",
+        "audit_log_sha256": "5fdadcc81afb44fb01d78708524ab4b746653c0f4a50eab0f47cd8c890e2253b"
+      }
+    },
+    "asm_frame_bytes": 48,
+    "largest_known_setup_chain_bytes": 1128,
+    "chain": "bench_apsk_live(480) + iq16native8_build(648)",
+    "qualification": "Static frame/known-chain sizes only. Excludes main/caller, interrupt frames and compiler/library callees; not a measured full stack high-water mark. Both linker-reserved stacks remain 2048 bytes."
+  },
+  "post_suite_host_checks": {
+    "status": "passed",
+    "scope": "Targeted checks after host-only empty valid matrix rejection and plot Makefile hook; firmware unchanged.",
+    "checks": [
+      {
+        "command": "python3 host/apsk_live_trial.py --self-test",
+        "archived_log": "post-fix-live.txt",
+        "sha256": "5b3d5e770124021733d9377ed4ba46ca5572948cfca40beed687d067fce45ee6",
+        "results": [
+          {
+            "self_test": "passed",
+            "capture_cases": 12,
+            "checked_halfwords": 8192,
+            "bounded_search_symbols": 4128,
+            "source_words": 8192,
+            "source_crc": 2091885109,
+            "periodic_bus_crc": 2015101740,
+            "metadata_profiles": 8,
+            "negative_controls": [
+              "missing_line",
+              "duplicate_line",
+              "truncation",
+              "serial_crc",
+              "sample_corruption",
+              "outside_bounded_window",
+              "history_reset",
+              "wrong_input_or_table",
+              "wrong_clock_mode",
+              "work_accounting",
+              "missing_fault_counter",
+              "capture_time"
+            ]
+          },
+          {
+            "self_test": "passed",
+            "schedule_metadata_cases": 126,
+            "capture_profiles": 6,
+            "label_crcs": {
+              "16": 3809491934,
+              "32": 1233905124
+            },
+            "period_bus_crcs": {
+              "16": 3794241200,
+              "32": 2015101740
+            },
+            "independent_fir_capture_halfwords": 8192
+          }
+        ],
+        "process_success": "Root confirmed exit0."
+      },
+      {
+        "command": "Three actual CLI empty-selection negative controls",
+        "archived_log": "empty-selection.json",
+        "sha256": "76f574272478a7db531e3f06dbfba8a3fbdc5264f4f848fbc44f4a6bcd216d07",
+        "results": [
+          {
+            "passed": true,
+            "cases": [
+              {
+                "arguments": [
+                  "--modulations",
+                  "16",
+                  "--mappers",
+                  "3"
+                ],
+                "exit_code": 2,
+                "no_output_created": true,
+                "rejected_before_usb": true
+              },
+              {
+                "arguments": [
+                  "--modulations",
+                  "16",
+                  "--placements",
+                  "1"
+                ],
+                "exit_code": 2,
+                "no_output_created": true,
+                "rejected_before_usb": true
+              },
+              {
+                "arguments": [
+                  "--modulations",
+                  "32",
+                  "--mappers",
+                  "0",
+                  "1",
+                  "2",
+                  "--placements",
+                  "1"
+                ],
+                "exit_code": 2,
+                "no_output_created": true,
+                "rejected_before_usb": true
+              }
+            ]
+          }
+        ],
+        "process_success": "Root confirmed success directly; actual CLI invalid selections correctly returned2 before mkdir/USB."
+      },
+      {
+        "command": "python3 host/plot_apsk_dual.py --self-test",
+        "archived_log": "plot-check.txt",
+        "sha256": "d087ea2a6524ff6517ef4efc39c4a0b686486819c0bd1222d0d1ecfe03b71f9f",
+        "results": [
+          {
+            "self_test": "passed",
+            "negative_controls": 23,
+            "real_legacy_runs_revalidated": 2,
+            "synthetic_modern_metadata_only": true,
+            "capture_observations_per_run": 8192
+          }
+        ],
+        "process_success": "Root confirmed exit0."
+      },
+      {
+        "command": "python3 host/plot_apsk_dual.py",
+        "archived_log": "plot-render.txt",
+        "sha256": "67f3221ac93d736f6b992b6876c4809a352ca40a7f3cafaefa3cb479bc88a30d",
+        "results": [
+          {
+            "output": "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/results/plots/apsk-dual-2026-10-15",
+            "figures": [
+              "apsk_dual.png",
+              "apsk_dual.svg",
+              "apsk_dual.pdf"
+            ],
+            "provenance": "selection.json"
+          }
+        ],
+        "process_success": "Root confirmed exit0."
+      }
+    ],
+    "current_runner_sha256": "99659662c07d0da43ce481aeec88e88412cbf87ff755db552061c42adb8af702",
+    "current_dual_plot_sha256": "9146e24fd0d06c2b1560d25706d65e61dbbcaccc3be82400f9313e0a7181454d"
+  },
+  "archived_driver_identity": {
+    "status": "passed",
+    "archive_files": [
+      {
+        "path": "results/apsk-dual/2026-10-15/dual16-deadline-negative-1/host-proof.py",
+        "sha256": "1779b86b32a70d724bd4a8f5477b46f04c6cf5e4b2af4166d6ff6e93e343015f"
+      },
+      {
+        "path": "results/apsk-dual/2026-10-15/dual16-final-image-regression-1/host-proof.py",
+        "sha256": "1779b86b32a70d724bd4a8f5477b46f04c6cf5e4b2af4166d6ff6e93e343015f"
+      },
+      {
+        "path": "results/apsk-dual/2026-10-15/dual32-deadline-negative-1/host-proof.py",
+        "sha256": "1779b86b32a70d724bd4a8f5477b46f04c6cf5e4b2af4166d6ff6e93e343015f"
+      },
+      {
+        "path": "results/apsk-dual/2026-10-15/dual32-offset-soak-1/host-proof.py",
+        "sha256": "1779b86b32a70d724bd4a8f5477b46f04c6cf5e4b2af4166d6ff6e93e343015f"
+      },
+      {
+        "path": "results/apsk-dual/2026-10-15/offset-sram-frontier-1/host-proof.py",
+        "sha256": "1779b86b32a70d724bd4a8f5477b46f04c6cf5e4b2af4166d6ff6e93e343015f"
+      },
+      {
+        "path": "results/apsk-dual/2026-10-15/pair16-frontier-1/host-proof.py",
+        "sha256": "5eaf873c5735c734e2b32b2bebf49ff5208db0f5cefc67e1b652887c5b1ba02f"
+      },
+      {
+        "path": "results/apsk-dual/2026-10-15/polling-frontier-1/host-proof.py",
+        "sha256": "59ea5caa91633bb13b9812ae600bea7565ecad335389d128f35021dfe246e0a7"
+      },
+      {
+        "path": "results/apsk-dual/2026-10-15/weighted-frontier-1/host-proof.py",
+        "sha256": "c85a3032a2312264f55bf057bc0f5eb49c43bdb8ea12718138a415db41c65bef"
+      }
+    ],
+    "manifest_references": [
+      {
+        "manifest": "results/apsk-dual/2026-10-15/dual16-deadline-negative-1/manifest.json",
+        "recorded_driver_path": "host/apsk_live_trial.py",
+        "recorded_driver_sha256": "1779b86b32a70d724bd4a8f5477b46f04c6cf5e4b2af4166d6ff6e93e343015f",
+        "matching_archived_paths": [
+          "results/apsk-dual/2026-10-15/dual16-deadline-negative-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual16-final-image-regression-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual32-deadline-negative-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual32-offset-soak-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/offset-sram-frontier-1/host-proof.py"
+        ],
+        "passed": true
+      },
+      {
+        "manifest": "results/apsk-dual/2026-10-15/dual16-final-image-regression-1/manifest.json",
+        "recorded_driver_path": "host/apsk_live_trial.py",
+        "recorded_driver_sha256": "1779b86b32a70d724bd4a8f5477b46f04c6cf5e4b2af4166d6ff6e93e343015f",
+        "matching_archived_paths": [
+          "results/apsk-dual/2026-10-15/dual16-deadline-negative-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual16-final-image-regression-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual32-deadline-negative-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual32-offset-soak-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/offset-sram-frontier-1/host-proof.py"
+        ],
+        "passed": true
+      },
+      {
+        "manifest": "results/apsk-dual/2026-10-15/dual16-soak-1/manifest.json",
+        "recorded_driver_path": "host/apsk_live_trial.py",
+        "recorded_driver_sha256": "5eaf873c5735c734e2b32b2bebf49ff5208db0f5cefc67e1b652887c5b1ba02f",
+        "matching_archived_paths": [
+          "results/apsk-dual/2026-10-15/pair16-frontier-1/host-proof.py"
+        ],
+        "passed": true
+      },
+      {
+        "manifest": "results/apsk-dual/2026-10-15/dual32-deadline-negative-1/manifest.json",
+        "recorded_driver_path": "host/apsk_live_trial.py",
+        "recorded_driver_sha256": "1779b86b32a70d724bd4a8f5477b46f04c6cf5e4b2af4166d6ff6e93e343015f",
+        "matching_archived_paths": [
+          "results/apsk-dual/2026-10-15/dual16-deadline-negative-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual16-final-image-regression-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual32-deadline-negative-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual32-offset-soak-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/offset-sram-frontier-1/host-proof.py"
+        ],
+        "passed": true
+      },
+      {
+        "manifest": "results/apsk-dual/2026-10-15/dual32-offset-soak-1/manifest.json",
+        "recorded_driver_path": "host/apsk_live_trial.py",
+        "recorded_driver_sha256": "1779b86b32a70d724bd4a8f5477b46f04c6cf5e4b2af4166d6ff6e93e343015f",
+        "matching_archived_paths": [
+          "results/apsk-dual/2026-10-15/dual16-deadline-negative-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual16-final-image-regression-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual32-deadline-negative-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/dual32-offset-soak-1/host-proof.py",
+          "results/apsk-dual/2026-10-15/offset-sram-frontier-1/host-proof.py"
+        ],
+        "passed": true
+      },
+      {
+        "manifest": "results/apsk-dual/2026-10-15/dual32-pair-soak-1/manifest.json",
+        "recorded_driver_path": "results/apsk-dual/2026-10-15/pair16-frontier-1/host-proof.py",
+        "recorded_driver_sha256": "5eaf873c5735c734e2b32b2bebf49ff5208db0f5cefc67e1b652887c5b1ba02f",
+        "matching_archived_paths": [
+          "results/apsk-dual/2026-10-15/pair16-frontier-1/host-proof.py"
+        ],
+        "passed": true
+      }
+    ],
+    "note": "Original driver snapshots remain unchanged. Every manifest-recorded driver hash resolves to at least one preserved host-proof.py, including shared older snapshots."
+  }
+}
