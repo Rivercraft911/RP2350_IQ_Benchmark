@@ -7,11 +7,13 @@
 #define HOT(f) __attribute__((section(".time_critical." #f))) f
 #define HI __attribute__((section(".sram_hi")))                 // SRAM4-7, away from DMA banks
 #define PROF(i) (dvbs2_prof[i] = *(volatile uint32_t *)0xE0001004u)   // DWT_CYCCNT
+#define COMPACT __attribute__((optimize("O2", "no-unroll-loops", "no-peel-loops")))  // GCC only
 static inline uint32_t rbit(uint32_t x) { __asm("rbit %0, %1" : "=r"(x) : "r"(x)); return x; }
 #else
 #define HOT(f) f
 #define HI
 #define PROF(i) ((void)0)
+#define COMPACT
 static inline uint32_t rbit(uint32_t x) {
     x = ((x >> 1) & 0x55555555u) | ((x & 0x55555555u) << 1);
     x = ((x >> 2) & 0x33333333u) | ((x & 0x33333333u) << 2);
@@ -42,7 +44,7 @@ static uint32_t fe[MAX_BITS_W] HI;                      // FECFRAME under constr
 static uint32_t r0[MAX_BODY_W] HI, r1[MAX_BODY_W] HI;      // PL scrambling R(i) bit planes (init)
 static uint32_t hdr[6], body_syms;
 static dvbs2_bch_kernel_t bch_kernel = S2_BCH_BASELINE;
-static unsigned map_kernel;
+static unsigned map_kernel, ldpc_pack;
 
 // ------------------------------------------------------------------ bit-vector helpers
 
@@ -348,12 +350,54 @@ static inline void xor_rot(uint32_t *row, const uint32_t *src, uint32_t sh) {
 }
 #endif
 
+// Column-major streaming pack for q <= 64 (all normal codes from 2/3 up, every short code
+// except 1/4). Column c supplies parity bits c*q .. c*q+q-1, i.e. rows 0..q-1 of P after a
+// 32x32 transpose: one full 32-row tile then the remaining q-32 rows when q > 32. Output is
+// appended MSB-first starting `bit` (0..31) bits into dst[0]; the bits above it are preserved,
+// so FEC parity lands directly after an unaligned Kldpc (normal 5/6, 3/4, 9/10) with no
+// intermediate buffer, scattered OR or copy_bits pass. Words through (bit + M + 63) / 32 are
+// written, matching the zeroed guard of the generic path. Unused rows of each tile are zero.
+// Placement: SRAM0-3 has only a few hundred bytes free (pvflight least), so this 0.35 KiB leaf
+// runs from flash through the XIP cache, once per frame; misses are charged to its measurement.
+static void __attribute__((noinline)) COMPACT ldpc_pack_stream(uint32_t *dst, uint32_t bit) {
+    const uint32_t q = C->q, rem = q > 32 ? q - 32 : q, end = (bit + M + 63u) / 32u;
+    uint32_t (*tile)[32] = (uint32_t (*)[32])P[(q + 31u) & ~31u];   // workspace above live tiles
+    uint32_t *out = dst, acc = dst[0] & ~(~0u >> bit), fill = bit;
+    for (unsigned k = 0; k < 12; k++) {
+        for (unsigned row = 0; row < 32; row++) tile[0][row] = P[row][k];
+        transpose32(tile[0]);
+        if (q > 32) {
+            for (unsigned row = 0; row < 32; row++) tile[1][row] = P[32 + row][k];
+            transpose32(tile[1]);
+        }
+        const unsigned columns = k == 11 ? 8 : 32;
+        const uint32_t *last = q > 32 ? tile[1] : tile[0];
+        for (unsigned col = 0; col < columns; col++) {
+            if (q > 32) {                                       // a full 32-bit row tile
+                const uint32_t v = tile[0][col];
+                *out++ = acc | v >> fill;
+                acc = (v << 1) << (31u - fill);                 // v << (32 - fill), fill may be 0
+            }
+            const uint32_t v = last[col];                       // rem MSB-aligned bits
+            acc |= v >> fill;
+            fill += rem;
+            if (fill >= 32) {
+                *out++ = acc;
+                fill -= 32;
+                acc = (v << 1) << (rem - 1u - fill);            // v << (rem - fill)
+            }
+        }
+    }
+    if (fill) *out++ = acc;
+    while (out < dst + end) *out++ = 0;
+}
+
 // Group form. With M = 360 q, address x for bit m of group g is (x + m q) mod M. Writing
 // x = r + c q gives row r and column (c + m) mod 360 of a q x 360 matrix P (parity index
 // i = r + column * q), so each table entry XORs the group's 360 bits, rotated right by c, into
 // row r. The accumulation p_i ^= p_{i-1} in natural order is a cumulative XOR down the rows
 // plus an exclusive prefix over whole columns. A 32x32 transpose then restores natural order.
-void HOT(dvbs2_ldpc)(const uint32_t *info, uint32_t *parity) {
+static void __attribute__((noinline)) HOT(ldpc_matrix)(const uint32_t *info) {
     const uint32_t q = C->q;
     PROF(0);
     // Only live rows and the last 32-row transpose tile need initialization. Every edge
@@ -388,8 +432,28 @@ void HOT(dvbs2_ldpc)(const uint32_t *info, uint32_t *parity) {
     for (uint32_t r = 0; r < q; r++)
         for (int k = 0; k < 12; k++) P[r][k] ^= cx[k];
     PROF(2);
+}
+
+bool dvbs2_ldpc_set_pack(unsigned pack) {
+    if (pack > 1) return false;
+    ldpc_pack = pack;
+    return true;
+}
+
+unsigned dvbs2_ldpc_get_pack(void) { return ldpc_pack; }
+
+static inline bool stream_pack(void) { return ldpc_pack && C->q <= 64; }
+
+void HOT(dvbs2_ldpc)(const uint32_t *info, uint32_t *parity) {
+    const uint32_t q = C->q;
+    ldpc_matrix(info);
     if (q == 60) {
         ldpc_pack60(parity);
+        PROF(3);
+        return;
+    }
+    if (stream_pack()) {
+        ldpc_pack_stream(parity, 0);
         PROF(3);
         return;
     }
@@ -661,12 +725,18 @@ void HOT(dvbs2_frame_begin_into)(const uint32_t *bb, uint32_t *frame) {
     PROF(5);
 }
 
-void HOT(dvbs2_frame_ldpc_into)(uint32_t *frame) {
+void __attribute__((noinline)) HOT(dvbs2_frame_ldpc_into)(uint32_t *frame) {
     static uint32_t lpar[MAX_BITS_W] HI;
     if (!(C->kldpc & 31u)) {
         // LDPC consumes all information before writing parity, so a word-aligned tail
         // can be the destination directly. FE storage includes the parity guard words.
         dvbs2_ldpc(frame, frame + C->kldpc / 32u);
+    } else if (stream_pack()) {
+        // The matrix has consumed every information bit; the packer keeps the high bits of
+        // the shared word and appends parity in place (guard <= DVBS2_FE_WORDS).
+        ldpc_matrix(frame);
+        ldpc_pack_stream(frame + C->kldpc / 32u, C->kldpc & 31u);
+        PROF(3);
     } else {
         dvbs2_ldpc(frame, lpar);
         copy_bits(frame, C->kldpc, lpar, M);

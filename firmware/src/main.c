@@ -35,6 +35,7 @@
 //   dualbench [reps]                             descriptor generation experiment
 //   dualwriters <2|4> / dualprio <0..15>          idle experimental DMA settings
 //   quadprofile <0|1> / mapkernel <0|1>          L9/L8 pulse / baseline/packed mapper
+//   ldpcpack <0|1>                               LDPC parity: baseline / streaming in-place pack
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
 //        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=SPI TS, 6=SPI GCS
 //   bootsel                                       reboot to the USB bootloader
@@ -211,6 +212,10 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "kernel", REQUIRED, 0, 1, &code)) return err;
         if (!dvbs2_map_set_kernel((unsigned)code)) return "unknown mapping kernel";
         printf("@{\"cmd\":\"mapkernel\",\"kernel\":%u}\n", dvbs2_map_get_kernel());
+    } else if (!strcmp(cmd, "ldpcpack")) {
+        if (!num(a[1], "pack", REQUIRED, 0, 1, &code)) return err;
+        if (!dvbs2_ldpc_set_pack((unsigned)code)) return "unknown LDPC packer";
+        printf("@{\"cmd\":\"ldpcpack\",\"pack\":%u}\n", dvbs2_ldpc_get_pack());
     } else if (!strcmp(cmd, "bench8psk")) {
         if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
         bench_8psk(reps);

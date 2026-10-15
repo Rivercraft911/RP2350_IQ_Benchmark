@@ -34,6 +34,11 @@ dvbs2_bch_kernel_t dvbs2_bch_get_kernel(void);
 // Select while the encoder is idle; retained across dvbs2_init. Canonical FEC bits are unchanged.
 bool dvbs2_map_set_kernel(unsigned kernel);
 unsigned dvbs2_map_get_kernel(void);
+// Opt-in LDPC parity packer: 0 = baseline transpose + OR (+ copy for unaligned Kldpc),
+// 1 = column-major streaming pack written in place, used where q <= 64 (except the
+// unchanged q = 60 packer). Select while the encoder is idle; parity bits are identical.
+bool dvbs2_ldpc_set_pack(unsigned pack);
+unsigned dvbs2_ldpc_get_pack(void);
 void dvbs2_bbscramble(uint32_t *bbframe);                      // kbch bits, in place
 void dvbs2_bch(const uint32_t *bbframe, uint32_t *parity);    // kbch -> 16t or 14t parity bits
 void dvbs2_bch_serial(const uint32_t *bbframe, uint32_t *parity);   // bit-serial reference

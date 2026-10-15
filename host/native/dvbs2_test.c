@@ -78,6 +78,37 @@ static int check_staged_frames(const dvbs2_code_t *c, unsigned ci, int pilots,
     return ok;
 }
 
+// Both parity packers must give identical words, including the generic path's zero guard,
+// for the separate-buffer API and for in-place FE construction after an unaligned Kldpc.
+// The in-place input mimics frame_begin: information bits, then zero bits after Kldpc.
+static int check_ldpc_packs(const dvbs2_code_t *c, unsigned ci) {
+    enum { W = 64800 / 32 + 2 };
+    static uint32_t info[W], par[2][W], frame[2][W];
+    const uint32_t m = c->nldpc - c->kldpc, guard = (m + 63) / 32, kw = c->kldpc / 32;
+    uint32_t st = 0x2545F491u ^ ci;
+    for (uint32_t k = 0; k < W; k++) info[k] = st = st * 1664525u + 1013904223u;
+    int ok = 1;
+    for (unsigned pack = 0; pack < 2; pack++) {
+        ok &= dvbs2_ldpc_set_pack(pack) && dvbs2_ldpc_get_pack() == pack;
+        memset(par[pack], 0xA5, sizeof par[pack]);
+        dvbs2_ldpc(info, par[pack]);
+        memcpy(frame[pack], info, sizeof info);
+        if (c->kldpc & 31u) frame[pack][kw] &= ~(~0u >> (c->kldpc & 31u));
+        memset(frame[pack] + kw + !!(c->kldpc & 31u), 0, (W - kw - !!(c->kldpc & 31u)) * 4);
+        dvbs2_frame_ldpc_into(frame[pack]);
+    }
+    if (memcmp(par[0], par[1], guard * 4) || par[1][guard] != 0xA5A5A5A5u) {
+        fprintf(stderr, "LDPC pack mismatch (separate buffer): %s\n", c->name);
+        ok = 0;
+    }
+    if (memcmp(frame[0], frame[1], sizeof frame[0])) {
+        fprintf(stderr, "LDPC pack mismatch (in-place FE): %s\n", c->name);
+        ok = 0;
+    }
+    ok &= !dvbs2_ldpc_set_pack(2) && dvbs2_ldpc_get_pack() == 1;
+    return ok;
+}
+
 int main(int argc, char **argv) {
     static uint32_t bb[64800 / 32 + 2], fe[64800 / 32 + 2], p1[64800 / 32 + 2], p2[64800 / 32 + 2];
     static uint32_t out[33282 / 16 + 2], baseline[33282 / 16 + 2];
@@ -96,19 +127,27 @@ int main(int argc, char **argv) {
             if (c->kbch % 32) bb[nw - 1] &= ~(~0u >> (c->kbch % 32));
             const int bch_ok = selection_ok && check_bch_kernels(c, fe, p1, p2);
             for (uint32_t k = 0; k < 64800 / 32 + 2; k++) fe[k] = st = st * 1664525u + 1013904223u;
-            dvbs2_ldpc(fe, p1), dvbs2_ldpc_serial(fe, p2);
             const uint32_t m = c->nldpc - c->kldpc;
-            int ldpc_ok = !memcmp(p1, p2, m / 32 * 4);
-            if (m % 32) ldpc_ok &= ((p1[m / 32] ^ p2[m / 32]) & ~(~0u >> (m % 32))) == 0;
+            int ldpc_ok = 1;
+            dvbs2_ldpc_serial(fe, p2);
+            for (unsigned pack = 0; pack < 2; pack++) {
+                dvbs2_ldpc_set_pack(pack);
+                dvbs2_ldpc(fe, p1);
+                ldpc_ok &= !memcmp(p1, p2, m / 32 * 4);
+                if (m % 32) ldpc_ok &= ((p1[m / 32] ^ p2[m / 32]) & ~(~0u >> (m % 32))) == 0;
+            }
+            if (!pil) ldpc_ok &= check_ldpc_packs(c, (unsigned)ci);
             symstream_t s = {0};
             int frame_ok = 1;
             uint32_t baseline_n = 0;
+            for (unsigned pack = 0; pack < 2; pack++)
             for (int kernel = S2_BCH_BASELINE; kernel <= S2_BCH_STREAM_ARM; kernel++) {
+                dvbs2_ldpc_set_pack(pack);
                 dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)kernel);
                 s = (symstream_t){.out = out, .mask = ~0u};
                 dvbs2_frame(bb, &s);                           // bb is not modified
                 symstream_flush(&s);
-                if (kernel == S2_BCH_BASELINE) {
+                if (!pack && kernel == S2_BCH_BASELINE) {
                     baseline_n = s.n;
                     memcpy(baseline, out, s.n * sizeof out[0]);
                 } else {
@@ -116,6 +155,7 @@ int main(int argc, char **argv) {
                 }
                 frame_ok &= check_staged_frames(c, (unsigned)ci, pil, (dvbs2_bch_kernel_t)kernel);
             }
+            dvbs2_ldpc_set_pack(0);
             failed |= !(bch_ok && ldpc_ok && frame_ok);
             printf("{\"code\":\"%s\",\"pilots\":%d,\"seed\":%u,\"bch_ok\":%d,\"ldpc_ok\":%d,"
                    "\"syms\":%u,\"words\":[", c->name, pil, 0x9E3779B9u ^ (uint32_t)ci, bch_ok && frame_ok,
