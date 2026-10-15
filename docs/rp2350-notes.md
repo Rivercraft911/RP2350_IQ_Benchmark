@@ -54,6 +54,7 @@ Pin use. `firmware/src/config.h` is the authority.
 | 15 | 20 | spare bus bit (always 0) |
 | 16 | 21 | CLK_IO (PIO side-set in `iqout.c`, HSTX in `dual_dma.c`) |
 | 17, 18, 19, 20, 22 | 22, 24, 25, 26, 29 | PV-SPI SCK, MOSI, CS_N, MISO, READY (or the 4-lane link) |
+| 28 | 34 | Yapogee DDR DACCLK source, opt-in `dualclock 1` (1 kΩ to GPIO42 on this board) |
 
 The bus sits in order on one header row with 4 GND pins between the signals.
 
