@@ -41,3 +41,13 @@ steady-state budget while cold. In steady state 5/6 at mask 6395 needs about 304
 before output starts) is the fair test of that; B9 currently admits only 2/3.
 
 `stackcheck` after the runs: code intact, stack paint not exhausted.
+
+## C9 merged with main regresses B9 (`fe3da359cc`, not merged into main)
+
+With main (A3, Q1, B9) merged in, `c3fec` 2/3 still passes 3 s (mask 251: cores 87.3 / 83.9%;
+mask 6395: 81.3 / 78.0%, supervision 4.9%; `merged-c3fec-code5`). B9 at 16 Msym/s, priority
+13, mask 251 (C9 bits off) failed 3 of 5 short runs (`merged-b9-3s`, `merged-b9-3s-2`): one
+SOURCE_EMPTY at 0.94 s and two service gaps of 129–132 µs during the first 1.4 ms. On main
+(`e6d8776b0f`) the same command passed 4 of 4 at 60 s. Per frame, B9's GCS stage rose from
+23.1k to 29.9k cycles and LDPC by 5–6k on both cores, with the C9 bits off: a placement or
+shared-code cost, not yet located. C9 stays on its branch until that is found.
