@@ -84,13 +84,17 @@ unsigned dual_dma_get_bus_priority(void);
 // Fractional output spacing and external HSTX/data phase are not DAC timing qualification.
 bool dual_dma_start_div256(const uint32_t *desc_i, const uint32_t *desc_q,
                            unsigned count_log2, unsigned divider256);
-// Experimental pin-free pointer source: selected row_words must be8 and writers2.
+// Experimental pin-free pointer source: selected row_words must be8 and writers2/4.
 // Each source must be a distinct claimed PIO SM's RX FIFO with that SM's exact RX DREQ.
 // Caller exclusively owns both pointer SMs and their input DMAs; this engine neither
 // starts nor stops them. No other DMA/CPU consumer may drain those RX FIFOs/DREQs.
 // Poll and honor the producer's own source/reuse deadlines; faults() supplies no cursor.
 // Control DMA consumes one address only after its preceding8-word sample row completes;
 // optional byte-swap converts the L8 pointer producer's RX format to numerical addresses.
+// Four writers use one RX consumer plus one target-router DMA per axis: completed
+// even/odd sample DMAs route the next pointer to the opposite writer. Only one row
+// transfer per axis is active, while four independent TX FIFOs hide the handoff.
+// Four-writer resources: PIO2 four SMs, PIO1 capture, eight output DMAs plus capture.
 // Prepare/start the producer with committed source data before calling this function.
 // Output startup waits up to1ms for prefill, then retains the existing output/capture timing.
 bool dual_dma_start_fifo(const volatile uint32_t *rx_i, const volatile uint32_t *rx_q,

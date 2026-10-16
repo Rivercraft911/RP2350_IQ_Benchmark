@@ -29,7 +29,7 @@ typedef struct { volatile uint32_t txf[4], rxf[4]; bool claimed[4]; unsigned ind
 typedef pio_t *PIO;
 static pio_t ports[3];
 static PIO pio0 = &ports[0], pio1 = &ports[1], pio2 = &ports[2];
-static struct { struct { uintptr_t read_addr; uint32_t al3_read_addr_trig; } ch[16]; } dma;
+static struct { struct { uintptr_t read_addr; uint32_t al3_read_addr_trig, al2_write_addr_trig; } ch[16]; } dma;
 static __typeof__(dma) *dma_hw = &dma;
 typedef struct {
     uint32_t ctrl;
@@ -73,6 +73,7 @@ static struct {
     PIO output_pio;
     int sm[4], control[4], data[4], sm_cap, cap_dma, clock_sm;
     bool owned, fifo_source, control_bswap;
+    uint32_t fifo_targets[2][2] __attribute__((aligned(8)));
     uint32_t count, mask, divider256, schedule, row_words, writers, sys_hz;
     uint32_t last[4], last_poll_us, poll_limit_us;
     uint64_t rows[4];
@@ -140,6 +141,50 @@ static void config_checks(void) {
         assert(d.dreq == 3 && d.chain == 1 && d.read_inc && !d.write_inc && d.quiet);
         assert(d.high == (schedule != 1) && !d.bswap);
     }
+    for (unsigned swap = 0; swap < 2; swap++)
+    for (unsigned schedule = 0; schedule < 4; schedule++)
+    for (unsigned p = 0; p < 3; p++)
+    for (unsigned sm = 0; sm < 4; sm++) {
+        reset(); state.output_pio = pio2; state.row_words = 8; state.writers = 4;
+        state.schedule = schedule; state.control_bswap = swap;
+        state.rx_i = &ports[p].rxf[sm]; state.rx_q = &ports[p].rxf[(sm + 1) % 4];
+        state.rx_dreq_i = 8 * p + sm + 4; state.rx_dreq_q = 8 * p + (sm + 1) % 4 + 4;
+        for (unsigned s = 0; s < 4; s++) {
+            state.control[s] = s; state.data[s] = s + 4; state.sm[s] = s;
+        }
+        axis_alternating_fifo_dma(0); axis_alternating_fifo_dma(1);
+        for (unsigned axis = 0; axis < 2; axis++) {
+            const unsigned control = axis, router = axis + 2, even = axis + 4, odd = axis + 6;
+            dma_channel_config c = channels[control].config, r = channels[router].config;
+            assert(channels[control].read == (axis ? state.rx_q : state.rx_i));
+            assert(channels[control].write == &dma.ch[even].al3_read_addr_trig);
+            assert(channels[control].count == 1 && c.size == DMA_SIZE_32);
+            assert(!c.read_inc && !c.write_inc && !c.ctrl && !c.ring_bits && !c.ring_write);
+            assert(c.dreq == (axis ? state.rx_dreq_q : state.rx_dreq_i));
+            assert(c.chain == control && c.quiet && c.bswap == !!swap && c.high == (schedule != 2));
+            assert(!((uintptr_t)state.fifo_targets[axis] & 7));
+            assert(state.fifo_targets[axis][0] == (uint32_t)(uintptr_t)&dma.ch[odd].al3_read_addr_trig);
+            assert(state.fifo_targets[axis][1] == (uint32_t)(uintptr_t)&dma.ch[even].al3_read_addr_trig);
+            assert(channels[router].read == state.fifo_targets[axis]);
+            assert(channels[router].write == &dma.ch[control].al2_write_addr_trig);
+            assert(channels[router].count == 1 && r.size == DMA_SIZE_32);
+            assert(r.read_inc && !r.write_inc && r.ring_bits == 3 && !r.ring_write && !r.ctrl);
+            assert(r.dreq == DREQ_FORCE && r.chain == router && r.quiet && !r.bswap);
+            assert(r.high == (schedule != 2));
+            unsigned consumers = 0;
+            for (unsigned ch = 0; ch < 8; ch++) consumers += channels[ch].config.dreq == c.dreq;
+            assert(consumers == 1);
+            for (unsigned parity = 0; parity < 2; parity++) {
+                unsigned data = parity ? odd : even, writer = axis + 2 * parity;
+                dma_channel_config d = channels[data].config;
+                assert(channels[data].read == NULL && channels[data].write == &pio2->txf[writer]);
+                assert(channels[data].count == 8 && d.size == DMA_SIZE_32);
+                assert(d.dreq == 16 + writer && d.chain == router && d.read_inc && !d.write_inc);
+                assert(!d.ctrl && !d.ring_bits && !d.ring_write && d.quiet && !d.bswap);
+                assert(d.high == (schedule != 1));
+            }
+        }
+    }
 }
 static void validation_checks(void) {
     for (unsigned claimed = 0; claimed < 2; claimed++)
@@ -152,30 +197,34 @@ static void validation_checks(void) {
         assert(!valid_rx_source(&ports[p].txf[sm], dreq));
     }
     assert(!valid_rx_source(NULL, DREQ_FORCE));
+    for (unsigned writers = 2; writers <= 4; writers += 2)
     for (unsigned a = 0; a < 12; a++)
     for (unsigned b = 0; b < 12; b++) {
-        reset(); unsigned ap = a / 4, as = a % 4, bp = b / 4, bs = b % 4;
+        reset(); selected_writers = writers;
+        unsigned ap = a / 4, as = a % 4, bp = b / 4, bs = b % 4;
         ports[ap].claimed[as] = ports[bp].claimed[bs] = true;
         bool ok = dual_dma_start_fifo(&ports[ap].rxf[as], &ports[bp].rxf[bs],
                                       8 * ap + as + 4, 8 * bp + bs + 4, true, 1);
         assert(ok == (a != b));
         if (ok) {
             assert(starts == 1 && !stopped && state.owned && state.fifo_source);
-            assert(state.output_pio == pio0 && state.writers == 2 && state.row_words == 8);
+            assert(state.output_pio == (writers == 4 ? pio2 : pio0));
+            assert(state.writers == writers && state.row_words == 8);
             assert(state.control_bswap && !state.desc_i && !state.desc_q);
             assert(!state.count && !state.mask && !state.poll_limit_us && !log_arg && divider_arg == 256);
             assert(state.rx_i == &ports[ap].rxf[as] && state.rx_q == &ports[bp].rxf[bs]);
         } else assert(!starts && stopped && state.result.errors == DUAL_DMA_ERR_CONFIG);
     }
+    for (unsigned writers = 2; writers <= 4; writers += 2)
     for (unsigned divider = 0; divider <= 1280; divider++) {
-        reset(); pio1->claimed[0] = pio1->claimed[1] = true;
+        reset(); selected_writers = writers; pio1->claimed[0] = pio1->claimed[1] = true;
         bool ok = dual_dma_start_fifo_div256(&pio1->rxf[0], &pio1->rxf[1], 12, 13, false, divider);
         bool want = divider == 256 || divider == 384 || divider == 512 || divider == 768 || divider == 1024;
         assert(ok == want && starts == (unsigned)want);
     }
     for (unsigned bad = 0; bad < 8; bad++) {
         reset(); pio1->claimed[0] = pio1->claimed[1] = true;
-        if (bad == 0) selected_writers = 4;
+        if (bad == 0) selected_writers = 3;
         if (bad == 1) selected_row_words = 4;
         if (bad == 2) pio1->claimed[1] = false;
         bool ok = dual_dma_start_fifo(bad == 3 ? NULL : &pio1->rxf[0],
@@ -252,7 +301,7 @@ static void cursor_checks(void) {
 }
 int main(void) {
     config_checks(); validation_checks(); cursor_checks();
-    puts("dual FIFO setup: PASS (fixed RX+BSWAP, exact DREQ/claims, old DMA configs/start validation, 36000 wrapped descriptor snapshots)");
+    puts("dual FIFO setup: PASS (fixed RX+BSWAP, alternating targets/sole RX DREQ, exact claims, old DMA configs/start validation, 36000 wrapped descriptor snapshots)");
 }
 '''
 
@@ -291,6 +340,7 @@ static const pio_program_t ddr_clock_program;  // DDR clock fields stay zero/unc
 
 STOP_STUBS = r'''
 static unsigned reads, faults, halted, cleaned, unclaimed, drained, aborts, fifo_level;
+static uint32_t owned_dma_mask, cleaned_dma_mask, unclaimed_dma_mask;
 static const char *last_error;
 static void sample_reads(bool check_time) {
     assert(!state.fifo_source); reads++;
@@ -311,7 +361,12 @@ static void hw_write_masked(uint32_t *reg, uint32_t value, uint32_t mask) {
     *reg = (*reg & ~mask) | (value & mask);
 }
 static void tight_loop_contents(void) {
-    assert(state.capture_frozen); aborts++; dma.abort = 0;
+    assert(state.capture_frozen && dma.abort == owned_dma_mask);
+    for (unsigned ch = 0; ch < 16; ch++) if (owned_dma_mask & (1u << ch)) {
+        assert(!(dma.ch[ch].al1_ctrl & DMA_CH0_CTRL_TRIG_EN_BITS));
+        assert(((dma.ch[ch].al1_ctrl >> 13) & 15) == ch);
+    }
+    aborts++; dma.abort = 0;
     for (unsigned ch = 0; ch < 16; ch++) dma.ch[ch].transfer_count = 0;
 }
 static uint32_t pio_sm_get(PIO p, unsigned sm) {
@@ -319,6 +374,8 @@ static uint32_t pio_sm_get(PIO p, unsigned sm) {
 }
 static void dma_channel_cleanup(unsigned ch) {
     assert(state.capture_frozen && !dma.abort);
+    assert((owned_dma_mask & (1u << ch)) && !(cleaned_dma_mask & (1u << ch)));
+    cleaned_dma_mask |= 1u << ch;
     assert(!(dma.ch[ch].al1_ctrl & DMA_CH0_CTRL_TRIG_EN_BITS));
     assert(((dma.ch[ch].al1_ctrl >> 13) & 15) == ch);
     dma.ch[ch].ctrl_trig = 0; cleaned++;
@@ -336,7 +393,10 @@ static void reset_block(uint32_t mask) { (void)mask; }
 static void unreset_block_wait(uint32_t mask) { (void)mask; }
 static void clock_stop(unsigned clk) { (void)clk; }
 static void clock_set_reported_hz(unsigned clk, uint32_t hz) { (void)clk; (void)hz; }
-static void dma_channel_unclaim(unsigned ch) { (void)ch; unclaimed++; }
+static void dma_channel_unclaim(unsigned ch) {
+    assert((cleaned_dma_mask & (1u << ch)) && !(unclaimed_dma_mask & (1u << ch)));
+    unclaimed_dma_mask |= 1u << ch; unclaimed++;
+}
 static const pio_program_t *i_output_program(void) { static const pio_program_t p = {0}; return &p; }
 static const pio_program_t *q_output_program(void) { return i_output_program(); }
 static void pio_remove_program(PIO p, const pio_program_t *program, unsigned offset) {
@@ -347,10 +407,11 @@ static void pio_sm_unclaim(PIO p, unsigned sm) { assert(p->claimed[sm]); p->clai
 
 STOP_CHECKS = r'''
 int main(void) {
+    for (unsigned writers = 2; writers <= 4; writers += 2)
     for (unsigned fifo = 0; fifo < 2; fifo++)
     for (unsigned running = 0; running < 2; running++)
     for (unsigned cap = 0; cap < 3; cap++)
-    for (unsigned ahb = 0; ahb < 3; ahb++)
+    for (unsigned ahb = 0; ahb < 4; ahb++)
     for (unsigned ddr = 0; ddr < 2; ddr++) {
         memset(&state, 0, sizeof state); memset(&dma, 0, sizeof dma);
         memset(&output, 0, sizeof output); memset(&capture, 0, sizeof capture);
@@ -364,37 +425,47 @@ int main(void) {
             state.clock_gpio_ctrl = 0x1f; state.clock_gpio_pad = 0x56;
         }
         dma_hw = &dma; reads = faults = halted = cleaned = unclaimed = drained = aborts = 0;
+        owned_dma_mask = cleaned_dma_mask = unclaimed_dma_mask = 0;
         state.owned = state.saved = true; state.fifo_source = fifo;
         state.running = state.result.running = running;
-        state.writers = 2; state.output_pio = &output;
-        state.control[0] = 2; state.control[1] = 3; state.data[0] = 4; state.data[1] = 5;
-        state.cap_dma = 6; state.sm_cap = 2; state.sm[0] = 2; state.sm[1] = 3;
-        output.claimed[2] = output.claimed[3] = capture.claimed[2] = true;
+        state.writers = writers; state.output_pio = &output;
+        for (unsigned s = 0; s < writers; s++) {
+            state.control[s] = s + 2; state.data[s] = s + 2 + writers; state.sm[s] = s;
+            output.claimed[s] = true;
+        }
+        state.cap_dma = 2 + 2 * writers; state.sm_cap = 2; capture.claimed[2] = true;
         // External pointer producer claims must survive output stop at every state.
         capture.claimed[0] = capture.claimed[1] = true;
         state.out_added = state.out_q_added = state.cap_added = true;
         state.hstx_changed = state.priority_changed = true;
         state.capture_started = cap != 0; state.capture_fifo_only = cap == 2;
-        state.capture_requested = 16; dma.ch[6].transfer_count = 5;
+        state.capture_requested = 16; dma.ch[state.cap_dma].transfer_count = 5;
         uint32_t buffer[16] = {0}; state.capture_buffer = buffer; fifo_level = 5;
-        for (unsigned ch = 2; ch <= 6; ch++) dma.ch[ch].al1_ctrl = 1;
-        if (ahb) dma.ch[ahb == 1 ? 2 : 6].ctrl_trig = DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS;
+        for (unsigned ch = 2; ch <= (unsigned)state.cap_dma; ch++) {
+            dma.ch[ch].al1_ctrl = 1 | (((ch + 1) % 16) << 13);
+            owned_dma_mask |= 1u << ch;
+        }
+        if (ahb) dma.ch[ahb == 1 ? state.control[0] : ahb == 2 ? state.cap_dma :
+                            state.control[writers - 1]].ctrl_trig = DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS;
         dual_dma_stop();
         assert(!state.owned && !state.running && !state.result.running && state.capture_frozen);
         assert(reads == (fifo ? 0 : 1 + running));
-        assert(faults == 2 && halted == running && aborts == 1 && cleaned == 5 && unclaimed == 5);
-        assert(!output.claimed[2] && !output.claimed[3] && !capture.claimed[2]);
+        assert(faults == 2 && halted == running && aborts == 1);
+        assert(cleaned == 2 * writers + 1 && unclaimed == 2 * writers + 1);
+        assert(cleaned_dma_mask == owned_dma_mask && unclaimed_dma_mask == owned_dma_mask);
+        for (unsigned s = 0; s < writers; s++) assert(!output.claimed[s]);
+        assert(!capture.claimed[2]);
         assert(capture.claimed[0] && capture.claimed[1]);
         assert(dacclk.claimed[1] == !ddr);
         assert(io_bank.io[28].ctrl == (ddr ? 0x1fu : 0u) && pads.io[28] == (ddr ? 0x56u : 0u));
-        assert(state.result.errors == (ahb == 1 ? DUAL_DMA_ERR_OUTPUT_DMA :
-                                      ahb == 2 ? DUAL_DMA_ERR_CAPTURE_DMA : 0));
+        assert(state.result.errors == (ahb == 2 ? DUAL_DMA_ERR_CAPTURE_DMA :
+                                      ahb ? DUAL_DMA_ERR_OUTPUT_DMA : 0));
         assert(state.captured == (cap == 1 ? 11 : cap == 2 ? 5 : 0));
         assert(drained == (cap == 2 ? 5 : 0));
         if (cap == 2) for (unsigned n = 0; n < 5; n++) assert(buffer[n] == 0xa000u + n);
         dma_hw = NULL; dual_dma_stop(); // no register access after ownership release
     }
-    puts("dual DMA stop: PASS (both sources, running/halted, partial DMA/FIFO capture, AHB faults, external pointer ownership, DDR clock release, no FIFO cursor reads)");
+    puts("dual DMA stop: PASS (two/four writers including routers, both sources, running/halted, partial DMA/FIFO capture, AHB faults, external pointer ownership, DDR clock release, no FIFO cursor reads)");
 }
 '''
 
@@ -416,6 +487,7 @@ def main():
         ("static void", "axis_data_dma", "int control, int data, uint sm"),
         ("static void", "axis_dma", "int control, int data, uint sm, const uint32_t *descriptors, uint ring_bits"),
         ("static void", "axis_fifo_dma", "int control, int data, uint sm, const volatile uint32_t *rx, unsigned dreq"),
+        ("static void", "axis_alternating_fifo_dma", "unsigned axis"),
         ("static bool", "valid_rx_source", "const volatile uint32_t *rx, unsigned dreq"),
         ("bool", "dual_dma_start_div256", "const uint32_t *desc_i, const uint32_t *desc_q, unsigned count_log2, unsigned divider256"),
         ("bool", "dual_dma_start_fifo_div256", "const volatile uint32_t *rx_i, const volatile uint32_t *rx_q, unsigned dreq_i, unsigned dreq_q, bool control_bswap, unsigned divider256"),
