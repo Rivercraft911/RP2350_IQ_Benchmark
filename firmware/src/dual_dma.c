@@ -98,6 +98,8 @@ typedef struct {
     uint clock_offset;
     bool clock_added, clock_saved;
     uint32_t run_mask[3], clock_gpio_ctrl, clock_gpio_pad, clock_pio_out, clock_pio_oe;
+    // Four FIFO writers: control[0:1] alone drain RX; control[2:3] route them.
+    uint32_t fifo_targets[2][2] __attribute__((aligned(8)));
 } engine_t;
 
 static engine_t state;
@@ -402,6 +404,31 @@ static void axis_fifo_dma(int control, int data, uint sm,
     dma_channel_configure(control, &dc, &dma_hw->ch[data].al3_read_addr_trig, rx, 1, false);
 }
 
+static void axis_alternating_fifo_dma(unsigned axis) {
+    const int control = state.control[axis], router = state.control[axis + 2];
+    const int even = state.data[axis], odd = state.data[axis + 2];
+    axis_fifo_dma(control, even, state.sm[axis], axis ? state.rx_q : state.rx_i,
+                  axis ? state.rx_dreq_q : state.rx_dreq_i);
+    axis_data_dma(router, even, state.sm[axis]);
+    axis_data_dma(router, odd, state.sm[axis + 2]);
+    // One RX-DREQ consumer per axis. Each completed sample row selects the OTHER
+    // writer before triggering the next pointer read. Two RX-paced channels would
+    // accumulate duplicate DREQ credits even if software only started one at a time.
+    state.fifo_targets[axis][0] = (uintptr_t)&dma_hw->ch[odd].al3_read_addr_trig;
+    state.fifo_targets[axis][1] = (uintptr_t)&dma_hw->ch[even].al3_read_addr_trig;
+    dma_channel_config dc = dma_channel_get_default_config(router);
+    channel_config_set_transfer_data_size(&dc, DMA_SIZE_32);
+    channel_config_set_read_increment(&dc, true);
+    channel_config_set_write_increment(&dc, false);
+    channel_config_set_ring(&dc, false, 3); // two naturally8B-aligned targets
+    channel_config_set_dreq(&dc, DREQ_FORCE);
+    channel_config_set_chain_to(&dc, router); // WRITE_ADDR_TRIG starts control
+    channel_config_set_irq_quiet(&dc, true);
+    channel_config_set_high_priority(&dc, state.schedule != 2);
+    dma_channel_configure(router, &dc, &dma_hw->ch[control].al2_write_addr_trig,
+                          state.fifo_targets[axis], 1, false);
+}
+
 static bool valid_rx_source(const volatile uint32_t *rx, unsigned dreq) {
     const PIO ports[] = {pio0, pio1, pio2};
     for (unsigned p = 0; p < 3; ++p)
@@ -491,15 +518,15 @@ bool dual_dma_start_fifo_div256(const volatile uint32_t *rx_i, const volatile ui
     if (state.owned) { last_error = "dual DMA already owns resources"; return false; }
     claim_init();
     state.fifo_source = true;
-    if (selected_writers != 2 || selected_row_words != 8 ||
+    if ((selected_writers != 2 && selected_writers != 4) || selected_row_words != 8 ||
         !rx_i || !rx_q || rx_i == rx_q || dreq_i == dreq_q ||
         !valid_rx_source(rx_i, dreq_i) || !valid_rx_source(rx_q, dreq_q) ||
         (divider256 != 256 && divider256 != 384 && divider256 != 512 &&
          divider256 != 768 && divider256 != 1024))
-        return start_failed("FIFO sources need distinct claimed RX FIFOs/DREQs, two writers, eight-word rows and valid divider",
+        return start_failed("FIFO sources need distinct claimed RX FIFOs/DREQs, two/four writers, eight-word rows and valid divider",
                             DUAL_DMA_ERR_CONFIG);
-    state.writers = 2;
-    state.output_pio = pio0;
+    state.writers = selected_writers;
+    state.output_pio = state.writers == 4 ? pio2 : pio0;
     state.row_words = 8;
     state.rx_i = rx_i; state.rx_q = rx_q;
     state.rx_dreq_i = dreq_i; state.rx_dreq_q = dreq_q;
@@ -687,13 +714,20 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
     uint32_t control_mask = 0;
     for (unsigned s = 0; s < state.writers; s++) {
         if (state.fifo_source) {
-            axis_fifo_dma(state.control[s], state.data[s], state.sm[s], s ? state.rx_q : state.rx_i,
-                           s ? state.rx_dreq_q : state.rx_dreq_i);
+            if (state.writers == 4) {
+                if (s < 2) axis_alternating_fifo_dma(s);
+            } else {
+                axis_fifo_dma(state.control[s], state.data[s], state.sm[s], s ? state.rx_q : state.rx_i,
+                               s ? state.rx_dreq_q : state.rx_dreq_i);
+            }
         } else {
             const uint32_t *descriptors = (s & 1u ? state.desc_q : state.desc_i) + (s >> 1);
             axis_dma(state.control[s], state.data[s], state.sm[s], descriptors, count_log2 + 2);
         }
-        control_mask |= 1u << state.control[s];
+        // Routers are started only by sample completion. Starting them here would
+        // redirect the very first row or trigger an already-active control channel.
+        if (!state.fifo_source || state.writers == 2 || s < 2)
+            control_mask |= 1u << state.control[s];
     }
     const uint32_t priority = ((selected_bus_priority & 1u) << 0) |
         ((selected_bus_priority & 2u) << 3) | ((selected_bus_priority & 4u) << 6) |

@@ -41,6 +41,7 @@
 //   bchbank <0|1>                                frontend BCH steps: striped SRAM / scratch-Y copy
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
 //   dualptr cpw ms source fault [code]           live SPI/FEC, PIO pointers (source5/6)
+//   dualptr4 cpw ms source fault [code]          same with four alternating writers
 //        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=SPI TS, 6=SPI GCS
 //   bootsel                                       reboot to the USB bootloader
 #include <limits.h>
@@ -341,7 +342,7 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "dualbench")) {
         if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
         bench_descriptors(reps);
-    } else if (!strcmp(cmd, "dualptr")) {
+    } else if (!strcmp(cmd, "dualptr") || !strcmp(cmd, "dualptr4")) {
         int source, fault, code_index;
         if (!num(a[1], "cpw", REQUIRED, 1, 2, &r.cpw) ||
             !num(a[2], "ms", REQUIRED, 100, 60000, &r.ms) ||
@@ -350,7 +351,8 @@ static const char *dispatch(char *line) {
             !num(a[5], "code", 8, 5, 10, &code_index)) return err;
         if (code_index == 6 || code_index == 7)
             return "pointer trial codes are normal2/3(5),5/6(8),8/9(9),9/10(10)";
-        bench_dual_pointer(r.cpw, r.ms, source, fault, code_index);
+        if (!strcmp(cmd, "dualptr4")) bench_dual_pointer4(r.cpw, r.ms, source, fault, code_index);
+        else bench_dual_pointer(r.cpw, r.ms, source, fault, code_index);
     } else if (!strcmp(cmd, "dualstream")) {
         int kernel, source, fault, schedule, divider256, row_symbols, code_index;
         if (!num(a[1], "cpw", REQUIRED, 1, 4, &r.cpw) ||

@@ -113,7 +113,7 @@ mapper. That is **126.7% of one core**, or 63.4% of two perfectly balanced cores
 before ingress, descriptors and supervision. The existing split is not perfectly
 balanced; these totals alone cannot establish a live rate.
 
-Instruction counting, using the timing rules in [rp2350-notes](docs/rp2350-notes.md),
+Instruction counting, using the timing rules in [rp2350-notes](../../docs/rp2350-notes.md),
 gives **46 instructions/word** for the four-word leaf versus **54** for the
 five-word leaf. Charging the input LDR use, three dependent complex shifts and
 the taken branch gives approximately **51 versus 59 cycles/word**, before
@@ -148,7 +148,7 @@ the prior descriptor/supervision remainder (83.1%-45.2%=37.9%) gives about
 stage/ingress estimate gives core 1 about **79% GCS / 91–92% TS**:
 `[(100422+71000)*1.021 + 58112*(0.61 or 1.18)] / 266256`.
 The contention factor and ingress cycles/bit are inherited from the
-[frontier calibration](docs/frontier/frontier.md); they are assumptions for this
+[frontier calibration](../../docs/frontier/frontier.md); they are assumptions for this
 image. BCH slicing overhead, IRQs and changed arbitration can move the outcome.
 The initial whole-BB copy is still one call, roughly 80–156 us estimated;
 pointer poll gaps and maximum slice cycles must be checked on hardware.

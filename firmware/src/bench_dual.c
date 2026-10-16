@@ -706,10 +706,19 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     restore_trial_buffers(spi, paired);
 }
 
-// Live SPI/FEC with hardware-only shaping. The existing FIFO backend has two
-// writers; keep its paired-axis pacing rather than race four DMA readers on two
-// RX FIFOs. Core0 performs bounded BB+BCH slices, core1 retains ordered LDPC/map.
-void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index) {
+// Live SPI/FEC with hardware-only shaping. Core0 performs bounded BB+BCH slices,
+// core1 retains ordered LDPC/map. Four writers retain one RX consumer per axis.
+static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, int code_index,
+                                       unsigned writers) {
+    const char *command = writers == 4 ? "dualptr4" : "dualptr";
+    const PIO pointer_pio = writers == 4 ? pio0 : pio2;
+    bool resources = spi_resources_available();
+    if (writers == 4) {
+        for (unsigned ch = 0; ch < NUM_DMA_CHANNELS; ch++)
+            resources &= !dma_channel_is_claimed(ch);
+        for (unsigned sm = 0; sm < NUM_PIO_STATE_MACHINES; sm++)
+            resources &= !pio_sm_is_claimed(pio0, sm);
+    }
     enum { PTR_POLL_US = 128, PTR_MAX_POLL_US = 256, PTR_BCH_SLICE_WORDS = 96,
            ERR_POINTER = 1u << 19, ERR_CAPTURE = 1u << 20, ERR_POLL = 1u << 21,
            ERR_CONFIG = 1u << 22, ERR_CREDIT = 1u << 23, ERR_CLEANUP = 1u << 24 };
@@ -719,9 +728,9 @@ void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index) 
         (cpw != 1 && cpw != 2) || ms < 100 || ms > 60000 ||
         !spi_source(source) || (fault != 0 && fault != 1) ||
         (dvbs2_bch_get_kernel() != S2_BCH_STREAM_ARM && dvbs2_bch_get_kernel() != S2_BCH_T8_ARM) || dvbs2_map_get_kernel() != 1 ||
-        dvbs2_ldpc_get_pack() != 1 || !spi_resources_available() ||
+        dvbs2_ldpc_get_pack() != 1 || !resources ||
         iqquadptr_rx_fifo(0) || iqquadptr_rx_fifo(1)) {
-        printf("@{\"cmd\":\"dualptr\",\"error\":\"needs cpw1/2,100..60000ms,source5/6,fault0/1,code5/8/9/10,bchkernel2/3,mapkernel1,ldpcpack1 and idle resources\"}\n");
+        printf("@{\"cmd\":\"%s\",\"error\":\"needs cpw1/2,100..60000ms,source5/6,fault0/1,code5/8/9/10,bchkernel2/3,mapkernel1,ldpcpack1 and idle resources\"}\n", command);
         return;
     }
     const unsigned saved_writers = dual_dma_get_writers(), saved_rows = dual_dma_get_row_words();
@@ -749,7 +758,7 @@ void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index) 
     bool tables_ok;
     const char *e = tx_shaper("lut_asm_p", 4, 12, &unused, &tables_ok);
     if (e || !tables_ok || base + 4 * IQQUAD_L8_WORDS > arena_end ||
-        !dual_dma_set_writers(2) || !dual_dma_set_row_words(8) ||
+        !dual_dma_set_writers(writers) || !dual_dma_set_row_words(8) ||
         !dual_dma_set_schedule(0) || !dual_dma_set_bus_priority(saved_priority)) {
         errors |= ERR_CONFIG; reason = "tables, arena or output selectors unavailable"; goto cleanup;
     }
@@ -765,11 +774,11 @@ void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index) 
     // for descriptors; cap_buf's input portion is no longer read by this path.
     encoder.consumed = 0;
     pointer_attempted = true;
-    if (!iqquadptr_prepare_profile(pio2, in_buf, 13, (const uint32_t *)base, 0, encoder.total, pulse)) {
+    if (!iqquadptr_prepare_profile(pointer_pio, in_buf, 13, (const uint32_t *)base, 0, encoder.total, pulse)) {
         errors |= ERR_POINTER; reason = iqquadptr_last_error(); goto cleanup;
     }
     for (unsigned sm = 0; sm < NUM_PIO_STATE_MACHINES; sm++)
-        if (iqquadptr_rx_fifo(0) == &pio2->rxf[sm] || iqquadptr_rx_fifo(1) == &pio2->rxf[sm])
+        if (iqquadptr_rx_fifo(0) == &pointer_pio->rxf[sm] || iqquadptr_rx_fifo(1) == &pointer_pio->rxf[sm])
             pointer_sm_mask |= 1u << sm;
     if (!iqquadptr_start()) { errors |= ERR_POINTER; reason = iqquadptr_last_error(); goto cleanup; }
     output_attempted = true;
@@ -844,7 +853,7 @@ cleanup:
     if (spi_started) pvspi_pause();
     if (output_attempted) dual_dma_stop(); // stop writers and DDR clock before pointer producer
     if (pointer_attempted) {
-        other_pio_flags = pio2->fdebug & ((pointer_sm_mask << PIO_FDEBUG_TXOVER_LSB) |
+        other_pio_flags = pointer_pio->fdebug & ((pointer_sm_mask << PIO_FDEBUG_TXOVER_LSB) |
                                          (pointer_sm_mask << PIO_FDEBUG_RXUNDER_LSB));
         iqquadptr_stop(); p = iqquadptr_progress();
     }
@@ -867,9 +876,10 @@ cleanup:
     if (!(errors & ERR_CLEANUP)) { restore_trial_buffers(true, true); restored = true; }
     const double budget = (double)elapsed * clock_hz / 1e6;
     const double encoder_budget = worker_started ? (encoder.end_us - encoder.start_us) * clock_hz / 1e6 : 1;
-    printf("@{\"cmd\":\"dualptr\",\"git\":\"%s\",\"clk_hz\":%lu,\"source\":%d,\"cpw\":%d,\"divider256\":%d,"
+    printf("@{\"cmd\":\"%s\",\"git\":\"%s\",\"clk_hz\":%lu,\"source\":%d,\"cpw\":%d,\"divider256\":%d,"
            "\"ms\":%d,\"fault\":%d,\"elapsed_us\":%lu,\"sym_rate\":%.1f,\"sps\":4,\"L\":8,"
-           "\"row_profile\":\"qpsk_l8_n4_both_m010_far2\",\"filter_beta\":null,\"row_symbols\":4,\"writers\":2,"
+           "\"row_profile\":\"qpsk_l8_n4_both_m010_far2\",\"filter_beta\":null,\"row_symbols\":4,\"writers\":%u,"
+           "\"pointer_pio\":%u,\"pointer_routing\":\"%s\","
            "\"schedule\":0,\"bus_priority_mask\":%u,\"code_index\":%d,\"s2_code\":\"%s\",\"kbch\":%u,"
            "\"bch_kernel\":%d,\"map_kernel\":1,\"ldpc_pack\":1,\"bch_bank\":%u,\"frame_parallel\":false,"
            "\"descriptor_gen_busy\":0.0,\"sample_math_busy\":0.0,\"table_base\":%lu,\"table_bytes\":65536,\"table_crc\":%lu,"
@@ -885,9 +895,11 @@ cleanup:
            "\"restored\":%s,\"selectors_restored\":%s,\"capture_started\":%s,\"capture_count\":%lu,"
            "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%d,"
            "\"cap_fifo_only\":false,\"cap_format\":\"%s\",\"dac_clock\":\"%s\",\"dac_clock_pio\":%d,\"dac_clock_sm\":%d",
-           GIT_REV, (unsigned long)clock_hz, source, cpw, cpw * 256, ms, fault, (unsigned long)elapsed,
-           (double)clock_hz / (8 * cpw), dual_dma_get_bus_priority(), code_index, code_name, bb_bits,
-           (int)dvbs2_bch_get_kernel(), dvbs2_frontend_get_bank(), (unsigned long)base, (unsigned long)table_crc,
+           command, GIT_REV, (unsigned long)clock_hz, source, cpw, cpw * 256, ms, fault, (unsigned long)elapsed,
+           (double)clock_hz / (8 * cpw), writers, pio_get_index(pointer_pio),
+           writers == 4 ? "alternating_dma" : "paired_dma", dual_dma_get_bus_priority(),
+           code_index, code_name, bb_bits, (int)dvbs2_bch_get_kernel(),
+           dvbs2_frontend_get_bank(), (unsigned long)base, (unsigned long)table_crc,
            (unsigned long)(uintptr_t)in_buf, (unsigned long)errors, (unsigned long)p.errors, (unsigned long)output.errors, reason,
            (unsigned long)output.txstalls_i, (unsigned long)output.txstalls_q, (unsigned long)pointer_sm_mask,
            (unsigned long)p.txstall_mask, (unsigned long)p.rxstall_mask, (unsigned long)p.null_trigger_mask,
@@ -908,4 +920,12 @@ cleanup:
     print_spi_stats(encoder_budget, bb_prefill, spi_head_start);
     printf("}\n");
     capture_print(capture, count);
+}
+
+void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index) {
+    bench_dual_pointer_writers(cpw, ms, source, fault, code_index, 2);
+}
+
+void bench_dual_pointer4(int cpw, int ms, int source, int fault, int code_index) {
+    bench_dual_pointer_writers(cpw, ms, source, fault, code_index, 4);
 }

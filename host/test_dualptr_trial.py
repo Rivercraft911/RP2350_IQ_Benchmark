@@ -37,7 +37,7 @@ def spi_stats(source, code_index=8):
 
 
 def fixture(source=6, cpw=1, fault=0, clock_mode=1, clock=128000000,
-            code_index=8, bch_kernel=2, bch_bank=1):
+            code_index=8, bch_kernel=2, bch_bank=1, writers=2):
     cursor = 123*spi.FRAME_SYMBOLS+1000
     first, bus = spi.reference_window(cursor, span=8, beta=None, gcs=source == 6,
                                       rate=spi.QPSK_RATES[code_index], profile=trial.L8_PROFILE)
@@ -78,6 +78,9 @@ def fixture(source=6, cpw=1, fault=0, clock_mode=1, clock=128000000,
              cap_words=0 if fault else trial.CAP_WORDS,
              cap_symbol_cursor=cursor, cap_crc=0 if fault else zlib.crc32(values.tobytes()),
              pv_spi=copy.deepcopy(spi_stats(source, code_index)))
+    if writers == 4:
+        r.update(cmd='dualptr4', writers=4, dac_clock_pio=0,
+                 pointer_pio=0, pointer_routing='alternating_dma')
     return r, values, [] if fault else capture_lines(values)
 
 
@@ -94,9 +97,10 @@ class DualptrTrial(unittest.TestCase):
         cls.references.stop()
 
     def validate(self, r, lines, source=6, cpw=1, fault=0, clock_mode=1,
-                 code_index=8, bch_kernel=2, bch_bank=1):
+                 code_index=8, bch_kernel=2, bch_bank=1, writers=2):
         return trial.validate_run(r, lines, cpw, 3000, source, fault, clock_mode,
-                                  128000000, 'frozen-test-image', code_index, bch_kernel, bch_bank)
+                                  128000000, 'frozen-test-image', code_index, bch_kernel, bch_bank,
+                                  writers=writers)
 
     def test_high_rates_require_exact_fec_configuration(self):
         for code_index in (9, 10):
@@ -144,6 +148,70 @@ class DualptrTrial(unittest.TestCase):
         self.assertEqual(result['cap_mismatches'], 1)
         self.assertEqual(result['cap_first_bad'], 4095)
         self.assertTrue(result['faults'])
+
+    def test_four_writers_both_sources_rates_positive_and_negative_controls(self):
+        for source in (5, 6):
+            for cpw in (1, 2):
+                for fault, clock_mode, classification in (
+                        (0, 1, 'digital_live_clean'),
+                        (0, 2, 'inverted_clock_detected'),
+                        (1, 1, 'credit_starvation_detected')):
+                    r, _, lines = fixture(source, cpw, fault, clock_mode, writers=4)
+                    result = self.validate(r, lines, source, cpw, fault, clock_mode, writers=4)
+                    self.assertEqual(result['faults'], [], (source, cpw, fault, clock_mode))
+                    self.assertEqual(result['classification'], classification)
+                    self.assertEqual(result['negative_control_detected'], bool(fault or clock_mode == 2))
+                    if not fault:
+                        self.assertEqual(result['cap_checked_bus_words'], 4096)
+                        self.assertEqual(result['cap_clock_checked'], 4096)
+
+    def test_four_writer_command_build_and_topology_fail_closed(self):
+        r, _, lines = fixture(writers=4)
+        for change in (dict(cmd='dualptr'), dict(writers=2), dict(git='other-image'),
+                       dict(dac_clock_pio=2), dict(pointer_pio=2),
+                       dict(pointer_routing='shared_fifo'), dict(pointer_sm_mask=15),
+                       dict(dac_clock_sm=0), dict(dac_clock_sm=4)):
+            self.assertTrue(self.validate(dict(r, **change), lines, writers=4)['faults'], change)
+        for field in ('pointer_pio', 'pointer_routing'):
+            changed = dict(r); del changed[field]
+            self.assertTrue(self.validate(changed, lines, writers=4)['faults'], field)
+        self.assertTrue(self.validate(r, lines)['faults'])
+        self.assertTrue(self.validate(r, lines, writers=3)['faults'])
+        legacy, _, legacy_lines = fixture()
+        self.assertTrue(self.validate(legacy, legacy_lines, writers=4)['faults'])
+
+    def test_runner_defaults_to_dualptr_and_selects_four_writer_command(self):
+        for writers in (2, 4):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                build, source, out = root/'build', root/'firmware', root/'out'
+                build.mkdir(); (source/'src').mkdir(parents=True)
+                for name in ('iqbench.uf2', 'iqbench.elf'):
+                    (build/name).write_bytes(b'test image')
+                (source/'CMakeLists.txt').write_text('# test source\n')
+                board = mock.Mock()
+                board.cmd.return_value = ({}, [])
+                args = ['dualptr_trial.py', '--out', str(out), '--build', str(build),
+                        '--source', str(source), '--control']
+                if writers == 4:
+                    args += ['--writers', '4']
+                with mock.patch('sys.argv', args), mock.patch.object(trial.iq, 'Board', return_value=board), \
+                        mock.patch.object(trial, 'validate_clock'), \
+                        mock.patch.object(trial, 'validate_control', return_value=dict(faults=[])), \
+                        mock.patch.object(trial, 'validate_run', return_value=dict(faults=[])) as validate, \
+                        mock.patch.object(trial.subprocess, 'check_output', return_value='frozen-test-image\n'), \
+                        mock.patch('builtins.print'):
+                    trial.main()
+                pointer_cmd = 'dualptr4' if writers == 4 else 'dualptr'
+                commands = [call.args[0] for call in board.cmd.call_args_list]
+                self.assertIn(f'{pointer_cmd} 1 3000 6 0 8', commands)  # C2 appends the code index
+                self.assertIn('dualstream 1 3000 2 6 4096 0 0 0 4 8', commands)
+                self.assertEqual(validate.call_args.kwargs['writers'], writers)
+                manifest = json.loads((out/'manifest.json').read_text())
+                self.assertEqual(manifest['writers'], writers)
+                self.assertIn('host/dualptr_trial.py', manifest['sha256'])
+                self.assertTrue((out/f'{pointer_cmd}-128000-1-6-code8-clock1-fault0-0.txt').exists())
+                board.s.close.assert_called_once()
 
     def test_inverted_clock_needs_correct_data_and_every_clock_snapshot_bad(self):
         r, values, lines = fixture(clock_mode=2)
