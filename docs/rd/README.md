@@ -1,3 +1,9 @@
+# N5 follow-up (2026-10-16)
+
+| Branch | Work | Status | Here |
+|---|---|---|---|
+| `rd/n5-12m8` | L7/N5 pulse, padded 8-bit rows and four SRAM-fed writers at calculated 12.8/6.4 Msym/s | 60 s clean at 12.8 and 6.4 Msym/s, priorities 0 and 13, 0.8% supervision; mask model margin +0.027 dB ([results](../../results/n5-12m8/2026-10-16/README.md)) | [report](n5-12m8.md), [model](n5-model.json) |
+
 # R&D round 1 (2026-10-15)
 
 Three Codex agents worked from `integration/yapogee-2026-10-15` (`8014ed3`); the
@@ -53,3 +59,4 @@ Merged on `rd/round3`. Every device run is at the rated 128 MHz system clock.
 | `rd/b10-8psk16-rates` | B9 at 5/6 and 3/4 with C9 masks; SRAM hot GCS/C5 scheduler; service checked before each slice | **8PSK 5/6 at 16 Msym/s (38.76 Mb/s) 60 s clean**; 3/4 dry at 46 s; C9 regression was XIP placement ([results](../../results/b10-8psk16-rates/2026-10-16/README.md)) | [report](b10-8psk16-rates.md), opt-in |
 | `rd/q1-qpsk` (agent branch) | IREC QPSK 2/3 on `dualptr`; fused TS CRC-8/copy adapter (`pvkernel` 1/2/3) | 2/3 8 Msym/s TS 21.4% / 43.2%; 16 Msym/s 9/10 TS core 1 95.9% -> 70.9% with k3 ([results](../../results/q1-qpsk/2026-10-16/README.md)) | [report](q1-qpsk.md), opt-in |
 | `rd/a3-apsk` (agent branch) | Table-driven 16/32APSK PL mapper (option 1), multiply-form 32APSK conversion (option 2) | 60 s clean: 16APSK cpw 7 4.571 Msym/s 14.73 Mb/s, 32APSK cpw 9 3.556 Msym/s 14.33 Mb/s ([results](../../results/a3-apsk/2026-10-16/README.md)) | [report](a3-apsk.md), opt-in |
+| `rd/ingress-wide` | Source-clocked four-bit PV message receiver (`pvwide`) with on-chip sender | 60 s clean at 30.5 / 40.2 / 47.8 Mb/s, 76.9 Mb/s 3 s; internal sender only ([results](../../results/ingress-wide/2026-10-16/README.md)) | [report](ingress-wide.md), opt-in |

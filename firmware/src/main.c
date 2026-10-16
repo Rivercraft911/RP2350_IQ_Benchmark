@@ -27,6 +27,7 @@
 //   bench4fec cpw ms invert [prio] [bits]        live 8PSK FEC -> hardware shaping; bits 8 = B7 transmitter
 //   bench4prod8 / bench4prod8live cpw ms invert [prio] [starve_ms]   four PIO producers (B6, 16 Msym/s)
 //   bench4quad8 / bench4quad cpw ms invert [prio] four SRAM-fed chains, cyclic (B5)
+//   bench5quad8 cpw ms invert [prio]              N5 cyclic 8PSK, cpw1/2 = 12.8/6.4 Msym/s
 //   bench4live / bench4live8 cpw ms invert [prio]   one chain per axis, cyclic (B1 / B4)
 //
 // CPU-shaped 8PSK, VCM and APSK
@@ -58,6 +59,7 @@
 //   bench <kernel> <sps> <L> [reps]               shaping kernel throughput + output CRC
 //   bench32bus mode group                        no-output bus contention diagnosis
 //   pvstress ms irq_mask_us / pvbench [reps] [kernel] / ptrbench [reps]   SPI admission / packet prep / PIO pointers
+//   pvwide ms width half fault [emulate]        [exp] PV messages on 1/4-bit source-clocked bus
 //   snifftest / ddrtest [ms] / dualbench [reps]   DMA sniffer / PIO data + HSTX clock / descriptor generation
 #include <limits.h>
 #include <stdio.h>
@@ -79,11 +81,13 @@
 #include "bench4live.h"
 #include "bench4fec.h"
 #include "bench4quad.h"
+#include "bench5quad.h"
 #include "bench4prod.h"
 #include "bench_b9.h"
 #include "dmaloop.h"
 #include "c3_fec.h"
 #include "r2grant.h"
+#include "pvwide.h"
 #endif
 #include "bench_ptr.h"
 #include "dual_dma.h"
@@ -330,6 +334,14 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "mode", 1, 0, 1, &code)) return err;
         bench_quadptr(code);
 #ifdef IQ4HIST_EXPERIMENT
+    } else if (!strcmp(cmd, "pvwide")) {
+        int width, half, fault, emulate;
+        if (!num(a[1], "ms", 1000, 100, 60000, &r.ms) ||
+            !num(a[2], "width", 4, 1, 4, &width) ||
+            !num(a[3], "half", 4, 3, 16, &half) ||
+            !num(a[4], "fault", 0, 0, 2, &fault) ||
+            !num(a[5], "emulate", 1, 0, 1, &emulate)) return err;
+        bench_pvwide(r.ms, width, half, fault, emulate);
     } else if (!strcmp(cmd, "r2grant")) {
         int gap_us, fault;
         if (!num(a[1], "batches", 8, 1, 8, &reps) ||
@@ -384,6 +396,13 @@ static const char *dispatch(char *line) {
             !num(a[4], "prio", 13, 0, 15, &code) ||
             !num(a[5], "starve_ms", 0, 0, 59999, &starve)) return err;
         bench4prod8(r.cpw, r.ms, invert, code, !strcmp(cmd, "bench4prod8live"), starve);
+    } else if (!strcmp(cmd, "bench5quad8")) {
+        int invert;
+        if (!num(a[1], "cpw", 2, 1, 2, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "invert", 0, 0, 1, &invert) ||
+            !num(a[4], "prio", 13, 0, 15, &code)) return err;
+        bench5quad8(r.cpw, r.ms, invert, code);
     } else if (!strcmp(cmd, "bench4quad8") || !strcmp(cmd, "bench4quad")) {
         int invert;
         if (!num(a[1], "cpw", 2, 1, 4, &r.cpw) ||

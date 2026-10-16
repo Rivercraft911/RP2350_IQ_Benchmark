@@ -65,6 +65,20 @@ static const pio_program_t quad_row14_q_program = {
 };
 static const uint8_t quad_row_start[] = {0, 1, 2, 1};
 static const uint8_t quad_row_initial_x[] = {3, 4, 0, 0};
+// N5 byte rows occupy two words: samples0..3, then sample4 plus three padding
+// bytes. The first four OUTs loop, the fifth OUT is followed by OUT NULL24.
+// SET[7]/JMP[1] leave ten silent slots before this writer's next symbol. Odd
+// writers enter that silent gap, bypassing the padding discard on startup.
+static const uint16_t quint_row8_i_code[] = {0x7808, 0x0040, 0x7808, 0x6078, 0xe723, 0x0100, 0x0004};
+static const uint16_t quint_row8_q_code[] = {0x7008, 0x0040, 0x7008, 0x6078, 0xe723, 0x0100, 0x0004};
+static const pio_program_t quint_row8_i_program = {
+    .instructions = quint_row8_i_code, .length = 7, .origin = -1,
+};
+static const pio_program_t quint_row8_q_program = {
+    .instructions = quint_row8_q_code, .length = 7, .origin = -1,
+};
+static const uint8_t quint_row_start[] = {0, 1, 4, 6};
+static const uint8_t quint_row_initial_x[] = {3, 4, 0, 0};
 #endif
 // Eight samples (one paired row) on alternating slots, then sixteen silent slots.
 // Optional side-set leaves three delay bits: SET[7] and JMP[7] each take eight slots.
@@ -104,7 +118,7 @@ typedef struct {
     bool owned, running, capture_started, capture_fifo_only, capture_complete, capture_frozen;
     bool fifo_source, control_bswap;
 #ifdef IQ4HIST_EXPERIMENT
-    bool shared_axis_row, quad_rows, quad_fifo;
+    bool shared_axis_row, quad_rows, quad_fifo, quad_n5;
     unsigned sample_bits;
     const uint32_t *quad_desc[4];
     const volatile uint32_t *quad_rx[4];
@@ -162,6 +176,7 @@ static bool shared_samples(void) {
 
 static const pio_program_t *i_output_program(void) {
 #ifdef IQ4HIST_EXPERIMENT
+    if (state.quad_n5) return &quint_row8_i_program;
     if (state.quad_rows) return state.sample_bits == 8 ? &quad_row8_i_program : &quad_row14_i_program;
     if (state.sample_bits == 8) return &byte_i_program;
 #endif
@@ -171,6 +186,7 @@ static const pio_program_t *i_output_program(void) {
 
 static const pio_program_t *q_output_program(void) {
 #ifdef IQ4HIST_EXPERIMENT
+    if (state.quad_n5) return &quint_row8_q_program;
     if (state.quad_rows) return state.sample_bits == 8 ? &quad_row8_q_program : &quad_row14_q_program;
     if (state.sample_bits == 8) return &byte_q_program;
 #endif
@@ -668,6 +684,35 @@ bool dual_dma_start_quad_rows(const uint32_t *const desc[4], unsigned count_log2
     return start_output(state.divider256, count_log2);
 }
 
+bool dual_dma_start_quad5_rows(const uint32_t *const desc[4], unsigned count_log2, unsigned cpw) {
+    if (state.owned) { last_error = "dual DMA already owns resources"; return false; }
+    claim_init();
+    state.quad_n5 = state.quad_rows = state.shared_axis_row = true;
+    state.sample_bits = selected_sample_bits;
+    if (!desc || count_log2 < 5 || count_log2 > 13 || selected_writers != 4 ||
+        selected_row_words != 2 || state.sample_bits != 8 ||
+        (cpw != 1 && cpw != 2) || !selected_dac_clock)
+        return start_failed("N5 quad rows need four OUT8 writers, two-word rows, DDR clock, log2 5..13 and cpw1/2",
+                            DUAL_DMA_ERR_CONFIG);
+    state.count = 1u << count_log2;
+    const uintptr_t alignment = 4u * state.count - 1;
+    for (unsigned s = 0; s < 4; s++) {
+        if (!desc[s] || ((uintptr_t)desc[s] & alignment))
+            return start_failed("quad descriptor rings are not aligned to their byte size", DUAL_DMA_ERR_CONFIG);
+        for (unsigned t = 0; t < s; t++)
+            if (desc[s] == desc[t])
+                return start_failed("quad descriptor rings must be distinct", DUAL_DMA_ERR_CONFIG);
+        state.quad_desc[s] = desc[s];
+    }
+    state.writers = 4;
+    state.output_pio = pio2;
+    state.row_words = 2;
+    state.divider256 = cpw * 256;
+    state.schedule = selected_schedule;
+    state.sys_hz = clock_get_hz(clk_sys);
+    return start_output(state.divider256, count_log2);
+}
+
 bool dual_dma_start_axis_fifo(const volatile uint32_t *rx_i, const volatile uint32_t *rx_q,
                               unsigned dreq_i, unsigned dreq_q, unsigned cpw) {
     if (state.owned) { last_error = "dual DMA already owns resources"; return false; }
@@ -783,7 +828,7 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
         sm_config_set_wrap(&pc, offset, offset + i_program->length - 1);
         uint start = offset + (s == 2 ? 2u : s & 1u);
 #ifdef IQ4HIST_EXPERIMENT
-        if (state.quad_rows) start = offset + quad_row_start[s];
+        if (state.quad_rows) start = offset + (state.quad_n5 ? quint_row_start[s] : quad_row_start[s]);
 #endif
         pio_sm_init(state.output_pio, state.sm[s], start, &pc);
         pio_sm_set_consecutive_pindirs(state.output_pio, state.sm[s], PIN_D0, 16, true);
@@ -792,7 +837,7 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
             const unsigned initial_x[] = {samples - 1, samples, 0, 0};
             unsigned x = initial_x[s];
 #ifdef IQ4HIST_EXPERIMENT
-            if (state.quad_rows) x = quad_row_initial_x[s];
+            if (state.quad_rows) x = state.quad_n5 ? quint_row_initial_x[s] : quad_row_initial_x[s];
 #endif
             pio_sm_exec_wait_blocking(state.output_pio, state.sm[s], pio_encode_set(pio_x, x));
         }
