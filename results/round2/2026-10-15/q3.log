@@ -1,0 +1,35 @@
+info {}
+dualprio 0 {}
+dualwriters 4 {}
+dualclock 1 {}
+mapkernel 1 {}
+quadprofile 1 {}
+ldpcpack 1 {}
+bchbank 1 {}
+clock 128000 {}
+bchkernel 3 {}
+bench lut_asm_p sps=4 L=12   10.80 cyc/sym (worst block 10.94) ->  11.85 Msym/s/core @ 128 MHz  crc ok
+baseline-128000-kernel {}
+stream lut_asm_p sps=4 L=12 cores=0 8.000 Msym/s 3000 ms: blocks 23437 underruns 0 own_err 0 txstall 0 busy c0=68.3%/lead5/iw0 cap 8192 words: 0 mismatches
+baseline-128000-stream {"sym_rate": 8000000.0, "underruns": 0, "own_errors": 0, "cap_aligned": true, "cap_mismatches": 0, "faults": []}
+txs2 normal 2/3 pilots=1 lut_asm_p sps=4 L=12 8.000 Msym/s 3000 ms: frames 725 encoder core1 53.4% (min ahead 3072 words), shaper core0 74.8% input waits 0, underruns 0 txstall 0, cap 8192 words: 0 mismatches
+baseline-128000-s2 {"sym_rate": 8000000.0, "underruns": 0, "own_errors": 0, "cap_aligned": true, "cap_mismatches": 0, "faults": [], "s2_runtime_frames": 724}
+descriptor-bench-128000 {"faults": [], "host_crc_ok": true}
+dual-row4-128000-src5-k2-cpw1-fault0-writers4-code10-ddrclk {"sym_rate": 16000000.0, "gen_cyc_per_sym": 2.006, "gen_busy": 0.2507, "control_busy": 0.1247, "core0_work_busy": 0.811, "underruns": 0, "own_errors": 0, "cap_aligned": true, "cap_mismatches": 0, "cap_clock_mismatches": 0, "faults": [], "s2_runtime_frames": 28847}
+dual-row4-128000-src6-k2-cpw1-fault0-writers4-code10-ddrclk {"sym_rate": 16000000.0, "gen_cyc_per_sym": 2.003, "gen_busy": 0.2504, "control_busy": 0.1248, "core0_work_busy": 0.8094, "underruns": 0, "own_errors": 0, "cap_aligned": true, "cap_mismatches": 0, "cap_clock_mismatches": 0, "faults": [], "s2_runtime_frames": 28847}
+dual-row4-128000-src1-k2-cpw2-fault1-writers4-code10-ddrclk-negative-control {"sym_rate": 8000000.0, "gen_cyc_per_sym": 2.8941, "gen_busy": 0.1809, "control_busy": 0.1501, "core0_work_busy": 0.3309, "underruns": 0, "own_errors": 0, "cap_aligned": false, "cap_mismatches": null, "cap_clock_mismatches": 0, "faults": ["no fixed offset and physical-time phase matches the first16 bus observations"], "s2_runtime_frames": 0, "negative_control_detected": true}
+dual-row4-128000-src1-k2-cpw2-fault2-writers4-code10-ddrclk-negative-control {"sym_rate": 8000000.0, "gen_cyc_per_sym": 1.9994, "gen_busy": 0.1229, "control_busy": 0.1565, "core0_work_busy": 0.2794, "underruns": 2, "own_errors": 0, "cap_aligned": false, "cap_mismatches": null, "faults": ["errors", "underruns", "received 0 words, firmware reports 0; expected 4096", "DDR clock was not high in exactly the I slots of a pins32 capture"], "s2_runtime_frames": 0, "negative_control_detected": true}
+dualclock 2 {}
+dual-row4-128000-src1-k2-cpw2-fault0-writers4-code10-ddrclk-clock-inverted-negative-control {"sym_rate": 8000000.0, "gen_cyc_per_sym": 1.9976, "gen_busy": 0.1248, "control_busy": 0.1565, "core0_work_busy": 0.2813, "underruns": 0, "own_errors": 0, "cap_aligned": true, "cap_mismatches": 0, "cap_clock_mismatches": 4096, "faults": ["DDR clock was not high in exactly the I slots of a pins32 capture"], "s2_runtime_frames": 0, "negative_control_detected": true}
+dualclock 1 {}
+bench lut_asm_p sps=4 L=12   10.80 cyc/sym (worst block 10.94) ->  11.85 Msym/s/core @ 128 MHz  crc ok
+baseline-after-128000-kernel {}
+txs2 normal 2/3 pilots=1 lut_asm_p sps=4 L=12 8.000 Msym/s 3000 ms: frames 725 encoder core1 53.4% (min ahead 3072 words), shaper core0 74.8% input waits 0, underruns 0 txstall 0, cap 8192 words: 0 mismatches
+baseline-after-128000-s2 {"sym_rate": 8000000.0, "underruns": 0, "own_errors": 0, "cap_aligned": true, "cap_mismatches": 0, "faults": [], "s2_runtime_frames": 724}
+dualclock 0 {}
+quadprofile 0 {}
+dualprio 0 {}
+dualwriters 2 {}
+clock 128000 {}
+bchkernel 0 {}
+mapkernel 0 {}

@@ -1,0 +1,1 @@
+bench4fec-cpw2-invert0-prio13 {"elapsed_us": 60000002, "sym_rate": 8000000.0, "core0_work_busy": 0.248881, "convert_busy": 0.215896, "supervision_busy": 0.032985, "encoder_busy": 0.8924, "min_credit_runway_words": 1107, "cap_mismatches": 0, "cap_clock_mismatches": 0, "reason": "complete", "faults": []}
