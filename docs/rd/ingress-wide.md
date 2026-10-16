@@ -1,5 +1,9 @@
 # Wide payload ingress: source-clocked four-bit PV messages
 
+**Device result (coordinator, 2026-10-16):** with the on-chip sender, four-bit ingress ran 60 s clean
+at 30.5, 40.2 and 47.8 Mb/s (8, 10.7, 12.8 MHz) and 76.9 Mb/s for 3 s at 21.3 MHz; CRC and short
+controls detected. External timing unmeasured. See [results](../../results/ingress-wide/2026-10-16/README.md).
+
 2026-10-16, `rd/ingress-wide`. **Implementation and native verification; no device
 measurement.** No Pico, serial port, flash operation or Git metadata was touched.
 
