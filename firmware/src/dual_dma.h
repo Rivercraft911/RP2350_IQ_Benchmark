@@ -103,7 +103,7 @@ bool dual_dma_start_fifo_div256(const volatile uint32_t *rx_i, const volatile ui
                                 unsigned dreq_i, unsigned dreq_q, bool control_bswap,
                                 unsigned divider256);
 #ifdef IQ4HIST_EXPERIMENT
-// Axis-FIFO sample selector only:14(default) uses two words,8 uses one word holding
+// Experimental axis-row sample selector:14(default) uses two words,8 uses one word holding
 // four signed bytes mapped to GPIO6..13. GPIO0..5 and15 are held0; GPIO14 is IQ_FLAG.
 // One-word rows are accepted by set_row_words only in the experiment build.
 bool dual_dma_set_sample_bits(unsigned bits);
@@ -113,6 +113,13 @@ unsigned dual_dma_get_sample_bits(void);
 // row_words2,cpw2/4; sample_bits8 uses row_words1,cpw1/2/4. Caller checks DAC rate.
 bool dual_dma_start_axis_fifo(const volatile uint32_t *rx_i, const volatile uint32_t *rx_q,
                               unsigned dreq_i, unsigned dreq_q, unsigned cpw);
+// Immutable cyclic one-symbol rows, four independent control/sample pairs. Ring order
+// I-even,Q-even,I-odd,Q-odd; EACH has2^count_log2 pointers and matching byte alignment.
+// Requires writers4, sample_bits8/row_words1 or14/2, DDR clock and cpw1/2/4. PIO2 holds
+// four writers; PIO0 DDR clock and PIO1 capture start/stop through one PIO1 CTRL write.
+// Ring storage must remain unchanged until stop. No progress/reuse cursor is provided:
+// call faults(), not progress(), and the immutable source has no polling deadline.
+bool dual_dma_start_quad_rows(const uint32_t *const desc[4], unsigned count_log2, unsigned cpw);
 #endif
 const char *dual_dma_last_error(void);
 // Descriptor mode only. Calling this in FIFO mode sets CONFIG and stops output;

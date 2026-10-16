@@ -45,6 +45,26 @@ static const pio_program_t byte_i_program = {
 static const pio_program_t byte_q_program = {
     .instructions = byte_q_code, .length = 2, .origin = -1,
 };
+// Four N4 samples on alternating slots, then eight silent slots. Each writer owns
+// one symbol out of two. The delayed SET/JMP do not write either data or IQ_FLAG.
+static const uint16_t quad_row8_i_code[] = {0x7808, 0x0040, 0xe323, 0x0300};
+static const uint16_t quad_row8_q_code[] = {0x7008, 0x0040, 0xe323, 0x0300};
+static const uint16_t quad_row14_i_code[] = {0x7810, 0x0040, 0xe323, 0x0300};
+static const uint16_t quad_row14_q_code[] = {0x7010, 0x0040, 0xe323, 0x0300};
+static const pio_program_t quad_row8_i_program = {
+    .instructions = quad_row8_i_code, .length = 4, .origin = -1,
+};
+static const pio_program_t quad_row8_q_program = {
+    .instructions = quad_row8_q_code, .length = 4, .origin = -1,
+};
+static const pio_program_t quad_row14_i_program = {
+    .instructions = quad_row14_i_code, .length = 4, .origin = -1,
+};
+static const pio_program_t quad_row14_q_program = {
+    .instructions = quad_row14_q_code, .length = 4, .origin = -1,
+};
+static const uint8_t quad_row_start[] = {0, 1, 2, 1};
+static const uint8_t quad_row_initial_x[] = {3, 4, 0, 0};
 #endif
 // Eight samples (one paired row) on alternating slots, then sixteen silent slots.
 // Optional side-set leaves three delay bits: SET[7] and JMP[7] each take eight slots.
@@ -84,8 +104,9 @@ typedef struct {
     bool owned, running, capture_started, capture_fifo_only, capture_complete, capture_frozen;
     bool fifo_source, control_bswap;
 #ifdef IQ4HIST_EXPERIMENT
-    bool shared_axis_row;
+    bool shared_axis_row, quad_rows;
     unsigned sample_bits;
+    const uint32_t *quad_desc[4];
 #endif
     uint32_t count, mask, divider256, schedule, row_words, writers, sys_hz, last[4], last_poll_us, poll_limit_us;
     uint64_t rows[4];
@@ -139,6 +160,7 @@ static bool shared_samples(void) {
 
 static const pio_program_t *i_output_program(void) {
 #ifdef IQ4HIST_EXPERIMENT
+    if (state.quad_rows) return state.sample_bits == 8 ? &quad_row8_i_program : &quad_row14_i_program;
     if (state.sample_bits == 8) return &byte_i_program;
 #endif
     return state.writers == 4 ? (state.row_words == 8 ? &quad_four_i_program : &four_i_program) :
@@ -147,6 +169,7 @@ static const pio_program_t *i_output_program(void) {
 
 static const pio_program_t *q_output_program(void) {
 #ifdef IQ4HIST_EXPERIMENT
+    if (state.quad_rows) return state.sample_bits == 8 ? &quad_row8_q_program : &quad_row14_q_program;
     if (state.sample_bits == 8) return &byte_q_program;
 #endif
     return state.writers == 4 ? (state.row_words == 8 ? &quad_four_q_program : &four_q_program) : &paired_q_program;
@@ -255,8 +278,15 @@ static void __not_in_flash_func(sample_faults)(void) {
 }
 
 dual_dma_progress_t __not_in_flash_func(dual_dma_progress)(void) {
-    if (state.fifo_source) {
+    if (state.fifo_source
+#ifdef IQ4HIST_EXPERIMENT
+        || state.quad_rows
+#endif
+        ) {
         last_error = "descriptor progress is unavailable for FIFO sources";
+#ifdef IQ4HIST_EXPERIMENT
+        if (state.quad_rows) last_error = "descriptor progress is unavailable for immutable quad rows";
+#endif
         state.result.errors |= DUAL_DMA_ERR_CONFIG;
         halt_outputs();
         return state.result;
@@ -416,8 +446,13 @@ static void axis_dma(int control, int data, uint sm, const uint32_t *descriptors
     dma_channel_config dc = dma_channel_get_default_config(control);
     channel_config_set_transfer_data_size(&dc, DMA_SIZE_32);
     // RP2350 INCR_READ=0 + INCR_READ_REV=1 means increment by twice transfer size.
-    channel_config_set_read_increment(&dc, state.writers != 4);
-    if (state.writers == 4) dc.ctrl |= DMA_CH0_CTRL_TRIG_INCR_READ_REV_BITS;
+    const bool stride2 = state.writers == 4
+#ifdef IQ4HIST_EXPERIMENT
+        && !state.quad_rows
+#endif
+        ;
+    channel_config_set_read_increment(&dc, !stride2);
+    if (stride2) dc.ctrl |= DMA_CH0_CTRL_TRIG_INCR_READ_REV_BITS;
     channel_config_set_write_increment(&dc, false);
     channel_config_set_ring(&dc, false, ring_bits);
     channel_config_set_dreq(&dc, DREQ_FORCE);
@@ -579,6 +614,35 @@ bool dual_dma_start_fifo_div256(const volatile uint32_t *rx_i, const volatile ui
 }
 
 #ifdef IQ4HIST_EXPERIMENT
+bool dual_dma_start_quad_rows(const uint32_t *const desc[4], unsigned count_log2, unsigned cpw) {
+    if (state.owned) { last_error = "dual DMA already owns resources"; return false; }
+    claim_init();
+    state.quad_rows = state.shared_axis_row = true;
+    state.sample_bits = selected_sample_bits;
+    if (!desc || count_log2 < 5 || count_log2 > 13 || selected_writers != 4 ||
+        selected_row_words != (state.sample_bits == 8 ? 1u : 2u) ||
+        (cpw != 1 && cpw != 2 && cpw != 4) || !selected_dac_clock)
+        return start_failed("quad rows need four writers, matching sample/row format, DDR clock, log2 5..13 and cpw1/2/4",
+                            DUAL_DMA_ERR_CONFIG);
+    state.count = 1u << count_log2; // entries in EACH deinterleaved ring
+    const uintptr_t alignment = 4u * state.count - 1;
+    for (unsigned s = 0; s < 4; s++) {
+        if (!desc[s] || ((uintptr_t)desc[s] & alignment))
+            return start_failed("quad descriptor rings are not aligned to their byte size", DUAL_DMA_ERR_CONFIG);
+        for (unsigned t = 0; t < s; t++)
+            if (desc[s] == desc[t])
+                return start_failed("quad descriptor rings must be distinct", DUAL_DMA_ERR_CONFIG);
+        state.quad_desc[s] = desc[s];
+    }
+    state.writers = 4;
+    state.output_pio = pio2;
+    state.row_words = selected_row_words;
+    state.divider256 = cpw * 256;
+    state.schedule = selected_schedule;
+    state.sys_hz = clock_get_hz(clk_sys);
+    return start_output(state.divider256, count_log2);
+}
+
 bool dual_dma_start_axis_fifo(const volatile uint32_t *rx_i, const volatile uint32_t *rx_q,
                               unsigned dreq_i, unsigned dreq_q, unsigned cpw) {
     if (state.owned) { last_error = "dual DMA already owns resources"; return false; }
@@ -692,13 +756,20 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
     for (unsigned s = 0; s < state.writers; s++) {
         const uint offset = s & 1u ? state.out_q_offset : state.out_offset;
         sm_config_set_wrap(&pc, offset, offset + i_program->length - 1);
-        const uint start = offset + (s == 2 ? 2u : s & 1u);
+        uint start = offset + (s == 2 ? 2u : s & 1u);
+#ifdef IQ4HIST_EXPERIMENT
+        if (state.quad_rows) start = offset + quad_row_start[s];
+#endif
         pio_sm_init(state.output_pio, state.sm[s], start, &pc);
         pio_sm_set_consecutive_pindirs(state.output_pio, state.sm[s], PIN_D0, 16, true);
         if (state.writers == 4) {
             const unsigned samples = 2 * state.row_words;
             const unsigned initial_x[] = {samples - 1, samples, 0, 0};
-            pio_sm_exec_wait_blocking(state.output_pio, state.sm[s], pio_encode_set(pio_x, initial_x[s]));
+            unsigned x = initial_x[s];
+#ifdef IQ4HIST_EXPERIMENT
+            if (state.quad_rows) x = quad_row_initial_x[s];
+#endif
+            pio_sm_exec_wait_blocking(state.output_pio, state.sm[s], pio_encode_set(pio_x, x));
         }
     }
     if (shared_samples())
@@ -763,6 +834,11 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
     }
     uint32_t control_mask = 0;
     for (unsigned s = 0; s < state.writers; s++) {
+#ifdef IQ4HIST_EXPERIMENT
+        if (state.quad_rows) {
+            axis_dma(state.control[s], state.data[s], state.sm[s], state.quad_desc[s], count_log2 + 2);
+        } else
+#endif
         if (state.fifo_source) {
             if (state.writers == 4) {
                 if (s < 2) axis_alternating_fifo_dma(s);
@@ -801,7 +877,11 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
     state.output_pio->fdebug = (out_mask() << PIO_FDEBUG_TXSTALL_LSB) |
                    (out_mask() << PIO_FDEBUG_TXOVER_LSB);
     state.last_poll_us = time_us_32();
-    if (!state.fifo_source)
+    if (!state.fifo_source
+#ifdef IQ4HIST_EXPERIMENT
+        && !state.quad_rows
+#endif
+        )
         sample_reads(false); // includes the initial prefetched pointers; ring has not wrapped
     if (state.dac_clock) {
         // One PIO1 CTRL write: writers and clock (PIO0 = PREV, PIO2 = NEXT) restart their
@@ -885,7 +965,11 @@ bool dual_dma_capture_fifo_only(void) { return state.capture_started && state.ca
 void dual_dma_stop(void) {
     if (!state.owned) return;
     if (state.running) {
-        if (!state.fifo_source) sample_reads(true);
+        if (!state.fifo_source
+#ifdef IQ4HIST_EXPERIMENT
+            && !state.quad_rows
+#endif
+            ) sample_reads(true);
         halt_outputs();
     }
     if (state.saved) sample_faults(); // include a sticky fault on the last output/capture cycle
@@ -904,7 +988,11 @@ void dual_dma_stop(void) {
     // ABORT clears TRANS_COUNT (§12.6.8.3). Latch completed capture words beforehand;
     // otherwise an incomplete aborted capture would falsely appear fully transferred.
     if (state.saved) sample_faults();
-    if (state.saved && !state.fifo_source && state.control[0] >= 0 && state.control[1] >= 0)
+    if (state.saved && !state.fifo_source && state.control[0] >= 0 && state.control[1] >= 0
+#ifdef IQ4HIST_EXPERIMENT
+        && !state.quad_rows
+#endif
+        )
         sample_reads(false);
     state.capture_frozen = true;
     dma_hw->abort = abort_mask;

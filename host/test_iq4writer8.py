@@ -19,7 +19,7 @@ static void reset(void) {
     for (unsigned p=0;p<3;p++) ports[p].index=p;
     pio1->claimed[0]=pio1->claimed[1]=true;
     selected_sample_bits=14;selected_row_words=2;selected_writers=2;
-    selected_schedule=0;starts=stopped=0;
+    selected_schedule=0;selected_dac_clock=1;starts=stopped=0;
 }
 int main(void) {
     for (unsigned bits=8;bits<=14;bits+=6)
@@ -73,10 +73,7 @@ int main(void) {
 
 def main():
     source = (ROOT / 'firmware/src/dual_dma.c').read_text()
-    fixture = '#define IQ4HIST_EXPERIMENT 1\n' + FIXTURE.replace(
-        'bool owned, fifo_source, control_bswap;',
-        'bool owned, fifo_source, control_bswap, shared_axis_row; unsigned sample_bits;')
-    fixture += '\nstatic unsigned selected_sample_bits=14;\n'
+    fixture = '#define IQ4HIST_EXPERIMENT 1\n' + FIXTURE
     signatures = [
         ('bool', 'dual_dma_set_row_words', 'unsigned row_words'),
         ('bool', 'dual_dma_set_sample_bits', 'unsigned bits'),

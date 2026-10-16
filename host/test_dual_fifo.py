@@ -73,6 +73,11 @@ static struct {
     PIO output_pio;
     int sm[4], control[4], data[4], sm_cap, cap_dma, clock_sm;
     bool owned, fifo_source, control_bswap;
+#ifdef IQ4HIST_EXPERIMENT
+    bool shared_axis_row, quad_rows;
+    unsigned sample_bits;
+    const uint32_t *quad_desc[4];
+#endif
     uint32_t fifo_targets[2][2] __attribute__((aligned(8)));
     uint32_t count, mask, divider256, schedule, row_words, writers, sys_hz;
     uint32_t last[4], last_poll_us, poll_limit_us;
@@ -84,6 +89,9 @@ static struct {
 } state;
 static const char *last_error;
 static unsigned selected_schedule, selected_row_words = 2, selected_writers = 2;
+#ifdef IQ4HIST_EXPERIMENT
+static unsigned selected_sample_bits = 14, selected_dac_clock = 1;
+#endif
 static unsigned starts, stopped, divider_arg, log_arg;
 static bool start_failed(const char *message, uint32_t error) {
     last_error = message; state.result.errors |= error; state.owned = false; stopped++; return false;
@@ -99,6 +107,9 @@ static void reset(void) {
     memset(channels, 0, sizeof channels); memset(ports, 0, sizeof ports);
     for (unsigned p = 0; p < 3; p++) ports[p].index = p;
     selected_writers = 2; selected_row_words = 8; selected_schedule = 0;
+#ifdef IQ4HIST_EXPERIMENT
+    selected_sample_bits = 14; selected_dac_clock = 1;
+#endif
     starts = stopped = now = tick = 0; last_error = "";
 }
 static void config_checks(void) {
@@ -299,8 +310,69 @@ static void cursor_checks(void) {
         assert(state.result.errors == DUAL_DMA_ERR_POLL_GAP);
     }
 }
+#ifdef IQ4HIST_EXPERIMENT
+static void quad_checks(void) {
+    const uint32_t *desc[4];
+    for (unsigned s = 0; s < 4; s++) desc[s] = (const uint32_t *)(uintptr_t)(0x20000000u + s * 32768u);
+    for (unsigned bits = 8; bits <= 14; bits += 6)
+    for (unsigned log = 5; log <= 13; log++)
+    for (unsigned cpw = 0; cpw <= 5; cpw++)
+    for (unsigned schedule = 0; schedule < 4; schedule++) {
+        reset(); selected_writers = 4; selected_row_words = bits == 8 ? 1 : 2;
+        selected_sample_bits = bits; selected_schedule = schedule;
+        bool want = cpw == 1 || cpw == 2 || cpw == 4;
+        assert(dual_dma_start_quad_rows(desc, log, cpw) == want);
+        if (!want) { assert(stopped == 1 && !starts && !state.owned); continue; }
+        assert(starts == 1 && !stopped && state.owned && state.quad_rows && state.shared_axis_row);
+        assert(!state.fifo_source && state.sample_bits == bits && state.writers == 4);
+        assert(state.output_pio == pio2 && state.count == (1u << log));
+        assert(!state.mask && !state.poll_limit_us && !state.desc_i && !state.desc_q);
+        assert(divider_arg == cpw * 256 && log_arg == log);
+        assert(state.schedule == schedule && state.sys_hz == 128000000);
+        for (unsigned s = 0; s < 4; s++) {
+            assert(state.quad_desc[s] == desc[s]);
+            axis_dma(s, s + 4, s, state.quad_desc[s], log + 2);
+            dma_channel_config c = channels[s].config, d = channels[s + 4].config;
+            assert(channels[s].read == desc[s] && channels[s].write == &dma.ch[s + 4].al3_read_addr_trig);
+            assert(c.read_inc && !c.ctrl && !c.write_inc && !c.ring_write && c.ring_bits == log + 2);
+            assert(c.dreq == DREQ_FORCE && c.chain == s && c.quiet && !c.bswap);
+            assert(channels[s].count == 1 && channels[s + 4].count == (bits == 8 ? 1u : 2u));
+            assert(channels[s + 4].write == &pio2->txf[s]);
+            assert(d.read_inc && !d.write_inc && d.dreq == 16 + s && d.chain == s && d.quiet);
+        }
+        // Each naturally aligned contiguous control ring wraps independently; no
+        // stride2 interpretation or shared pointer-RX peripheral DREQ is involved.
+        for (unsigned s = 0; s < 4; s++) {
+            uintptr_t base = (uintptr_t)desc[s], mask = ((uintptr_t)1 << (log + 2)) - 1;
+            for (unsigned n = 0; n < (3u << log); n++)
+                assert((base | ((4u * n) & mask)) == base + 4u * (n & ((1u << log) - 1)));
+        }
+    }
+    for (unsigned bad = 0; bad < 12; bad++) {
+        reset(); selected_writers = 4; selected_row_words = 1; selected_sample_bits = 8;
+        const uint32_t *bad_desc[4]; memcpy(bad_desc, desc, sizeof bad_desc);
+        if (bad == 0) selected_writers = 2;
+        if (bad == 1) selected_row_words = 2;
+        if (bad == 2) selected_dac_clock = 0;
+        if (bad == 3) bad_desc[0] = NULL;
+        if (bad == 4) bad_desc[1]++;
+        if (bad == 5) bad_desc[3] = bad_desc[1];
+        if (bad == 6) bad_desc[3] = NULL;
+        if (bad == 7) selected_sample_bits = 14;
+        assert(!dual_dma_start_quad_rows(bad == 8 ? NULL : bad_desc,
+                                         bad == 9 ? 4 : bad == 10 ? 14 : 11, bad == 11 ? 3 : 1));
+        assert(stopped == 1 && !starts && !state.owned && state.result.errors == DUAL_DMA_ERR_CONFIG);
+    }
+    reset(); state.owned = true;
+    assert(!dual_dma_start_quad_rows(desc, 11, 1));
+    assert(state.owned && !starts && !stopped);
+}
+#endif
 int main(void) {
     config_checks(); validation_checks(); cursor_checks();
+#ifdef IQ4HIST_EXPERIMENT
+    quad_checks();
+#endif
     puts("dual FIFO setup: PASS (fixed RX+BSWAP, alternating targets/sole RX DREQ, exact claims, old DMA configs/start validation, 36000 wrapped descriptor snapshots)");
 }
 '''
@@ -409,6 +481,9 @@ STOP_CHECKS = r'''
 int main(void) {
     for (unsigned writers = 2; writers <= 4; writers += 2)
     for (unsigned fifo = 0; fifo < 2; fifo++)
+#ifdef IQ4HIST_EXPERIMENT
+    for (unsigned quad = 0; quad <= (writers == 4 && !fifo); quad++)
+#endif
     for (unsigned running = 0; running < 2; running++)
     for (unsigned cap = 0; cap < 3; cap++)
     for (unsigned ahb = 0; ahb < 4; ahb++)
@@ -427,6 +502,9 @@ int main(void) {
         dma_hw = &dma; reads = faults = halted = cleaned = unclaimed = drained = aborts = 0;
         owned_dma_mask = cleaned_dma_mask = unclaimed_dma_mask = 0;
         state.owned = state.saved = true; state.fifo_source = fifo;
+#ifdef IQ4HIST_EXPERIMENT
+        state.quad_rows = quad;
+#endif
         state.running = state.result.running = running;
         state.writers = writers; state.output_pio = &output;
         for (unsigned s = 0; s < writers; s++) {
@@ -449,7 +527,11 @@ int main(void) {
                             state.control[writers - 1]].ctrl_trig = DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS;
         dual_dma_stop();
         assert(!state.owned && !state.running && !state.result.running && state.capture_frozen);
-        assert(reads == (fifo ? 0 : 1 + running));
+        assert(reads == (fifo
+#ifdef IQ4HIST_EXPERIMENT
+                         || quad
+#endif
+                         ? 0 : 1 + running));
         assert(faults == 2 && halted == running && aborts == 1);
         assert(cleaned == 2 * writers + 1 && unclaimed == 2 * writers + 1);
         assert(cleaned_dma_mask == owned_dma_mask && unclaimed_dma_mask == owned_dma_mask);
@@ -470,12 +552,13 @@ int main(void) {
 '''
 
 
-def compile_run(code, stem):
+def compile_run(code, stem, experiment=False):
     with tempfile.TemporaryDirectory(prefix=f"dual-{stem}-") as directory:
         test = Path(directory) / f"{stem}.c"
         executable = Path(directory) / stem
         test.write_text(code)
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
+                        *(["-DIQ4HIST_EXPERIMENT=1"] if experiment else []),
                         f"-I{ROOT / 'firmware/src'}", str(test), "-o", str(executable)], check=True)
         subprocess.run([str(executable)], check=True)
 
@@ -495,8 +578,11 @@ def main():
         ("static void", "sample_reads", "bool check_time"),
     ]
     code = FIXTURE + "\n".join(f"{result} {name}({args}) {{\n{function_body(source, name)}\n}}"
-                                for result, name, args in functions) + CHECKS
-    compile_run(code, "fifo")
+                                for result, name, args in functions)
+    compile_run(code + CHECKS, "fifo")
+    quad = function_body(source, "dual_dma_start_quad_rows")
+    compile_run(code + f"\nbool dual_dma_start_quad_rows(const uint32_t *const desc[4], unsigned count_log2, unsigned cpw) {{\n{quad}\n}}\n" + CHECKS,
+                "quad-rows", experiment=True)
     state_type = re.search(r"typedef struct \{[\s\S]+?\} engine_t;", source)
     assert state_type
     code = STOP_FIXTURE + state_type[0] + "\nstatic engine_t state;\n" + STOP_STUBS
@@ -504,6 +590,7 @@ def main():
                                ("void", "dual_dma_stop", "void")]:
         code += f"{result} {name}({args}) {{\n{function_body(source, name)}\n}}\n"
     compile_run(code + STOP_CHECKS, "stop")
+    compile_run(code + STOP_CHECKS, "quad-stop", experiment=True)
 
 
 if __name__ == "__main__":

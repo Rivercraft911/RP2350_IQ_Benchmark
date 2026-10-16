@@ -123,8 +123,18 @@ LAYOUTS = ("two-row2", "two-paired", "four-row4", "four-row8")
 class DdrClockModel(unittest.TestCase):
     def test_firmware_start_state_matches_model(self):
         source = SOURCE.read_text()
-        self.assertIn("const uint start = offset + (s == 2 ? 2u : s & 1u);", source)
+        self.assertRegex(source, r"uint start = offset \+ \(s == 2 \? 2u : s & 1u\);\s*"
+                         r"#ifdef IQ4HIST_EXPERIMENT\s*"
+                         r"if \(state.quad_rows\) start = offset \+ quad_row_start\[s\];\s*"
+                         r"#endif\s*pio_sm_init\(state.output_pio, state.sm\[s\], start, &pc\);")
         self.assertIn("const unsigned initial_x[] = {samples - 1, samples, 0, 0};", source)
+        self.assertRegex(source, r"unsigned x = initial_x\[s\];\s*"
+                         r"#ifdef IQ4HIST_EXPERIMENT\s*"
+                         r"if \(state.quad_rows\) x = quad_row_initial_x\[s\];\s*"
+                         r"#endif\s*pio_sm_exec_wait_blocking\(state.output_pio, state.sm\[s\], "
+                         r"pio_encode_set\(pio_x, x\)\);")
+        self.assertEqual(firmware_program("quad_row_start"), [0, 1, 2, 1])
+        self.assertEqual(firmware_program("quad_row_initial_x"), [3, 4, 0, 0])
         self.assertIn("sm_config_set_sideset(&cc, 1, false, false);", source)
         self.assertIn("state.clock_offset + (state.dac_clock == DUAL_DMA_DAC_CLOCK_DDR_PIO_INVERTED)",
                       source)
