@@ -4,6 +4,8 @@
 // times and reports cycles per stage for each job:
 //   who 0: core 0 runs A then B (no concurrent FEC)      who 1: core 1 runs A then B
 //   who 2: core 0 runs A while core 1 runs B, both released together
+//   who 3..6: core 0 runs A then B while core 1 hammers one shared resource: 3 flash (XIP) code
+//   fetches, 4 SRAM0-3 copies, 5 SRAM4-7 copies, 6 an SRAM-resident ALU loop (fetch only)
 //   layout 0: both jobs, their code rings and one shared gold/LUT/LDPC-leaf set in SRAM0-3
 //   layout 1: job B with its own rings, gold, LUT and LDPC leaf copy in SRAM4-7 (cap_buf)
 // Shared read-only tables (BCH, BB PRBS, LDPC addresses) stay where the linker put them.
@@ -77,6 +79,29 @@ static void core1_task(uint32_t unused) {
     }
 }
 
+// Hammers: each runs until remote.stop. The flash loop is deliberately left in XIP.
+static void __attribute__((noinline)) hammer_flash(void) {
+    uint32_t x = 1;
+    while (!remote.stop)
+        for (unsigned k = 0; k < 64; ++k) x = x * 1664525u + 1013904223u;
+    remote.total = x;
+}
+static void __not_in_flash_func(hammer_sram_code)(void) {
+    uint32_t x = 1;
+    while (!remote.stop)
+        for (unsigned k = 0; k < 64; ++k) x = x * 1664525u + 1013904223u;
+    remote.total = x;
+}
+static void hammer_copy(uint32_t *buf, uint32_t words) {
+    while (!remote.stop) memcpy(buf + words, buf, words * 4u);
+}
+static void hammer_task(uint32_t kind) {
+    if (kind == 3) hammer_flash();
+    else if (kind == 4) hammer_copy(ring_buf + 24576, 2048);            // SRAM0-3, outside low_t
+    else if (kind == 5) hammer_copy(cap_buf, 2048);                     // SRAM4-7
+    else hammer_sram_code();
+}
+
 static void begin(lane_t *lane, const lane_t *tables, uint32_t index, uint32_t *ring, uint32_t options) {
     c3_job_begin_options(&lane->job, &tables->cfg, index, ring, ring + RING, options);
     lane->job.stream.mask = RING - 1u;
@@ -92,8 +117,9 @@ static bool tables(lane_t *lane, const dvbs2_code_t *code, uint32_t options) {
 void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) {
     const uint32_t hz = clock_get_hz(clk_sys);
     if ((code_index != S2_N2_3 && code_index != S2_N3_4 && code_index != S2_N5_6) || pairs < 1 ||
-        pairs > MAX_PAIRS || layout < 0 || layout > 1 || who < 0 || who > 2 || options < 0 || options > C4_ALL) {
-        printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8, pairs1..200, layout0/1, who0/1/2, options0..31\"}\n");
+        pairs > MAX_PAIRS || layout < 0 || layout > 1 || who < 0 || who > 6 || (who >= 3 && layout) ||
+        options < 0 || options > C4_ALL) {
+        printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8, pairs1..200, layout0/1, who0..6 (3..6 layout0), options0..31\"}\n");
         return;
     }
     const dvbs2_code_t *code = &DVBS2_CODES[code_index];
@@ -122,7 +148,9 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     uint32_t stage_a[STAGES] = {0}, stage_b[STAGES] = {0}, total_a = 0, total_b = 0, max_a = 0, max_b = 0;
     remote = (typeof(remote)){0};
     enable_cyccnt();
-    if (who) tx_worker_start(core1_task, 0);
+    const int hammer = who >= 3 ? who : 0;
+    if (hammer) { tx_worker_start(hammer_task, (uint32_t)hammer); who = 0; }
+    else if (who) tx_worker_start(core1_task, 0);
     for (int p = 0; p < pairs; ++p) {
         begin(&low->a, &low->a, 0, ring_a, (uint32_t)options);
         begin(lane_b, tables_b, 1, ring_b, (uint32_t)options);
@@ -153,7 +181,7 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
         }
         restore_interrupts(irq);
     }
-    if (who) {
+    if (who || hammer) {
         remote.stop = 1;
         __dmb();
         __sev();
@@ -171,9 +199,9 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     const uint32_t crc_b = pv_crc32(0, ring_b, 2 * RING * sizeof(uint32_t));
     const unsigned runs_a = who == 1 ? 2u * (unsigned)pairs : (unsigned)pairs, runs_b = (unsigned)pairs;
     printf("@{\"cmd\":\"c3pair\",\"git\":\"%s\",\"clk_hz\":%lu,\"code_index\":%d,\"s2_code\":\"%s\",\"pairs\":%d,"
-           "\"layout\":%d,\"who\":%d,\"options\":%d,\"ring_a\":%lu,\"ring_b\":%lu,\"job_b\":%lu,\"leaf_b\":%lu,"
+           "\"layout\":%d,\"who\":%d,\"hammer\":%d,\"options\":%d,\"ring_a\":%lu,\"ring_b\":%lu,\"job_b\":%lu,\"leaf_b\":%lu,"
            "\"crc_a\":%lu,\"crc_b\":%lu,\"jobs\":[",
-           GIT_REV, (unsigned long)hz, code_index, code->name, pairs, layout, who, options,
+           GIT_REV, (unsigned long)hz, code_index, code->name, pairs, layout, hammer ? hammer : who, hammer, options,
            (unsigned long)(uintptr_t)ring_a, (unsigned long)(uintptr_t)ring_b,
            (unsigned long)(uintptr_t)&lane_b->job, (unsigned long)(uintptr_t)tables_b->code,
            (unsigned long)crc_a, (unsigned long)crc_b);
