@@ -1,0 +1,2 @@
+eb0b4af27d
+{"cmd": "stackcheck", "git": "eb0b4af27d", "core0_scratch_y": {"code_bytes": 3688, "code_matches_flash": true, "first_corrupt_code_offset": -1, "stack_bytes": 2048, "stack_in_code_bank": false, "deepest_use_bytes": 1448, "paint_exhausted": false}, "core1_scratch_x": {"code_bytes": 2032, "code_matches_flash": true, "first_corrupt_code_offset": -1, "stack_bytes": 2048, "stack_in_code_bank": true, "deepest_use_bytes": 524, "paint_exhausted": false}}

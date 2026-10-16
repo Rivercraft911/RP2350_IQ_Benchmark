@@ -341,6 +341,28 @@ static void __attribute__((noinline)) transpose32(uint32_t *a) {
 #undef TB
 #endif
 
+uint32_t dvbs2_transpose_code_bytes(void) {
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    extern const uint8_t dvbs2_transpose32_end[];
+    return (uint32_t)((uintptr_t)dvbs2_transpose32_end - ((uintptr_t)transpose32 & ~(uintptr_t)1));
+#else
+    return 0;
+#endif
+}
+
+dvbs2_transpose_fn dvbs2_transpose_copy(void *code, uint32_t bytes) {
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    const uint32_t needed = dvbs2_transpose_code_bytes();
+    if (!code || ((uintptr_t)code & 3u) || bytes < needed) return NULL;
+    memcpy(code, (const void *)((uintptr_t)transpose32 & ~(uintptr_t)1), needed);
+    __asm volatile("dsb\n isb" ::: "memory");
+    return (dvbs2_transpose_fn)((uintptr_t)code | 1u);
+#else
+    (void)code; (void)bytes;
+    return transpose32;
+#endif
+}
+
 // Normal 2/3 has q = 60: each transposed column contributes 60 consecutive parity bits.
 // The unused tail of the worst-case P workspace can hold 360 pairs of words while
 // the live rows and final padded transpose tile remain intact below that workspace.
@@ -493,22 +515,51 @@ typedef void (*ldpc_group_fn)(uint32_t *, const uint32_t *, uint32_t, const uint
                              const uint16_t *, uint32_t);
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
 extern const uint8_t dvbs2_ldpc_group_pic[], dvbs2_ldpc_group_pic_end[];
+extern const uint8_t dvbs2_ldpc_group_c5_pic[], dvbs2_ldpc_group_c5_pic_end[];
+extern const uint8_t dvbs2_ldpc_rows_c5_pic[], dvbs2_ldpc_rows_c5_pic_end[];
+extern const uint8_t dvbs2_ldpc_accumulate_c5_pic[];
+extern const uint8_t dvbs2_ldpc_pack_c5_pic[], dvbs2_ldpc_pack_c5_pic_end[];
 static ldpc_group_fn ldpc_group_prepared;
-uint32_t dvbs2_ldpc_code_bytes(void) {
-    return (uint32_t)((uintptr_t)dvbs2_ldpc_group_pic_end -
-        ((uintptr_t)dvbs2_ldpc_group_pic & ~(uintptr_t)1));
+static ldpc_group_fn ldpc_c5_prepared;
+static uint32_t pic_bytes(const uint8_t *start, const uint8_t *end) {
+    return (uint32_t)((uintptr_t)end - ((uintptr_t)start & ~(uintptr_t)1));
 }
-void *dvbs2_ldpc_copy(void *code, uint32_t bytes) {
-    const uint32_t needed = dvbs2_ldpc_code_bytes();
-    if (!code || ((uintptr_t)code & 3u) || bytes < needed) return NULL;
-    memcpy(code, (const void *)((uintptr_t)dvbs2_ldpc_group_pic & ~(uintptr_t)1), needed);
+static uint32_t c5_rows_offset(void) {
+    return (pic_bytes(dvbs2_ldpc_group_c5_pic, dvbs2_ldpc_group_c5_pic_end) + 3u) & ~3u;
+}
+static uint32_t c5_pack_offset(void) {
+    return c5_rows_offset() +
+        ((pic_bytes(dvbs2_ldpc_rows_c5_pic, dvbs2_ldpc_rows_c5_pic_end) + 3u) & ~3u);
+}
+uint32_t dvbs2_ldpc_code_bytes_mode(unsigned mode) {
+    if (mode == 1) return pic_bytes(dvbs2_ldpc_group_pic, dvbs2_ldpc_group_pic_end);
+    if (mode == 2) return c5_pack_offset() +
+        pic_bytes(dvbs2_ldpc_pack_c5_pic, dvbs2_ldpc_pack_c5_pic_end);
+    return 0;
+}
+void *dvbs2_ldpc_copy_mode(void *code, uint32_t bytes, unsigned mode) {
+    const uint32_t needed = dvbs2_ldpc_code_bytes_mode(mode);
+    if (!needed || !code || ((uintptr_t)code & 3u) || bytes < needed) return NULL;
+    const uint8_t *group = mode == 2 ? dvbs2_ldpc_group_c5_pic : dvbs2_ldpc_group_pic;
+    const uint32_t group_bytes = mode == 2 ?
+        pic_bytes(group, dvbs2_ldpc_group_c5_pic_end) : needed;
+    memcpy(code, (const void *)((uintptr_t)group & ~(uintptr_t)1), group_bytes);
+    if (mode == 2) {
+        memcpy((uint8_t *)code + c5_rows_offset(),
+            (const void *)((uintptr_t)dvbs2_ldpc_rows_c5_pic & ~(uintptr_t)1),
+            pic_bytes(dvbs2_ldpc_rows_c5_pic, dvbs2_ldpc_rows_c5_pic_end));
+        memcpy((uint8_t *)code + c5_pack_offset(),
+            (const void *)((uintptr_t)dvbs2_ldpc_pack_c5_pic & ~(uintptr_t)1),
+            pic_bytes(dvbs2_ldpc_pack_c5_pic, dvbs2_ldpc_pack_c5_pic_end));
+    }
     __asm volatile("dsb\n isb" ::: "memory");
     return (void *)((uintptr_t)code | 1u);
 }
-bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) {
-    void *group = dvbs2_ldpc_copy(code, bytes);
+bool dvbs2_ldpc_prepare_mode(void *code, uint32_t bytes, unsigned mode) {
+    void *group = dvbs2_ldpc_copy_mode(code, bytes, mode);
     if (!group) return false;
-    ldpc_group_prepared = (ldpc_group_fn)group;
+    if (mode == 2) ldpc_c5_prepared = (ldpc_group_fn)group;
+    else ldpc_group_prepared = (ldpc_group_fn)group;
     return true;
 }
 #else
@@ -526,19 +577,31 @@ static void ldpc_group_direct(uint32_t *matrix, const uint32_t *in, uint32_t shi
         xor_rot(matrix + row[a] * 12u, u2 + (offset[a] >> 5), offset[a] & 31u);
 }
 static ldpc_group_fn ldpc_group_prepared = ldpc_group_direct;
-uint32_t dvbs2_ldpc_code_bytes(void) { return 0; }
-void *dvbs2_ldpc_copy(void *code, uint32_t bytes) { (void)code; (void)bytes; return (void *)ldpc_group_direct; }
-bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) { (void)code; (void)bytes; return true; }
+static ldpc_group_fn ldpc_c5_prepared = ldpc_group_direct;
+uint32_t dvbs2_ldpc_code_bytes_mode(unsigned mode) { (void)mode; return 0; }
+void *dvbs2_ldpc_copy_mode(void *code, uint32_t bytes, unsigned mode) {
+    (void)code; (void)bytes;
+    return mode == 1 || mode == 2 ? (void *)ldpc_group_direct : NULL;
+}
+bool dvbs2_ldpc_prepare_mode(void *code, uint32_t bytes, unsigned mode) {
+    return dvbs2_ldpc_copy_mode(code, bytes, mode) != NULL;
+}
 #endif
+
+uint32_t dvbs2_ldpc_code_bytes(void) { return dvbs2_ldpc_code_bytes_mode(1); }
+void *dvbs2_ldpc_copy(void *code, uint32_t bytes) { return dvbs2_ldpc_copy_mode(code, bytes, 1); }
+bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) { return dvbs2_ldpc_prepare_mode(code, bytes, 1); }
 
 bool dvbs2_ldpc_begin_reentrant_mode(uint32_t *frame, uint32_t *workspace,
                                     uint32_t workspace_words, dvbs2_ldpc_state_t *state,
                                     unsigned mode) {
     const uint32_t needed = dvbs2_ldpc_workspace_words();
     if (!needed || !frame || !workspace || !state || workspace_words < needed ||
-        mode > 1 || (mode && !ldpc_group_prepared)) return false;
+        mode > 2 || (mode == 1 && !ldpc_group_prepared) ||
+        (mode == 2 && !ldpc_c5_prepared)) return false;
     *state = (dvbs2_ldpc_state_t){.frame = frame, .rows = (uint32_t (*)[12])workspace,
-        .group = mode ? ldpc_group_prepared : NULL, .mode = mode};
+        .group = mode == 2 ? ldpc_c5_prepared : mode ? ldpc_group_prepared : NULL,
+        .mode = mode, .transpose = transpose32};
     return true;
 }
 
@@ -577,14 +640,19 @@ static void ldpc_prefix_into(dvbs2_ldpc_state_t *state) {
 
 static void ldpc_pack_step(dvbs2_ldpc_state_t *state) {
     const uint32_t q = C->q, rem = q > 32 ? q - 32 : q, k = state->cursor;
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    const uint32_t prefix = 0; // Device C5 packs through its separate PIC entry.
+#else
+    const uint32_t prefix = state->mode == 2 ? state->prefix[k] : 0;
+#endif
     uint32_t tile[2][32];
     for (unsigned row = 0; row < 32; row++)
-        tile[0][row] = row < q ? state->rows[row][k] : 0;
-    transpose32(tile[0]);
+        tile[0][row] = row < q ? state->rows[row][k] ^ prefix : 0;
+    state->transpose(tile[0]);
     if (q > 32) {
         for (unsigned row = 0; row < 32; row++)
-            tile[1][row] = 32 + row < q ? state->rows[32 + row][k] : 0;
-        transpose32(tile[1]);
+            tile[1][row] = 32 + row < q ? state->rows[32 + row][k] ^ prefix : 0;
+        state->transpose(tile[1]);
     }
     uint32_t *dst = state->frame + C->kldpc / 32u;
     uint32_t acc = state->acc, fill = state->fill, written = state->written;
@@ -640,7 +708,90 @@ static void ldpc_pack_step(dvbs2_ldpc_state_t *state) {
     state->acc = acc; state->fill = fill; state->written = written;
 }
 
-bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
+// Eight-row units remove repeated C3/job dispatch for the cheap matrix passes.
+// Four-group units amortize the hot driver; pack remains one 32-column tile.
+// Keep stages 0/2 for the
+// existing c3pair sub-counters; stage 4 disappears because packing applies prefix.
+static void ldpc_c5_rows(dvbs2_ldpc_state_t *state, uint32_t count, bool accumulate) {
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    typedef void (*rows_fn)(uint32_t *, uint32_t);
+    const uintptr_t base = (uintptr_t)state->group & ~(uintptr_t)1;
+    const uint32_t entry = accumulate ? (uint32_t)(
+        ((uintptr_t)dvbs2_ldpc_accumulate_c5_pic & ~(uintptr_t)1) -
+        ((uintptr_t)dvbs2_ldpc_rows_c5_pic & ~(uintptr_t)1)) : 0;
+    rows_fn run = (rows_fn)((base + c5_rows_offset() + entry) | 1u);
+    run(state->rows[state->cursor], count);
+#else
+    for (uint32_t r = state->cursor; r < state->cursor + count; ++r)
+        if (accumulate) {
+            for (unsigned k = 0; k < 12; ++k) state->rows[r][k] ^= state->rows[r - 1][k];
+        } else memset(state->rows[r], 0, sizeof state->rows[r]);
+#endif
+}
+
+// Keep C5 address arithmetic and dispatch out of the baseline step. In particular,
+// GCC otherwise hoists arena-offset calculations into mode0/1 calls as well.
+static bool __attribute__((noinline)) ldpc_c5_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
+    if (state->done) return true;
+    const uint32_t q = C->q;
+    while (max_units--) {
+        switch (state->stage) {
+        case 0:
+        case 2: {
+            const uint32_t count = q - state->cursor < 8 ? q - state->cursor : 8;
+            ldpc_c5_rows(state, count, state->stage == 2);
+            state->cursor += count;
+            if (state->cursor == q) {
+                ++state->stage;
+                state->cursor = state->stage == 1 ? 0 : 1;
+            }
+            break;
+        }
+        case 1:
+            for (unsigned n = 0; n < 4; ++n) {
+                const uint32_t first = grp[state->cursor], bit = state->cursor * 360u;
+                state->group(state->rows[0], state->frame + bit / 32u, bit & 31u,
+                    a_row + first, a_off + first, grp[state->cursor + 1] - first);
+                if (++state->cursor == C->n_groups) {
+                    state->stage = 2, state->cursor = 1;
+                    break;
+                }
+            }
+            break;
+        case 3:
+            ldpc_prefix_into(state);
+            state->stage = 5, state->cursor = 0;
+            state->fill = C->kldpc & 31u;
+            state->acc = state->frame[C->kldpc / 32u] & ~(~0u >> state->fill);
+            break;
+        default:
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+            {
+                typedef void (*pack_fn)(uint32_t *, uint32_t *, const uint32_t *, uint32_t,
+                                        uint32_t, uint32_t *);
+                const uintptr_t base = (uintptr_t)state->group & ~(uintptr_t)1;
+                pack_fn pack = (pack_fn)((base + c5_pack_offset()) | 1u);
+                pack(state->rows[0], state->frame + C->kldpc / 32u, state->prefix,
+                     q, state->cursor, &state->acc);
+            }
+#else
+            ldpc_pack_step(state);
+#endif
+            if (++state->cursor == 12) {
+                uint32_t *dst = state->frame + C->kldpc / 32u;
+                if (state->fill) dst[state->written++] = state->acc;
+                const uint32_t end = ((C->kldpc & 31u) + M + 63u) / 32u;
+                while (state->written < end) dst[state->written++] = 0;
+                state->done = true;
+                return true;
+            }
+            break;
+        }
+    }
+    return false;
+}
+
+static bool __attribute__((noinline)) ldpc_step_baseline(dvbs2_ldpc_state_t *state, uint32_t max_units) {
     if (state->done) return true;
     const uint32_t q = C->q;
     while (max_units--) {
@@ -691,6 +842,12 @@ bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
         }
     }
     return false;
+}
+
+bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
+    // A tiny tail-call dispatcher keeps the baseline's 256-byte local tile and
+    // register saves out of every C5 unit, including group/row-only units.
+    return state->mode == 2 ? ldpc_c5_step(state, max_units) : ldpc_step_baseline(state, max_units);
 }
 
 bool dvbs2_ldpc_set_pack(unsigned pack) {
@@ -917,11 +1074,13 @@ void dvbs2_init(const dvbs2_code_t *c, bool pil_on) {
 // One BBFRAME to one PLFRAME appended to s. fe = [scrambled BBFRAME | BCH | LDPC parity].
 uint32_t *dvbs2_frame_buffer(void) { return fe; }
 
+static dvbs2_bch_leaf_t bch_leaf(unsigned variant);
+
 static inline __attribute__((always_inline)) bool frontend_begin(
     const uint32_t *bb, uint32_t *frame, dvbs2_frontend_t *state,
     bool profile, unsigned options, bool prepared) {
     if ((bch_deg != 128 && bch_deg != 160 && (profile || bch_deg != 192)) ||
-        bch_kernel == S2_BCH_BASELINE || (options & ~S2_FE_FAST_BCH)) return false;
+        bch_kernel == S2_BCH_BASELINE || (options & ~(S2_FE_FAST_BCH | S2_FE_LDM_BCH))) return false;
     if (profile) PROF(4);
     if (!prepared) {
         const uint32_t kw = (C->kbch + 31u) / 32;
@@ -930,7 +1089,7 @@ static inline __attribute__((always_inline)) bool frontend_begin(
         memset(frame + kw, 0, (DVBS2_FE_WORDS - kw) * sizeof frame[0]);
     }
     *state = (dvbs2_frontend_t){.frame = frame, .kernel = bch_kernel, .profile = profile,
-        .options = (uint8_t)options};
+        .options = (uint8_t)options, .leaf = options & S2_FE_LDM_BCH ? bch_leaf(1) : NULL};
     return true;
 }
 
@@ -987,6 +1146,108 @@ static void HOT(bch160_continue_c)(const uint32_t *m, uint32_t *parity, uint32_t
     parity[5] = 0;
 }
 
+// C7 code is copied only by an idle command. The original tables and selectors stay fixed.
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+#define BCH_SOURCE(D, V) \
+    extern void dvbs2_bch##D##_##V(const uint32_t *, uint32_t *, const void *, uint32_t); \
+    extern const uint8_t dvbs2_bch##D##_##V##_end[]
+BCH_SOURCE(128, continue_y); BCH_SOURCE(160, continue_y); BCH_SOURCE(192, continue_y);
+BCH_SOURCE(128, fast_pic); BCH_SOURCE(160, fast_pic); BCH_SOURCE(192, fast_pic);
+BCH_SOURCE(128, table3_pic); BCH_SOURCE(160, table3_pic); BCH_SOURCE(192, table3_pic);
+#undef BCH_SOURCE
+static const uint8_t *bch_source(unsigned variant, const uint8_t **end) {
+    if (!C || C->is_short || variant > 2) return NULL;
+#define SOURCE(D, V) do { *end = dvbs2_bch##D##_##V##_end; \
+    return (const uint8_t *)((uintptr_t)dvbs2_bch##D##_##V & ~(uintptr_t)1); } while (0)
+#define DEGREE(D) case D: if (variant == 0) { SOURCE(D, continue_y); } \
+    if (variant == 1) { SOURCE(D, fast_pic); } SOURCE(D, table3_pic)
+    switch (bch_deg) { DEGREE(128); DEGREE(160); DEGREE(192); default: return NULL; }
+#undef DEGREE
+#undef SOURCE
+}
+#else
+static void bch_byte_leaf(const uint32_t *m, uint32_t *p, const void *table, uint32_t nw) {
+    const uint32_t (*t)[256][8] = table;
+    const unsigned words = bch_deg / 32u;
+    for (uint32_t n = 0; n < nw; ++n) {
+        const uint32_t x = p[0] ^ m[n];
+        for (unsigned k = 0; k < words; ++k)
+            p[k] = (k + 1u < words ? p[k + 1] : 0) ^ t[3][x >> 24][k] ^
+                t[2][(x >> 16) & 255u][k] ^ t[1][(x >> 8) & 255u][k] ^ t[0][x & 255u][k];
+    }
+    for (unsigned k = words; k < 6; ++k) p[k] = 0;
+}
+static void bch_table3_leaf(const uint32_t *m, uint32_t *p, const void *table, uint32_t nw) {
+    const uint32_t *t = table;
+    const unsigned words = bch_deg / 32u;
+    for (uint32_t n = 0; n < nw; ++n) {
+        const uint32_t x = p[0] ^ m[n];
+        const uint32_t *a = t + (x >> 21) * words;
+        const uint32_t *b = t + (2048u + ((x >> 10) & 2047u)) * words;
+        const uint32_t *c = t + (4096u + (x & 1023u)) * words;
+        for (unsigned k = 0; k < words; ++k)
+            p[k] = (k + 1u < words ? p[k + 1] : 0) ^ a[k] ^ b[k] ^ c[k];
+    }
+    for (unsigned k = words; k < 6; ++k) p[k] = 0;
+}
+#endif
+
+static dvbs2_bch_leaf_t bch_leaf(unsigned variant) {
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    const uint8_t *end, *start = bch_source(variant, &end);
+    return start ? (dvbs2_bch_leaf_t)((uintptr_t)start | 1u) : NULL;
+#else
+    if (!C || C->is_short || (bch_deg != 128 && bch_deg != 160 && bch_deg != 192) || variant > 2)
+        return NULL;
+    return variant == 2 ? bch_table3_leaf : bch_byte_leaf;
+#endif
+}
+
+uint32_t dvbs2_bch_code_bytes(unsigned variant) {
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    const uint8_t *end, *start = bch_source(variant, &end);
+    return start ? (uint32_t)((uintptr_t)end - (uintptr_t)start) : 0;
+#else
+    (void)variant;
+    return 0;
+#endif
+}
+
+dvbs2_bch_leaf_t dvbs2_bch_copy(void *code, uint32_t bytes, unsigned variant) {
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    const uint32_t needed = dvbs2_bch_code_bytes(variant);
+    if (!needed || !code || ((uintptr_t)code & 3u) || bytes < needed) return NULL;
+    memcpy(code, (const void *)((uintptr_t)bch_leaf(variant) & ~(uintptr_t)1), needed);
+    __asm volatile("dsb\n isb" ::: "memory");
+    return (dvbs2_bch_leaf_t)((uintptr_t)code | 1u);
+#else
+    (void)code; (void)bytes;
+    return bch_leaf(variant);
+#endif
+}
+
+uint32_t dvbs2_bch_table3_bytes(void) {
+    return bch_leaf(2) ? 5120u * (bch_deg / 32u) * 4u : 0;
+}
+
+bool dvbs2_bch_table3_init(void *table, uint32_t bytes) {
+    const uint32_t needed = dvbs2_bch_table3_bytes();
+    if (!needed || !table || ((uintptr_t)table & 3u) || bytes < needed) return false;
+    uint32_t *out = table;
+    const unsigned words = bch_deg / 32u;
+    for (unsigned plane = 0; plane < 3; ++plane) {
+        const unsigned shift = plane == 0 ? 21 : plane == 1 ? 10 : 0;
+        const unsigned rows = plane == 2 ? 1024 : 2048;
+        for (unsigned n = 0; n < rows; ++n) {
+            const uint32_t x = (uint32_t)n << shift;
+            for (unsigned k = 0; k < words; ++k)
+                *out++ = bch_tab[3][x >> 24][k] ^ bch_tab[2][(x >> 16) & 255u][k] ^
+                    bch_tab[1][(x >> 8) & 255u][k] ^ bch_tab[0][x & 255u][k];
+        }
+    }
+    return true;
+}
+
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
 // Optional dispatch remains in flash so pvflight keeps its existing lower-SRAM kernels.
 static void __attribute__((noinline)) COMPACT frontend_bch_fast(
@@ -1004,6 +1265,8 @@ bool HOT(dvbs2_frontend_step)(dvbs2_frontend_t *state, uint32_t max_words) {
     const uint32_t left = nw - state->cursor;
     const uint32_t take = left < max_words ? left : max_words;
     const uint32_t *m = state->frame + state->cursor;
+    if (state->leaf) state->leaf(m, state->parity, state->table ? state->table : bch_tab, take);
+    else
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
     if (state->options & S2_FE_FAST_BCH) frontend_bch_fast(m, state->parity, take);
     else

@@ -23,7 +23,10 @@ LIGHT = '#a8a8a8'
 
 # Shaper on the CPU, QPSK N=4, L=10, cycles per symbol (docs/benchmark-history.md, optimization record)
 SHAPER = [('convolution', 917.7), ('LUT', 58.6), ('windows', 29.1), ('PIO\ninterleave', 13.8),
-          ('assembly', 11.55), ('SRAM\nplacement', 11.05), ('pipelined', 10.80)]
+          ('assembly', 11.55), ('SRAM\nplacement', 11.05), ('pipelined', 10.80),
+          # Table rows copied by DMA, addresses built by PIO: descriptor_gen_busy and
+          # sample_math_busy are 0 in results/dualptr/2026-10-15 and results/b6-pio-producers.
+          ('PIO +\nDMA', 0.0)]
 
 # BCH + LDPC, thousands of cycles per normal 2/3 frame on one core
 FEC = [('bit-serial', 1356 + 2771, 'docs/benchmark-history.md'),
@@ -46,15 +49,25 @@ def fig_progress():
     fig, axes = plt.subplots(1, 3, figsize=(WIDTH * 1.45, 2.9), gridspec_kw=dict(width_ratios=[1.25, 1.15, 0.8]))
     ax = axes[0]
     x = range(len(SHAPER))
-    ax.semilogy(x, [v for _, v in SHAPER], 'o-', color=INK, mfc='white', ms=4)
+    # symlog: logarithmic above 1 cycle, linear below, so the PIO + DMA point can sit at 0.
+    ax.set_yscale('symlog', linthresh=1, linscale=0.6)
+    ax.plot(list(x)[:-1], [v for _, v in SHAPER][:-1], 'o-', color=INK, mfc='white', ms=4)
+    ax.plot([len(SHAPER) - 2, len(SHAPER) - 1], [SHAPER[-2][1], 0], ':', color=INK, lw=0.9)
+    ax.plot([len(SHAPER) - 1], [0], 'o', color=INK, ms=4.5)
     for i, (_, v) in enumerate(SHAPER):
-        ax.annotate(f'{v:g}', (i, v), xytext=(0, 5), textcoords='offset points', ha='center', fontsize=6.5)
-    ax.annotate('PIO + DMA:\nno CPU cycles', (len(SHAPER) - 1, 10.8), xytext=(len(SHAPER) - 1.5, 2.2),
-                ha='center', fontsize=7, color=DARK, arrowprops=dict(arrowstyle='->', color=MID, lw=0.6))
+        last = i == len(SHAPER) - 1
+        ax.annotate(f'{v:g}', (i, v), xytext=(7, 0) if last else (0, 5), textcoords='offset points',
+                    ha='left' if last else 'center', va='center' if last else 'bottom', fontsize=6.5)
+    ax.text(len(SHAPER) - 1, 1600, 'no CPU\nwork', ha='center', va='top', fontsize=6.3,
+            color=DARK)
+    ax.axvline(len(SHAPER) - 1.5, color=MID, lw=0.5, ls='--')
+    ax.text(len(SHAPER) - 3.6, 1600, 'CPU computes samples', ha='center', va='top', fontsize=6.3, color=DARK)
     ax.set_xticks(list(x))
     ax.set_xlim(-0.6, len(SHAPER) - 0.4)
     ax.set_xticklabels([n for n, _ in SHAPER], fontsize=6, rotation=0)
-    ax.set_ylim(1, 3000)
+    ax.set_ylim(-0.3, 3000)
+    ax.set_yticks([0, 1, 10, 100, 1000])
+    ax.set_yticklabels(['0', '1', '10', '100', '1000'])
     ax.set_ylabel('CPU cycles per symbol')
     ax.set_title('(a) Pulse shaping, QPSK, 4 SPS', loc='left', fontsize=8.5)
 

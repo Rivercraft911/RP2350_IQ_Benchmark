@@ -65,3 +65,28 @@ def qpsk_lut(span, beta, profile=None):
                                taps=L8_COEFFICIENTS / 256,
                                table=iqlut.build_table(L8_COEFFICIENTS, 8, 4))
     return iqlut.Lut(0.20, 4, span, beta, 1.0)
+
+
+# N5 opt-in pulse; the odd 35-tap pulse includes its single center coefficient.
+N5_PROFILE = "8psk_l7_n5_hold_m010_far2"
+N5_SCALE_DEN = 3388
+N5_COEFFICIENTS = np.array([
+    -39073, -46397, -27862, -7399, 53396, 87889, 107821,
+    59124, -24906, -139647, -210765, -204025, -67585, 180230,
+    508721, 829370, 1070150, 1154856, 1070150, 829370, 508721,
+    180230, -67585, -204025, -210765, -139647, -24906, 59124,
+    107821, 87889, 53396, -7399, -27862, -46397, -39073,
+], dtype=np.int64)
+
+
+def iq5hist_rows():
+    """Five signed bytes in two words; the final three bytes are zero padding."""
+    keys = np.arange(4 ** 7, dtype=np.int64)[:, None]
+    codes = (keys >> (2 * np.arange(7))) & 3
+    sums = FOUR_LEVELS_Q30[codes] @ N5_COEFFICIENTS.reshape(7, 5)
+    denominator = N5_SCALE_DEN << 32
+    samples = (((sums + denominator // 2) // denominator) & 255).astype("<u4")
+    rows = np.zeros((4 ** 7, 2), dtype="<u4")
+    for phase in range(5):
+        rows[:, phase // 4] |= samples[:, phase] << (8 * (phase % 4))
+    return rows

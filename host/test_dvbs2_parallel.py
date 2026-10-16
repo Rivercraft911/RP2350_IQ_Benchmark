@@ -1,8 +1,11 @@
 """Two caller-owned bounded FEC workers vs serial C and independent Python bits.
 
-Minimum-sized dirty parity matrices have canaries. Real host threads run selectors
-1/2/3, both LDPC modes, BB+BCH slices1/7/128/511 and LDPC units1/3/17/128; zero/idempotent steps,
+Minimum-sized dirty parity matrices have canaries. Real host threads and deterministic
+interleaving run selectors1/2/3 and LDPC modes0/1/2 across all supported normal/short rates.
+BB+BCH slices1/7/128/511, LDPC units0/1/3/17/128/UINT32_MAX, zero/idempotent steps,
 unaligned parity tails and unsupported/undersized begin are checked. Not M33 timing.
+Short rates enter LDPC from serial-checked BCH because the concurrent BCH frontend
+supports normal codes only.
 """
 from __future__ import annotations
 
@@ -30,10 +33,11 @@ def main() -> None:
                         str(ROOT / "host/native/dvbs2_parallel_test.c"), "-o", str(exe)], check=True)
         result = subprocess.run([str(exe)], check=True, capture_output=True, text=True)
     records = [json.loads(line) for line in result.stdout.splitlines()]
-    assert len(records) == 48, len(records)
+    assert len(records) == 128, len(records)
     for record in records:
         rate = record["code"].split()[1]
-        code = ref.code(rate)
+        short = record["code"].startswith("short ")
+        code = ref.code(rate, short=short)
         n = (code.kbch + 31) // 32
         pattern = record["pattern"]
         if pattern == 3:
@@ -42,12 +46,13 @@ def main() -> None:
         else:
             words = np.full(n, (0, 0xFFFFFFFF, 0xAAAAAAAA)[pattern], dtype=np.uint32)
         bits = ((words[:, None] >> np.arange(31, -1, -1, dtype=np.uint32)) & 1).astype(np.uint8)
-        want = ref.fecframe(bits.ravel()[:code.kbch], rate)
+        want = ref.fecframe(bits.ravel()[:code.kbch], rate, short=short)
         got_words = np.asarray(record["words"], dtype=np.uint32)
         got = ((got_words[:, None] >> np.arange(31, -1, -1, dtype=np.uint32)) & 1).astype(np.uint8).ravel()
-        assert np.array_equal(got, want), (record["code"], pattern, record["worker"])
-    print("Passed 48 independent Python FEC vectors; two threaded workers, six normal rates, "
-          "three BCH selectors, both LDPC modes, four bounded slice combinations, serial parity and canaries.")
+        assert np.array_equal(got[:code.n], want), (record["code"], pattern, record["worker"])
+        assert not np.any(got[code.n:]), (record["code"], "padding")
+    print("Passed 128 independent Python FEC vectors; two threaded/interleaved workers, all16 reentrant rates, "
+          "three BCH selectors, LDPC modes0/1/2, bounded and full-frame grants, serial parity and canaries.")
 
 
 if __name__ == "__main__":

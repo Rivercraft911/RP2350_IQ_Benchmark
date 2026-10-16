@@ -11,7 +11,9 @@ enum { IQ4QUAD_STREAMS = 4 };
 // within the L7 table key. The cyclic period is axis_words*16 symbols; its last
 // six symbols supply the initial history, so ring wrap introduces no transient.
 // ring_words must equal axis_words*8 and be a power of two. row_words=1 selects
-// B4's8-bit rows; row_words=2 selects14-bit rows. table_base is a numerical
+// B4's8-bit rows; row_words=2 selects14-bit N4 or padded8-bit N5 rows. The
+// pointer helper depends on the L7 history and row stride, not samples/symbol.
+// table_base is a numerical
 // 32-bit bus address, not a pointer dereferenced by this helper.
 // Sources and output rings must not overlap. Invalid arguments return false
 // before any output writes. Caller owns all storage; no allocation is performed.

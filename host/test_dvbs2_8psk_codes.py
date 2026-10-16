@@ -29,7 +29,7 @@ class State(ctypes.Structure):
     _fields_ = [("cfg", ctypes.c_void_p), ("frame", PTR),
                 ("stream", ctypes.POINTER(Codes)), ("data", ctypes.c_uint32),
                 ("pilot", ctypes.c_uint32), ("header_done", ctypes.c_bool),
-                ("fast", ctypes.c_bool)]
+                ("fast", ctypes.c_bool), ("c6", ctypes.c_bool)]
 
 
 def packed_codes(points, flush=False):
@@ -55,12 +55,14 @@ def setup(lib, rate, short, pilots, gold, fast=False):
     arena = (ctypes.c_uint32*need)()
     cfg = (ctypes.c_uint64*32)()
     assert lib.dvbs2_8psk_init(cfg, code, pilots, gold, arena, need)
-    lut_raw, lut = buffer(484)
+    lut_words = 1252 if fast == 2 else 484
+    lut_raw, lut = buffer(lut_words)
     if fast:
+        init = lib.dvbs2_8psk_codes_c6_init if fast == 2 else lib.dvbs2_8psk_codes_lut_init
         before = bytes(cfg), bytes(lut_raw)
-        assert not lib.dvbs2_8psk_codes_lut_init(cfg, lut, 483)
+        assert not init(cfg, lut, lut_words - 1)
         assert before == (bytes(cfg), bytes(lut_raw))
-        assert lib.dvbs2_8psk_codes_lut_init(cfg, lut, 484)
+        assert init(cfg, lut, lut_words)
         assert lut_raw[0] == lut_raw[-1] == CANARY
     return cfg, (arena, lut_raw)
 
@@ -84,7 +86,12 @@ def check(lib, rate, short, pilots, gold, prefix, ring, rng, fast=False):
         before = words.copy()
         state = State()
         args = ctypes.byref(state), cfg, words.ctypes.data_as(PTR), ctypes.byref(stream)
-        if fast:
+        if fast == 2:
+            assert lib.dvbs2_8psk_codes_begin_c6(*args)
+        elif fast:
+            before_state = bytes(state)
+            assert not lib.dvbs2_8psk_codes_begin_c6(*args)
+            assert bytes(state) == before_state
             assert lib.dvbs2_8psk_codes_begin_fast(*args)
         else:
             before_state = bytes(state)
@@ -151,7 +158,8 @@ def deferred(lib, rate, rng, prefix, start_n, fast=False):
     for j in (3, 1, 0, 2):
         state = State()
         args = ctypes.byref(state), cfg, words[j].ctypes.data_as(PTR), ctypes.byref(streams[j])
-        if fast: assert lib.dvbs2_8psk_codes_begin_fast(*args)
+        if fast == 2: assert lib.dvbs2_8psk_codes_begin_c6(*args)
+        elif fast: assert lib.dvbs2_8psk_codes_begin_fast(*args)
         else: lib.dvbs2_8psk_codes_begin(*args)
         while not lib.dvbs2_8psk_codes_step(ctypes.byref(state), 8): pass
         assert streams[j].first_pending
@@ -188,12 +196,16 @@ def main():
         lib.dvbs2_8psk_init.restype = ctypes.c_bool
         lib.dvbs2_8psk_codes_lut_init.argtypes = [ctypes.c_void_p, PTR, ctypes.c_uint32]
         lib.dvbs2_8psk_codes_lut_init.restype = ctypes.c_bool
+        lib.dvbs2_8psk_codes_c6_init.argtypes = lib.dvbs2_8psk_codes_lut_init.argtypes
+        lib.dvbs2_8psk_codes_c6_init.restype = ctypes.c_bool
         lib.dvbs2_8psk_frame.argtypes = [ctypes.c_void_p, PTR, ctypes.POINTER(old.Stream)]
         lib.dvbs2_8psk_flush.argtypes = [ctypes.POINTER(old.Stream)]
         lib.iq4hist_pack_group.argtypes = [ctypes.POINTER(old.Input), PTR, PTR]
         lib.dvbs2_8psk_codes_begin.argtypes = [ctypes.POINTER(State), ctypes.c_void_p, PTR, ctypes.POINTER(Codes)]
         lib.dvbs2_8psk_codes_begin_fast.argtypes = lib.dvbs2_8psk_codes_begin.argtypes
         lib.dvbs2_8psk_codes_begin_fast.restype = ctypes.c_bool
+        lib.dvbs2_8psk_codes_begin_c6.argtypes = lib.dvbs2_8psk_codes_begin.argtypes
+        lib.dvbs2_8psk_codes_begin_c6.restype = ctypes.c_bool
         lib.dvbs2_8psk_codes_step.argtypes = [ctypes.POINTER(State), ctypes.c_uint32]
         lib.dvbs2_8psk_codes_step.restype = ctypes.c_bool
         lib.dvbs2_8psk_codes_frame.argtypes = [ctypes.c_void_p, PTR, ctypes.POINTER(Codes)]
@@ -202,7 +214,7 @@ def main():
         assert lib.test_state_size() == ctypes.sizeof(State)
         rng = np.random.default_rng(20261015)
         cases = calls = 0
-        for fast in (False, True):
+        for fast in (0, 1, 2):
             for short in (False, True):
                 for rate in old.RATES:
                     if short and rate == "9/10": continue
@@ -218,8 +230,8 @@ def main():
                 for prefix, start_n in ((0, 0), (7, 8190), (15, 8191)):
                     deferred(lib, rate, rng, prefix, start_n, fast)
     print(json.dumps(dict(configurations=22, cases=cases, frames=3*cases,
-                          options=["baseline", "byte-lut"], slice_calls=calls,
-                          deferred_cases=18, deferred_frames=72,
+                          options=["baseline", "byte-lut", "c6"], slice_calls=calls,
+                          deferred_cases=27, deferred_frames=108,
                           all_partial_fills=list(range(16)), result="bit-exact")))
 
 

@@ -120,6 +120,12 @@ bool dual_dma_start_axis_fifo(const volatile uint32_t *rx_i, const volatile uint
 // Ring storage must remain unchanged until stop. No progress/reuse cursor is provided:
 // call faults(), not progress(), and the immutable source has no polling deadline.
 bool dual_dma_start_quad_rows(const uint32_t *const desc[4], unsigned count_log2, unsigned cpw);
+// N5 variant: each row is five signed bytes, little-endian in two words; the
+// remaining three bytes are discarded. Requires writers4, sample_bits8,
+// row_words2, DDR clock and cpw1/2. Each chain emits alternate symbols, with
+// 20*cpw SYS cycles between rows. Same immutable ring ownership as quad_rows.
+// This direct opt-in entry does not add or alter a persistent format selector.
+bool dual_dma_start_quad5_rows(const uint32_t *const desc[4], unsigned count_log2, unsigned cpw);
 // Four independent PIO producers, order I-even,Q-even,I-odd,Q-odd. Each RX FIFO
 // has exactly one control DMA, paced by its own distinct RX DREQ; no router.
 // Same OUT8 one-symbol writers and atomic DDR timing as quad_rows. Caller owns

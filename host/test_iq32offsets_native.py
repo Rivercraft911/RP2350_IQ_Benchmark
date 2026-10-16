@@ -39,11 +39,33 @@ def main():
     with tempfile.TemporaryDirectory(prefix='native-offset-fusion-') as temp:
         library=Path(temp)/'native.so'
         subprocess.run(['cc','-O3','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',
-            '-I'+str(ROOT/'firmware/src'),str(HERE/'iq32offsets_native.c'),
+            '-I'+str(ROOT/'firmware/src'),str(HERE/'iq32offsets_native.c'),str(HERE/'iq32offsets_mla.c'),
             *[str(ROOT/'firmware/src'/name) for name in('iq32keys.c','iq32offsets.c','iq32native8.c')],
             '-o',str(library)],check=True)
         lib=c.CDLL(str(library))
         lib.iq32offsets_from_native.argtypes=[P,P,c.c_uint32,P]
+        lib.iq32offsets_from_native_mla.argtypes=[P,P,c.c_uint32,P]
+        def both(out,words,count,previous):
+            """A3: the multiply form must write exactly the original words, no more."""
+            size=2*count+5 if count else 0
+            mla=np.full(size+2,CANARY,np.uint32)
+            lib.iq32offsets_from_native_mla(ptr(mla[1:]) if count else None,ptr(words) if count else None,count,
+                                            None if previous is None else ptr(previous))
+            lib.iq32offsets_from_native(out,ptr(words) if count else None,count,None if previous is None else ptr(previous))
+            assert mla[0]==mla[-1]==CANARY
+            return mla[1:-1]
+        mla_cases=0
+        lib.iq32offsets_from_native_mla(None,None,0,None)
+        # Any 32-bit input, including codes 17..31 whose packed products overflow a lane:
+        # the two forms are the same integer polynomial modulo 2^32.
+        wide=np.random.default_rng(20261016)
+        for count in (1,2,3,5,64,511,512,513):
+            for use_previous in (False,True):
+                words=wide.integers(0,1<<32,count,dtype=np.uint64).astype(np.uint32)
+                previous=wide.integers(0,1<<32,4,dtype=np.uint64).astype(np.uint32) if use_previous else None
+                original=np.empty(2*count+5,np.uint32)
+                np.testing.assert_array_equal(both(ptr(original),words,count,previous),original)
+                mla_cases+=1
         lib.iq32keys_history.argtypes=[P,P]
         lib.iq32keys_encode.argtypes=[P,P,c.c_uint32,P]
         lib.iq32offsets_encode.argtypes=[P,P,c.c_uint32]
@@ -80,8 +102,9 @@ def main():
                         previous=codes[:,0]|codes[:,1]<<5|codes[:,2]<<16|codes[:,3]<<21
                     source_before=words.copy();previous_before=None if previous is None else previous.copy()
                     result=np.full(2*count+7,CANARY,np.uint32)
-                    lib.iq32offsets_from_native(ptr(result[1:]),ptr(words),count,None if previous is None else ptr(previous))
+                    mla=both(ptr(result[1:]),words,count,previous);mla_cases+=1
                     assert result[0]==result[-1]==CANARY
+                    np.testing.assert_array_equal(mla,result[1:-1])
                     old=np.empty(2*count+5,np.uint32)
                     lib.iq32keys_history(ptr(old),None if previous is None else ptr(previous))
                     lib.iq32keys_encode(ptr(old[5:]),ptr(words),count,None if previous is None else ptr(previous[3:]))
@@ -105,13 +128,15 @@ def main():
                 if not count:continue
                 previous=np.r_[np.full(4,pilot,np.uint32),words[:start]][-4:]
                 out=np.empty(2*count+5,np.uint32)
-                lib.iq32offsets_from_native(ptr(out),ptr(words[start:]),count,ptr(previous))
+                part=np.ascontiguousarray(words[start:start+count])
+                np.testing.assert_array_equal(both(ptr(out),part,count,previous),out);mla_cases+=1
                 np.testing.assert_array_equal(out[5:],full[2*start:2*(start+count)])
                 np.testing.assert_array_equal(out,independent(words[start:start+count],previous))
                 start+=count;cases+=1
             assert start==len(words)
         report=dict(status='passed',scope='portable C and independent integer model; no device timing',
                     cases=cases,current_symbols_compared=symbols,shaped_words_compared=output_words,
+                    multiply_form_cases=mla_cases,multiply_form_any_32bit_input=True,
                     amplitude_rates=5,exhaustive_radix17_triples=4913,
                     ignored_reserved_bits=True,null_pilot_history=True,arbitrary_partition_history=True,
                     zero_blocks_no_access=True,immutable_inputs_and_canaries=True,

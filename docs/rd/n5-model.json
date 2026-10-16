@@ -1,0 +1,532 @@
+{
+  "design": {
+    "N": 5,
+    "L": 7,
+    "alpha": 0.2,
+    "ideal_hold": true,
+    "symmetry": "odd35_single_center",
+    "requested_mask_margin_db": 0.1,
+    "requested_far_extra_db": 2.0,
+    "upper_interval_fn": [
+      0,
+      6
+    ],
+    "lower_interval_fn": [
+      0,
+      1.11
+    ],
+    "frequency_grid_uniform_points": 6001,
+    "exact_mask_knots": true,
+    "receiver_sidelobes_per_side": 80,
+    "quadrature_nodes_per_interval": 768,
+    "main_receiver_sample": 1,
+    "objective": "RMS receiver sidelobes / main sample",
+    "environment": {
+      "python": "3.13.2",
+      "numpy": "2.2.5",
+      "scipy": "1.17.1"
+    },
+    "success": true,
+    "iterations": 20,
+    "soc_bound_gap": 1.2700226714040808e-08,
+    "objective_isi_fraction": 0.01468148056814626,
+    "float_taps": [
+      -0.007266510616547885,
+      -0.00862874458533031,
+      -0.005181598879927768,
+      -0.001376059537579048,
+      0.009930269176918326,
+      0.01634514811224518,
+      0.020051924299964673,
+      0.010995479800657525,
+      -0.004631832581858035,
+      -0.025970739757830718,
+      -0.03919703247003313,
+      -0.03794343739932917,
+      -0.012569031193553917,
+      0.03351827445189077,
+      0.09460927588744847,
+      0.15424176622670221,
+      0.1990208299602216,
+      0.21477396146389421,
+      0.1990208299602216,
+      0.15424176622670221,
+      0.09460927588744847,
+      0.03351827445189077,
+      -0.012569031193553917,
+      -0.03794343739932917,
+      -0.03919703247003313,
+      -0.025970739757830718,
+      -0.004631832581858035,
+      0.010995479800657525,
+      0.020051924299964673,
+      0.01634514811224518,
+      0.009930269176918326,
+      -0.001376059537579048,
+      -0.005181598879927768,
+      -0.00862874458533031,
+      -0.007266510616547885
+    ],
+    "coefficients_q8": [
+      -39073,
+      -46397,
+      -27862,
+      -7399,
+      53396,
+      87889,
+      107821,
+      59124,
+      -24906,
+      -139647,
+      -210765,
+      -204025,
+      -67585,
+      180230,
+      508721,
+      829370,
+      1070150,
+      1154856,
+      1070150,
+      829370,
+      508721,
+      180230,
+      -67585,
+      -204025,
+      -210765,
+      -139647,
+      -24906,
+      59124,
+      107821,
+      87889,
+      53396,
+      -7399,
+      -27862,
+      -46397,
+      -39073
+    ],
+    "binary_axis_headroom_target_db": 1,
+    "frozen_coefficients_equal": true
+  },
+  "native_and_model": {
+    "profile": "8psk_l7_n5_hold_m010_far2",
+    "rows": 16384,
+    "scalar_samples": 81920,
+    "table_bytes": 131072,
+    "table_crc": 2727987137,
+    "row_words": 2,
+    "padding_bytes_per_row": 3,
+    "exact_axis_peak": 127,
+    "afe_axis_peak": 8128,
+    "scale_denominator": 3388,
+    "afe_headroom_db": 0.06706461985558325,
+    "afe_gain_relative_to_14bit": 1.2089728453364816,
+    "coefficient_bytes_sha256": "8050cbc2693c14033cb585dc26cc29e4f2726911908cd9c3f0a491fb27111b4b",
+    "coefficients_q8": [
+      -39073,
+      -46397,
+      -27862,
+      -7399,
+      53396,
+      87889,
+      107821,
+      59124,
+      -24906,
+      -139647,
+      -210765,
+      -204025,
+      -67585,
+      180230,
+      508721,
+      829370,
+      1070150,
+      1154856,
+      1070150,
+      829370,
+      508721,
+      180230,
+      -67585,
+      -204025,
+      -210765,
+      -139647,
+      -24906,
+      59124,
+      107821,
+      87889,
+      53396,
+      -7399,
+      -27862,
+      -46397,
+      -39073
+    ],
+    "max_axis_error_8bit_lsb": 0.49994569034490155,
+    "frozen_tap_error_bound_8bit_lsb": 0.5000000642160728,
+    "rounding": "floor((Q8_times_Q30_sum + 3388*2^31)/(3388*2^32))",
+    "continuous_mapping": {
+      "seeds": 4,
+      "symbols_per_seed": 2192,
+      "publication_blocks": [
+        1,
+        7,
+        16,
+        257,
+        2192
+      ]
+    },
+    "environment": {
+      "python": "3.13.2",
+      "numpy": "2.2.5",
+      "compiler": "Apple clang version 17.0.0 (clang-1700.0.13.5)"
+    },
+    "spectrum_8bit": {
+      "digital": {
+        "upper_margin_db": -1.9922070128969267,
+        "upper_worst_fn": 4.999998092651367,
+        "lower_margin_db": 0.25,
+        "far_margin_db": -1.9922070128969267,
+        "grid_points": 1048586,
+        "response_derivative_bound": 3.4372843650283276,
+        "certified_upper_amplitude_slack": -0.0032820108453741914,
+        "certified_lower_amplitude_slack": 0.028341847961596757,
+        "continuous_certificate": false
+      },
+      "held": {
+        "upper_margin_db": 0.02662877617611059,
+        "upper_worst_fn": 1.4981918334960938,
+        "lower_margin_db": 0.21449968911825112,
+        "far_margin_db": 1.7685079372749684,
+        "grid_points": 1048586,
+        "response_derivative_bound": 3.6834513270157405,
+        "certified_upper_amplitude_slack": 7.80212921694646e-06,
+        "certified_lower_amplitude_slack": 0.021997644067659833,
+        "continuous_certificate": true
+      },
+      "ideal_rrc_receiver": {
+        "digital": {
+          "isi_plus_nonlinear_distortion_percent": 1.2787520925741636,
+          "integration_points": [
+            16384,
+            65536
+          ],
+          "refinement_delta_percentage_points": 1.1186503945381787e-08,
+          "mer_db": 37.86427285182959
+        },
+        "held": {
+          "isi_plus_nonlinear_distortion_percent": 1.4868955295383557,
+          "integration_points": [
+            16384,
+            65536
+          ],
+          "refinement_delta_percentage_points": 2.53896992319369e-09,
+          "mer_db": 36.554390885631875
+        }
+      }
+    },
+    "evaluated_alternatives": {
+      "8bit_divisor3386": {
+        "digital": {
+          "upper_margin_db": -1.9583508444377813,
+          "upper_worst_fn": 4.999998092651367,
+          "lower_margin_db": 0.25,
+          "far_margin_db": -1.9583508444377813,
+          "grid_points": 1048586,
+          "response_derivative_bound": 3.437054908440112,
+          "certified_upper_amplitude_slack": -0.003290405861298475,
+          "certified_lower_amplitude_slack": 0.02834184861807732,
+          "continuous_certificate": false
+        },
+        "held": {
+          "upper_margin_db": 0.01781706088652868,
+          "upper_worst_fn": 1.4982719421386719,
+          "lower_margin_db": 0.2143370924983724,
+          "far_margin_db": 1.7737680167034284,
+          "grid_points": 1048586,
+          "response_derivative_bound": 3.683214239653556,
+          "certified_upper_amplitude_slack": -1.0610374826475273e-05,
+          "certified_lower_amplitude_slack": 0.021980739631121134,
+          "continuous_certificate": false
+        },
+        "ideal_rrc_receiver": {
+          "digital": {
+            "isi_plus_nonlinear_distortion_percent": 1.2787909461731835,
+            "integration_points": [
+              16384,
+              65536
+            ],
+            "refinement_delta_percentage_points": 1.1212966555262938e-08,
+            "mer_db": 37.86400894379908
+          },
+          "held": {
+            "isi_plus_nonlinear_distortion_percent": 1.486704043399715,
+            "integration_points": [
+              16384,
+              65536
+            ],
+            "refinement_delta_percentage_points": 2.5169513140355093e-09,
+            "mer_db": 36.55550954833609
+          }
+        }
+      },
+      "8bit_divisor3387": {
+        "digital": {
+          "upper_margin_db": -1.9474988633078993,
+          "upper_worst_fn": 4.999998092651367,
+          "lower_margin_db": 0.25,
+          "far_margin_db": -1.9474988633078993,
+          "grid_points": 1048586,
+          "response_derivative_bound": 3.4371322330220657,
+          "certified_upper_amplitude_slack": -0.0032973420506173046,
+          "certified_lower_amplitude_slack": 0.028341848396849917,
+          "continuous_certificate": false
+        },
+        "held": {
+          "upper_margin_db": 0.02575673213285512,
+          "upper_worst_fn": 1.498220443725586,
+          "lower_margin_db": 0.21448706289692654,
+          "far_margin_db": 1.7781541111768036,
+          "grid_points": 1048586,
+          "response_derivative_bound": 3.683294403983832,
+          "certified_upper_amplitude_slack": 5.964452929883241e-06,
+          "certified_lower_amplitude_slack": 0.021996331761382826,
+          "continuous_certificate": true
+        },
+        "ideal_rrc_receiver": {
+          "digital": {
+            "isi_plus_nonlinear_distortion_percent": 1.2791436578977988,
+            "integration_points": [
+              16384,
+              65536
+            ],
+            "refinement_delta_percentage_points": 1.1249454923145663e-08,
+            "mer_db": 37.86161356189322
+          },
+          "held": {
+            "isi_plus_nonlinear_distortion_percent": 1.4867112859944112,
+            "integration_points": [
+              16384,
+              65536
+            ],
+            "refinement_delta_percentage_points": 2.4851058988417662e-09,
+            "mer_db": 36.55546723445037
+          }
+        }
+      },
+      "6bit_divisor13704": {
+        "digital": {
+          "upper_margin_db": -3.904544256664913,
+          "upper_worst_fn": 4.999998092651367,
+          "lower_margin_db": 0.25,
+          "far_margin_db": -3.904544256664913,
+          "grid_points": 1048586,
+          "response_derivative_bound": 3.4373594969027987,
+          "certified_upper_amplitude_slack": -0.005722834719401664,
+          "certified_lower_amplitude_slack": 0.02834184774664274,
+          "continuous_certificate": false
+        },
+        "held": {
+          "upper_margin_db": -1.4073006420943912,
+          "upper_worst_fn": 1.697793960571289,
+          "lower_margin_db": 0.2113850704284722,
+          "far_margin_db": -1.4055315544482312,
+          "grid_points": 1048586,
+          "response_derivative_bound": 3.683472735057528,
+          "certified_upper_amplitude_slack": -0.00204045108639563,
+          "certified_lower_amplitude_slack": 0.021673873190516304,
+          "continuous_certificate": false
+        },
+        "ideal_rrc_receiver": {
+          "digital": {
+            "isi_plus_nonlinear_distortion_percent": 1.5678982088648274,
+            "integration_points": [
+              16384,
+              65536
+            ],
+            "refinement_delta_percentage_points": 8.778975768564123e-09,
+            "mer_db": 36.09364272031855
+          },
+          "held": {
+            "isi_plus_nonlinear_distortion_percent": 1.7460278589183382,
+            "integration_points": [
+              16384,
+              65536
+            ],
+            "refinement_delta_percentage_points": 2.4515351970677557e-09,
+            "mer_db": 35.158976622941374
+          }
+        }
+      },
+      "6bit_divisor13705": {
+        "digital": {
+          "upper_margin_db": -3.877629765134621,
+          "upper_worst_fn": 4.999998092651367,
+          "lower_margin_db": 0.25,
+          "far_margin_db": -3.877629765134621,
+          "grid_points": 1048586,
+          "response_derivative_bound": 3.437548030345966,
+          "certified_upper_amplitude_slack": -0.005674336972066235,
+          "certified_lower_amplitude_slack": 0.028341847207244232,
+          "continuous_certificate": false
+        },
+        "held": {
+          "upper_margin_db": -1.4274791995235177,
+          "upper_worst_fn": 1.6978282928466797,
+          "lower_margin_db": 0.2116709703025571,
+          "far_margin_db": -1.425764557864028,
+          "grid_points": 1048586,
+          "response_derivative_bound": 3.683667149432038,
+          "certified_upper_amplitude_slack": -0.0020104174098723327,
+          "certified_lower_amplitude_slack": 0.021703587656431204,
+          "continuous_certificate": false
+        },
+        "ideal_rrc_receiver": {
+          "digital": {
+            "isi_plus_nonlinear_distortion_percent": 1.568079551083446,
+            "integration_points": [
+              16384,
+              65536
+            ],
+            "refinement_delta_percentage_points": 8.855813637964616e-09,
+            "mer_db": 36.09263817333514
+          },
+          "held": {
+            "isi_plus_nonlinear_distortion_percent": 1.7458776054443594,
+            "integration_points": [
+              16384,
+              65536
+            ],
+            "refinement_delta_percentage_points": 2.3829775930295227e-09,
+            "mer_db": 35.15972411459419
+          }
+        }
+      },
+      "6bit_divisor13706": {
+        "digital": {
+          "upper_margin_db": -3.862160285469038,
+          "upper_worst_fn": 4.999998092651367,
+          "lower_margin_db": 0.25,
+          "far_margin_db": -3.862160285469038,
+          "grid_points": 1048586,
+          "response_derivative_bound": 3.4376259810498433,
+          "certified_upper_amplitude_slack": -0.005646530062498619,
+          "certified_lower_amplitude_slack": 0.02834184698422548,
+          "continuous_certificate": false
+        },
+        "held": {
+          "upper_margin_db": -1.438783766102489,
+          "upper_worst_fn": 1.697977066040039,
+          "lower_margin_db": 0.21171999084568405,
+          "far_margin_db": -1.437294523915753,
+          "grid_points": 1048586,
+          "response_derivative_bound": 3.6837415887900553,
+          "certified_upper_amplitude_slack": -0.0020060395707752936,
+          "certified_lower_amplitude_slack": 0.021708682495048457,
+          "continuous_certificate": false
+        },
+        "ideal_rrc_receiver": {
+          "digital": {
+            "isi_plus_nonlinear_distortion_percent": 1.5682237424958274,
+            "integration_points": [
+              16384,
+              65536
+            ],
+            "refinement_delta_percentage_points": 8.888376257232267e-09,
+            "mer_db": 36.091839506510944
+          },
+          "held": {
+            "isi_plus_nonlinear_distortion_percent": 1.7454782775820763,
+            "integration_points": [
+              16384,
+              65536
+            ],
+            "refinement_delta_percentage_points": 2.355446060420263e-09,
+            "mer_db": 35.16171103192518
+          }
+        }
+      }
+    },
+    "scope": {
+      "alpha": 0.2,
+      "fn": "f/(Rs/2)",
+      "upper_interval": [
+        0,
+        6
+      ],
+      "lower_interval": [
+        0,
+        1.11
+      ],
+      "far_interval": [
+        1.7,
+        6
+      ],
+      "ensemble": "iid uniform four-level coordinate histories",
+      "limitations": [
+        "not deterministic PLHEADER/pilot/coded-payload PSD",
+        "ideal DAC hold and ideal RRC receiver; no RF measurement",
+        "not a certificate for DAC reconstruction images"
+      ]
+    }
+  },
+  "design_search": {
+    "requested_margins_db": [
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5
+    ],
+    "far_extra_db": 2,
+    "outcomes": {
+      "(0.1, 2)": {
+        "success": true,
+        "margin": 0.1,
+        "far_extra": 2,
+        "iterations": 20,
+        "soc_bound_gap": 1.2700226714040808e-08,
+        "objective_isi": 0.01468148056814626
+      },
+      "(0.2, 2)": {
+        "success": false,
+        "reason": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)"
+      },
+      "(0.3, 2)": {
+        "success": false,
+        "reason": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)"
+      },
+      "(0.4, 2)": {
+        "success": false,
+        "reason": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)"
+      },
+      "(0.5, 2)": {
+        "success": false,
+        "reason": "The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is None)"
+      }
+    }
+  },
+  "packing_evaluation": {
+    "8bit": {
+      "sample_bits": 8,
+      "samples_per_row": 5,
+      "row_words": 2,
+      "table_bytes": 131072,
+      "padding_bits": 24,
+      "selected": true
+    },
+    "6bit": {
+      "sample_bits": 6,
+      "samples_per_row": 5,
+      "row_words": 1,
+      "table_bytes": 65536,
+      "padding_bits": 2,
+      "selected": false,
+      "reason": "Actual rounded iid table fails held upper mask for all three evaluated near-full-scale divisors."
+    },
+    "14bit": {
+      "sample_bits": 14,
+      "samples_per_row": 5,
+      "row_words": 3,
+      "table_bytes": 196608,
+      "selected": false,
+      "reason": "Exceeds borrowed 128 KiB ring; not implemented."
+    }
+  }
+}

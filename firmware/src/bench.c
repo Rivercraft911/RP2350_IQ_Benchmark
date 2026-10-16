@@ -123,16 +123,65 @@ static void t_pv_frame(void) {
     pv_bbframe((uint8_t *)bb_buf, 43040, 0xF2, pv_bench_next);
 }
 
-void bench_pv(int reps) {
+// One TS BBFRAME as dualptr builds it: words = pv_bbframe_words, else pv_bbframe plus the
+// tail zeroing and per-word swap of bench_dual's build_spi_frame. Returns its cycles.
+static uint32_t pv_bench_ts(uint32_t *out, uint32_t kbch, pv_words_t *words) {
+    const uint32_t save = save_and_disable_interrupts(), t0 = cycles();
+    if (words) pv_bbframe_words(out, kbch, 0xF2, pv_bench_next, words);
+    else {
+        const uint32_t nb = kbch / 8, nw = (nb + 3) / 4;
+        pv_bbframe((uint8_t *)out, kbch, 0xF2, pv_bench_next);
+        for (uint32_t i = nb; i < 4 * nw; i++) ((uint8_t *)out)[i] = 0;
+        for (uint32_t i = 0; i < nw; i++) out[i] = __builtin_bswap32(out[i]);
+    }
+    const uint32_t dt = cycles() - t0;
+    restore_interrupts(save);
+    return dt;
+}
+
+// kernel 1/2: idle (no DMA, other core waiting) cycles of the existing TS adapter + swap pass
+// and of pv_bbframe_words with the SRAM Arm leaf (1, copied into ring_buf) or the flash C leaf
+// (2), for normal 2/3 and 9/10. Both adapters also run 16 consecutive frames from a fresh
+// state and must give identical words. The source is the 7 packets of pattern message 0.
+void bench_pv(int reps, int kernel) {
     pv_init(65536);
     pv_pattern_message((uint8_t *)cap_buf, 0, 65536);
     pv_bench_packet = 0;
     const uint32_t crc_cyc = time_min(t_pv_crc8, reps);
     const uint32_t frame_cyc = time_min(t_pv_frame, reps);
     printf("@{\"cmd\":\"pvbench\",\"git\":\"%s\",\"clk_hz\":%lu,\"reps\":%d,"
-           "\"crc8_bytes\":187,\"crc8\":%u,\"crc8_cyc\":%lu,\"bbframe_cyc\":%lu}\n",
+           "\"crc8_bytes\":187,\"crc8\":%u,\"crc8_cyc\":%lu,\"bbframe_cyc\":%lu",
            GIT_REV, (unsigned long)clock_get_hz(clk_sys), reps, pv_bench_crc,
            (unsigned long)crc_cyc, (unsigned long)frame_cyc);
+    if (kernel) {
+        pv_words_t *words = (pv_words_t *)(cap_buf + CAP_WORDS_MAX / 2);   // clear of message 0
+        const bool ok = pv_words_prepare(words, kernel == 1 ? ring_buf : NULL, sizeof ring_buf);
+        static const uint32_t kbch[2] = {43040, 58192};                   // normal 2/3, 9/10
+        uint32_t best[2][2] = {{~0u, ~0u}, {~0u, ~0u}}, crc[2][2] = {{0}};
+        bool match = ok;
+        for (unsigned c = 0; c < 2 && ok; c++) {
+            for (unsigned path = 0; path < 2; path++) {
+                pv_init(65536);
+                pv_pattern_message((uint8_t *)cap_buf, 0, 65536);
+                pv_bench_packet = 0;
+                for (int r = 0; r < 16 || r < reps; r++) {
+                    const uint32_t dt = pv_bench_ts(path ? par_buf : bb_buf, kbch[c], path ? words : NULL);
+                    if (dt < best[c][path]) best[c][path] = dt;
+                    if (r < 16) crc[c][path] = crc32_update(crc[c][path], path ? par_buf : bb_buf,
+                                                          4 * ((kbch[c] / 8 + 3) / 4));
+                }
+            }
+            match &= crc[c][0] == crc[c][1];
+        }
+        printf(",\"words_kernel\":%d,\"words_leaf\":\"%s\",\"words_ready\":%u,\"words_match\":%u,"
+               "\"swap_cyc\":[%lu,%lu],\"words_cyc\":[%lu,%lu],\"words_kbch\":[%lu,%lu],"
+               "\"words_crc\":[%lu,%lu]", kernel, kernel == 1 ? "sram_arm" : "flash_c", ok, match,
+               (unsigned long)best[0][0], (unsigned long)best[1][0], (unsigned long)best[0][1],
+               (unsigned long)best[1][1], (unsigned long)kbch[0], (unsigned long)kbch[1],
+               (unsigned long)crc[0][1], (unsigned long)crc[1][1]);
+        pv_init(65536);
+    }
+    printf("}\n");
 }
 
 static void t_bch(void) { dvbs2_bch(bb_buf, par_buf); }

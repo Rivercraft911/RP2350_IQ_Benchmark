@@ -28,9 +28,15 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_dvbs2_8psk.py
 	python3 host/test_dvbs2_8psk_codes.py
 	python3 host/test_c4_mapper_pic.py
+	python3 host/test_c6_map8_asm.py
+	python3 host/test_c7_bch.py
+	python3 host/test_c7_pair.py
 	python3 host/test_dvbs2_parallel.py
 	python3 host/test_c3_pipeline.py
 	python3 host/test_c3_bench.py
+	python3 host/test_b9_bench.py
+	python3 host/test_b9_trial.py
+	python3 host/b9_trial.py --self-test
 	python3 host/test_c3_fec_trial.py
 	python3 host/c3_fec_trial.py --self-test
 	python3 host/test_r2grant.py
@@ -44,14 +50,21 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_dvbs2_buffers.py
 	python3 host/test_frame_order.py
 	python3 host/test_dvbs2_fec.py
+	python3 host/test_bch_fast_asm.py
 	python3 host/test_bch128_asm.py
 	python3 host/test_ldpc_asm.py
+	python3 host/test_c5_ldpc_asm.py
+	python3 host/test_c5_ldpc_pack.py
+	python3 host/test_c5_ldpc_rows.py
 	python3 host/test_pv_native.py
+	python3 host/test_pv_words.py
+	python3 host/test_pv_words_asm.py
 	python3 host/test_gcs_native.py
 	python3 host/test_pvspi_rx.py
 	python3 host/test_pvwide.py
 	python3 host/pvwide_trial.py --self-test
 	python3 host/test_startup.py
+	python3 host/test_stackcheck.py
 	python3 host/test_flight_service.py
 	python3 host/test_iqdesc.py
 	python3 host/test_iqpair.py
@@ -75,6 +88,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_apsk_live.py
 	python3 host/test_apsk_fec_native.py
 	python3 host/test_apsk_split_native.py
+	python3 host/test_apsk_fast_pic.py
 	python3 host/apsk_live_trial.py --self-test
 	python3 host/apsk_fec_trial.py --self-test
 	python3 host/test_iq16out.py
@@ -89,14 +103,19 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_iqquadptr.py
 	python3 host/test_iq4hist.py
 	python3 host/test_iq4hist8.py
+	python3 host/test_iq5hist.py
 	python3 host/test_iq4ptr.py
 	python3 host/test_iq4ptr8.py
 	python3 host/test_iq4writer8.py
 	python3 host/test_iq4quad.py
 	python3 host/test_quad_rows.py
 	python3 host/test_bench4quad.py
+	python3 host/test_bench5quad.py
+	python3 host/test_quint_rows.py
+	python3 host/test_iq5quad_trial.py
 	python3 host/test_iq4quad_trial.py
 	python3 host/test_iq4prod.py
+	python3 host/test_iq4prod_irq.py
 	python3 host/test_iq4prod_source.py
 	python3 host/test_iq4prod_trial.py
 	python3 host/test_bench4prod.py
