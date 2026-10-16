@@ -32,6 +32,7 @@ typedef struct { uint32_t before; _Alignas(16) uint32_t words[N_BLOCKS*BLOCK_WOR
 typedef struct { uint32_t before; _Alignas(16) uint32_t words[IN_WORDS]; uint32_t after; } input_storage_t;
 extern ring_storage_t test_ring;
 extern input_storage_t test_input;
+extern uint32_t cap_buf[14336];
 #define ring_buf (test_ring.words)
 #define in_buf (test_input.words)
 uint32_t cycles(void);
@@ -69,6 +70,7 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
 
 ring_storage_t test_ring;
 input_storage_t test_input;
+uint32_t cap_buf[14336];
 
 uint32_t clock_get_hz(unsigned clock) { assert(clock==clk_sys); return test_hz; }
 uint32_t cycles(void) {
@@ -194,7 +196,7 @@ class C3Bench(unittest.TestCase):
 
     def test_each_c4_option_and_combinations(self):
         for code in trial.RATES:
-            for options in (1, 2, 4, 8, 15, 16, 31):
+            for options in (1, 2, 4, 8, 15, 16, 31, 63, 127, 159, 191, 255):
                 with self.subTest(code=code, options=options):
                     result = self.run_command(code, options=options)
                     self.assertEqual(result["options"], options)

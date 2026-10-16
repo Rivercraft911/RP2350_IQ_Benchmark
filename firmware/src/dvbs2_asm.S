@@ -99,6 +99,8 @@ dvbs2_bch160_continue_y:
     ldmia   r1, {r4-r8}
     BCH160_LOOP .Lbchy_check, .Lbchy_word, .Lbchy_store
     .size dvbs2_bch160_continue_y, .-dvbs2_bch160_continue_y
+    .global dvbs2_bch160_continue_y_end
+dvbs2_bch160_continue_y_end:
     .purgem BCH160_LOOP
     .purgem BCH160_XOR
 
@@ -175,6 +177,8 @@ dvbs2_bch128_continue:
 dvbs2_bch128_continue_y:
     BCH128_CONTINUE .Lbch128y_check, .Lbch128y_word, .Lbch128y_store
     .size dvbs2_bch128_continue_y, .-dvbs2_bch128_continue_y
+    .global dvbs2_bch128_continue_y_end
+dvbs2_bch128_continue_y_end:
     .purgem BCH128_CONTINUE
     .purgem BCH128_XOR
 
@@ -238,6 +242,8 @@ dvbs2_bch192_continue_y:
     stmia   r0, {r4-r9}
     pop     {r4-r11, pc}
     .size dvbs2_bch192_continue_y, .-dvbs2_bch192_continue_y
+    .global dvbs2_bch192_continue_y_end
+dvbs2_bch192_continue_y_end:
     .purgem BCH192_XOR
 
 // In-place 32x32 MSB-first transpose. Fuse stages 16/8 in four-register tiles
@@ -302,6 +308,8 @@ dvbs2_transpose32:
     bne     .Ltranspose_low_tile
     pop     {r4-r11, pc}
     .size dvbs2_transpose32, .-dvbs2_transpose32
+    .global dvbs2_transpose32_end
+dvbs2_transpose32_end:
     .purgem TRANSPOSE_SWAP
 
 // Map/scramble full 16-symbol words and append to a possibly partial ring stream.

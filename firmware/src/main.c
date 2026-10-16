@@ -324,8 +324,8 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "c3pair")) {
         int pairs, layout, who, options;
         if (!num(a[1], "code", REQUIRED, 0, N_DVBS2_CODES - 1, &code) || !num(a[2], "pairs", 40, 1, 200, &pairs) ||
-            !num(a[3], "layout", 0, 0, 2, &layout) || !num(a[4], "who", 2, 0, 7, &who) ||
-            !num(a[5], "options", C4_ALL, 0, C4_ALL, &options)) return err;
+            !num(a[3], "layout", 0, 0, 3, &layout) || !num(a[4], "who", 2, 0, 7, &who) ||
+            !num(a[5], "options", C4_ALL, 0, C7_ALL, &options)) return err;
         bench_c3_pair(code, pairs, layout, who, options);
     } else if (!strcmp(cmd, "c3fec")) {
         int gap_us, options;
@@ -333,7 +333,7 @@ static const char *dispatch(char *line) {
             !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
             !num(a[3], "slow_us", 0, 0, 10000, &reps) ||
             !num(a[4], "cpw", 1, 1, 4, &r.cpw) || !num(a[5], "gap_us", 128, 128, 4096, &gap_us) ||
-            !num(a[6], "options", 0, 0, C4_ALL, &options)) return err;
+            !num(a[6], "options", 0, 0, C7_FEC_ALL, &options)) return err;
         bench_c3_fec_options(code, r.ms, reps, r.cpw, gap_us, options);
     } else if (!strcmp(cmd, "bench4live")) {
         int invert;

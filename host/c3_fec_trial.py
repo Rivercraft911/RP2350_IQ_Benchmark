@@ -253,8 +253,8 @@ def main():
     parser.add_argument("--cpw", type=int, choices=(1, 2, 4), default=1,
                         help="symbol interval in units of eight SYS cycles (1 is 16 Msym/s at SYS128)")
     parser.add_argument("--slow-us", nargs="+", type=int, default=[0])
-    parser.add_argument("--options", nargs="+", type=int, choices=range(32), default=[0],
-                        help="C4 mask: LDPC=1, mapper=2, BCH=4, fused GCS/BB=8, cached deadlines=16; 0 retains C3")
+    parser.add_argument("--options", nargs="+", type=int, choices=range(256), default=[0],
+                        help="mask: LDPC=1, map=2, scratch BCH=4, BB=8, deadlines=16, BCH copies=32, BCH LDM=64, transpose copies=128")
     parser.add_argument("--gap-us", type=int, default=128,
                         help="128 for qualification; larger values are CPU-fit diagnostics only")
     parser.add_argument("--out", type=Path)
