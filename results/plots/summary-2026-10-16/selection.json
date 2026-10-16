@@ -1,0 +1,178 @@
+{
+  "generator": "host/plot_summary.py",
+  "style": {
+    "path": "reference/plotstyle.py",
+    "sha256": "6cfdab0284e8a896088d70cf95bb7165f0a1d24e2643afa9c7e85cf0c1eaf23e"
+  },
+  "points": {
+    "qpsk16_910": {
+      "source": "results/round2/2026-10-15/q1-ptr2-910k3-p13-60s/runs.jsonl",
+      "cmd": "dualptr",
+      "clk_hz": 128000000,
+      "sym_rate": 16000000.0,
+      "bb_payload_bps": null,
+      "label": "dualptr-128000-1-6-code10-clock1-fault0-0"
+    },
+    "qpsk16_56": {
+      "source": "results/b2-8psk-live/2026-10-15/a1-16msym-60s-prio13/runs.jsonl",
+      "cmd": "dualptr",
+      "clk_hz": 128000000,
+      "sym_rate": 16000000.0,
+      "bb_payload_bps": null,
+      "label": "dualptr-128000-1-6-clock1-fault0-0"
+    },
+    "qpsk8_56": {
+      "source": "results/dualptr/2026-10-15/a1-8msym-60s/runs.jsonl",
+      "cmd": "dualptr",
+      "clk_hz": 128000000,
+      "sym_rate": 8000000.0,
+      "bb_payload_bps": null,
+      "label": "dualptr-128000-2-5-clock1-fault0-0"
+    },
+    "8psk8_hw": {
+      "source": "results/b7-live8/2026-10-15/live8-60s-prio13-1/runs.jsonl",
+      "cmd": "bench4fec",
+      "clk_hz": 128000000,
+      "sym_rate": 8000000.0,
+      "bb_payload_bps": 19378210.3,
+      "label": "bench4fec-cpw2-invert0-prio13-bits8"
+    },
+    "8psk150_cpu": {
+      "source": "results/8psk-live/2026-10-15/bch-placement-quick-2/runs.jsonl",
+      "cmd": "bench8live",
+      "clk_hz": 150000000,
+      "sym_rate": 9375000.0,
+      "bb_payload_bps": 22708840.2,
+      "label": "8psk-live-150000"
+    },
+    "vcm150": {
+      "source": "results/vcm/2026-10-15/integration-quick-1/runs.jsonl",
+      "cmd": "benchvcm",
+      "clk_hz": 150000000,
+      "sym_rate": 9375000.0,
+      "bb_payload_bps": 18170019.5,
+      "label": "vcm-150000"
+    },
+    "16apsk128": {
+      "source": "results/apsk-fec/2026-10-15/qualified-16-128-1/runs.jsonl",
+      "cmd": "benchapskfec",
+      "clk_hz": 128000000,
+      "sym_rate": 3555555.6,
+      "bb_payload_bps": 11455511.6,
+      "label": "16apsk-fec-128000-cpw9"
+    },
+    "16apsk150": {
+      "source": "results/apsk-fec/2026-10-15/qualified-16-150-1/runs.jsonl",
+      "cmd": "benchapskfec",
+      "clk_hz": 150000000,
+      "sym_rate": 4166666.7,
+      "bb_payload_bps": 13424427.7,
+      "label": "16apsk-fec-150000-cpw9"
+    },
+    "32apsk128": {
+      "source": "results/apsk-fec/2026-10-15/qualified-32-128-1/runs.jsonl",
+      "cmd": "benchapskfec",
+      "clk_hz": 128000000,
+      "sym_rate": 2285714.3,
+      "bb_payload_bps": 9212775.5,
+      "label": "32apsk-fec-128000-cpw14"
+    },
+    "32apsk150": {
+      "source": "results/apsk-fec/2026-10-15/qualified-32-150-1/runs.jsonl",
+      "cmd": "benchapskfec",
+      "clk_hz": 150000000,
+      "sym_rate": 2678571.4,
+      "bb_payload_bps": 10796221.3,
+      "label": "32apsk-fec-150000-cpw14"
+    },
+    "8psk16_waveform": {
+      "source": "results/b6-pio-producers/2026-10-15/live-60s/runs.jsonl",
+      "cmd": "bench4prod8live",
+      "clk_hz": 128000000,
+      "sym_rate": 16000000.0,
+      "bb_payload_bps": null,
+      "label": null
+    },
+    "cpu_qpsk8": {
+      "source": "results/dualptr/2026-10-15/a1-8msym-60s/runs.jsonl",
+      "core0_work_busy": 0.257592,
+      "core1_work_busy": 0.4636
+    },
+    "cpu_qpsk16": {
+      "source": "results/round2/2026-10-15/q1-ptr2-910k3-p13-60s/runs.jsonl",
+      "core0_work_busy": 0.455798,
+      "core1_work_busy": 0.8276
+    },
+    "cpu_8psk8": {
+      "source": "results/b7-live8/2026-10-15/live8-60s-prio13-1/runs.jsonl",
+      "core0_work_busy": 0.244414,
+      "encoder_busy": 0.879
+    },
+    "cpu_16apsk": {
+      "source": "results/apsk-fec/2026-10-15/qualified-16-150-1/runs.jsonl",
+      "producer_work_busy": 0.573717,
+      "encoder_busy": 0.962816,
+      "sym_rate": 4166666.7
+    },
+    "cpu_32apsk": {
+      "source": "results/apsk-fec/2026-10-15/qualified-32-150-1/runs.jsonl",
+      "producer_work_busy": 0.594898,
+      "encoder_busy": 0.94349,
+      "sym_rate": 2678571.4
+    },
+    "loop_2_1_pio_pointers": {
+      "source": "results/dmaloop/2026-10-15/pio-pointers.jsonl",
+      "cycles": 11.999
+    },
+    "loop_2_2_pio": {
+      "source": "results/dmaloop/2026-10-15/pio-pointers.jsonl",
+      "cycles": 13.000333333333332
+    },
+    "loop_4_2_pio": {
+      "source": "results/dmaloop/2026-10-15/pio-pointers.jsonl",
+      "cycles": 16.0005
+    },
+    "loop_2_2_pio_pointers": {
+      "source": "results/dmaloop/2026-10-15/pio-pointers.jsonl",
+      "cycles": 14.999
+    },
+    "loop_4_1_pio_pointers": {
+      "source": "results/dmaloop/2026-10-15/pio-pointers.jsonl",
+      "cycles": 13.998666666666667
+    },
+    "loop_4_1_pio": {
+      "source": "results/dmaloop/2026-10-15/pio-pointers.jsonl",
+      "cycles": 11.000833333333333
+    },
+    "fec_solo": {
+      "source": "results/ldpc-banks/2026-10-15/pair-bch.jsonl",
+      "command": "c3pair 5 40 0 0 31",
+      "avg_stage": {
+        "gcs": 22255,
+        "bch": 84327,
+        "ldpc": 142054,
+        "map": 99479
+      }
+    },
+    "fec_both_scratch": {
+      "source": "results/ldpc-banks/2026-10-15/pair-bch.jsonl",
+      "command": "c3pair 5 40 0 2 31",
+      "avg_stage": {
+        "gcs": 24686,
+        "bch": 151720,
+        "ldpc": 174562,
+        "map": 105986
+      }
+    },
+    "fec_both_striped": {
+      "source": "results/ldpc-banks/2026-10-15/pair-bch.jsonl",
+      "command": "c3pair 5 40 0 2 27",
+      "avg_stage": {
+        "gcs": 24664,
+        "bch": 87798,
+        "ldpc": 174478,
+        "map": 105933
+      }
+    }
+  }
+}

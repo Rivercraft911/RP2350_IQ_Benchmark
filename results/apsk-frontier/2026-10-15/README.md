@@ -1,4 +1,4 @@
-# APSK component experiments — 15 October 2026
+# APSK component experiments, 15 October 2026
 
 The useful results are an **8.2% reduction in exact 16APSK shaper work**, and a
 **32APSK rolling-key engine that removes 43.2% of the shaper work**. Charging its
