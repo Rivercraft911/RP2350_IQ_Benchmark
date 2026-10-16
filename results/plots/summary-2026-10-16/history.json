@@ -1,0 +1,380 @@
+{
+  "generator": "host/plot_history.py",
+  "offload_percent_of_core": [
+    [
+      "CPU shaper\nSep 30",
+      72.0,
+      135.0
+    ],
+    [
+      "CPU-built DMA\naddress lists\nOct 14",
+      24.830000000000002,
+      37.12
+    ],
+    [
+      "PIO-built\naddresses, QPSK\nOct 15",
+      3.1910000000000003,
+      3.2297
+    ],
+    [
+      "PIO-built\naddresses, 8PSK\nOct 15",
+      3.0559,
+      3.5284000000000004
+    ]
+  ],
+  "shaper_cycles_per_symbol": [
+    [
+      "convolution",
+      917.7
+    ],
+    [
+      "LUT",
+      58.6
+    ],
+    [
+      "windows",
+      29.1
+    ],
+    [
+      "PIO\ninterleave",
+      13.8
+    ],
+    [
+      "assembly",
+      11.55
+    ],
+    [
+      "SRAM\nplacement",
+      11.05
+    ],
+    [
+      "pipelined",
+      10.8
+    ]
+  ],
+  "fec_kcycles": [
+    [
+      "bit-serial",
+      4127,
+      "docs/benchmark-history.md"
+    ],
+    [
+      "v1",
+      376,
+      "docs/benchmark-history.md"
+    ],
+    [
+      "v2",
+      273,
+      "docs/benchmark-history.md"
+    ],
+    [
+      "v3",
+      254,
+      "docs/benchmark-history.md"
+    ],
+    [
+      "v4",
+      237,
+      "docs/benchmark-history.md"
+    ],
+    [
+      "two-core\nreentrant (C3)",
+      242.6,
+      "results/c3-8psk-fec16/2026-10-15/gap4096.jsonl"
+    ],
+    [
+      "C4 kernels",
+      226.3,
+      "results/ldpc-banks/2026-10-15/pair-bch.jsonl (who 0, options 27)"
+    ]
+  ],
+  "core0": [
+    [
+      "CPU shaper",
+      72.0,
+      null,
+      "docs/benchmark-history.md (QPSK 2/3, L=10)"
+    ],
+    [
+      "LUT rows by DMA,\nCPU addresses",
+      47.2,
+      81.4,
+      "results/dualptr/2026-10-15 (5/6, 8 Msym/s); results/b2-8psk-live/2026-10-15 (5/6, 16 Msym/s)"
+    ],
+    [
+      "PIO-computed\naddresses",
+      25.7,
+      47.7,
+      "results/dualptr/2026-10-15; results/b2-8psk-live/2026-10-15 (priority 13)"
+    ]
+  ],
+  "items": [
+    {
+      "thread": "Pulse shaping",
+      "stage": "Sep 29–Oct 2 CPU transmitter",
+      "status": "done",
+      "label": "LUT kernels, 918 → 10.8 cycles",
+      "source": "docs/benchmark-history.md"
+    },
+    {
+      "thread": "Pulse shaping",
+      "stage": "Oct 15 a.m. 16 Msym/s, 8PSK",
+      "status": "done",
+      "label": "2 SPS (images −18 dBc)",
+      "source": "docs/frontier/strategy-report.md"
+    },
+    {
+      "thread": "Pulse shaping",
+      "stage": "Oct 15 a.m. 16 Msym/s, 8PSK",
+      "status": "done",
+      "label": "signed-plane 8PSK / VCM",
+      "source": "results/waveforms/2026-10-15"
+    },
+    {
+      "thread": "Pulse shaping",
+      "stage": "Oct 15 midday APSK",
+      "status": "best",
+      "label": "APSK on the CPU",
+      "source": "results/apsk-fec/2026-10-15"
+    },
+    {
+      "thread": "Pulse shaping",
+      "stage": "Oct 15 p.m. R&D round 1",
+      "status": "best",
+      "label": "four-level 8PSK table",
+      "source": "results/b1-four-level/2026-10-15"
+    },
+    {
+      "thread": "Pulse shaping",
+      "stage": "Oct 15 p.m. R&D round 1",
+      "status": "no",
+      "label": "APSK table in hardware (MiB)",
+      "source": "docs/frontier/frontier.md"
+    },
+    {
+      "thread": "Pulse shaping",
+      "stage": "Oct 15–16 round 3",
+      "status": "best",
+      "label": "8-bit table rows",
+      "source": "results/b4-8bit-rows/2026-10-15"
+    },
+    {
+      "thread": "DMA/PIO output",
+      "stage": "Oct 14 limits, LUT DMA",
+      "status": "done",
+      "label": "LUT rows by DMA",
+      "source": "results/dual-dma/2026-10-14"
+    },
+    {
+      "thread": "DMA/PIO output",
+      "stage": "Oct 15 a.m. 16 Msym/s, 8PSK",
+      "status": "done",
+      "label": "PIO addresses, cyclic",
+      "source": "results/quad-pointers"
+    },
+    {
+      "thread": "DMA/PIO output",
+      "stage": "Oct 15 p.m. R&D round 1",
+      "status": "best",
+      "label": "PIO addresses, live, 8 Msym/s",
+      "source": "results/dualptr/2026-10-15"
+    },
+    {
+      "thread": "DMA/PIO output",
+      "stage": "Oct 15 p.m. R&D round 1",
+      "status": "no",
+      "label": "same at 16 Msym/s: stalls",
+      "source": "results/dualptr/2026-10-15"
+    },
+    {
+      "thread": "DMA/PIO output",
+      "stage": "Oct 15 eve. round 2",
+      "status": "best",
+      "label": "DMA read priority: 16 Msym/s",
+      "source": "results/b2-8psk-live/2026-10-15"
+    },
+    {
+      "thread": "DMA/PIO output",
+      "stage": "Oct 15 eve. round 2",
+      "status": "no",
+      "label": "four-writer router (A2)",
+      "source": "results/round2/2026-10-15"
+    },
+    {
+      "thread": "DMA/PIO output",
+      "stage": "Oct 15–16 round 3",
+      "status": "no",
+      "label": "1 chain per axis at 16 Msym/s",
+      "source": "results/b4-8bit-rows/2026-10-15"
+    },
+    {
+      "thread": "DMA/PIO output",
+      "stage": "Oct 15–16 round 3",
+      "status": "done",
+      "label": "4 chains, SRAM addresses",
+      "source": "results/b5-quad-rows/2026-10-15"
+    },
+    {
+      "thread": "DMA/PIO output",
+      "stage": "Oct 15–16 round 3",
+      "status": "best",
+      "label": "4 PIO producers, live",
+      "source": "results/b6-pio-producers/2026-10-15"
+    },
+    {
+      "thread": "FEC and mapping",
+      "stage": "Sep 29–Oct 2 CPU transmitter",
+      "status": "best",
+      "label": "encoder v1 → v4, 4.1M → 237k",
+      "source": "docs/benchmark-history.md"
+    },
+    {
+      "thread": "FEC and mapping",
+      "stage": "Oct 15 p.m. R&D round 1",
+      "status": "best",
+      "label": "streaming LDPC packer",
+      "source": "results/optimizations/2026-10-15"
+    },
+    {
+      "thread": "FEC and mapping",
+      "stage": "Oct 15 p.m. R&D round 1",
+      "status": "no",
+      "label": "scheduled LDPC: slower live",
+      "source": "archive/rd/c1-fec-throughput"
+    },
+    {
+      "thread": "FEC and mapping",
+      "stage": "Oct 15 eve. round 2",
+      "status": "best",
+      "label": "t=8 BCH, QPSK 9/10",
+      "source": "results/c2-qpsk-910/2026-10-15"
+    },
+    {
+      "thread": "FEC and mapping",
+      "stage": "Oct 15–16 round 3",
+      "status": "done",
+      "label": "two-core frame-parallel FEC",
+      "source": "results/c3-8psk-fec16/2026-10-15"
+    },
+    {
+      "thread": "FEC and mapping",
+      "stage": "Oct 15–16 round 3",
+      "status": "best",
+      "label": "C4 kernels, −11 to −14%",
+      "source": "results/c4-fec-speed/2026-10-15"
+    },
+    {
+      "thread": "FEC and mapping",
+      "stage": "Oct 15–16 round 3",
+      "status": "no",
+      "label": "8PSK FEC at 16 Msym/s",
+      "source": "results/c4-fec-speed/2026-10-15"
+    },
+    {
+      "thread": "Memory, clock, bus",
+      "stage": "Oct 15 a.m. 16 Msym/s, 8PSK",
+      "status": "done",
+      "label": "BCH in SCRATCH_Y, −31%",
+      "source": "results/memory-placement"
+    },
+    {
+      "thread": "Memory, clock, bus",
+      "stage": "Oct 15 p.m. R&D round 1",
+      "status": "best",
+      "label": "GPIO28 DDR clock",
+      "source": "results/dac-clock/2026-10-15"
+    },
+    {
+      "thread": "Memory, clock, bus",
+      "stage": "Oct 15 eve. round 2",
+      "status": "best",
+      "label": "core-0 stack overflow fixed",
+      "source": "results/round2/2026-10-15/STACK.md"
+    },
+    {
+      "thread": "Memory, clock, bus",
+      "stage": "Oct 15–16 round 3",
+      "status": "found",
+      "label": "DMA row loop 10–18 cycles",
+      "source": "results/dmaloop/2026-10-15"
+    },
+    {
+      "thread": "Memory, clock, bus",
+      "stage": "Oct 15–16 round 3",
+      "status": "found",
+      "label": "two cores clash in SCRATCH_Y",
+      "source": "results/ldpc-banks/2026-10-15"
+    },
+    {
+      "thread": "Memory, clock, bus",
+      "stage": "Oct 15–16 round 3",
+      "status": "done",
+      "label": "self-re-arming DMA grants",
+      "source": "results/r2-hw-offload/2026-10-15"
+    },
+    {
+      "thread": "Memory, clock, bus",
+      "stage": "Oct 15–16 round 3",
+      "status": "no",
+      "label": "256 MHz overclock",
+      "source": "not pursued"
+    },
+    {
+      "thread": "Higher order",
+      "stage": "Oct 15 a.m. 16 Msym/s, 8PSK",
+      "status": "done",
+      "label": "8PSK and VCM at 150 MHz",
+      "source": "results/waveforms/2026-10-15"
+    },
+    {
+      "thread": "Higher order",
+      "stage": "Oct 15 midday APSK",
+      "status": "best",
+      "label": "16APSK / 32APSK complete",
+      "source": "results/apsk-fec/2026-10-15"
+    },
+    {
+      "thread": "Higher order",
+      "stage": "Oct 15 p.m. R&D round 1",
+      "status": "found",
+      "label": "APSK below QPSK-16",
+      "source": "docs/frontier/frontier.md"
+    },
+    {
+      "thread": "Higher order",
+      "stage": "Oct 15–16 round 3",
+      "status": "best",
+      "label": "8PSK complete, 8 Msym/s",
+      "source": "results/b7-live8/2026-10-15"
+    },
+    {
+      "thread": "Higher order",
+      "stage": "Oct 15–16 round 3",
+      "status": "best",
+      "label": "8PSK waveform, 16 Msym/s",
+      "source": "results/b6-pio-producers/2026-10-15"
+    },
+    {
+      "thread": "Input",
+      "stage": "Sep 29–Oct 2 CPU transmitter",
+      "status": "best",
+      "label": "PV-SPI from a CM5, 210 s",
+      "source": "results/cm5-spi"
+    },
+    {
+      "thread": "Input",
+      "stage": "Oct 15 a.m. 16 Msym/s, 8PSK",
+      "status": "best",
+      "label": "PIO/DMA SPI ingress, 32 MHz",
+      "source": "results/dual-dma/2026-10-15"
+    },
+    {
+      "thread": "Input",
+      "stage": "Oct 15–16 round 3",
+      "status": "no",
+      "label": "USB input, hardware FEC",
+      "source": "docs/rd/r2-hw-offload.md"
+    }
+  ]
+}
