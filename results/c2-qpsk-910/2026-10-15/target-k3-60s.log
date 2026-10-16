@@ -1,0 +1,73 @@
+info {}
+dualprio 0 {}
+dualwriters 4 {}
+dualclock 1 {}
+mapkernel 1 {}
+quadprofile 1 {}
+ldpcpack 1 {}
+bchbank 1 {}
+clock 128000 {}
+bchkernel 3 {}
+bench lut_asm_p sps=4 L=12   10.80 cyc/sym (worst block 10.94) ->  11.85 Msym/s/core @ 128 MHz  crc ok
+baseline-128000-kernel {}
+stream lut_asm_p sps=4 L=12 cores=0 8.000 Msym/s 3000 ms: blocks 23437 underruns 0 own_err 0 txstall 0 busy c0=71.9%/lead5/iw0 cap 8192 words: 0 mismatches
+baseline-128000-stream {"sym_rate": 8000000.0, "underruns": 0, "own_errors": 0, "cap_aligned": true, "cap_mismatches": 0, "faults": []}
+txs2 normal 2/3 pilots=1 lut_asm_p sps=4 L=12 8.000 Msym/s 3000 ms: frames 725 encoder core1 54.9% (min ahead 3072 words), shaper core0 80.0% input waits 0, underruns 0 txstall 0, cap 8192 words: 0 mismatches
+baseline-128000-s2 {"sym_rate": 8000000.0, "underruns": 0, "own_errors": 0, "cap_aligned": true, "cap_mismatches": 0, "faults": [], "s2_runtime_frames": 724}
+descriptor-bench-128000 {"faults": [], "host_crc_ok": true}
+Traceback (most recent call last):
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 643, in main
+    dual(clock, cpw, 2, source)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 553, in dual
+    result = record(label, run, "negative" if fault or clock_inverted else
+                    "ceiling" if exploratory else "clean")
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 438, in record
+    r = fn()
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 499, in run
+    r, lines = board.cmd(f"dualstream {cpw} {ms} {kernel} {source} {cap_words} {fault} "
+               ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         f"{schedule} {divider256} {a.row_symbols} {a.code_index}",
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         timeout=ms / 1000 + 60)
+                         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/iqbench.py", line 79, in cmd
+    raise TimeoutError(f"no reply to {line!r}")
+TimeoutError: no reply to 'dualstream 1 60000 2 5 4096 0 0 0 4 10'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 675, in main
+    raw("dualclock 0")
+    ~~~^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 472, in raw
+    return record(command, run)
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 438, in record
+    r = fn()
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 468, in run
+    r, _ = board.cmd(command, timeout=120)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/iqbench.py", line 79, in cmd
+    raise TimeoutError(f"no reply to {line!r}")
+TimeoutError: no reply to 'dualclock 0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 691, in <module>
+    main()
+    ~~~~^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 682, in main
+    raw("bchkernel 0")
+    ~~~^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 472, in raw
+    return record(command, run)
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 438, in record
+    r = fn()
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 468, in run
+    r, _ = board.cmd(command, timeout=120)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/iqbench.py", line 79, in cmd
+    raise TimeoutError(f"no reply to {line!r}")
+TimeoutError: no reply to 'bchkernel 0'

@@ -1,0 +1,3 @@
+{"label": "info", "expectation": "clean", "recorded_at": "2026-10-15T18:45:42.506192", "exception": "TimeoutError", "detail": "no reply to 'info'", "faults": ["host exception"]}
+{"label": "dualclock 0", "expectation": "clean", "recorded_at": "2026-10-15T18:47:42.658566", "exception": "TimeoutError", "detail": "no reply to 'dualclock 0'", "faults": ["host exception"]}
+{"label": "bchkernel 0", "expectation": "clean", "recorded_at": "2026-10-15T18:49:42.779982", "exception": "TimeoutError", "detail": "no reply to 'bchkernel 0'", "faults": ["host exception"]}

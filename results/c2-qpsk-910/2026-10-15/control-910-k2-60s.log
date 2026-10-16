@@ -1,0 +1,51 @@
+Traceback (most recent call last):
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 572, in main
+    raw("info")
+    ~~~^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 472, in raw
+    return record(command, run)
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 438, in record
+    r = fn()
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 468, in run
+    r, _ = board.cmd(command, timeout=120)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/iqbench.py", line 79, in cmd
+    raise TimeoutError(f"no reply to {line!r}")
+TimeoutError: no reply to 'info'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 675, in main
+    raw("dualclock 0")
+    ~~~^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 472, in raw
+    return record(command, run)
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 438, in record
+    r = fn()
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 468, in run
+    r, _ = board.cmd(command, timeout=120)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/iqbench.py", line 79, in cmd
+    raise TimeoutError(f"no reply to {line!r}")
+TimeoutError: no reply to 'dualclock 0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 691, in <module>
+    main()
+    ~~~~^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 682, in main
+    raw("bchkernel 0")
+    ~~~^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 472, in raw
+    return record(command, run)
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 438, in record
+    r = fn()
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/dual_trial.py", line 468, in run
+    r, _ = board.cmd(command, timeout=120)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/river/Documents/stanford/SSI/RP2350_IQ_Benchmark/.claude/worktrees/codex-c2-qpsk-910/host/iqbench.py", line 79, in cmd
+    raise TimeoutError(f"no reply to {line!r}")
+TimeoutError: no reply to 'bchkernel 0'
