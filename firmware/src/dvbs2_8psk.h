@@ -42,3 +42,40 @@ void dvbs2_8psk_frame(const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
 // Explicit end-of-stream operation only; never flush between PLFRAMEs. Pads
 // the last group with the valid rotated point pi/8 and clears partial state.
 void dvbs2_8psk_flush(dvbs2_8psk_stream_t *stream);
+
+// C3: directly produce the four-level shaper's chronological two-bit codes.
+// Each complete word holds sixteen symbols, low bits first. n is monotonic;
+// mask is ring_words-1, or ~0u for linear output. Partial words survive frames.
+// For an independently staged frame use fill=0 and flush only its final pad.
+typedef struct {
+    uint32_t *i, *q;
+    uint32_t mask, n, acc_i, acc_q, fill;
+    // Frame-parallel ownership: defer the first complete word, while advancing
+    // n normally. The ordered publisher ORs first_i/q with the prior frame's
+    // trailing acc_i/q and writes that boundary word only after both are ready.
+    // Each new frame starts with zero accumulators and its chronological fill;
+    // its later complete words are disjoint from the adjacent frame's words.
+    bool defer_first, first_pending;
+    uint32_t first_i, first_q;
+} dvbs2_8psk_codes_stream_t;
+
+typedef struct {
+    const dvbs2_8psk_cfg_t *cfg;
+    const uint32_t *frame;
+    dvbs2_8psk_codes_stream_t *stream;
+    uint32_t data, pilot;
+    bool header_done;
+} dvbs2_8psk_codes_state_t;
+
+// begin does no mapping. Each nonzero step maps at most max_words chunks of
+// <=32 data symbols, plus the header once and any pilots reached by that slice.
+// A zero budget makes no progress. True means the complete frame was appended.
+// cfg, frame and stream must remain valid until completion. No static workspace.
+void dvbs2_8psk_codes_begin(dvbs2_8psk_codes_state_t *state,
+                          const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
+                          dvbs2_8psk_codes_stream_t *stream);
+bool dvbs2_8psk_codes_step(dvbs2_8psk_codes_state_t *state, uint32_t max_words);
+void dvbs2_8psk_codes_frame(const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
+                           dvbs2_8psk_codes_stream_t *stream);
+// End-of-stream only. Pad with the same pi/8 point as the signed-plane mapper.
+void dvbs2_8psk_codes_flush(dvbs2_8psk_codes_stream_t *stream);

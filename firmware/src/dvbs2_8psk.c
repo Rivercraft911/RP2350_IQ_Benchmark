@@ -257,3 +257,178 @@ void MAP_HOT dvbs2_8psk_frame(const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame
 void dvbs2_8psk_flush(dvbs2_8psk_stream_t *stream) {
     if (stream->fill) put_small(stream, (planes_t){0, 0, 0, ~0u}, 16u - stream->fill);
 }
+
+static inline uint32_t codes_spread16(uint32_t bits) {
+    bits &= 0xffffu;
+    bits = (bits | bits << 8) & 0x00ff00ffu;
+    bits = (bits | bits << 4) & 0x0f0f0f0fu;
+    bits = (bits | bits << 2) & 0x33333333u;
+    return (bits | bits << 1) & 0x55555555u;
+}
+
+// Perfect shuffle of two 16-bit lanes into successive two-bit codes. Four
+// swap stages avoid separately spreading both signs and then combining them.
+static inline uint32_t codes_zip16(uint32_t lo, uint32_t hi) {
+    uint32_t v = (lo & 0xffffu) | (hi << 16), t;
+    t = (v ^ (v >> 8)) & 0x0000ff00u; v ^= t ^ (t << 8);
+    t = (v ^ (v >> 4)) & 0x00f000f0u; v ^= t ^ (t << 4);
+    t = (v ^ (v >> 2)) & 0x0c0c0c0cu; v ^= t ^ (t << 2);
+    t = (v ^ (v >> 1)) & 0x22222222u; return v ^ t ^ (t << 1);
+}
+
+static inline void codes_emit(dvbs2_8psk_codes_stream_t *s, uint32_t i, uint32_t q) {
+    const uint32_t index = s->n++ & s->mask;
+    if (s->defer_first && !s->first_pending) {
+        s->first_i = i; s->first_q = q; s->first_pending = true; return;
+    }
+    s->i[index] = i; s->q[index] = q;
+}
+
+static inline void codes_put16(dvbs2_8psk_codes_stream_t *s, uint32_t i, uint32_t q) {
+    const uint32_t shift = 2u * s->fill;
+    codes_emit(s, s->acc_i | i << shift, s->acc_q | q << shift);
+    // Split the shift so an aligned stream never shifts by 32.
+    s->acc_i = (i >> (31u - shift)) >> 1;
+    s->acc_q = (q >> (31u - shift)) >> 1;
+}
+
+static inline void codes_put_small(dvbs2_8psk_codes_stream_t *s,
+                                   uint32_t i, uint32_t q, uint32_t count) {
+    const uint32_t mask = (1u << (2u * count)) - 1u, shift = 2u * s->fill;
+    s->acc_i |= (i & mask) << shift; s->acc_q |= (q & mask) << shift;
+    if (s->fill + count < 16) { s->fill += count; return; }
+    codes_emit(s, s->acc_i, s->acc_q);
+    s->acc_i = (i & mask) >> (32u - shift);
+    s->acc_q = (q & mask) >> (32u - shift);
+    s->fill += count - 16u;
+}
+
+static inline void codes_put(dvbs2_8psk_codes_stream_t *s,
+                             uint32_t i, uint32_t q, uint32_t count) {
+    if (count == 16) codes_put16(s, i, q);
+    else codes_put_small(s, i, q, count);
+}
+
+// The mapped signs obey ai^aq=d and bi^bq=~d, d=a^r0. Therefore one
+// packed Q word and one spread d plane give I directly, with three rather
+// than four independently spread planes. Gold stays bit-parallel throughout.
+static inline void codes_map_put(dvbs2_8psk_codes_stream_t *s, uint32_t a,
+                                  uint32_t b, uint32_t c,
+                                  dvbs2_8psk_gold_t gold, uint32_t count) {
+    const uint32_t w = (a & (b ^ c ^ gold.r0)) ^ gold.r1, d = a ^ gold.r0;
+    const uint32_t qa = b ^ w, qb = c ^ w ^ gold.r0;
+    const uint32_t q0 = codes_zip16(qa, qb);
+    const uint32_t i0 = q0 ^ (3u * codes_spread16(d)) ^ 0xaaaaaaaau;
+    codes_put(s, i0, q0, count < 16 ? count : 16);
+    if (count > 16) {
+        const uint32_t q1 = codes_zip16(qa >> 16, qb >> 16);
+        const uint32_t i1 = q1 ^ (3u * codes_spread16(d >> 16)) ^ 0xaaaaaaaau;
+        codes_put(s, i1, q1, count - 16u);
+    }
+}
+
+static void codes_header(const dvbs2_8psk_cfg_t *cfg, dvbs2_8psk_codes_stream_t *s) {
+    for (unsigned j = 0; j < 6; j++) {
+        const iq8_input_t h = cfg->header[j];
+        codes_put(s, codes_zip16(h.a, h.b), codes_zip16(h.a >> 16, h.b >> 16),
+                  j == 5 ? 10 : 16);
+    }
+}
+
+static void codes_pilot(const dvbs2_8psk_cfg_t *cfg, dvbs2_8psk_codes_stream_t *s,
+                         uint32_t block) {
+    const uint32_t position = cfg->data_symbols + 36u * block;
+    codes_map_put(s, 0, 0, 0, gold32(cfg->gold, position), 32);
+    codes_map_put(s, 0, 0, 0, gold32(cfg->gold, position + 32u), 4);
+}
+
+// The normal-frame columns and pilot intervals are whole 32-bit words. Keep
+// their inner loop free of general extractors, short tails and stream checks.
+// The header has already emitted the deferred first word before this runs.
+static void __attribute__((noinline)) codes_normal(const dvbs2_8psk_cfg_t *cfg,
+                                                  const uint32_t *frame,
+                                                  dvbs2_8psk_codes_stream_t *s,
+                                                  uint32_t *data, uint32_t *block,
+                                                  uint32_t budget) {
+    const uint32_t *a = frame + (cfg->column_reverse ? 1350 : 0), *b = frame + 675,
+                   *c = frame + (cfg->column_reverse ? 0 : 1350);
+    uint32_t word = *data >> 5;
+    while (budget && word < 675) {
+        uint32_t end = *block < cfg->pilot_blocks ? (*block + 1u) * 45u : 675;
+        if (end - word > budget) end = word + budget;
+        budget -= end - word;
+        const uint32_t shift = 2u * s->fill, reverse = 31u - shift;
+        uint32_t carry_i = s->acc_i, carry_q = s->acc_q, n = s->n;
+        do {
+            const dvbs2_8psk_gold_t gold = cfg->gold[word];
+            const uint32_t av = reverse32(a[word]), bv = reverse32(b[word]), cv = reverse32(c[word]);
+            const uint32_t w = (av & (bv ^ cv ^ gold.r0)) ^ gold.r1;
+            const uint32_t qa = bv ^ w, qb = cv ^ w ^ gold.r0, d = av ^ gold.r0;
+            const uint32_t q0 = codes_zip16(qa, qb);
+            const uint32_t i0 = q0 ^ (3u * codes_spread16(d)) ^ 0xaaaaaaaau;
+            uint32_t index = n++ & s->mask;
+            s->i[index] = carry_i | i0 << shift; s->q[index] = carry_q | q0 << shift;
+            carry_i = (i0 >> reverse) >> 1; carry_q = (q0 >> reverse) >> 1;
+            const uint32_t q1 = codes_zip16(qa >> 16, qb >> 16);
+            const uint32_t i1 = q1 ^ (3u * codes_spread16(d >> 16)) ^ 0xaaaaaaaau;
+            index = n++ & s->mask;
+            s->i[index] = carry_i | i1 << shift; s->q[index] = carry_q | q1 << shift;
+            carry_i = (i1 >> reverse) >> 1; carry_q = (q1 >> reverse) >> 1;
+        } while (++word < end);
+        s->acc_i = carry_i; s->acc_q = carry_q; s->n = n;
+        if (*block < cfg->pilot_blocks && word == (*block + 1u) * 45u) {
+            codes_pilot(cfg, s, (*block)++);
+        }
+    }
+    *data = word << 5;
+}
+
+void dvbs2_8psk_codes_begin(dvbs2_8psk_codes_state_t *state,
+                          const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
+                          dvbs2_8psk_codes_stream_t *stream) {
+    *state = (dvbs2_8psk_codes_state_t){.cfg = cfg, .frame = frame, .stream = stream};
+}
+
+bool __attribute__((noinline)) dvbs2_8psk_codes_step(dvbs2_8psk_codes_state_t *state, uint32_t max_words) {
+    const dvbs2_8psk_cfg_t *cfg = state->cfg;
+    if (state->data == cfg->data_symbols) return true;
+    if (!max_words) return false;
+    dvbs2_8psk_codes_stream_t s = *state->stream;
+    if (!state->header_done) { codes_header(cfg, &s); state->header_done = true; }
+    uint32_t data = state->data, block = state->pilot;
+    if (!cfg->is_short) {
+        codes_normal(cfg, state->frame, &s, &data, &block, max_words);
+        state->data = data; state->pilot = block; *state->stream = s;
+        return data == cfg->data_symbols;
+    }
+    const uint32_t col0 = cfg->column_reverse ? 2u * cfg->data_symbols : 0;
+    const uint32_t col2 = cfg->column_reverse ? 0 : 2u * cfg->data_symbols;
+    while (max_words-- && data < cfg->data_symbols) {
+        uint32_t count = cfg->data_symbols - data;
+        if (count > 32) count = 32;
+        if (cfg->pilots) {
+            const uint32_t remaining = 1440u - data % 1440u;
+            if (count > remaining) count = remaining;
+        }
+        codes_map_put(&s, column32(state->frame, col0 + data),
+                       column32(state->frame, cfg->data_symbols + data),
+                       column32(state->frame, col2 + data), gold32(cfg->gold, data), count);
+        data += count;
+        if (block < cfg->pilot_blocks && data == (block + 1u) * 1440u) {
+            codes_pilot(cfg, &s, block++);
+        }
+    }
+    state->data = data; state->pilot = block; *state->stream = s;
+    return data == cfg->data_symbols;
+}
+
+void dvbs2_8psk_codes_frame(const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
+                           dvbs2_8psk_codes_stream_t *stream) {
+    dvbs2_8psk_codes_state_t state;
+    dvbs2_8psk_codes_begin(&state, cfg, frame, stream);
+    while (!dvbs2_8psk_codes_step(&state, 64)) {}
+}
+
+void dvbs2_8psk_codes_flush(dvbs2_8psk_codes_stream_t *stream) {
+    if (stream->fill) codes_put_small(stream, 0, 0xaaaaaaaau, 16u - stream->fill);
+}
