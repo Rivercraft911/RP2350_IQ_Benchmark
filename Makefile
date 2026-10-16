@@ -101,12 +101,16 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_iqquadptr.py
 	python3 host/test_iq4hist.py
 	python3 host/test_iq4hist8.py
+	python3 host/test_iq5hist.py
 	python3 host/test_iq4ptr.py
 	python3 host/test_iq4ptr8.py
 	python3 host/test_iq4writer8.py
 	python3 host/test_iq4quad.py
 	python3 host/test_quad_rows.py
 	python3 host/test_bench4quad.py
+	python3 host/test_bench5quad.py
+	python3 host/test_quint_rows.py
+	python3 host/test_iq5quad_trial.py
 	python3 host/test_iq4quad_trial.py
 	python3 host/test_iq4prod.py
 	python3 host/test_iq4prod_irq.py
