@@ -22,7 +22,7 @@ set(TX_SOURCES
     src/bench_apsk_live.c src/bench32map.c src/bench32bus.c
     src/bench_apsk_fec.c src/dvbs2_apsk.c
     src/dvbs2.c src/dvbs2_8psk.c src/dvbs2_qpsk8.c src/dvbs2_asm.S src/dvbs2_ldpc_asm.S src/dvbs2_map_asm.S
-    src/pvproto.c src/pvspi.c
+    src/pvproto.c src/pvproto_asm.S src/pvspi.c
     src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c
     src/bench8quad.c src/bench8live.c src/bench16.c src/bench_pvstress.c
     src/bench_quadptr.c src/bench_quadlive.c)
