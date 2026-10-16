@@ -37,6 +37,28 @@ bool iq4hist_build(uint32_t *table, unsigned word_capacity) {
     return true;
 }
 
+bool iq4hist8_build(uint32_t *table, unsigned word_capacity) {
+    if (!table || word_capacity < IQ4HIST8_TABLE_WORDS) return false;
+    const int64_t denominator = (int64_t)IQ4HIST8_SCALE_DEN << 32;
+    for (uint32_t key = 0; key < IQ4HIST_ROWS; ++key) {
+        uint32_t packed = 0;
+        for (unsigned phase = 0; phase < IQ4HIST_SPS; ++phase) {
+            int64_t sum = 0;
+            for (unsigned age = 0; age < IQ4HIST_SPAN; ++age) {
+                const int32_t level = levels_q30[(key >> (2 * age)) & 3u];
+                sum += (int64_t)coefficients[age * IQ4HIST_SPS + phase] * level;
+            }
+            // C division truncates; explicitly implement floor for negative sums.
+            sum += denominator / 2;
+            const int64_t rounded = sum >= 0 ? sum / denominator :
+                -((-sum + denominator - 1) / denominator);
+            packed |= ((uint32_t)rounded & 0xffu) << (8 * phase);
+        }
+        table[key] = packed;
+    }
+    return true;
+}
+
 static inline uint32_t spread16(uint32_t bits) {
     bits &= 0xffffu;
     bits = (bits | bits << 8) & 0x00ff00ffu;

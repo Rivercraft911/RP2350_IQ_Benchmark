@@ -157,7 +157,7 @@ def mapper_check(directory, rows):
                 waveform_crc=zlib.crc32(scalar.tobytes()))
 
 
-def ensemble_spectrum(samples):
+def ensemble_spectrum(samples, require_held=True):
     """Exact iid four-level PSD, from conditional means over overlapping histories.
 
     Histories separated by k symbols share L-k independent four-valued symbols.
@@ -257,7 +257,8 @@ def ensemble_spectrum(samples):
     for model, key in (("digital", "digital"), ("held", "with_dac_hold")):
         assert abs(reference[model]["isi_plus_nonlinear_distortion_percent"] -
                    frozen[key]["isi"]["isi_percent"]) < 1e-7
-    assert result["held"]["continuous_certificate"]
+    if require_held:
+        assert result["held"]["continuous_certificate"]
     assert not result["digital"]["continuous_certificate"]
     return result
 

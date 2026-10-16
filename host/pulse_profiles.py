@@ -35,6 +35,16 @@ def iq4hist_rows():
     return samples[:, ::2] | (samples[:, 1::2] << 16)
 
 
+def iq4hist8_rows():
+    """B4 signed 8-bit rows; exact final rounding, full-scale divisor 3399/64."""
+    keys = np.arange(4 ** 7, dtype=np.int64)[:, None]
+    codes = (keys >> (2 * np.arange(7))) & 3
+    sums = FOUR_LEVELS_Q30[codes] @ L7_COEFFICIENTS.reshape(7, 4)
+    denominator = 3399 << 32
+    samples = (((sums + denominator // 2) // denominator) & 255).astype("<u4")
+    return (samples << (8 * np.arange(4, dtype=np.uint32))).sum(axis=1, dtype=np.uint32)
+
+
 def iq4hist_prbs(seed, symbols):
     """Independent mathematical 8PSK labels as (I,Q) chronological level codes."""
     phases = iqlut.xorshift32(seed, symbols) & 7
