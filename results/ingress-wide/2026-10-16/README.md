@@ -33,3 +33,10 @@ throughput, not asynchronous electrical timing from an external sender: no CM5 s
 yet, and its GPIO/DPI capability is an open question in `docs/rd/ingress-wide.md`. GP21/GP26
 are a bench pin assumption that needs a carrier routing change. Not yet joined to an encoder
 (B9 uses an in-memory source).
+
+## Merged with main (`387e8d8826`)
+
+Lower SRAM overflowed by 4 B once B9 and N5 were linked; `pvwide`'s ISR state pointer moved to
+SRAM4-7. On that image: width 1/4 A/B and both negatives as above, 47.8 Mb/s for 60 s clean;
+B9 at 16 Msym/s priority 13 two 3 s runs and one 60 s run clean (43,257 frames, worst service
+gap 112 µs, GCS 23.2k per frame as on main); N5 at 12.8 Msym/s 3 s clean.
