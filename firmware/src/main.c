@@ -23,6 +23,7 @@
 //   bench4fec cpw ms invert [prio]               live 8PSK FEC, four-level L7/N4 hardware shaping (experiment build)
 //   bench4quad8 / bench4quad cpw ms invert [prio] cyclic SRAM pointers, four writers (experiment build)
 //   c3fec code ms [slow_us] [cpw] [gap_us]       CPU-only frame-parallel 8PSK code-ring benchmark
+//   r2grant batches cpw [gap_us] [fault] [prio] finite DMA-only input grants, pin-free echo
 //   bench16chunk reps / bench16native8 reps       16APSK shaper components
 //   bench16out cpw ms kernel                     16APSK output with capture, no FEC
 //   bench16planar cpw ms                         experimental dual-axis planar output
@@ -67,6 +68,7 @@
 #include "bench4fec.h"
 #include "bench4quad.h"
 #include "c3_fec.h"
+#include "r2grant.h"
 #endif
 #include "bench_ptr.h"
 #include "dual_dma.h"
@@ -302,6 +304,14 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "mode", 1, 0, 1, &code)) return err;
         bench_quadptr(code);
 #ifdef IQ4HIST_EXPERIMENT
+    } else if (!strcmp(cmd, "r2grant")) {
+        int gap_us, fault;
+        if (!num(a[1], "batches", 8, 1, 8, &reps) ||
+            !num(a[2], "cpw", 1, 1, 4, &r.cpw) ||
+            !num(a[3], "gap_us", 0, 0, 20000, &gap_us) ||
+            !num(a[4], "fault", 0, 0, 1, &fault) ||
+            !num(a[5], "prio", 13, 0, 15, &code)) return err;
+        bench_r2grant(reps, r.cpw, gap_us, fault, code);
     } else if (!strcmp(cmd, "c3fec")) {
         int gap_us;
         if (!num(a[1], "code", REQUIRED, 0, N_DVBS2_CODES - 1, &code) ||
