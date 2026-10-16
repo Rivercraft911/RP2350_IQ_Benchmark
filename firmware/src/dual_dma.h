@@ -120,6 +120,11 @@ bool dual_dma_start_axis_fifo(const volatile uint32_t *rx_i, const volatile uint
 // Ring storage must remain unchanged until stop. No progress/reuse cursor is provided:
 // call faults(), not progress(), and the immutable source has no polling deadline.
 bool dual_dma_start_quad_rows(const uint32_t *const desc[4], unsigned count_log2, unsigned cpw);
+// Four independent PIO producers, order I-even,Q-even,I-odd,Q-odd. Each RX FIFO
+// has exactly one control DMA, paced by its own distinct RX DREQ; no router.
+// Same OUT8 one-symbol writers and atomic DDR timing as quad_rows. Caller owns
+// producer lifecycle and finite live-source grants. faults() supplies no cursor.
+bool dual_dma_start_quad_fifo(const volatile uint32_t *const rx[4], const unsigned dreq[4], unsigned cpw);
 #endif
 const char *dual_dma_last_error(void);
 // Descriptor mode only. Calling this in FIFO mode sets CONFIG and stops output;

@@ -74,9 +74,11 @@ static struct {
     int sm[4], control[4], data[4], sm_cap, cap_dma, clock_sm;
     bool owned, fifo_source, control_bswap;
 #ifdef IQ4HIST_EXPERIMENT
-    bool shared_axis_row, quad_rows;
+    bool shared_axis_row, quad_rows, quad_fifo;
     unsigned sample_bits;
     const uint32_t *quad_desc[4];
+    const volatile uint32_t *quad_rx[4];
+    unsigned quad_dreq[4];
 #endif
     uint32_t fifo_targets[2][2] __attribute__((aligned(8)));
     uint32_t count, mask, divider256, schedule, row_words, writers, sys_hz;
@@ -367,11 +369,84 @@ static void quad_checks(void) {
     assert(!dual_dma_start_quad_rows(desc, 11, 1));
     assert(state.owned && !starts && !stopped);
 }
+static void quad_fifo_checks(void) {
+    for (unsigned p = 0; p < 3; p++)
+    for (unsigned rotation = 0; rotation < 4; rotation++)
+    for (unsigned cpw = 0; cpw <= 5; cpw++)
+    for (unsigned schedule = 0; schedule < 4; schedule++) {
+        reset(); selected_writers = 4; selected_row_words = 1; selected_sample_bits = 8;
+        selected_schedule = schedule;
+        const volatile uint32_t *rx[4]; unsigned dreq[4];
+        for (unsigned s = 0; s < 4; s++) {
+            const unsigned sm = (s + rotation) % 4;
+            ports[p].claimed[sm] = true;
+            rx[s] = &ports[p].rxf[sm]; dreq[s] = pio_get_dreq(&ports[p], sm, false);
+        }
+        const bool want = cpw == 1 || cpw == 2 || cpw == 4;
+        assert(dual_dma_start_quad_fifo(rx, dreq, cpw) == want);
+        if (!want) { assert(stopped == 1 && !starts && !state.owned); continue; }
+        assert(starts == 1 && !stopped && state.owned && state.fifo_source && state.quad_fifo);
+        assert(state.quad_rows && state.shared_axis_row && state.sample_bits == 8 && state.writers == 4);
+        assert(state.output_pio == pio2 && state.row_words == 1 && state.schedule == schedule);
+        assert(!state.control_bswap && !state.count && !state.mask && !state.poll_limit_us);
+        assert(!state.desc_i && !state.desc_q && !log_arg && divider_arg == cpw * 256);
+        for (unsigned s = 0; s < 4; s++) {
+            state.control[s] = s; state.data[s] = s + 4; state.sm[s] = s;
+            assert(state.quad_rx[s] == rx[s] && state.quad_dreq[s] == dreq[s]);
+        }
+        // Run the actual start_output dispatch/start-mask loop. All four RX
+        // controls start; no alternating router DMA is configured or started.
+        assert(output_controls(0) == 15);
+        for (unsigned s = 0; s < 4; s++) {
+            const dma_channel_config c = channels[s].config, d = channels[s + 4].config;
+            assert(channels[s].configurations == 1 && channels[s + 4].configurations == 1);
+            assert(channels[s].read == rx[s] && channels[s].write == &dma.ch[s + 4].al3_read_addr_trig);
+            assert(channels[s].count == 1 && c.size == DMA_SIZE_32 && c.dreq == dreq[s]);
+            assert(!c.read_inc && !c.write_inc && !c.ring_bits && !c.ring_write && !c.ctrl && !c.bswap);
+            assert(c.quiet && c.chain == s && c.high == (schedule != 2));
+            assert(channels[s + 4].read == NULL && channels[s + 4].write == &pio2->txf[s]);
+            assert(channels[s + 4].count == 1 && d.size == DMA_SIZE_32 && d.dreq == 16 + s);
+            assert(d.read_inc && !d.write_inc && !d.ring_bits && !d.ring_write && !d.ctrl && !d.bswap);
+            assert(d.quiet && d.chain == s && d.high == (schedule != 1));
+            unsigned consumers = 0;
+            for (unsigned ch = 0; ch < 8; ch++) consumers += channels[ch].config.dreq == dreq[s];
+            assert(consumers == 1);
+        }
+        for (unsigned ch = 8; ch < 16; ch++) assert(!channels[ch].configurations);
+    }
+    for (unsigned slot = 0; slot < 4; slot++)
+    for (unsigned bad = 0; bad < 17; bad++) {
+        reset(); selected_writers = 4; selected_row_words = 1; selected_sample_bits = 8;
+        const volatile uint32_t *rx[4]; unsigned dreq[4];
+        for (unsigned s = 0; s < 4; s++) {
+            pio1->claimed[s] = true; rx[s] = &pio1->rxf[s]; dreq[s] = 12 + s;
+        }
+        const unsigned other = (slot + 1) % 4;
+        if (bad == 0) rx[slot] = NULL;
+        if (bad == 1) rx[slot] = &pio1->txf[slot];
+        if (bad == 2) pio1->claimed[slot] = false;
+        if (bad == 3) dreq[slot] = 8 + slot;
+        if (bad == 4) rx[slot] = rx[other];
+        if (bad == 5) dreq[slot] = dreq[other];
+        if (bad == 6) { rx[slot] = rx[other]; dreq[slot] = dreq[other]; }
+        if (bad == 7) dreq[slot] = DREQ_FORCE;
+        if (bad == 10) selected_writers = 2;
+        if (bad == 11) selected_row_words = 2;
+        if (bad == 12) selected_sample_bits = 14;
+        if (bad == 13) selected_dac_clock = 0;
+        assert(!dual_dma_start_quad_fifo(bad == 8 ? NULL : rx, bad == 9 ? NULL : dreq,
+                                         bad == 14 ? 0 : bad == 15 ? 3 : bad == 16 ? 5 : 1));
+        assert(!starts && stopped == 1 && !state.owned && state.result.errors == DUAL_DMA_ERR_CONFIG);
+    }
+    reset(); state.owned = true;
+    assert(!dual_dma_start_quad_fifo(NULL, NULL, 1));
+    assert(state.owned && !starts && !stopped);
+}
 #endif
 int main(void) {
     config_checks(); validation_checks(); cursor_checks();
 #ifdef IQ4HIST_EXPERIMENT
-    quad_checks();
+    quad_checks(); quad_fifo_checks();
 #endif
     puts("dual FIFO setup: PASS (fixed RX+BSWAP, alternating targets/sole RX DREQ, exact claims, old DMA configs/start validation, 36000 wrapped descriptor snapshots)");
 }
@@ -581,7 +656,13 @@ def main():
                                 for result, name, args in functions)
     compile_run(code + CHECKS, "fifo")
     quad = function_body(source, "dual_dma_start_quad_rows")
-    compile_run(code + f"\nbool dual_dma_start_quad_rows(const uint32_t *const desc[4], unsigned count_log2, unsigned cpw) {{\n{quad}\n}}\n" + CHECKS,
+    quad_fifo = function_body(source, "dual_dma_start_quad_fifo")
+    output = function_body(source, "start_output")
+    controls = output[output.index("uint32_t control_mask = 0;"):output.index("const uint32_t priority =")]
+    quad_code = f"\nbool dual_dma_start_quad_rows(const uint32_t *const desc[4], unsigned count_log2, unsigned cpw) {{\n{quad}\n}}\n"
+    quad_code += f"\nbool dual_dma_start_quad_fifo(const volatile uint32_t *const rx[4], const unsigned dreq[4], unsigned cpw) {{\n{quad_fifo}\n}}\n"
+    quad_code += f"\nstatic uint32_t output_controls(unsigned count_log2) {{\n{controls}\nreturn control_mask;\n}}\n"
+    compile_run(code + quad_code + CHECKS,
                 "quad-rows", experiment=True)
     state_type = re.search(r"typedef struct \{[\s\S]+?\} engine_t;", source)
     assert state_type

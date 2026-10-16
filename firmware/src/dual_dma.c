@@ -104,9 +104,11 @@ typedef struct {
     bool owned, running, capture_started, capture_fifo_only, capture_complete, capture_frozen;
     bool fifo_source, control_bswap;
 #ifdef IQ4HIST_EXPERIMENT
-    bool shared_axis_row, quad_rows;
+    bool shared_axis_row, quad_rows, quad_fifo;
     unsigned sample_bits;
     const uint32_t *quad_desc[4];
+    const volatile uint32_t *quad_rx[4];
+    unsigned quad_dreq[4];
 #endif
     uint32_t count, mask, divider256, schedule, row_words, writers, sys_hz, last[4], last_poll_us, poll_limit_us;
     uint64_t rows[4];
@@ -614,6 +616,29 @@ bool dual_dma_start_fifo_div256(const volatile uint32_t *rx_i, const volatile ui
 }
 
 #ifdef IQ4HIST_EXPERIMENT
+bool dual_dma_start_quad_fifo(const volatile uint32_t *const rx[4], const unsigned dreq[4], unsigned cpw) {
+    if (state.owned) { last_error = "dual DMA already owns resources"; return false; }
+    claim_init();
+    state.quad_rows = state.shared_axis_row = state.fifo_source = state.quad_fifo = true;
+    state.sample_bits = selected_sample_bits;
+    if (!rx || !dreq || selected_writers != 4 || selected_row_words != 1 ||
+        selected_sample_bits != 8 || !selected_dac_clock || (cpw != 1 && cpw != 2 && cpw != 4))
+        return start_failed("quad FIFO needs four OUT8 writers, one-word rows, DDR clock and cpw1/2/4",
+                            DUAL_DMA_ERR_CONFIG);
+    for (unsigned s = 0; s < 4; ++s) {
+        if (!valid_rx_source(rx[s], dreq[s]))
+            return start_failed("quad FIFO needs claimed RX FIFOs with their own DREQs", DUAL_DMA_ERR_CONFIG);
+        for (unsigned t = 0; t < s; ++t)
+            if (rx[t] == rx[s] || dreq[t] == dreq[s])
+                return start_failed("quad FIFO sources and DREQs must be distinct", DUAL_DMA_ERR_CONFIG);
+        state.quad_rx[s] = rx[s]; state.quad_dreq[s] = dreq[s];
+    }
+    state.writers = 4; state.output_pio = pio2; state.row_words = 1;
+    state.divider256 = cpw * 256; state.schedule = selected_schedule;
+    state.sys_hz = clock_get_hz(clk_sys);
+    return start_output(state.divider256, 0);
+}
+
 bool dual_dma_start_quad_rows(const uint32_t *const desc[4], unsigned count_log2, unsigned cpw) {
     if (state.owned) { last_error = "dual DMA already owns resources"; return false; }
     claim_init();
@@ -835,7 +860,9 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
     uint32_t control_mask = 0;
     for (unsigned s = 0; s < state.writers; s++) {
 #ifdef IQ4HIST_EXPERIMENT
-        if (state.quad_rows) {
+        if (state.quad_fifo) {
+            axis_fifo_dma(state.control[s], state.data[s], state.sm[s], state.quad_rx[s], state.quad_dreq[s]);
+        } else if (state.quad_rows) {
             axis_dma(state.control[s], state.data[s], state.sm[s], state.quad_desc[s], count_log2 + 2);
         } else
 #endif
@@ -854,6 +881,9 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
         // redirect the very first row or trigger an already-active control channel.
         if (!state.fifo_source || state.writers == 2 || s < 2)
             control_mask |= 1u << state.control[s];
+#ifdef IQ4HIST_EXPERIMENT
+        if (state.quad_fifo) control_mask |= 1u << state.control[s];
+#endif
     }
     const uint32_t priority = ((selected_bus_priority & 1u) << 0) |
         ((selected_bus_priority & 2u) << 3) | ((selected_bus_priority & 4u) << 6) |
