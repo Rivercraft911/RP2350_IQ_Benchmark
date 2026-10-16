@@ -81,6 +81,10 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_quad_rows.py
 	python3 host/test_bench4quad.py
 	python3 host/test_iq4quad_trial.py
+	python3 host/test_iq4prod.py
+	python3 host/test_iq4prod_source.py
+	python3 host/test_iq4prod_trial.py
+	python3 host/test_bench4prod.py
 	python3 host/test_iq4hist_trial.py
 	python3 host/test_quadptr_trial.py
 	python3 host/test_quadlive_trial.py
