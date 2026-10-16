@@ -20,7 +20,7 @@
 //   bench8psk [reps]                              experimental split-LUT shaping
 //   bench8quad ms reps / bench8map code pilots reps   8PSK shaper / mapper components
 //   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
-//   bench4fec cpw ms invert [prio]               live 8PSK FEC, four-level L7/N4 hardware shaping (experiment build)
+//   bench4fec cpw ms invert [prio writers schedule] live 8PSK FEC, four-level L7/N4 hardware shaping (experiment build)
 //   bench16chunk reps / bench16native8 reps       16APSK shaper components
 //   bench16out cpw ms kernel                     16APSK output with capture, no FEC
 //   bench16planar cpw ms                         experimental dual-axis planar output
@@ -305,12 +305,14 @@ static const char *dispatch(char *line) {
             !num(a[3], "invert", 0, 0, 1, &invert)) return err;
         bench4live(r.cpw, r.ms, invert);
     } else if (!strcmp(cmd, "bench4fec")) {
-        int invert;
+        int invert, writers, schedule;
         if (!num(a[1], "cpw", 2, 2, 4, &r.cpw) ||
             !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
             !num(a[3], "invert", 0, 0, 1, &invert) ||
-            !num(a[4], "prio", 0, 0, 15, &code)) return err;
-        bench4fec(r.cpw, r.ms, invert, code);
+            !num(a[4], "prio", 0, 0, 15, &code) ||
+            !num(a[5], "writers", 2, 2, 4, &writers) ||
+            !num(a[6], "schedule", 0, 0, 3, &schedule)) return err;
+        bench4fec(r.cpw, r.ms, invert, code, writers, schedule);
 #endif
     } else if (!strcmp(cmd, "quadlive")) {
         int fault;

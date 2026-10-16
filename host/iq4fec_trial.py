@@ -10,6 +10,7 @@ inverted for the clock control). Digital only: no AFE, spectrum, EVM or receiver
 
   python3 host/iq4fec_trial.py --self-test
   python3 host/iq4fec_trial.py --out results/b2-8psk-live/quick --ms 3000 --cpws 4 2
+  python3 host/iq4fec_trial.py --out results/b3-8psk-rows/quick --writers 2 4 --schedules 0 1 2 3 --prios 13
 """
 from __future__ import annotations
 
@@ -97,7 +98,9 @@ def validate_capture(r: dict, lines: list[str], invert: int) -> dict:
             raise ValueError('capture must be pins32 at stride 17')
         lo = int(r['cap_symbol_lo']) - int(r['cap_margin_symbols'])
         hi = int(r['cap_symbol_hi']) + int(r['cap_margin_symbols'])
-    except (ValueError, TypeError, KeyError) as exc:
+        if hi < max(0, lo):
+            raise ValueError('invalid capture search window')
+    except (ValueError, TypeError, KeyError, OverflowError) as exc:
         return dict(cap_transport_ok=False, cap_aligned=False, cap_mismatches=None, cap_error=str(exc))
     bus = (words & 0xffff).astype('<u2')
     clock_bad = int(np.count_nonzero(((words >> 28) & 1) != ((words >> 14) & 1)))
@@ -125,14 +128,21 @@ def validate_capture(r: dict, lines: list[str], invert: int) -> dict:
                 cap_checked_bus_words=CAP_WORDS, **clock)
 
 
-def run_faults(r: dict, cpw: int, ms: int, invert: int, expected_git: str | None) -> list[str]:
+def run_faults(r: dict, cpw: int, ms: int, invert: int, expected_git: str | None,
+               *, writers: int = 2, dma_schedule: int = 0,
+               clock_hz: int = 128000000) -> list[str]:
     if r.get('error'):
         return [f"firmware error: {r['error']}"]
     faults = []
-    rs = 128e6 / (8 * cpw)
-    expected = dict(cmd='bench4fec', clk_hz=128000000, cpw=cpw, ms=ms, invert=invert, source=6,
+    if (cpw not in (2, 4) or writers not in (2, 4) or dma_schedule not in range(4) or
+            clock_hz not in (128000000, 256000000) or invert not in (0, 1)):
+        return ['unsupported requested configuration']
+    rs = clock_hz / (8 * cpw)
+    expected = dict(cmd='bench4fec', clk_hz=clock_hz, cpw=cpw, ms=ms, invert=invert, source=6,
                     code_index=8, s2_code='normal 5/6', modcod=15, kbch=BB_BITS, pilots=True, L=SPAN,
-                    sps=4, row_profile=L7_PROFILE, row_symbols=1, row_words=2, writers=2,
+                    sps=4, row_profile=L7_PROFILE, row_symbols=1, row_words=2, writers=writers,
+                    dma_schedule=dma_schedule, pointer_pio=0 if writers == 4 else 2,
+                    pointer_routing='alternating_dma' if writers == 4 else 'direct',
                     frame_symbols=FRAME_SYMBOLS, table_crc=TABLE_CRC, prefill_frames=PREFILL_FRAMES,
                     restored=True, selectors_restored=True, errors=0, pointer_errors=0, output_errors=0,
                     txstalls_i=0, txstalls_q=0, null_trigger_mask=0)
@@ -140,8 +150,19 @@ def run_faults(r: dict, cpw: int, ms: int, invert: int, expected_git: str | None
     if expected_git:
         expected['git'] = expected_git
     faults += [f'{k}={r.get(k)!r}, expected {v!r}' for k, v in expected.items() if r.get(k) != v]
-    if not isinstance(r.get('sym_rate'), (int, float)) or not math.isclose(r['sym_rate'], rs, rel_tol=1e-9):
+    if (not isinstance(r.get('sym_rate'), (int, float)) or
+            not math.isclose(r['sym_rate'], rs, rel_tol=1e-9)):
         faults.append('symbol rate differs from the requested divider')
+    counters = ('elapsed_us', 'encoder_frames', 'encoder_runtime_frames', 'input_published_groups',
+                'granted_words', 'published_words', 'converted_groups', 'max_poll_gap_us',
+                'max_poll_interval_us', 'min_credit_runway_words')
+    invalid = [name for name in counters if type(r.get(name)) is not int or r[name] < 0]
+    issued = r.get('input_issue_words')
+    if (not isinstance(issued, list) or len(issued) != 2 or
+            any(type(count) is not int or count < 0 for count in issued)):
+        invalid.append('input_issue_words')
+    if invalid:
+        return faults + ['invalid runtime counters: ' + ', '.join(invalid)]
     elapsed = r.get('elapsed_us', 0)
     if not ms * 1000 <= elapsed <= ms * 1000 + 50000:
         faults.append('elapsed duration differs from request')
@@ -150,7 +171,6 @@ def run_faults(r: dict, cpw: int, ms: int, invert: int, expected_git: str | None
         faults.append('no coherent runtime encoder frame count')
     if r.get('input_published_groups') != frames * FRAME_SYMBOLS // 16:
         faults.append('encoder group publication differs from complete frames')
-    issued = r.get('input_issue_words') or [0, 0]
     if not (min(issued) * 16 >= rs * elapsed / 1e6 * 0.98 and max(issued) <= r.get('granted_words', -1)
             <= r.get('published_words', -1) <= r.get('converted_groups', -1) <= r.get('input_published_groups', -1)):
         faults.append('pointer issue/grant/publication/conversion ordering or rate inconsistent')
@@ -158,11 +178,13 @@ def run_faults(r: dict, cpw: int, ms: int, invert: int, expected_git: str | None
         faults.append('supervision poll gap exceeded its bound')
     if r.get('min_credit_runway_words', -1) <= 0:
         faults.append('credit runway reached zero')
+    spi = r.get('pv_spi', {})
+    if not isinstance(spi, dict):
+        return faults + ['invalid packet accounting: expected pv_spi object']
     try:
         faults.extend(dual_spi.packet_faults(dict(r, source=6)))
     except (KeyError, TypeError, ValueError, OverflowError) as exc:
         faults.append(f'invalid packet accounting: {type(exc).__name__}')
-    spi = r.get('pv_spi', {})
     if spi.get('bbframes') != frames or spi.get('runtime_bbframes') != frames - PREFILL_FRAMES:
         faults.append('GCS/encoder BBFRAME count mismatch')
     if not (r.get('cap_transport_ok') and r.get('cap_aligned') and r.get('cap_mismatches') == 0):
@@ -170,6 +192,18 @@ def run_faults(r: dict, cpw: int, ms: int, invert: int, expected_git: str | None
     if not r.get('cap_clock_ok'):
         faults.append('DDR clock parity differs from ' + ('inverted control' if invert else 'I-slot high'))
     return list(dict.fromkeys(faults))
+
+
+def validate_run(r: dict, lines: list[str], cpw: int, ms: int, invert: int,
+                 expected_git: str | None, *, writers: int = 2, dma_schedule: int = 0,
+                 clock_hz: int = 128000000) -> dict:
+    """Apply the same independent waveform reference to either hardware topology."""
+    capture = {} if r.get('error') else validate_capture(r, lines, invert)
+    faults = run_faults(dict(r, **capture), cpw, ms, invert, expected_git, writers=writers,
+                        dma_schedule=dma_schedule, clock_hz=clock_hz)
+    return dict(capture, faults=faults, classification='failed' if faults else
+                'inverted_clock_detected' if invert else 'digital_live_clean',
+                negative_control_detected=not faults and bool(invert))
 
 
 def capture_lines(words: np.ndarray) -> tuple[dict, list[str]]:
@@ -219,6 +253,12 @@ def main():
     p.add_argument('--ldpc-pack', type=int, choices=(0, 1), default=1)
     p.add_argument('--prios', nargs='+', type=int, choices=range(16), default=[0],
                    help='dual_dma bus-priority masks to try (register fields PROC0/PROC1/DMA_R/DMA_W)')
+    p.add_argument('--writers', nargs='+', type=int, choices=(2, 4), default=[2],
+                   help='two direct writers or four writers with alternating-row DMA routing')
+    p.add_argument('--schedules', nargs='+', type=int, choices=range(4), default=[0],
+                   help='DMA 0=all high, 1=sample low, 2=control/router low, 3=interleaved claim order')
+    p.add_argument('--clocks', nargs='+', type=int, choices=(128000, 256000), default=[128000],
+                   help='requested system clocks in kHz (firmware must support the clock profile)')
     p.add_argument('--port')
     p.add_argument('--expected-git')
     p.add_argument('--build', type=Path, default=iq.ROOT / 'firmware/build-b1')
@@ -245,11 +285,12 @@ def main():
     hashes.update({str(f.relative_to(iq.ROOT)): hashlib.sha256(f.read_bytes()).hexdigest() for f in sorted(sources)})
     git = lambda *a: subprocess.run(['git', *a], cwd=iq.ROOT, capture_output=True, text=True).stdout.strip()
     manifest = dict(started=dt.datetime.now().isoformat(), ms=args.ms, cpws=args.cpws, inverts=args.inverts,
-                    prios=args.prios,
+                    prios=args.prios, writers=args.writers, dma_schedules=args.schedules,
+                    clocks_khz=args.clocks,
                     ldpc_pack=args.ldpc_pack, expected_firmware_git=args.expected_git,
                     head=git('rev-parse', 'HEAD'), branch=git('branch', '--show-current'),
                     status=git('status', '--short'), cmake_flag='IQ4HIST_EXPERIMENT:BOOL=ON', sha256=hashes,
-                    setup='USB only, external GPIOs unconnected, stock voltage, on-chip PV-SPI master',
+                    setup='USB only, external GPIOs unconnected, on-chip PV-SPI master',
                     scope='Live GCS 8PSK 5/6 FEC through L7/N4 hardware shaping; sparse pins32 captures; '
                           'no AFE/RF/receiver qualification')
     (args.out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
@@ -258,29 +299,40 @@ def main():
     board = iq.Board(args.port)
     failed = False
     try:
-        for line in ('info', 'clock 128000', 'bchkernel 2', f'ldpcpack {args.ldpc_pack}'):
+        for line in ('info', 'bchkernel 2', f'ldpcpack {args.ldpc_pack}'):
             r, _ = board.cmd(line, timeout=60)
             with (args.out / 'runs.jsonl').open('a') as f:
                 f.write(json.dumps(dict(label=line, **r)) + '\n')
             if 'error' in r:
                 raise SystemExit(f"{line}: {r['error']}")
-        for cpw, invert, prio in ((c, i, m) for m in args.prios for c in args.cpws for i in args.inverts):
-            label = f'bench4fec-cpw{cpw}-invert{invert}' + (f'-prio{prio}' if prio else '')
-            r, lines = board.cmd(f'bench4fec {cpw} {args.ms} {invert} {prio}', timeout=args.ms / 1000 + 60)
-            (args.out / f'{label}.txt').write_text('\n'.join(lines) + '\n')
-            if 'error' not in r:
-                r.update(validate_capture(r, lines, invert))
-            r['faults'] = run_faults(r, cpw, args.ms, invert, args.expected_git)
-            if r.get('bus_priority_mask', 0) != prio:
-                r['faults'].append('reported bus priority differs from request')
-            r['label'] = label
+        for clock in args.clocks:
+            line = f'clock {clock}'
+            r, _ = board.cmd(line, timeout=60)
             with (args.out / 'runs.jsonl').open('a') as f:
-                f.write(json.dumps(r) + '\n')
-            print(label, json.dumps({k: r.get(k) for k in (
-                'elapsed_us', 'sym_rate', 'core0_work_busy', 'convert_busy', 'supervision_busy',
-                'encoder_busy', 'min_credit_runway_words', 'cap_mismatches', 'cap_clock_mismatches',
-                'reason', 'faults')}), flush=True)
-            failed |= bool(r['faults'])
+                f.write(json.dumps(dict(label=line, **r)) + '\n')
+            if 'error' in r:
+                raise SystemExit(f"{line}: {r['error']}")
+            for writers, schedule, cpw, invert, prio in (
+                    (w, s, c, i, m) for w in args.writers for s in args.schedules
+                    for m in args.prios for c in args.cpws for i in args.inverts):
+                label = (f'bench4fec-clk{clock}-w{writers}-schedule{schedule}'
+                         f'-cpw{cpw}-invert{invert}-prio{prio}')
+                r, lines = board.cmd(f'bench4fec {cpw} {args.ms} {invert} {prio} {writers} {schedule}',
+                                     timeout=args.ms / 1000 + 60)
+                (args.out / f'{label}.txt').write_text('\n'.join(lines) + '\n')
+                r.update(validate_run(r, lines, cpw, args.ms, invert, args.expected_git,
+                                      writers=writers, dma_schedule=schedule, clock_hz=clock * 1000))
+                if r.get('bus_priority_mask', 0) != prio:
+                    r['faults'].append('reported bus priority differs from request')
+                    r.update(classification='failed', negative_control_detected=False)
+                r['label'] = label
+                with (args.out / 'runs.jsonl').open('a') as f:
+                    f.write(json.dumps(r) + '\n')
+                print(label, json.dumps({k: r.get(k) for k in (
+                    'elapsed_us', 'sym_rate', 'core0_work_busy', 'convert_busy', 'supervision_busy',
+                    'encoder_busy', 'min_credit_runway_words', 'cap_mismatches', 'cap_clock_mismatches',
+                    'reason', 'classification', 'faults')}), flush=True)
+                failed |= bool(r['faults'])
     finally:
         for line in ('ldpcpack 0', 'bchkernel 0'):
             board.cmd(line, timeout=60)
