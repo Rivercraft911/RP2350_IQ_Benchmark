@@ -1,55 +1,59 @@
 // RP2350 I/Q waveform benchmark. Line commands over USB CDC; results as JSON lines prefixed '@',
-// errors as @{"error":"..."}.
-//   info
+// errors as @{"error":"..."}. [exp] = only with -DIQ4HIST_EXPERIMENT=ON. See README.md for the
+// best measured option per transmitter type and results/README.md for the evidence.
+//
+// System
+//   info / stackcheck / bootsel                   identity / stack high-water and code integrity / bootloader
 //   clock <khz>                                   set clk_sys (stock max 150000)
-//   bench <kernel> <sps> <L> [reps]               kernel throughput + output CRC
-//   stream <kernel> <sps> <L> <cores> <cpw> <ms> [cap_words] [lanes half]
-//        cores: 0 | 1 | 01 (alternate blocks); cpw: PIO system clocks per 16-bit bus word
-//        lanes > 0: input arrives over the PIO link (emulated host), half = SCK half period
-//   dvbs2 <code> <pilots> [reps]                  DVB-S2 encoder stage cycles + PLFRAME CRC
-//   txs2 <code> <pilots> <kernel> <sps> <L> <cpw> <ms> [cap_words] [single_core]
-//        full transmitter: core 1 encodes DVB-S2 frames, core 0 shapes and streams
-//        code: index into DVBS2_CODES (dvbs2_codes.h)
-//        single_core 1 = cooperative encoder + shaper on core 0; default 0 = two cores
-//   pvtx <cpw> <ms> <selftest> [cap_words] [cap_ms] [single_core]
-//        PigeonVision TX: TS over PV-SPI v1 (docs/pv-spi-spec.md) -> DVB-S2 normal QPSK 2/3 with
-//        pilots -> shaper (N = 4, L = 12). selftest 1 = on-chip emulated CM5 master.
-//   snifftest                                     DMA sniffer CRC modes
-//   pvbench [reps] / ptrbench [reps]              packet preparation / pin-free PIO pointers
-//   bchkernel <0|1|2|3>                           baseline, C words, ARM stream, t8 ARM stream
-//   bench8psk [reps]                              experimental split-LUT shaping
-//   bench8quad ms reps / bench8map code pilots reps   8PSK shaper / mapper components
-//   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
-//   bench4fec cpw ms invert [prio] [bits]        live 8PSK FEC, four-level L7/N4 hardware shaping, 14- or 8-bit rows (experiment build)
-//   bench4quad8 / bench4quad cpw ms invert [prio] cyclic SRAM pointers, four writers (experiment build)
-//   bench4prod8 / bench4prod8live cpw ms invert [prio] [starve_ms] four PIO producers (experiment build)
-//   dmaloop chains words sink load_div load_kind prio hammer   DMA row-loop latency (experiment build)
-//   c3fec code ms [slow_us] [cpw] [gap_us] [options]  CPU-only frame-parallel 8PSK
-//   c3pair code pairs layout who options          FEC SRAM-bank contention: solo vs concurrent, shared vs split banks
-//   r2grant batches cpw [gap_us] [fault] [prio] finite DMA-only input grants, pin-free echo
-//   bench16chunk reps / bench16native8 reps       16APSK shaper components
-//   bench16out cpw ms kernel                     16APSK output with capture, no FEC
-//   bench16planar cpw ms                         experimental dual-axis planar output
-//   bench32native8 reps                          32APSK shaper components
-//   bench32out cpw ms kernel                     32APSK rolling-key output, no FEC
-//   benchapsklive cpw ms schedule mapper mod placement    runtimeAPSK, 1/2 cores
-//   benchapskfec mod cpw ms [split]             APSK with live SPI and FEC; split1 = BCH on core 0
-//   bench32map reps                              matched32APSK mapper components
-//   bench32bus mode group                        no-output bus contention diagnosis
-//   benchquadptr mode / quadlive cpw ms fault     finite / live PIO address generation
-//   pvstress ms irq_mask_us                      on-chip SPI admission test
-//   ddrtest [ms]                                  experimental PIO data + HSTX DDR clock
-//   dualbench [reps]                             descriptor generation experiment
-//   dualwriters <2|4> / dualprio <0..15>          idle experimental DMA settings
-//   dualclock <0|1|2>                             0 HSTX CLK_IO, 1 GP28 PIO DDR clock, 2 inverted control
-//   quadprofile <0|1> / mapkernel <0|1>          L9/L8 pulse / baseline/packed mapper
-//   ldpcpack <0|1>                               LDPC parity: baseline / streaming in-place pack
-//   bchbank <0|1>                                frontend BCH steps: striped SRAM / scratch-Y copy
+//   start / status / stop                         pvflight only: autonomous transmitter control
+//
+// QPSK (hardware shaping is the best measured path; CPU paths remain as controls)
+//   dualptr cpw ms source fault [code]           live SPI/FEC, PIO-generated LUT addresses (source 5/6)
+//   dualptr4 cpw ms source fault [code]          same with four router-fed writers (A2)
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
-//   dualptr cpw ms source fault [code]           live SPI/FEC, PIO pointers (source5/6)
-//   dualptr4 cpw ms source fault [code]          same with four alternating writers
-//        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=SPI TS, 6=SPI GCS
-//   bootsel                                       reboot to the USB bootloader
+//        CPU-generated descriptors; source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC,
+//        4=split FEC, 5=SPI TS, 6=SPI GCS
+//   pvtx <cpw> <ms> <selftest> [cap_words] [cap_ms] [single_core]
+//        PigeonVision TX (the pvflight profile): TS over PV-SPI v1 (docs/pv-spi-spec.md) ->
+//        DVB-S2 normal QPSK 2/3 with pilots -> CPU shaper (N = 4, L = 12)
+//   txs2 <code> <pilots> <kernel> <sps> <L> <cpw> <ms> [cap_words] [single_core]
+//        original CPU-shaped transmitter: core 1 encodes, core 0 shapes and streams
+//   stream <kernel> <sps> <L> <cores> <cpw> <ms> [cap_words] [lanes half]   CPU shaper output only
+//   benchquadptr mode / quadlive cpw ms fault     finite / cyclic PIO address generation
+//
+// 8PSK on the four-level table [exp]
+//   bench4fec cpw ms invert [prio] [bits]        live 8PSK FEC -> hardware shaping; bits 8 = B7 transmitter
+//   bench4prod8 / bench4prod8live cpw ms invert [prio] [starve_ms]   four PIO producers (B6, 16 Msym/s)
+//   bench4quad8 / bench4quad cpw ms invert [prio] four SRAM-fed chains, cyclic (B5)
+//   bench4live / bench4live8 cpw ms invert [prio]   one chain per axis, cyclic (B1 / B4)
+//
+// CPU-shaped 8PSK, VCM and APSK
+//   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
+//   bench8psk [reps] / bench8quad ms reps / bench8map code pilots reps   8PSK components
+//   benchapskfec mod cpw ms [split]             APSK with live SPI and FEC; split1 = BCH on core 0
+//   benchapsklive cpw ms schedule mapper mod placement    runtime APSK, 1/2 cores
+//   bench16out / bench32out cpw ms kernel        16APSK / 32APSK output with capture, no FEC
+//   bench16planar cpw ms                         experimental dual-axis planar output
+//   bench16chunk / bench16native8 / bench32native8 / bench32map reps   APSK components
+//
+// FEC and encoder
+//   dvbs2 <code> <pilots> [reps]                  encoder stage cycles + PLFRAME CRC
+//   c3fec code ms [slow_us] [cpw] [gap_us] [options]   [exp] two-core frame-parallel 8PSK FEC, no output
+//   c3pair code pairs layout who options          [exp] FEC SRAM-bank contention, per-stage cycles
+//   bchkernel <0|1|2|3> / bchbank <0|1> / ldpcpack <0|1> / mapkernel <0|1>   encoder selectors
+//
+// Output settings (idle only)
+//   dualwriters <2|4> / dualprio <0..15>          writer count / BUS_PRIORITY mask (PROC0 1, PROC1 2, DMA_R 4, DMA_W 8)
+//   dualclock <0|1|2>                             0 HSTX CLK_IO, 1 GP28 PIO DDR clock, 2 inverted control
+//   quadprofile <0|1>                             L9 / L8 QPSK pulse
+//
+// Diagnostics
+//   dmaloop chains words sink load_div load_kind prio hammer   [exp] DMA row-loop latency
+//   r2grant batches cpw [gap_us] [fault] [prio]  [exp] self-re-arming DMA input grants, pin-free echo
+//   bench <kernel> <sps> <L> [reps]               shaping kernel throughput + output CRC
+//   bench32bus mode group                        no-output bus contention diagnosis
+//   pvstress ms irq_mask_us / pvbench / ptrbench [reps]   SPI admission / packet prep / PIO pointers
+//   snifftest / ddrtest [ms] / dualbench [reps]   DMA sniffer / PIO data + HSTX clock / descriptor generation
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
