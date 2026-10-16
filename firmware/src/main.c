@@ -21,6 +21,7 @@
 //   bench8quad ms reps / bench8map code pilots reps   8PSK shaper / mapper components
 //   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
 //   bench4fec cpw ms invert [prio]               live 8PSK FEC, four-level L7/N4 hardware shaping (experiment build)
+//   bench4quad8 / bench4quad cpw ms invert [prio] cyclic SRAM pointers, four writers (experiment build)
 //   bench16chunk reps / bench16native8 reps       16APSK shaper components
 //   bench16out cpw ms kernel                     16APSK output with capture, no FEC
 //   bench16planar cpw ms                         experimental dual-axis planar output
@@ -63,6 +64,7 @@
 #ifdef IQ4HIST_EXPERIMENT
 #include "bench4live.h"
 #include "bench4fec.h"
+#include "bench4quad.h"
 #endif
 #include "bench_ptr.h"
 #include "dual_dma.h"
@@ -311,6 +313,13 @@ static const char *dispatch(char *line) {
             !num(a[3], "invert", 0, 0, 1, &invert) ||
             !num(a[4], "prio", 13, 0, 15, &code)) return err;
         bench4live8(r.cpw, r.ms, invert, code);
+    } else if (!strcmp(cmd, "bench4quad8") || !strcmp(cmd, "bench4quad")) {
+        int invert;
+        if (!num(a[1], "cpw", 2, 1, 4, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "invert", 0, 0, 1, &invert) ||
+            !num(a[4], "prio", 13, 0, 15, &code)) return err;
+        bench4quad(r.cpw, r.ms, invert, code, !strcmp(cmd, "bench4quad8") ? 8 : 14);
     } else if (!strcmp(cmd, "bench4fec")) {
         int invert;
         if (!num(a[1], "cpw", 2, 2, 4, &r.cpw) ||
