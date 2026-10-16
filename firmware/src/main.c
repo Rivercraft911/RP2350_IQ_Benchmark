@@ -41,6 +41,7 @@
 //   dvbs2 <code> <pilots> [reps]                  encoder stage cycles + PLFRAME CRC
 //   c3fec code ms [slow_us] [cpw] [gap_us] [options]   [exp] two-core frame-parallel 8PSK FEC, no output
 //   c3pair code pairs layout who options          [exp] FEC SRAM-bank contention, per-stage cycles
+//        options=best: c3fec=251; c3pair=1275 requires layout4 (large BCH table)
 //   bchkernel <0|1|2|3> / bchbank <0|1> / ldpcpack <0|1> / mapkernel <0|1>   encoder selectors
 //
 // Output settings (idle only)
@@ -169,6 +170,15 @@ static bool num(const char *s, const char *name, int def, int lo, int hi, int *o
     *out = (int)v;
     return true;
 }
+
+#ifdef IQ4HIST_EXPERIMENT
+// Numeric masks keep their full meaning. The convenience spelling uses the best
+// supported candidate in this command: c3pair needs layout4, c3fec has no TABLE3.
+static bool c3_options(const char *s, int def, int best, int *out) {
+    if (s && !strcmp(s, "best")) { *out = best; return true; }
+    return num(s, "options", def, 0, C8_ALL, out);
+}
+#endif
 
 static bool cores_ok(const char *s) {
     if (s && (!strcmp(s, "0") || !strcmp(s, "1") || !strcmp(s, "01"))) return true;
@@ -325,8 +335,8 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "c3pair")) {
         int pairs, layout, who, options;
         if (!num(a[1], "code", REQUIRED, 0, N_DVBS2_CODES - 1, &code) || !num(a[2], "pairs", 40, 1, 200, &pairs) ||
-            !num(a[3], "layout", 0, 0, 2, &layout) || !num(a[4], "who", 2, 0, 7, &who) ||
-            !num(a[5], "options", C4_ALL, 0, C4_ALL, &options)) return err;
+            !num(a[3], "layout", 0, 0, 4, &layout) || !num(a[4], "who", 2, 0, 7, &who) ||
+            !c3_options(a[5], C4_ALL, C8_BEST, &options)) return err;
         bench_c3_pair(code, pairs, layout, who, options);
     } else if (!strcmp(cmd, "c3fec")) {
         int gap_us, options;
@@ -334,7 +344,7 @@ static const char *dispatch(char *line) {
             !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
             !num(a[3], "slow_us", 0, 0, 10000, &reps) ||
             !num(a[4], "cpw", 1, 1, 4, &r.cpw) || !num(a[5], "gap_us", 128, 128, 4096, &gap_us) ||
-            !num(a[6], "options", 0, 0, C4_ALL, &options)) return err;
+            !c3_options(a[6], 0, C8_BEST_BASE, &options)) return err;
         bench_c3_fec_options(code, r.ms, reps, r.cpw, gap_us, options);
     } else if (!strcmp(cmd, "bench4live")) {
         int invert;

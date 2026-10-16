@@ -16,6 +16,12 @@ complete SPI/FEC pipelines too, slower but working. Everything uses a 128 MHz sy
 (the RP2350 is rated to 150 MHz; 128 MHz gives integer dividers for the DAC clock) unless a row
 says 150 MHz.
 
+![Core time spent on pulse shaping, from the CPU shaper to PIO and DMA](results/plots/summary-2026-10-16/offload.png)
+
+Pulse shaping used to take 72% of a core at 8 Msym/s and would need 1.35 cores at 16 Msym/s.
+With PIO building the table addresses and DMA moving the samples, it takes about 3%, which is
+just the supervision loop checking for faults.
+
 Tests use a Pimoroni Pico Plus 2, RP2350B rev A2, stock voltage, USB only and unconnected
 external GPIOs. SPI traffic comes from an on-chip master unless stated; the external CM5 camera
 test is recorded separately. This repository is the benchmark and the groundwork: flight
@@ -102,6 +108,18 @@ contention:
 
 ![Two-core FEC cycles per 8PSK 2/3 frame](results/plots/summary-2026-10-16/fec_cycles.png)
 
+## How it got here
+
+Every version was measured on the Pico and kept in [results](results/README.md). The CPU
+shaper went from 918 to 10.8 cycles per symbol before moving into PIO and DMA; BCH and LDPC
+went from 4.1 million to 226k cycles per frame.
+
+![Shaping, FEC and core load across versions](results/plots/summary-2026-10-16/progress.png)
+
+Everything tried so far, by thread and date:
+
+![What was tried, what worked and what did not](results/plots/summary-2026-10-16/experiment_map.png)
+
 ## Build and reproduce
 
 Requires Pico SDK 2.2.0, GCC Arm 14.2, CMake, Ninja, picotool, Python, NumPy, Matplotlib and
@@ -115,7 +133,7 @@ make build        # firmware/build/{iqbench,pvflight}.uf2
 cmake -S firmware -B firmware/build-exp -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DIQ4HIST_EXPERIMENT=ON -DCORE0_STACK_SRAM_HI=ON
 make build BUILD=firmware/build-exp
-python3 host/plot_summary.py   # regenerates the figures above from results/
+python3 host/plot_summary.py && python3 host/plot_history.py   # regenerate the figures from results/
 ```
 
 The runners never build or flash. Flash the matching image, use a fresh `--out` and pin the

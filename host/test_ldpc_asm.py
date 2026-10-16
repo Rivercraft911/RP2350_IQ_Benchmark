@@ -15,10 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 MASK, END = 0xFFFFFFFF, 0xEEEEEEE0
 
 
-def program():
+def program(c5=False):
     source = [(line.split("//")[0]).strip() for line in
               (ROOT / "firmware/src/dvbs2_ldpc_asm.S").read_text().splitlines()]
-    code, labels, macros, dispatch = [], {}, {}, []
+    # Each copied leaf is deliberately tested independently; C5 adds GAS .if
+    # and .rept directives, while C4's original source remains unchanged.
+    marker = next(i for i, line in enumerate(source) if line.startswith(".macro C5_EXTRACT"))
+    source = source[marker:] if c5 else source[:marker]
+    code, labels, macros, dispatch, extract_dispatch = [], {}, {}, [], []
 
     def emit(lines):
         cursor = 0
@@ -27,44 +31,64 @@ def program():
             cursor += 1
             if not line:
                 continue
-            if line.startswith((".macro ", ".irp ")):
-                macro = line.startswith(".macro ")
+            if line.startswith((".macro ", ".irp ", ".if ", ".rept ")):
                 declaration = line.split(maxsplit=2)
+                directive = declaration[0]
                 name = declaration[1].rstrip(",")
                 args = operands(declaration[2]) if len(declaration) > 2 else []
-                body, end = [], ".endm" if macro else ".endr"
+                end = {".macro": ".endm", ".irp": ".endr",
+                       ".if": ".endif", ".rept": ".endr"}[directive]
+                body = []
                 while lines[cursor] != end:
                     body.append(lines[cursor])
                     cursor += 1
                 cursor += 1
-                if macro:
+                if directive == ".macro":
                     macros[name] = args, body
-                else:
+                elif directive == ".irp":
                     for value in args:
                         emit([item.replace("\\" + name, value) for item in body])
+                elif directive == ".rept":
+                    for _ in range(int(name)):
+                        emit(body)
+                else:
+                    match = re.fullmatch(r"(\d+) (==|>|<) (\d+)", line[4:])
+                    assert match, line
+                    left, comparison, right = match.groups()
+                    condition = {"==": int(left) == int(right), ">": int(left) > int(right),
+                                 "<": int(left) < int(right)}[comparison]
+                    if condition:
+                        emit(body)
             elif line.endswith(":"):
                 labels[line[:-1]] = len(code)
             elif line.startswith(".hword "):
-                match = re.fullmatch(r"\.hword \(\.Lldpc_rot(\d+) - \.Lldpc_dispatch\) / 2", line)
-                assert match, line
-                dispatch.append(int(match[1]))
+                match = re.fullmatch(r"\.hword \(\.L(?:ldpc|c5)_rot(\d+) - \.L(?:ldpc|c5)_dispatch\) / 2", line)
+                if match:
+                    dispatch.append(int(match[1]))
+                else:
+                    match = re.fullmatch(r"\.hword \(\.Lc5_extract(0|8|16|24) - \.Lc5_extract_dispatch\) / 2", line)
+                    assert match, line
+                    extract_dispatch.append(int(match[1]))
             elif line.split()[0] in macros:
                 name, tail = line.split(maxsplit=1)
                 names, body = macros[name]
                 args = operands(tail)
                 assert len(names) == len(args)
+                expanded = []
                 for item in body:
                     for key, value in zip(names, args):
                         item = item.replace("\\" + key, value)
-                    emit([item])
+                    expanded.append(item)
+                emit(expanded)
             elif not line.startswith((".", "#")):
                 code.append(line)
     emit(source)
     assert dispatch == list(range(32))
+    assert extract_dispatch == ([0, 8, 16, 24] if c5 else [])
     return code, labels
 
 
-def execute(code, labels, info, shift, initial, rows, offsets):
+def execute(code, labels, info, shift, initial, rows, offsets, c5=False, counts=None):
     memory, writable = {}, set()
 
     def region(base, values, size, write):
@@ -93,7 +117,7 @@ def execute(code, labels, info, shift, initial, rows, offsets):
 
     r = [0x12340000 + i * 0x111 for i in range(16)]
     r[:4] = [0x200004, 0x100000, shift, 0x300000]
-    r[13:] = [0x500100, END | 1, labels["dvbs2_ldpc_group_pic"]]
+    r[13:] = [0x500100, END | 1, labels["dvbs2_ldpc_group_c5_pic" if c5 else "dvbs2_ldpc_group_pic"]]
     access(r[13], value=0x400000)
     access(r[13] + 4, value=len(rows))
     saved, zero, steps = r[4:12].copy(), False, 0
@@ -119,6 +143,8 @@ def execute(code, labels, info, shift, initial, rows, offsets):
         steps += 1
         op, tail = line.split(maxsplit=1)
         args = operands(tail)
+        if counts is not None:
+            counts[op] = counts.get(op, 0) + 1
         if op in ("push", "pop"):
             selected = registers(args[0])
             if op == "push":
@@ -131,6 +157,17 @@ def execute(code, labels, info, shift, initial, rows, offsets):
                     if k == 15:
                         r[k] &= ~1
                 r[13] += 4 * len(selected)
+        elif op in ("ldmia", "stmia"):
+            base = register(args[0].rstrip("!"))
+            selected = registers(args[1])
+            address = r[base]
+            for i, k in enumerate(selected):
+                if op == "ldmia":
+                    r[k] = access(address + i * 4)
+                else:
+                    access(address + i * 4, value=r[k])
+            if args[0].endswith("!"):
+                r[base] += 4 * len(selected)
         elif op in ("ldr", "ldrh", "str"):
             address = operands(args[1].strip("[]"))
             base = register(address[0])
@@ -172,7 +209,10 @@ def execute(code, labels, info, shift, initial, rows, offsets):
                 r[15] = labels[args[0]]
         elif op == "tbh":
             assert args == ["[pc, r2, lsl #1]"]
-            r[15] = labels[f".Lldpc_rot{r[2]}"]
+            if c5 and r[15] == labels[".Lc5_extract_dispatch"]:
+                r[15] = labels[f".Lc5_extract{r[2] * 8}"]
+            else:
+                r[15] = labels[(".Lc5_rot" if c5 else ".Lldpc_rot") + str(r[2])]
         else:
             raise AssertionError(line)
     assert r[4:12] == saved and r[13] == 0x500100, "AAPCS damage"
