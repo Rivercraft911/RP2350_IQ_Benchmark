@@ -17,6 +17,16 @@ import pv_spi_tx as pv
 DATA_BYTES = (43040 - 80) // 8
 FRAME_SYMBOLS = 33282
 PACKET_PERIOD = 16 * 7
+QPSK_RATES = {5: "2/3", 6: "3/4", 8: "5/6", 9: "8/9", 10: "9/10"}
+
+
+def qpsk_config(code_index: int) -> dict:
+    rate = QPSK_RATES[code_index]
+    return dict(code_index=code_index, s2_code=f"normal {rate}", kbch=ref.code(rate, False).kbch)
+
+
+def frame_symbols(pilots: bool = True) -> int:
+    return 32490 + (22 * 36 if pilots else 0)
 
 
 @functools.lru_cache(maxsize=1)
@@ -46,10 +56,11 @@ def first_crcs(*, gcs: bool = False, rate: str = "2/3", ccm: bool = True) -> lis
 
 
 def reference_window(symbol_cursor: int, *, span: int = 12, beta: float = 1.0,
-                     gcs: bool = False, rate: str = "2/3", profile=None) -> tuple[int, np.ndarray]:
+                     gcs: bool = False, rate: str = "2/3", profile=None,
+                     pilots: bool = True) -> tuple[int, np.ndarray]:
     """A previous frame supplies FIR history; three more cover the sparse capture."""
-    first = max(0, symbol_cursor // FRAME_SYMBOLS - 1)
-    frames = [ref.plframe(ref.fecframe(bbframe(k, gcs=gcs, rate=rate), rate), rate, pilots=True)
+    first = max(0, symbol_cursor // frame_symbols(pilots) - 1)
+    frames = [ref.plframe(ref.fecframe(bbframe(k, gcs=gcs, rate=rate), rate), rate, pilots=pilots)
               for k in range(first, first + 4)]
     bi, bq = (np.concatenate([frame[axis] for frame in frames]) for axis in (0, 1))
     lut = qpsk_lut(span, beta, profile)
@@ -60,11 +71,18 @@ def reference_window(symbol_cursor: int, *, span: int = 12, beta: float = 1.0,
 def packet_faults(result: dict, *, ccm: bool = True) -> list[str]:
     stats = result.get("pv_spi", {})
     gcs = result.get("source") == 6
-    rate = result.get("s2_code", "normal 2/3").split()[-1]
+    name = result.get("s2_code", "normal 2/3")
+    if name not in (f"normal {rate}" for rate in QPSK_RATES.values()):
+        return ["unsupported complete-pipeline QPSK code"]
+    rate = name.split()[-1]
     data_bytes = (ref.code(rate, False).kbch - 80) // 8
     faults = [f"pv_spi.{name}" for name in
               ("lost", "bad_hdr", "bad_crc", "bad_sync", "null_packets",
                "short_msgs", "long_msgs", "overflows") if stats.get(name, -1) != 0]
+    if "code_index" in result and result["code_index"] != next(k for k, v in QPSK_RATES.items() if v == rate):
+        faults.append("QPSK code index and rate disagree")
+    if "kbch" in result and result["kbch"] != ref.code(rate, False).kbch:
+        faults.append("QPSK BBFRAME size and rate disagree")
     faults += [f"pv_spi.{name}" for name in ("drain_timeouts", "late_closes")
                if stats.get(name, 0) != 0]
     if stats.get("ok", 0) <= 24 or stats.get("gcs_packets" if gcs else "ts_packets", 0) <= 168:
