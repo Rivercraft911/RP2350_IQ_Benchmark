@@ -30,6 +30,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_dvbs2_apsk.py
 	python3 host/test_dvbs2_map.py
 	python3 host/test_dvbs2_buffers.py
+	python3 host/test_frame_order.py
 	python3 host/test_dvbs2_fec.py
 	python3 host/test_pv_native.py
 	python3 host/test_gcs_native.py
@@ -72,6 +73,8 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_iqquadptr.py
 	python3 host/test_quadptr_trial.py
 	python3 host/test_quadlive_trial.py
+	python3 host/test_dualptr_native.py
+	python3 host/test_dualptr_trial.py
 	python3 host/test_iqout_raw.py
 	python3 host/test_iqout_odd.py
 	python3 host/test_dual_pio.py
