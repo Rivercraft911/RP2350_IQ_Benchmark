@@ -22,6 +22,7 @@
 //   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
 //   bench4fec cpw ms invert [prio]               live 8PSK FEC, four-level L7/N4 hardware shaping (experiment build)
 //   bench4quad8 / bench4quad cpw ms invert [prio] cyclic SRAM pointers, four writers (experiment build)
+//   dmaloop chains words sink load_div load_kind prio hammer   DMA row-loop latency (experiment build)
 //   bench16chunk reps / bench16native8 reps       16APSK shaper components
 //   bench16out cpw ms kernel                     16APSK output with capture, no FEC
 //   bench16planar cpw ms                         experimental dual-axis planar output
@@ -65,6 +66,7 @@
 #include "bench4live.h"
 #include "bench4fec.h"
 #include "bench4quad.h"
+#include "dmaloop.h"
 #endif
 #include "bench_ptr.h"
 #include "dual_dma.h"
@@ -320,6 +322,14 @@ static const char *dispatch(char *line) {
             !num(a[3], "invert", 0, 0, 1, &invert) ||
             !num(a[4], "prio", 13, 0, 15, &code)) return err;
         bench4quad(r.cpw, r.ms, invert, code, !strcmp(cmd, "bench4quad8") ? 8 : 14);
+    } else if (!strcmp(cmd, "dmaloop")) {
+        int chains, words, sink, load_div, load_kind, hammer;
+        if (!num(a[1], "chains", 1, 1, 4, &chains) || !num(a[2], "words", 1, 1, 2, &words) ||
+            !num(a[3], "sink", 1, 0, 1, &sink) || !num(a[4], "load_div", 0, 0, 64, &load_div) ||
+            !num(a[5], "load_kind", 0, 0, 1, &load_kind) || !num(a[6], "prio", 0, 0, 15, &code) ||
+            !num(a[7], "hammer", 0, 0, 1, &hammer)) return err;
+        if (load_div == 1) return "load_div must be 0 (off) or 2..64";
+        dmaloop(chains, words, sink, load_div, load_kind, code, hammer);
     } else if (!strcmp(cmd, "bench4fec")) {
         int invert;
         if (!num(a[1], "cpw", 2, 2, 4, &r.cpw) ||
