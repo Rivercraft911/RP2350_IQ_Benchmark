@@ -4,6 +4,7 @@ This runner opens the board only when explicitly invoked. Positive DDR runs chec
 all 4096 sparse GPIO snapshots against the independent TS/GCS reference and clock
 parity. Inverted-clock and finite-credit controls must detect their injected cause.
 The optional control uses the existing four-writer CPU descriptor pipeline.
+Use --writers 4 for the alternating-DMA four-writer pointer experiment.
 """
 from __future__ import annotations
 
@@ -28,14 +29,15 @@ SOURCE_EMPTY, PIO_ERROR, ERR_POINTER, OUTPUT_TXSTALL = 8, 16, 1 << 19, 3
 
 def validate_run(result: dict, lines: list[str], cpw: int, ms: int, source: int,
                  fault: int = 0, clock_mode: int = 1, clock_hz: int | None = None,
-                 expected_git: str | None = None) -> dict:
+                 expected_git: str | None = None, writers: int = 2) -> dict:
     """Fail closed on configuration, ownership, SPI provenance and every snapshot."""
     r, faults, capture = result, [], {}
     try:
         if r.get('error') or r.get('cap_error'):
             faults.append(str(r.get('error') or r['cap_error']))
-        expected = dict(cmd='dualptr', source=source, cpw=cpw, divider256=256*cpw,
-                        ms=ms, fault=fault, sps=4, L=8, row_symbols=4, writers=2,
+        expected = dict(cmd='dualptr4' if writers == 4 else 'dualptr', source=source,
+                        cpw=cpw, divider256=256*cpw,
+                        ms=ms, fault=fault, sps=4, L=8, row_symbols=4, writers=writers,
                         row_profile=L8_PROFILE, filter_beta=None, schedule=0,
                         bus_priority_mask=0, code_index=8, s2_code='normal 5/6',
                         kbch=53840, bch_kernel=2, map_kernel=1, ldpc_pack=1,
@@ -45,9 +47,12 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, source: int,
                         poll_interval_us=128, max_poll_interval_us=256,
                         read_beyond_grants=False, pointer_other_pio_flags=0,
                         cap_stride=17, cap_divider256=256*cpw, cap_fifo_only=False,
-                        cap_format='pins32', dac_clock_pio=2,
+                        cap_format='pins32', dac_clock_pio=0 if writers == 4 else 2,
                         dac_clock=DAC_CLOCK_NAMES['ddr' if clock_mode == 1 else 'inverted'])
-        if cpw not in (1, 2) or source not in (5, 6) or fault not in (0, 1) or clock_mode not in (1, 2):
+        if writers == 4:
+            expected.update(pointer_pio=0, pointer_routing='alternating_dma')
+        if (cpw not in (1, 2) or source not in (5, 6) or fault not in (0, 1) or
+                clock_mode not in (1, 2) or writers not in (2, 4)):
             faults.append('unsupported requested configuration')
         if fault and clock_mode != 1:
             faults.append('grant-freeze and inverted-clock controls must run separately')
@@ -173,6 +178,8 @@ def main():
     p.add_argument('--sources', nargs='+', type=int, choices=(5, 6), default=[6])
     p.add_argument('--faults', nargs='+', type=int, choices=(0, 1), default=[0])
     p.add_argument('--clock-modes', nargs='+', type=int, choices=(1, 2), default=[1])
+    p.add_argument('--writers', type=int, choices=(2, 4), default=2,
+                   help='Pointer-fed writers: 2 uses dualptr; 4 uses dualptr4')
     p.add_argument('--control', action='store_true', help='Also run the existing four-writer pipeline')
     p.add_argument('--ms', type=int, default=3000)
     p.add_argument('--reps', type=int, default=1)
@@ -202,7 +209,8 @@ def main():
         hashes[relative] = hashlib.sha256((iq.ROOT/relative).read_bytes()).hexdigest()
     manifest = dict(started=dt.datetime.now().isoformat(), clocks_khz=args.clocks,
                     cpws=args.cpws, sources=args.sources, faults=args.faults,
-                    clock_modes=args.clock_modes, control=args.control, reps=args.reps,
+                    clock_modes=args.clock_modes, writers=args.writers,
+                    control=args.control, reps=args.reps,
                     ms=args.ms, expected_firmware_git=args.expected_git,
                     setup='USB only; external GPIOs unwired; on-chip PV-SPI source; digital output active',
                     scope='Live QPSK 5/6 L8/N4 pointer/output pipeline; split FEC, no frame-parallel or RF claim',
@@ -257,10 +265,12 @@ def main():
                             for fault in args.faults:
                                 if clock_mode == 2 and fault:
                                     continue
-                                label = f'dualptr-{clock}-{cpw}-{source_id}-clock{clock_mode}-fault{fault}-{rep}'
-                                run(label, f'dualptr {cpw} {args.ms} {source_id} {fault}',
+                                pointer_cmd = 'dualptr4' if args.writers == 4 else 'dualptr'
+                                label = f'{pointer_cmd}-{clock}-{cpw}-{source_id}-clock{clock_mode}-fault{fault}-{rep}'
+                                run(label, f'{pointer_cmd} {cpw} {args.ms} {source_id} {fault}',
                                     lambda r, lines: validate_run(r, lines, cpw, args.ms, source_id,
-                                                                  fault, clock_mode, clock*1000, args.expected_git))
+                                                                  fault, clock_mode, clock*1000, args.expected_git,
+                                                                  args.writers))
     finally:
         try:
             command('dualclock 0')

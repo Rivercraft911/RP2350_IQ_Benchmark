@@ -20,5 +20,6 @@ void bench_hstx_ddr(int ms);
 void bench_descriptors(int reps);
 bool bench_dual_set_quad_profile(unsigned profile);
 void bench_dual_pointer(int cpw, int ms, int source, int fault);
+void bench_dual_pointer4(int cpw, int ms, int source, int fault);
 void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, int fault,
                        int schedule, int divider256, int row_symbols, int code_index);
