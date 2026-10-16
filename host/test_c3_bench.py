@@ -114,7 +114,7 @@ void prbs_fill(uint32_t *out, size_t count, uint32_t *state) {
 }
 
 int main(int argc, char **argv) {
-    if (argc!=6) return 2;
+    if (argc!=7) return 2;
     const int code=atoi(argv[1]), slow=atoi(argv[2]), cpw=atoi(argv[3]);
     test_hz=(unsigned)strtoul(argv[4],NULL,10);
     inject_service_gap=(unsigned)atoi(argv[5]);
@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
     assert(dvbs2_frontend_set_bank(1));
     assert(dvbs2_ldpc_set_pack(1));
     assert(dvbs2_map_set_kernel(1));
-    bench_c3_fec(code,100,slow,cpw,128);
+    bench_c3_fec_options(code,100,slow,cpw,128,atoi(argv[6]));
     assert(test_ring.before==guard && test_ring.after==guard);
     assert(test_input.before==guard && test_input.after==guard);
     for (unsigned j=0;j<16384;++j) assert(ring_buf[j]==0x57EAD219u);
@@ -170,8 +170,8 @@ class C3Bench(unittest.TestCase):
     def tearDownClass(cls):
         cls.temporary.cleanup()
 
-    def run_command(self, code=5, slow=0, cpw=1, hz=128000000, gap=0):
-        process = subprocess.run([str(self.executable), str(code), str(slow), str(cpw), str(hz), str(gap)],
+    def run_command(self, code=5, slow=0, cpw=1, hz=128000000, gap=0, options=0):
+        process = subprocess.run([str(self.executable), str(code), str(slow), str(cpw), str(hz), str(gap), str(options)],
                                  capture_output=True, text=True, check=True, timeout=30)
         lines = process.stdout.splitlines()
         self.assertEqual(len(lines), 2, process.stdout)
@@ -192,12 +192,26 @@ class C3Bench(unittest.TestCase):
                 self.assertEqual(result["core"][1]["frames"], 36)
                 self.assertGreater(result["published_groups"], 4096)
 
+    def test_each_c4_option_and_combinations(self):
+        for code in trial.RATES:
+            for options in (1, 2, 4, 8, 15, 16, 31):
+                with self.subTest(code=code, options=options):
+                    result = self.run_command(code, options=options)
+                    self.assertEqual(result["options"], options)
+                    self.assertEqual(trial.run_faults(result, code, 100, 0, options=options), [])
+        result = self.run_command(slow=5000, options=31)
+        self.assertEqual(trial.run_faults(result, 5, 100, 5000, options=31), [])
+
     def test_symbol_clock_ratio_and_slow_rate_control(self):
         for cpw, hz in ((2, 128000000), (2, 256000000), (4, 256000000)):
             with self.subTest(cpw=cpw, hz=hz):
                 result = self.run_command(cpw=cpw, hz=hz)
                 self.assertEqual(trial.run_faults(result, 5, 100, 0, cpw=cpw), [], result)
                 self.assertEqual(result["frame_cycles"], 177552 * cpw)
+                cached = self.run_command(cpw=cpw, hz=hz, options=31)
+                self.assertEqual(trial.run_faults(cached, 5, 100, 0, cpw=cpw, options=31), [])
+                for field in ("frames_target", "published_frames", "consumed_frames", "code_crc"):
+                    self.assertEqual(cached[field], result[field])
 
     def test_slow_negative_stops_releases_drains_and_publishes(self):
         result = self.run_command(slow=5000)

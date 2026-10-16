@@ -193,6 +193,20 @@ class C3Protocol(unittest.TestCase):
         good.update(clk_hz=256000000, cpw=2, frame_cycles=355104)
         self.assertEqual(trial.run_faults(good, 5, 100, 0, cpw=2), [])
 
+    def test_c4_options_and_diagnostic_gap_are_checked(self):
+        good = fixture()
+        good.update(options=15, service_gap_limit_us=128)
+        self.assertEqual(trial.run_faults(good, 5, 100, 0, options=15), [])
+        self.assertTrue(trial.run_faults(good, 5, 100, 0, options=1))
+        good.update(max_service_gap_us=180, service_gap_limit_us=4096)
+        self.assertTrue(trial.run_faults(good, 5, 100, 0, options=15))
+        self.assertEqual(trial.run_faults(good, 5, 100, 0, options=15, gap_us=4096), [])
+        good.pop("options")
+        self.assertTrue(trial.run_faults(good, 5, 100, 0, options=15, gap_us=4096))
+        bad = fixture()
+        bad["core"][1]["max_slice_cycles"] = 16385
+        self.assertTrue(any("slice" in fault for fault in trial.run_faults(bad, 5, 100, 0)))
+
     def test_no_arguments_never_open_serial(self):
         with mock.patch.object(trial.iq, "Board", side_effect=AssertionError("serial accessed")):
             with mock.patch.object(sys, "argv", ["c3_fec_trial.py"]):

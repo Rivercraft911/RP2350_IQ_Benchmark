@@ -2,8 +2,9 @@
 #include <string.h>
 #include "pvproto.h"
 
-uint32_t c3_gcs_slice(uint32_t *bb, const uint8_t *pattern, const dvbs2_code_t *code,
-                      uint32_t frame, uint32_t cursor, uint32_t max_words) {
+static uint32_t gcs_slice(uint32_t *bb, const uint8_t *pattern, const dvbs2_code_t *code,
+                          uint32_t frame, uint32_t cursor, uint32_t max_words,
+                          const uint32_t *scramble) {
     const uint32_t bytes = code->kbch / 8u, data_bytes = bytes - 10u;
     const uint32_t words = (bytes + 3u) / 4u;
     uint32_t end = cursor + max_words;
@@ -21,7 +22,7 @@ uint32_t c3_gcs_slice(uint32_t *bb, const uint8_t *pattern, const dvbs2_code_t *
                     pattern[(origin + at - 10u) & 255u];
                 v = (v << 8) | b;
             }
-            bb[cursor] = v;
+            bb[cursor] = v ^ (scramble ? scramble[cursor] : 0);
         }
     }
     const uint32_t whole = bytes / 4u, stop = end < whole ? end : whole;
@@ -29,21 +30,34 @@ uint32_t c3_gcs_slice(uint32_t *bb, const uint8_t *pattern, const dvbs2_code_t *
     for (; cursor < stop; ++cursor) {
         uint32_t v;
         memcpy(&v, pattern + offset, sizeof v);
-        bb[cursor] = __builtin_bswap32(v);
+        bb[cursor] = __builtin_bswap32(v) ^ (scramble ? scramble[cursor] : 0);
         offset = (offset + 4u) & 255u;
     }
     if (cursor < end) {
         uint32_t v = 0;
         for (uint32_t n = 0; n < bytes % 4u; ++n)
             v |= (uint32_t)pattern[(offset + n) & 255u] << (24u - 8u * n);
-        bb[cursor++] = v;
+        bb[cursor] = v ^ (scramble ? scramble[cursor] : 0);
+        if (scramble) bb[cursor] &= ~0u << (32u - 8u * (bytes % 4u));
+        ++cursor;
     }
     return cursor;
 }
 
+uint32_t c3_gcs_slice(uint32_t *bb, const uint8_t *pattern, const dvbs2_code_t *code,
+                      uint32_t frame, uint32_t cursor, uint32_t max_words) {
+    return gcs_slice(bb, pattern, code, frame, cursor, max_words, NULL);
+}
+
 void c3_job_begin(c3_job_t *job, const dvbs2_8psk_cfg_t *cfg, uint32_t index,
                   uint32_t *i, uint32_t *q) {
+    c3_job_begin_options(job, cfg, index, i, q, 0);
+}
+
+void c3_job_begin_options(c3_job_t *job, const dvbs2_8psk_cfg_t *cfg, uint32_t index,
+                          uint32_t *i, uint32_t *q, uint32_t options) {
     job->cfg = cfg;
+    job->options = options;
     job->index = index;
     job->stage = C3_GCS;
     job->cursor = 0;
@@ -57,21 +71,42 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
     const dvbs2_code_t *code = job->cfg->code;
     switch (job->stage) {
         case C3_GCS:
+            if (job->options & C4_BB) {
+                const uint32_t words = (code->kbch + 31u) / 32u;
+                if (job->cursor < words)
+                    job->cursor = gcs_slice(job->frame, pattern, code, job->index,
+                                             job->cursor, 64, dvbs2_bb_scrambler());
+                else {
+                    uint32_t end = job->cursor + 64u;
+                    if (end > DVBS2_FE_WORDS) end = DVBS2_FE_WORDS;
+                    memset(job->frame + job->cursor, 0, (end - job->cursor) * sizeof(uint32_t));
+                    job->cursor = end;
+                }
+                if (job->cursor == DVBS2_FE_WORDS) {
+                    if (!dvbs2_frontend_begin_prepared(job->frame, &job->front, job->options & C4_BCH)) return false;
+                    job->stage = C3_BCH;
+                }
+                break;
+            }
             job->cursor = c3_gcs_slice(job->bb, pattern, code, job->index, job->cursor, 64);
             if (job->cursor == (code->kbch + 31u) / 32u) {
-                if (!dvbs2_frontend_begin_reentrant(job->bb, job->frame, &job->front)) return false;
+                if (!dvbs2_frontend_begin_reentrant_options(job->bb, job->frame, &job->front,
+                                                            job->options & C4_BCH)) return false;
                 job->stage = C3_BCH;
             }
             break;
         case C3_BCH:
             if (dvbs2_frontend_step(&job->front, 64)) {
-                if (!dvbs2_ldpc_begin_reentrant(job->frame, job->rows, C3_ROWS_WORDS, &job->ldpc)) return false;
+                if (!dvbs2_ldpc_begin_reentrant_mode(job->frame, job->rows, C3_ROWS_WORDS,
+                                                     &job->ldpc, !!(job->options & C4_LDPC))) return false;
                 job->stage = C3_LDPC;
             }
             break;
         case C3_LDPC:
             if (dvbs2_ldpc_step(&job->ldpc, 1)) {
-                dvbs2_8psk_codes_begin(&job->map, job->cfg, job->frame, &job->stream);
+                if (job->options & C4_MAP) {
+                    if (!dvbs2_8psk_codes_begin_fast(&job->map, job->cfg, job->frame, &job->stream)) return false;
+                } else dvbs2_8psk_codes_begin(&job->map, job->cfg, job->frame, &job->stream);
                 job->stage = C3_MAP;
             }
             break;

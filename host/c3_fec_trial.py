@@ -112,7 +112,8 @@ def _finite(value):
 
 
 def run_faults(result: dict, code_index: int, ms: int, slow_us: int,
-               expected_git: str | None = None, cpw: int = 1) -> list[str]:
+               expected_git: str | None = None, cpw: int = 1,
+               options: int = 0, gap_us: int = 128) -> list[str]:
     """Strict protocol/cadence/CRC checks. A slow control succeeds only by exposing lateness."""
     if result.get("error"):
         return [f"firmware error: {result['error']}"]
@@ -124,6 +125,10 @@ def run_faults(result: dict, code_index: int, ms: int, slow_us: int,
                     source="memory_gcs", source_period_bytes=SOURCE_BYTES, ring_groups=4096)
     if expected_git:
         expected["git"] = expected_git
+    if options or "options" in r:
+        expected["options"] = options
+    if gap_us != 128 or "service_gap_limit_us" in r:
+        expected["service_gap_limit_us"] = gap_us
     faults += [f"{key}={r.get(key)!r}, expected {value!r}"
                for key, value in expected.items() if r.get(key) != value]
     if not isinstance(r.get("git"), str) or not r["git"]:
@@ -162,8 +167,8 @@ def run_faults(result: dict, code_index: int, ms: int, slow_us: int,
             faults.append("benchmark did not encode and consume every target frame")
         if not ms * 1000 <= r["elapsed_us"] <= ms * 1000 + 100000:
             faults.append("elapsed duration differs from request")
-        if not 0 < r["max_service_gap_us"] <= 128:
-            faults.append("core 0 service gap exceeded 128 us")
+        if not 0 < r["max_service_gap_us"] <= gap_us:
+            faults.append(f"core 0 service gap exceeded {gap_us} us")
     cores = r.get("core")
     if not isinstance(cores, list) or len(cores) != 2:
         return faults + ["missing two-core accounting"]
@@ -189,6 +194,9 @@ def run_faults(result: dict, code_index: int, ms: int, slow_us: int,
             faults.append(f"invalid core {index} maximum frame time")
         if core["frames"] and not 0 < core["max_slice_cycles"] <= core["max_frame_cycles"]:
             faults.append(f"invalid core {index} maximum slice time")
+        if (not slow_us and gap_us == 128 and _nonnegative_int(r.get("clk_hz")) and
+                core["max_slice_cycles"] > r["clk_hz"] * 128 // 1000000):
+            faults.append(f"core {index} slice exceeded 128 us")
         if _finite(r.get("clk_hz")) and r["clk_hz"] > 0 and r["elapsed_us"] > 0:
             utilization = core["busy_cycles"] / (r["elapsed_us"] * r["clk_hz"] / 1e6)
             if not 0 <= utilization <= 1.01:
@@ -245,6 +253,10 @@ def main():
     parser.add_argument("--cpw", type=int, choices=(1, 2, 4), default=1,
                         help="symbol interval in units of eight SYS cycles (1 is 16 Msym/s at SYS128)")
     parser.add_argument("--slow-us", nargs="+", type=int, default=[0])
+    parser.add_argument("--options", nargs="+", type=int, choices=range(32), default=[0],
+                        help="C4 mask: LDPC=1, mapper=2, BCH=4, fused GCS/BB=8, cached deadlines=16; 0 retains C3")
+    parser.add_argument("--gap-us", type=int, default=128,
+                        help="128 for qualification; larger values are CPU-fit diagnostics only")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--port", help="explicit CDC device; no automatic serial discovery")
     parser.add_argument("--expected-git")
@@ -263,6 +275,8 @@ def main():
         parser.error("device trials require --out and explicit --port; use --self-test or --reference offline")
     if not 100 <= args.ms <= 60000 or any(not 0 <= delay <= 10000 for delay in args.slow_us):
         parser.error("--ms must be 100..60000 and --slow-us must be 0..10000")
+    if not 128 <= args.gap_us <= 4096:
+        parser.error("--gap-us must be 128..4096")
     build = args.build.resolve()
     cache = (build / "CMakeCache.txt").read_text()
     if "IQ4HIST_EXPERIMENT:BOOL=ON" not in cache:
@@ -282,7 +296,9 @@ def main():
                    for path in sorted(sources)})
     git = lambda *a: subprocess.run(["git", *a], cwd=iq.ROOT, capture_output=True, text=True).stdout.strip()
     manifest = dict(started=dt.datetime.now().isoformat(), codes=args.codes, ms=args.ms,
-                    slow_us=args.slow_us, cpw=args.cpw, expected_firmware_git=args.expected_git, port=args.port,
+                    slow_us=args.slow_us, cpw=args.cpw, options=args.options, gap_us=args.gap_us,
+                    qualification=args.gap_us == 128,
+                    expected_firmware_git=args.expected_git, port=args.port,
                     head=git("rev-parse", "HEAD"), branch=git("branch", "--show-current"),
                     status=git("status", "--short"), sha256=hashes,
                     scope="CPU-only timer-paced two-core 8PSK FEC; in-memory GCS source; no output/ingress claim")
@@ -291,11 +307,15 @@ def main():
     board = iq.Board(args.port)
     failed = False
     try:
-        for code, delay in ((code, delay) for code in args.codes for delay in args.slow_us):
-            label = f"c3fec-code{code}-cpw{args.cpw}-slow{delay}"
-            result, lines = board.cmd(f"c3fec {code} {args.ms} {delay} {args.cpw}", timeout=args.ms / 1000 + 60)
+        for code, delay, options in ((code, delay, options) for code in args.codes
+                                     for delay in args.slow_us for options in args.options):
+            label = f"c3fec-code{code}-cpw{args.cpw}-slow{delay}-opt{options}-gap{args.gap_us}"
+            result, lines = board.cmd(f"c3fec {code} {args.ms} {delay} {args.cpw} {args.gap_us} {options}",
+                                      timeout=args.ms / 1000 + 60)
             (args.out / (label + ".txt")).write_text("@" + json.dumps(result) + "\n" + "\n".join(lines) + "\n")
-            result["faults"] = run_faults(result, code, args.ms, delay, args.expected_git, args.cpw)
+            result["faults"] = run_faults(result, code, args.ms, delay, args.expected_git, args.cpw,
+                                          options, args.gap_us)
+            result["qualification"] = args.gap_us == 128
             result["label"] = label
             with (args.out / "runs.jsonl").open("a") as file:
                 file.write(json.dumps(result) + "\n")
