@@ -11,3 +11,28 @@ device results added in each branch's `results/` folder.
 | `rd/c1-fec-throughput` | `ldpcxor`: scheduled LDPC row updates in SCRATCH_Y | 3.9–5.9k cycles/frame faster alone, but +11.0 / +5.5 points live (core 0/1); placement test supports SCRATCH_Y fetch contention | not merged; see that branch's `results/ldpcxor/2026-10-15/README.md` |
 
 The [frontier model](../frontier/frontier.md) bounds what these paths can reach.
+
+# R&D round 2 (2026-10-15)
+
+Merged on `rd/round2-merge` with the core-0 stack moved out of SCRATCH_Y
+([round-2 results](../../results/round2/2026-10-15/README.md), [stack fix](../../results/round2/2026-10-15/STACK.md)).
+
+| Branch | Work | Device result | Here |
+|---|---|---|---|
+| `rd/b2-8psk-live` | `bench4fec`: live GCS 8PSK 5/6 FEC through the four-level table; DMA read bus priority | 8 Msym/s clean 60 s on its own image; stalls at 40–51 s on the merged image ([results](../../results/b2-8psk-live/2026-10-15/README.md)) | merged |
+| `rd/c2-qpsk-910` | QPSK 9/10 and the t=8 BCH kernel | 27.94 Mb/s at 16 Msym/s, 60 s clean, CPU and hardware paths | [report](c2-qpsk-910.md), merged |
+| `rd/a2-quad-pointers` | `dualptr4`: four pointer-fed writers via a router | 8 Msym/s clean; 16 Msym/s stalls when capture starts | [report](a2-quad-pointers.md), merged |
+
+# R&D round 3 (2026-10-15): 8PSK at 16 Msym/s at SYS128
+
+Merged on `rd/round3`. Every device run is at the rated 128 MHz system clock.
+
+| Branch | Work | Device result | Here |
+|---|---|---|---|
+| `rd/b3-8psk-rows` | Regression study of the B2 stall; four-writer router mode for `bench4fec` | not run; superseded by B5/B6 and explained by `dmaloop` | [report](b3-8psk-rows.md), [regression](b3-regression.md); code not merged |
+| `rd/b4-8bit-rows` | 64 KiB 8-bit one-word rows (held-DAC mask margin +0.026 dB), seven-instruction pointer SM, OUT8 writers | 8 Msym/s clean; one chain per axis stalls in ~20 us at 16 Msym/s ([results](../../results/b4-8bit-rows/2026-10-15/README.md)) | [report](b4-8bit-rows.md), merged |
+| `rd/b5-quad-rows` | Four independent DMA chains (two per axis), four writers, SRAM pointers, cyclic source | **16 Msym/s 8-bit: 12/12 60-s runs clean**; 14-bit 5/6 ([results](../../results/b5-quad-rows/2026-10-15/README.md)) | [report](b5-quad-rows.md), merged |
+| `rd/b6-pio-producers` | Four alternate-parity PIO address producers; runtime 8PSK source with finite DMA grants | **live runtime data at 16 Msym/s: 6/6 60-s runs clean**, core 0 19% + 3.5% ([results](../../results/b6-pio-producers/2026-10-15/README.md)) | [report](b6-pio-producers.md), merged |
+| `rd/stall-dmaloop` | `dmaloop`: measured DMA row-loop latency, 10–18 SYS cycles | explains every one-symbol-row stall ([results](../../results/dmaloop/2026-10-15/README.md)) | merged |
+| `rd/c3-8psk-fec16` | Frame-parallel two-core 8PSK FEC into packed code rings (`c3fec`) | fits 8 Msym/s (61–80% per core); 13–39% over budget at 16 Msym/s ([results](../../results/c3-8psk-fec16/2026-10-15/README.md)) | [report](c3-8psk-fec16.md), merged |
+| `rd/b7-live8` | `bench4fec ... 8`: live on-chip GCS -> BCH/LDPC -> 8PSK -> 8-bit hardware shaping | **8 Msym/s complete transmitter: 6/6 60-s runs clean** at priority 13 and 0; 14-bit stalls in 4.4 ms at priority 0 ([results](../../results/b7-live8/2026-10-15/README.md)) | merged |
