@@ -1,0 +1,6 @@
+dvbs2 normal 9/10 pilots=1 frame   332.0 k cyc (bch 147.4 k vs serial 1836 k, ldpc 100.4 k vs serial 2922 k) load 7.8 % @1 / 62.3 % @8 Msym/s crc ok
+2 1350531209 147422 331961 {'ldpc_groups': 83265, 'ldpc_accum': 1927, 'ldpc_transpose': 15168, 'f_bb_bch': 160879, 'f_ldpc': 100422, 'f_map': 70603}
+dvbs2 normal 9/10 pilots=1 frame   279.3 k cyc (bch 94.8 k vs serial 1835 k, ldpc 100.4 k vs serial 2920 k) load 6.6 % @1 / 52.4 % @8 Msym/s crc ok
+3 1350531209 94762 279301 {'ldpc_groups': 83265, 'ldpc_accum': 1927, 'ldpc_transpose': 15168, 'f_bb_bch': 108219, 'f_ldpc': 100422, 'f_map': 70603}
+dvbs2 normal 9/10 pilots=1 frame   332.0 k cyc (bch 147.4 k vs serial 1835 k, ldpc 100.4 k vs serial 2918 k) load 7.8 % @1 / 62.3 % @8 Msym/s crc ok
+2 1350531209 147422 331961 {'ldpc_groups': 83265, 'ldpc_accum': 1927, 'ldpc_transpose': 15168, 'f_bb_bch': 160879, 'f_ldpc': 100422, 'f_map': 70603}
