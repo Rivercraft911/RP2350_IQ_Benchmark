@@ -39,7 +39,7 @@ typedef struct {
     uint32_t late_frames, max_lateness_us, max_service_gap_us;
     // Gap diagnostics: count of gaps above the fixed 128-us gate, when the first one ended
     // (us after epoch) and the longest publish+release section.
-    uint32_t gaps_over_128, first_over_at_us, first_over_gap_us, max_section_us;
+    uint32_t gaps_over_128, first_over_at_us, first_over_gap_us, max_section_us, startup_us;
     uint64_t epoch, supervise_cycles, retire_due;
 } context_t;
 
@@ -202,7 +202,12 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
     release(0, 0);
     release(1, 1);
     tx_worker_start(core1, 0);
-    uint64_t previous_service = live.epoch, next_service = live.epoch;
+    // The service-gap gate covers the cadence, not setup: two job releases and the core-1
+    // launch take 150-180 us (f62a75c746, the only gap over 128 us in 3-s runs). Deadlines
+    // still count from the earlier epoch. The setup interval is reported as startup_us.
+    const uint64_t cadence_start = time_us_64();
+    live.startup_us = (uint32_t)(cadence_start - live.epoch);
+    uint64_t previous_service = cadence_start, next_service = cadence_start;
     for (;;) {
         const uint32_t loop_begin = cycles();
         const uint64_t work_before = live.core[0].busy_cycles;
@@ -263,7 +268,7 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
            "\"published_frames\":%lu,\"consumed_frames\":%lu,\"published_groups\":%lu,\"pending_fill\":%lu,"
            "\"code_crc\":[%lu,%lu],\"errors\":%lu,\"late_frames\":%lu,\"max_lateness_us\":%lu,"
            "\"service_gap_limit_us\":%lu,\"max_service_gap_us\":%lu,\"gaps_over_128\":%lu,\"first_over_at_us\":%lu,"
-           "\"first_over_gap_us\":%lu,\"max_section_us\":%lu,\"elapsed_us\":%llu,\"supervise_cycles\":%llu,"
+           "\"first_over_gap_us\":%lu,\"max_section_us\":%lu,\"startup_us\":%lu,\"elapsed_us\":%llu,\"supervise_cycles\":%llu,"
            "\"supervise_busy\":%.6f,\"context_bytes\":%u,\"core\":[",
            GIT_REV, code_index, DVBS2_CODES[code_index].name, (unsigned long)hz, cpw, ms, slow_us, options,
            C3_FRAME_SYMBOLS, C3_FRAME_CYCLES * cpw, C3_RING_GROUPS, (unsigned long)live.target,
@@ -272,7 +277,7 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
            (unsigned long)live.errors, (unsigned long)live.late_frames, (unsigned long)live.max_lateness_us,
            (unsigned long)max_service_us, (unsigned long)live.max_service_gap_us,
            (unsigned long)live.gaps_over_128, (unsigned long)live.first_over_at_us,
-           (unsigned long)live.first_over_gap_us, (unsigned long)live.max_section_us, (unsigned long long)elapsed,
+           (unsigned long)live.first_over_gap_us, (unsigned long)live.max_section_us, (unsigned long)live.startup_us, (unsigned long long)elapsed,
            (unsigned long long)live.supervise_cycles, live.supervise_cycles / budget, (unsigned)sizeof live);
     for (unsigned c = 0; c < 2; ++c) {
         const worker_t *w = &live.core[c];
