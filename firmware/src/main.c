@@ -20,7 +20,7 @@
 //   bench8psk [reps]                              experimental split-LUT shaping
 //   bench8quad ms reps / bench8map code pilots reps   8PSK shaper / mapper components
 //   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
-//   bench4fec cpw ms invert [prio]               live 8PSK FEC, four-level L7/N4 hardware shaping (experiment build)
+//   bench4fec cpw ms invert [prio] [bits]        live 8PSK FEC, four-level L7/N4 hardware shaping, 14- or 8-bit rows (experiment build)
 //   bench4quad8 / bench4quad cpw ms invert [prio] cyclic SRAM pointers, four writers (experiment build)
 //   bench4prod8 / bench4prod8live cpw ms invert [prio] [starve_ms] four PIO producers (experiment build)
 //   bench16chunk reps / bench16native8 reps       16APSK shaper components
@@ -336,7 +336,9 @@ static const char *dispatch(char *line) {
             !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
             !num(a[3], "invert", 0, 0, 1, &invert) ||
             !num(a[4], "prio", 0, 0, 15, &code)) return err;
-        bench4fec(r.cpw, r.ms, invert, code);
+        int bits;
+        if (!num(a[5], "bits", 14, 8, 14, &bits)) return err;
+        bench4fec(r.cpw, r.ms, invert, code, bits);
 #endif
     } else if (!strcmp(cmd, "quadlive")) {
         int fault;

@@ -86,6 +86,10 @@ bool iq4ptr_prepare(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
 bool iq4ptr_prepare8(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
                     unsigned input_log2, const uint32_t *table,
                     uint32_t previous_i, uint32_t previous_q);
+// Live credit mode (iq4ptr_publish) with the seven-instruction one-word-row program.
+bool iq4ptr_prepare_live8(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
+                         unsigned input_log2, const uint32_t *table,
+                         uint32_t previous_i, uint32_t previous_q, uint64_t published_words);
 // Live mode: the same rings are filled by the caller. Each axis input DMA chains to a
 // credit DMA that reloads its TRANS_COUNT from iqquadptr-style 512-word grants (four
 // DMA channels in total). published_words counts complete code words written to both

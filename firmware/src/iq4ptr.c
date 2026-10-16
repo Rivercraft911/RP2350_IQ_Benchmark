@@ -236,6 +236,13 @@ bool iq4ptr_prepare_live(PIO pio, const uint32_t *input_i, const uint32_t *input
                    published_words, false);
 }
 
+bool iq4ptr_prepare_live8(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
+                         unsigned input_log2, const uint32_t *table,
+                         uint32_t previous_i, uint32_t previous_q, uint64_t published_words) {
+    return prepare(pio, input_i, input_q, input_log2, (const uint16_t *)table, previous_i, previous_q,
+                   true, published_words, true);
+}
+
 bool iq4ptr_start(void) {
     if (!state.owned || state.result.running || state.result.errors) {
         last_error = "start requires a prepared idle pointer producer";

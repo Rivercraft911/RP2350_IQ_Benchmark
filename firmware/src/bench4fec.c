@@ -5,6 +5,8 @@
 // 2-bit code word per axis, publishes complete words to the credit-gated PIO pointer
 // producer (iq4ptr live mode) and supervises. Two DMA/PIO writers emit one-symbol rows
 // with the GPIO28 DDR clock. No CPU sample arithmetic or descriptor generation remains.
+// bits = 8 selects B4's 64 KiB one-word rows and seven-instruction pointer program: one
+// fewer sample transfer per row, measured DMA row loop 12 instead of 14 SYS cycles.
 #include "bench4fec.h"
 
 #include <stdio.h>
@@ -143,11 +145,13 @@ static void restore_buffers(bool inputs) {
     if (inputs) { uint32_t seed = SEED; prbs_fill(in_buf, IN_WORDS, &seed); }
 }
 
-void bench4fec(int cpw, int ms, int invert, int prio) {
+void bench4fec(int cpw, int ms, int invert, int prio, int bits) {
     const uint32_t hz = clock_get_hz(clk_sys);
+    const bool bytes = bits == 8;
     if ((cpw != 2 && cpw != 4) || ms < 100 || ms > 60000 || (invert != 0 && invert != 1) || prio < 0 || prio > 15 ||
+        (bits != 8 && bits != 14) ||
         hz != 128000000u || ((uintptr_t)ring_buf & (128u * 1024u - 1u)) || !resources_available()) {
-        printf("@{\"cmd\":\"bench4fec\",\"error\":\"needs SYS128, aligned experiment build, cpw2/4, 100..60000ms, invert0/1 and idle PIO1/PIO2 resources\"}\n");
+        printf("@{\"cmd\":\"bench4fec\",\"error\":\"needs SYS128, aligned experiment build, cpw2/4, 100..60000ms, invert0/1, bits8/14 and idle PIO1/PIO2 resources\"}\n");
         return;
     }
     const iq_kernel_info_t *unused;
@@ -159,8 +163,9 @@ void bench4fec(int cpw, int ms, int invert, int prio) {
     const unsigned saved_writers = dual_dma_get_writers(), saved_rows = dual_dma_get_row_words();
     const unsigned saved_schedule = dual_dma_get_schedule(), saved_priority = dual_dma_get_bus_priority();
     const unsigned saved_clock = dual_dma_get_dac_clock();
-    if (!dual_dma_set_writers(2) || !dual_dma_set_row_words(2) ||
-        !dual_dma_set_schedule(0) || !dual_dma_set_bus_priority((unsigned)prio) ||
+    const unsigned saved_sample_bits = dual_dma_get_sample_bits();
+    if (!dual_dma_set_writers(2) || !dual_dma_set_row_words(bytes ? 1 : 2) ||
+        !dual_dma_set_sample_bits(bytes ? 8 : 14) || !dual_dma_set_schedule(0) || !dual_dma_set_bus_priority((unsigned)prio) ||
         !dual_dma_set_dac_clock(invert ? DUAL_DMA_DAC_CLOCK_DDR_PIO_INVERTED : DUAL_DMA_DAC_CLOCK_DDR_PIO)) {
         printf("@{\"cmd\":\"bench4fec\",\"error\":\"output selectors unavailable\"}\n");
         return;
@@ -184,11 +189,13 @@ void bench4fec(int cpw, int ms, int invert, int prio) {
     const int spi_half = 2; // 32 MHz on-chip SCK at SYS128, as bench8live
     const dvbs2_code_t *code = &DVBS2_CODES[S2_N5_6];
 
-    if (!iq4hist_build(ring_buf, N_BLOCKS * BLOCK_WORDS)) {
+    if (!(bytes ? iq4hist8_build(ring_buf, N_BLOCKS * BLOCK_WORDS) : iq4hist_build(ring_buf, N_BLOCKS * BLOCK_WORDS))) {
         errors |= ERR_TABLE; reason = "table build failed"; goto cleanup;
     }
-    table_crc = crc32_update(0, ring_buf, sizeof ring_buf);
-    if (table_crc != IQ4HIST_TABLE_CRC) { errors |= ERR_TABLE; reason = "table CRC mismatch"; goto cleanup; }
+    table_crc = crc32_update(0, ring_buf, (bytes ? IQ4HIST8_TABLE_WORDS : IQ4HIST_TABLE_WORDS) * 4u);
+    if (table_crc != (bytes ? IQ4HIST8_TABLE_CRC : IQ4HIST_TABLE_CRC)) {
+        errors |= ERR_TABLE; reason = "table CRC mismatch"; goto cleanup;
+    }
     tx_code(S2_N5_6, true);
     live = (typeof(live)){.stream = {.out = groups, .mask = GROUP_MASK}};
     if (!dvbs2_8psk_init(&live.profile, code, true, 0, cfg.ti, TABLE_WORDS)) {
@@ -221,8 +228,9 @@ void bench4fec(int cpw, int ms, int invert, int prio) {
     bb_prefill = live.bb_frames;
     spi_head_start = pvspi.head;
     pointer_attempted = true;
-    if (!iq4ptr_prepare_live(pio2, code_i, code_q, 12, (const uint16_t *)ring_buf,
-                            previous_i, previous_q, converted) || !iq4ptr_start()) {
+    if (!(bytes ? iq4ptr_prepare_live8(pio2, code_i, code_q, 12, ring_buf, previous_i, previous_q, converted)
+                : iq4ptr_prepare_live(pio2, code_i, code_q, 12, (const uint16_t *)ring_buf,
+                                      previous_i, previous_q, converted)) || !iq4ptr_start()) {
         errors |= ERR_POINTER; reason = iq4ptr_last_error(); goto cleanup;
     }
     output_attempted = true;
@@ -311,7 +319,7 @@ cleanup:
     }
     if (capture_count != CAP_WORDS && !(errors & ~ERR_CAPTURE)) errors |= ERR_CAPTURE;
     const bool selectors_ok = dual_dma_set_writers(2) && dual_dma_set_row_words(saved_rows) &&
-        dual_dma_set_writers(saved_writers) && dual_dma_set_schedule(saved_schedule) &&
+        dual_dma_set_sample_bits(saved_sample_bits) && dual_dma_set_writers(saved_writers) && dual_dma_set_schedule(saved_schedule) &&
         dual_dma_set_bus_priority(saved_priority) && dual_dma_set_dac_clock(saved_clock);
     if (!selectors_ok) errors |= ERR_CONFIG;
     const bool restored = !(p.errors & IQ4PTR_ERR_STOP);
@@ -327,7 +335,7 @@ cleanup:
            "\"ms\":%d,\"invert\":%d,\"bus_priority_mask\":%d,\"source\":6,\"waveform_plan\":\"8psk_ccm\",\"code_index\":8,"
            "\"s2_code\":\"normal 5/6\",\"modcod\":15,\"kbch\":53840,\"pilots\":true,\"gold\":0,"
            "\"rotation_pi\":0.125,\"L\":7,\"sps\":4,\"row_profile\":\"%s\",\"row_symbols\":1,"
-           "\"row_words\":2,\"writers\":2,\"sym_rate\":%.1f,\"bb_payload_bps\":%.1f,"
+           "\"row_words\":%d,\"sample_bits\":%d,\"writers\":2,\"sym_rate\":%.1f,\"bb_payload_bps\":%.1f,"
            "\"frame_symbols\":%lu,\"frame_groups_max\":%lu,\"group_ring\":%u,\"code_ring_words\":%u,"
            "\"table_crc\":%lu,\"errors\":%lu,\"pointer_errors\":%lu,\"output_errors\":%lu,"
            "\"txstalls_i\":%lu,\"txstalls_q\":%lu,\"pointer_txstall_mask\":%lu,"
@@ -354,7 +362,7 @@ cleanup:
            "\"short_msgs\":%lu,\"long_msgs\":%lu,\"overflows\":%lu,\"deferred_msgs\":%lu,"
            "\"drain_timeouts\":%lu,\"late_closes\":%lu}}\n",
            GIT_REV, (unsigned long)hz, cpw, cpw * 256, ms, invert, prio, IQ4HIST_PROFILE,
-           rs, rs * (BB_BITS - 80) / live.profile.frame_symbols,
+           bytes ? 1 : 2, bits, rs, rs * (BB_BITS - 80) / live.profile.frame_symbols,
            (unsigned long)live.profile.frame_symbols, (unsigned long)live.frame_groups, GROUPS, AXIS_WORDS,
            (unsigned long)table_crc, (unsigned long)errors, (unsigned long)p.errors, (unsigned long)output.errors,
            (unsigned long)output.txstalls_i, (unsigned long)output.txstalls_q,

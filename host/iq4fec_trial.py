@@ -40,6 +40,7 @@ BUS_PER_SYMBOL = 8  # four samples/symbol, each I then Q
 SPAN = 7
 PREFILL_FRAMES = 2
 TABLE_CRC = 0x19bf3c1d
+TABLE8_CRC = 0x5e13245c
 
 
 def frame_codes(points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -60,33 +61,41 @@ def symbol_codes(first: int, last: int) -> tuple[np.ndarray, np.ndarray]:
     return frame_codes(points)
 
 
-def shaped_bus(first: int, last: int) -> np.ndarray:
-    """Bus halfwords for frames first..last-1 (index 0 = frame `first`, symbol 0, sample 0)."""
+@functools.lru_cache(maxsize=8)
+def shaped_bus(first: int, last: int, bits: int = 14) -> np.ndarray:
+    """Bus halfwords for frames first..last-1 (index 0 = frame `first`, symbol 0, sample 0).
+
+    bits=8: B4's once-rounded full-scale bytes on D13..D6, floor((S + 3399*2^31) / (3399*2^32)),
+    times 64 so D5..D0 are zero."""
     levels = np.asarray(FOUR_LEVELS_Q30, dtype=np.int64)
     coefficients = np.asarray(L7_COEFFICIENTS, dtype=np.int64).reshape(SPAN, 4)
     samples = []
     for codes in symbol_codes(first, last):
         values = levels[codes]
         histories = np.lib.stride_tricks.sliding_window_view(values, SPAN)[:, ::-1]
-        samples.append(((histories @ coefficients + (1 << 37)) >> 38).ravel())
+        sums = histories @ coefficients
+        if bits == 8:
+            samples.append((((sums + (3399 << 31)) // (3399 << 32)) * 64).ravel())
+        else:
+            samples.append(((sums + (1 << 37)) >> 38).ravel())
     bus = np.empty(2 * len(samples[0]), dtype='<u2')
     bus[0::2] = (samples[0] & 0x3fff) | 0x4000
     bus[1::2] = samples[1] & 0x3fff
     return bus
 
 
-def reference_window(symbol_lo: int, symbol_hi: int):
+def reference_window(symbol_lo: int, symbol_hi: int, bits: int = 14):
     """Finite reference covering every candidate start in [symbol_lo, symbol_hi] plus a capture."""
     if not 0 <= symbol_lo <= symbol_hi:
         raise ValueError('invalid capture search window')
     end = symbol_hi + math.ceil(STRIDE * CAP_WORDS / BUS_PER_SYMBOL) + 1
     first, last = symbol_lo // FRAME_SYMBOLS, end // FRAME_SYMBOLS + 1
-    bus = shaped_bus(first, last)
+    bus = shaped_bus(first, last, bits)
     base = first * FRAME_SYMBOLS * BUS_PER_SYMBOL
     return base, bus
 
 
-def validate_capture(r: dict, lines: list[str], invert: int) -> dict:
+def validate_capture(r: dict, lines: list[str], invert: int, bits: int = 14) -> dict:
     try:
         words = parse_capture(lines)
         if r.get('cap_words') != CAP_WORDS or len(words) != CAP_WORDS:
@@ -104,7 +113,7 @@ def validate_capture(r: dict, lines: list[str], invert: int) -> dict:
     clock_high = int(np.count_nonzero(words & (1 << 28)))
     clock = dict(cap_clock_checked=CAP_WORDS, cap_clock_mismatches=clock_bad, cap_clock_high=clock_high,
                  cap_clock_ok=clock_bad == (CAP_WORDS if invert else 0) and 0 < clock_high < CAP_WORDS)
-    base, reference = reference_window(max(0, lo), hi)
+    base, reference = reference_window(max(0, lo), hi, bits)
     steps = STRIDE * np.arange(CAP_WORDS)
     start, stop = max(0, lo) * BUS_PER_SYMBOL - base, hi * BUS_PER_SYMBOL - base
     stop = min(stop, len(reference) - steps[-1] - 1)
@@ -125,18 +134,20 @@ def validate_capture(r: dict, lines: list[str], invert: int) -> dict:
                 cap_checked_bus_words=CAP_WORDS, **clock)
 
 
-def run_faults(r: dict, cpw: int, ms: int, invert: int, expected_git: str | None) -> list[str]:
+def run_faults(r: dict, cpw: int, ms: int, invert: int, expected_git: str | None, bits: int = 14) -> list[str]:
     if r.get('error'):
         return [f"firmware error: {r['error']}"]
     faults = []
     rs = 128e6 / (8 * cpw)
     expected = dict(cmd='bench4fec', clk_hz=128000000, cpw=cpw, ms=ms, invert=invert, source=6,
                     code_index=8, s2_code='normal 5/6', modcod=15, kbch=BB_BITS, pilots=True, L=SPAN,
-                    sps=4, row_profile=L7_PROFILE, row_symbols=1, row_words=2, writers=2,
-                    frame_symbols=FRAME_SYMBOLS, table_crc=TABLE_CRC, prefill_frames=PREFILL_FRAMES,
+                    sps=4, row_profile=L7_PROFILE, row_symbols=1, row_words=1 if bits == 8 else 2, writers=2,
+                    frame_symbols=FRAME_SYMBOLS, table_crc=TABLE8_CRC if bits == 8 else TABLE_CRC, prefill_frames=PREFILL_FRAMES,
                     restored=True, selectors_restored=True, errors=0, pointer_errors=0, output_errors=0,
                     txstalls_i=0, txstalls_q=0, null_trigger_mask=0)
     expected.update({k: v for k, v in live8.prefill_reference().items() if k != 'prefill_frames'})
+    if bits == 8:
+        expected['sample_bits'] = 8
     if expected_git:
         expected['git'] = expected_git
     faults += [f'{k}={r.get(k)!r}, expected {v!r}' for k, v in expected.items() if r.get(k) != v]
@@ -182,9 +193,11 @@ def capture_lines(words: np.ndarray) -> tuple[dict, list[str]]:
 
 def self_test():
     """No hardware: a synthetic pins32 capture must align uniquely; corruptions must fail."""
-    for symbol in (0, 1, FRAME_SYMBOLS - 300, 3 * FRAME_SYMBOLS + 12345):
+    _, ref8 = reference_window(0, 64, 8)
+    assert not np.any(ref8 & 0x3f) and np.any(ref8 != reference_window(0, 64)[1])
+    for symbol, bits in ((0, 14), (1, 8), (FRAME_SYMBOLS - 300, 14), (3 * FRAME_SYMBOLS + 12345, 8)):
         lo, hi = max(0, symbol - 40), symbol + 40
-        base, ref = reference_window(max(0, lo - 256), hi + 256)
+        base, ref = reference_window(max(0, lo - 256), hi + 256, bits)
         start = symbol * BUS_PER_SYMBOL + 3 - base
         bus = ref[start + STRIDE * np.arange(CAP_WORDS)].astype(np.uint32)
         flag = (bus >> 14) & 1
@@ -193,20 +206,20 @@ def self_test():
             words = bus | noise | clock << 28
             meta, lines = capture_lines(words)
             r = dict(meta, cap_symbol_lo=lo, cap_symbol_hi=hi, cap_margin_symbols=256)
-            check = validate_capture(r, lines, invert)
+            check = validate_capture(r, lines, invert, bits)
             assert check['cap_aligned'] and check['cap_mismatches'] == 0 and check['cap_clock_ok'], check
             assert check['cap_global_bus_offset'] == symbol * BUS_PER_SYMBOL + 3, check
         bad = (bus | clock << 28).copy(); bad[4000] ^= 1
         meta, lines = capture_lines(bad)
-        check = validate_capture(dict(meta, cap_symbol_lo=lo, cap_symbol_hi=hi, cap_margin_symbols=256), lines, 1)
+        check = validate_capture(dict(meta, cap_symbol_lo=lo, cap_symbol_hi=hi, cap_margin_symbols=256), lines, 1, bits)
         assert check['cap_mismatches'] == 1 or not check['cap_aligned'], check
         meta, lines = capture_lines(bus | flag << 28)
-        check = validate_capture(dict(meta, cap_symbol_lo=lo, cap_symbol_hi=hi, cap_margin_symbols=256), lines, 1)
+        check = validate_capture(dict(meta, cap_symbol_lo=lo, cap_symbol_hi=hi, cap_margin_symbols=256), lines, 1, bits)
         assert not check['cap_clock_ok'], check
     # The six-symbol prehistory at stream start is the repeated pi/8 point, both axes.
     i, q = symbol_codes(0, 1)
     assert list(i[:6]) == [0] * 6 and list(q[:6]) == [2] * 6
-    print('iq4fec_trial self-test: frame-boundary references, unique alignment, clock parity, '
+    print('iq4fec_trial self-test: 14- and 8-bit frame-boundary references, unique alignment, clock parity, '
           'inverted control and data corruption checked; no hardware accessed')
 
 
@@ -219,6 +232,8 @@ def main():
     p.add_argument('--ldpc-pack', type=int, choices=(0, 1), default=1)
     p.add_argument('--prios', nargs='+', type=int, choices=range(16), default=[0],
                    help='dual_dma bus-priority masks to try (register fields PROC0/PROC1/DMA_R/DMA_W)')
+    p.add_argument('--bits', type=int, choices=(8, 14), default=14,
+                   help='14 = two-word rows; 8 = B4 one-word byte rows on D13..D6')
     p.add_argument('--port')
     p.add_argument('--expected-git')
     p.add_argument('--build', type=Path, default=iq.ROOT / 'firmware/build-b1')
@@ -245,7 +260,7 @@ def main():
     hashes.update({str(f.relative_to(iq.ROOT)): hashlib.sha256(f.read_bytes()).hexdigest() for f in sorted(sources)})
     git = lambda *a: subprocess.run(['git', *a], cwd=iq.ROOT, capture_output=True, text=True).stdout.strip()
     manifest = dict(started=dt.datetime.now().isoformat(), ms=args.ms, cpws=args.cpws, inverts=args.inverts,
-                    prios=args.prios,
+                    prios=args.prios, bits=args.bits,
                     ldpc_pack=args.ldpc_pack, expected_firmware_git=args.expected_git,
                     head=git('rev-parse', 'HEAD'), branch=git('branch', '--show-current'),
                     status=git('status', '--short'), cmake_flag='IQ4HIST_EXPERIMENT:BOOL=ON', sha256=hashes,
@@ -265,12 +280,13 @@ def main():
             if 'error' in r:
                 raise SystemExit(f"{line}: {r['error']}")
         for cpw, invert, prio in ((c, i, m) for m in args.prios for c in args.cpws for i in args.inverts):
-            label = f'bench4fec-cpw{cpw}-invert{invert}' + (f'-prio{prio}' if prio else '')
-            r, lines = board.cmd(f'bench4fec {cpw} {args.ms} {invert} {prio}', timeout=args.ms / 1000 + 60)
+            label = f'bench4fec-cpw{cpw}-invert{invert}' + (f'-prio{prio}' if prio else '') + \
+                (f'-bits{args.bits}' if args.bits != 14 else '')
+            r, lines = board.cmd(f'bench4fec {cpw} {args.ms} {invert} {prio} {args.bits}', timeout=args.ms / 1000 + 60)
             (args.out / f'{label}.txt').write_text('\n'.join(lines) + '\n')
             if 'error' not in r:
-                r.update(validate_capture(r, lines, invert))
-            r['faults'] = run_faults(r, cpw, args.ms, invert, args.expected_git)
+                r.update(validate_capture(r, lines, invert, args.bits))
+            r['faults'] = run_faults(r, cpw, args.ms, invert, args.expected_git, args.bits)
             if r.get('bus_priority_mask', 0) != prio:
                 r['faults'].append('reported bus priority differs from request')
             r['label'] = label
