@@ -25,6 +25,7 @@ typedef struct {
     dvbs2_8psk_codes_state_t map;
     const dvbs2_8psk_cfg_t *cfg;
     uint32_t index, stage, cursor, options;
+    void *ldpc_group; // optional mode1 leaf copy (dvbs2_ldpc_copy); NULL = prepared default
 } c3_job_t;
 
 // Caller provides credit for this frame's complete output interval before begin.
@@ -43,3 +44,4 @@ uint32_t c3_job_publish(const c3_job_t *job, uint32_t carry[2]);
 // Device command, included only in IQ4HIST_EXPERIMENT builds.
 void bench_c3_fec(int code_index, int ms, int slow_us, int cpw, int gap_us);
 void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_us, int options);
+void bench_c3_pair(int code_index, int pairs, int layout, int who, int options);
