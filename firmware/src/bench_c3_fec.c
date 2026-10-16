@@ -27,7 +27,7 @@ typedef struct {
     worker_t core[2];
     dvbs2_8psk_cfg_t cfg;
     uint32_t gold[1384];
-    uint32_t map_lut[DVBS2_8PSK_CODES_LUT_WORDS], ldpc_code[1792];
+    uint32_t map_lut[DVBS2_8PSK_CODES_LUT_WORDS], ldpc_code[2048];
     uint8_t pattern[512];
     volatile uint32_t stop, errors;
     uint32_t target;
@@ -145,7 +145,7 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
     max_service_us = (uint32_t)gap_us;
     if ((code_index != S2_N2_3 && code_index != S2_N3_4 && code_index != S2_N5_6) ||
         ms < 100 || ms > 60000 || slow_us < 0 || slow_us > 10000 ||
-        options < 0 || options > C4_ALL || gap_us < 128 || gap_us > 4096 ||
+        options < 0 || options > C5_ALL || gap_us < 128 || gap_us > 4096 ||
         (cpw != 1 && cpw != 2 && cpw != 4) || (hz != 128000000u && hz != 256000000u)) {
         printf("@{\"cmd\":\"c3fec\",\"error\":\"needs normal2/3(5),3/4(6),5/6(8),100..60000ms,slow0..10000us,cpw1/2/4,SYS128/256\"}\n");
         return;
@@ -166,7 +166,8 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
     pv_init(65536);
     if (!dvbs2_8psk_init(&live.cfg, &DVBS2_CODES[code_index], true, 0, live.gold, 1384) ||
         ((options & C4_MAP) && !dvbs2_8psk_codes_lut_init(&live.cfg, live.map_lut, DVBS2_8PSK_CODES_LUT_WORDS)) ||
-        ((options & C4_LDPC) && !dvbs2_ldpc_prepare(live.ldpc_code, sizeof live.ldpc_code))) {
+        ((options & (C4_LDPC | C5_LDPC)) && !dvbs2_ldpc_prepare_mode(live.ldpc_code,
+            sizeof live.ldpc_code, options & C5_LDPC ? 2 : 1))) {
         dvbs2_bch_set_kernel(saved_bch);
         dvbs2_frontend_set_bank(saved_bank);
         printf("@{\"cmd\":\"c3fec\",\"error\":\"C3/C4 setup failed\"}\n");

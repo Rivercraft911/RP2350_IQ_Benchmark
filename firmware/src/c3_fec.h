@@ -9,6 +9,7 @@ enum {
     C3_RING_GROUPS = 4096, C3_ROWS_WORDS = 60 * 12,
     C3_GCS = 0, C3_BCH, C3_LDPC, C3_MAP, C3_DONE,
     C4_LDPC = 1, C4_MAP = 2, C4_BCH = 4, C4_BB = 8, C4_DEADLINES = 16, C4_ALL = 31,
+    C5_LDPC = 32, C5_ALL = 63,
 };
 
 // In-memory GCS source: chronological payload byte j is (29*j+7) modulo256.
@@ -25,7 +26,7 @@ typedef struct {
     dvbs2_8psk_codes_state_t map;
     const dvbs2_8psk_cfg_t *cfg;
     uint32_t index, stage, cursor, options;
-    void *ldpc_group; // optional mode1 leaf copy (dvbs2_ldpc_copy); NULL = prepared default
+    void *ldpc_group; // optional mode1 leaf / mode2 PIC bundle; NULL = prepared default
 } c3_job_t;
 
 // Caller provides credit for this frame's complete output interval before begin.

@@ -207,6 +207,26 @@ class C3Protocol(unittest.TestCase):
         bad["core"][1]["max_slice_cycles"] = 16385
         self.assertTrue(any("slice" in fault for fault in trial.run_faults(bad, 5, 100, 0)))
 
+    def test_c5_option_masks_parse_and_are_verified_without_serial(self):
+        for options in (32, 33, 59, 63):
+            with self.subTest(options=options):
+                good = fixture()
+                good["options"] = options
+                self.assertEqual(trial.run_faults(good, 5, 100, 0, options=options), [])
+                self.assertTrue(trial.run_faults(good, 5, 100, 0, options=options ^ 32))
+                with mock.patch.object(trial.iq, "Board", side_effect=AssertionError("serial accessed")):
+                    with mock.patch.object(trial, "self_test") as check:
+                        with mock.patch.object(sys, "argv", ["c3_fec_trial.py", "--self-test", "--options", str(options)]):
+                            trial.main()
+                        check.assert_called_once_with()
+        with mock.patch.object(trial, "self_test") as check:
+            with mock.patch.object(sys, "argv", ["c3_fec_trial.py", "--self-test", "--options", "64"]):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as result:
+                        trial.main()
+            self.assertEqual(result.exception.code, 2)
+            check.assert_not_called()
+
     def test_no_arguments_never_open_serial(self):
         with mock.patch.object(trial.iq, "Board", side_effect=AssertionError("serial accessed")):
             with mock.patch.object(sys, "argv", ["c3_fec_trial.py"]):

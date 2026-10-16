@@ -493,22 +493,51 @@ typedef void (*ldpc_group_fn)(uint32_t *, const uint32_t *, uint32_t, const uint
                              const uint16_t *, uint32_t);
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
 extern const uint8_t dvbs2_ldpc_group_pic[], dvbs2_ldpc_group_pic_end[];
+extern const uint8_t dvbs2_ldpc_group_c5_pic[], dvbs2_ldpc_group_c5_pic_end[];
+extern const uint8_t dvbs2_ldpc_rows_c5_pic[], dvbs2_ldpc_rows_c5_pic_end[];
+extern const uint8_t dvbs2_ldpc_accumulate_c5_pic[];
+extern const uint8_t dvbs2_ldpc_pack_c5_pic[], dvbs2_ldpc_pack_c5_pic_end[];
 static ldpc_group_fn ldpc_group_prepared;
-uint32_t dvbs2_ldpc_code_bytes(void) {
-    return (uint32_t)((uintptr_t)dvbs2_ldpc_group_pic_end -
-        ((uintptr_t)dvbs2_ldpc_group_pic & ~(uintptr_t)1));
+static ldpc_group_fn ldpc_c5_prepared;
+static uint32_t pic_bytes(const uint8_t *start, const uint8_t *end) {
+    return (uint32_t)((uintptr_t)end - ((uintptr_t)start & ~(uintptr_t)1));
 }
-void *dvbs2_ldpc_copy(void *code, uint32_t bytes) {
-    const uint32_t needed = dvbs2_ldpc_code_bytes();
-    if (!code || ((uintptr_t)code & 3u) || bytes < needed) return NULL;
-    memcpy(code, (const void *)((uintptr_t)dvbs2_ldpc_group_pic & ~(uintptr_t)1), needed);
+static uint32_t c5_rows_offset(void) {
+    return (pic_bytes(dvbs2_ldpc_group_c5_pic, dvbs2_ldpc_group_c5_pic_end) + 3u) & ~3u;
+}
+static uint32_t c5_pack_offset(void) {
+    return c5_rows_offset() +
+        ((pic_bytes(dvbs2_ldpc_rows_c5_pic, dvbs2_ldpc_rows_c5_pic_end) + 3u) & ~3u);
+}
+uint32_t dvbs2_ldpc_code_bytes_mode(unsigned mode) {
+    if (mode == 1) return pic_bytes(dvbs2_ldpc_group_pic, dvbs2_ldpc_group_pic_end);
+    if (mode == 2) return c5_pack_offset() +
+        pic_bytes(dvbs2_ldpc_pack_c5_pic, dvbs2_ldpc_pack_c5_pic_end);
+    return 0;
+}
+void *dvbs2_ldpc_copy_mode(void *code, uint32_t bytes, unsigned mode) {
+    const uint32_t needed = dvbs2_ldpc_code_bytes_mode(mode);
+    if (!needed || !code || ((uintptr_t)code & 3u) || bytes < needed) return NULL;
+    const uint8_t *group = mode == 2 ? dvbs2_ldpc_group_c5_pic : dvbs2_ldpc_group_pic;
+    const uint32_t group_bytes = mode == 2 ?
+        pic_bytes(group, dvbs2_ldpc_group_c5_pic_end) : needed;
+    memcpy(code, (const void *)((uintptr_t)group & ~(uintptr_t)1), group_bytes);
+    if (mode == 2) {
+        memcpy((uint8_t *)code + c5_rows_offset(),
+            (const void *)((uintptr_t)dvbs2_ldpc_rows_c5_pic & ~(uintptr_t)1),
+            pic_bytes(dvbs2_ldpc_rows_c5_pic, dvbs2_ldpc_rows_c5_pic_end));
+        memcpy((uint8_t *)code + c5_pack_offset(),
+            (const void *)((uintptr_t)dvbs2_ldpc_pack_c5_pic & ~(uintptr_t)1),
+            pic_bytes(dvbs2_ldpc_pack_c5_pic, dvbs2_ldpc_pack_c5_pic_end));
+    }
     __asm volatile("dsb\n isb" ::: "memory");
     return (void *)((uintptr_t)code | 1u);
 }
-bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) {
-    void *group = dvbs2_ldpc_copy(code, bytes);
+bool dvbs2_ldpc_prepare_mode(void *code, uint32_t bytes, unsigned mode) {
+    void *group = dvbs2_ldpc_copy_mode(code, bytes, mode);
     if (!group) return false;
-    ldpc_group_prepared = (ldpc_group_fn)group;
+    if (mode == 2) ldpc_c5_prepared = (ldpc_group_fn)group;
+    else ldpc_group_prepared = (ldpc_group_fn)group;
     return true;
 }
 #else
@@ -526,19 +555,30 @@ static void ldpc_group_direct(uint32_t *matrix, const uint32_t *in, uint32_t shi
         xor_rot(matrix + row[a] * 12u, u2 + (offset[a] >> 5), offset[a] & 31u);
 }
 static ldpc_group_fn ldpc_group_prepared = ldpc_group_direct;
-uint32_t dvbs2_ldpc_code_bytes(void) { return 0; }
-void *dvbs2_ldpc_copy(void *code, uint32_t bytes) { (void)code; (void)bytes; return (void *)ldpc_group_direct; }
-bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) { (void)code; (void)bytes; return true; }
+static ldpc_group_fn ldpc_c5_prepared = ldpc_group_direct;
+uint32_t dvbs2_ldpc_code_bytes_mode(unsigned mode) { (void)mode; return 0; }
+void *dvbs2_ldpc_copy_mode(void *code, uint32_t bytes, unsigned mode) {
+    (void)code; (void)bytes;
+    return mode == 1 || mode == 2 ? (void *)ldpc_group_direct : NULL;
+}
+bool dvbs2_ldpc_prepare_mode(void *code, uint32_t bytes, unsigned mode) {
+    return dvbs2_ldpc_copy_mode(code, bytes, mode) != NULL;
+}
 #endif
+
+uint32_t dvbs2_ldpc_code_bytes(void) { return dvbs2_ldpc_code_bytes_mode(1); }
+void *dvbs2_ldpc_copy(void *code, uint32_t bytes) { return dvbs2_ldpc_copy_mode(code, bytes, 1); }
+bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) { return dvbs2_ldpc_prepare_mode(code, bytes, 1); }
 
 bool dvbs2_ldpc_begin_reentrant_mode(uint32_t *frame, uint32_t *workspace,
                                     uint32_t workspace_words, dvbs2_ldpc_state_t *state,
                                     unsigned mode) {
     const uint32_t needed = dvbs2_ldpc_workspace_words();
     if (!needed || !frame || !workspace || !state || workspace_words < needed ||
-        mode > 1 || (mode && !ldpc_group_prepared)) return false;
+        mode > 2 || (mode == 1 && !ldpc_group_prepared) ||
+        (mode == 2 && !ldpc_c5_prepared)) return false;
     *state = (dvbs2_ldpc_state_t){.frame = frame, .rows = (uint32_t (*)[12])workspace,
-        .group = mode ? ldpc_group_prepared : NULL, .mode = mode};
+        .group = mode == 2 ? ldpc_c5_prepared : mode ? ldpc_group_prepared : NULL, .mode = mode};
     return true;
 }
 
@@ -577,13 +617,18 @@ static void ldpc_prefix_into(dvbs2_ldpc_state_t *state) {
 
 static void ldpc_pack_step(dvbs2_ldpc_state_t *state) {
     const uint32_t q = C->q, rem = q > 32 ? q - 32 : q, k = state->cursor;
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    const uint32_t prefix = 0; // Device C5 packs through its separate PIC entry.
+#else
+    const uint32_t prefix = state->mode == 2 ? state->prefix[k] : 0;
+#endif
     uint32_t tile[2][32];
     for (unsigned row = 0; row < 32; row++)
-        tile[0][row] = row < q ? state->rows[row][k] : 0;
+        tile[0][row] = row < q ? state->rows[row][k] ^ prefix : 0;
     transpose32(tile[0]);
     if (q > 32) {
         for (unsigned row = 0; row < 32; row++)
-            tile[1][row] = 32 + row < q ? state->rows[32 + row][k] : 0;
+            tile[1][row] = 32 + row < q ? state->rows[32 + row][k] ^ prefix : 0;
         transpose32(tile[1]);
     }
     uint32_t *dst = state->frame + C->kldpc / 32u;
@@ -640,7 +685,90 @@ static void ldpc_pack_step(dvbs2_ldpc_state_t *state) {
     state->acc = acc; state->fill = fill; state->written = written;
 }
 
-bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
+// Eight-row units remove repeated C3/job dispatch for the cheap matrix passes.
+// Four-group units amortize the hot driver; pack remains one 32-column tile.
+// Keep stages 0/2 for the
+// existing c3pair sub-counters; stage 4 disappears because packing applies prefix.
+static void ldpc_c5_rows(dvbs2_ldpc_state_t *state, uint32_t count, bool accumulate) {
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    typedef void (*rows_fn)(uint32_t *, uint32_t);
+    const uintptr_t base = (uintptr_t)state->group & ~(uintptr_t)1;
+    const uint32_t entry = accumulate ? (uint32_t)(
+        ((uintptr_t)dvbs2_ldpc_accumulate_c5_pic & ~(uintptr_t)1) -
+        ((uintptr_t)dvbs2_ldpc_rows_c5_pic & ~(uintptr_t)1)) : 0;
+    rows_fn run = (rows_fn)((base + c5_rows_offset() + entry) | 1u);
+    run(state->rows[state->cursor], count);
+#else
+    for (uint32_t r = state->cursor; r < state->cursor + count; ++r)
+        if (accumulate) {
+            for (unsigned k = 0; k < 12; ++k) state->rows[r][k] ^= state->rows[r - 1][k];
+        } else memset(state->rows[r], 0, sizeof state->rows[r]);
+#endif
+}
+
+// Keep C5 address arithmetic and dispatch out of the baseline step. In particular,
+// GCC otherwise hoists arena-offset calculations into mode0/1 calls as well.
+static bool __attribute__((noinline)) ldpc_c5_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
+    if (state->done) return true;
+    const uint32_t q = C->q;
+    while (max_units--) {
+        switch (state->stage) {
+        case 0:
+        case 2: {
+            const uint32_t count = q - state->cursor < 8 ? q - state->cursor : 8;
+            ldpc_c5_rows(state, count, state->stage == 2);
+            state->cursor += count;
+            if (state->cursor == q) {
+                ++state->stage;
+                state->cursor = state->stage == 1 ? 0 : 1;
+            }
+            break;
+        }
+        case 1:
+            for (unsigned n = 0; n < 4; ++n) {
+                const uint32_t first = grp[state->cursor], bit = state->cursor * 360u;
+                state->group(state->rows[0], state->frame + bit / 32u, bit & 31u,
+                    a_row + first, a_off + first, grp[state->cursor + 1] - first);
+                if (++state->cursor == C->n_groups) {
+                    state->stage = 2, state->cursor = 1;
+                    break;
+                }
+            }
+            break;
+        case 3:
+            ldpc_prefix_into(state);
+            state->stage = 5, state->cursor = 0;
+            state->fill = C->kldpc & 31u;
+            state->acc = state->frame[C->kldpc / 32u] & ~(~0u >> state->fill);
+            break;
+        default:
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+            {
+                typedef void (*pack_fn)(uint32_t *, uint32_t *, const uint32_t *, uint32_t,
+                                        uint32_t, uint32_t *);
+                const uintptr_t base = (uintptr_t)state->group & ~(uintptr_t)1;
+                pack_fn pack = (pack_fn)((base + c5_pack_offset()) | 1u);
+                pack(state->rows[0], state->frame + C->kldpc / 32u, state->prefix,
+                     q, state->cursor, &state->acc);
+            }
+#else
+            ldpc_pack_step(state);
+#endif
+            if (++state->cursor == 12) {
+                uint32_t *dst = state->frame + C->kldpc / 32u;
+                if (state->fill) dst[state->written++] = state->acc;
+                const uint32_t end = ((C->kldpc & 31u) + M + 63u) / 32u;
+                while (state->written < end) dst[state->written++] = 0;
+                state->done = true;
+                return true;
+            }
+            break;
+        }
+    }
+    return false;
+}
+
+static bool __attribute__((noinline)) ldpc_step_baseline(dvbs2_ldpc_state_t *state, uint32_t max_units) {
     if (state->done) return true;
     const uint32_t q = C->q;
     while (max_units--) {
@@ -691,6 +819,12 @@ bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
         }
     }
     return false;
+}
+
+bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
+    // A tiny tail-call dispatcher keeps the baseline's 256-byte local tile and
+    // register saves out of every C5 unit, including group/row-only units.
+    return state->mode == 2 ? ldpc_c5_step(state, max_units) : ldpc_step_baseline(state, max_units);
 }
 
 bool dvbs2_ldpc_set_pack(unsigned pack) {

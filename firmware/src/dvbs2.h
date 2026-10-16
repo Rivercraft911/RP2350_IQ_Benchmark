@@ -151,8 +151,15 @@ bool dvbs2_ldpc_begin_reentrant(uint32_t *frame, uint32_t *workspace,
 // caller's word-aligned arena by prepare; keep it alive/fixed until both workers
 // finish. Native uses the equivalent C leaf and needs zero arena bytes. Mode0 and
 // the original begin retain the C3 path. Unsupported modes do not modify state.
+// Mode2 (C5) copies group, bounded row leaves and a fused apply/transpose/pack leaf
+// as one PIC bundle. It clears/accumulates up to eight rows, or processes up to
+// four 360-bit groups per unit, and skips the
+// separate apply stage. No leaf runs in SCRATCH_X. Old prepare/copy/size select mode1.
 uint32_t dvbs2_ldpc_code_bytes(void);
 bool dvbs2_ldpc_prepare(void *code, uint32_t bytes);
+uint32_t dvbs2_ldpc_code_bytes_mode(unsigned mode);
+bool dvbs2_ldpc_prepare_mode(void *code, uint32_t bytes, unsigned mode);
+void *dvbs2_ldpc_copy_mode(void *code, uint32_t bytes, unsigned mode);
 // Copy the mode1 group leaf into another arena and return its entry without changing the
 // prepared default: lets each core run its own copy from its own SRAM banks (NULL on error).
 void *dvbs2_ldpc_copy(void *code, uint32_t bytes);

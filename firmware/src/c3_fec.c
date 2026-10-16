@@ -98,7 +98,7 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
         case C3_BCH:
             if (dvbs2_frontend_step(&job->front, 64)) {
                 if (!dvbs2_ldpc_begin_reentrant_mode(job->frame, job->rows, C3_ROWS_WORDS,
-                                                     &job->ldpc, !!(job->options & C4_LDPC))) return false;
+                        &job->ldpc, job->options & C5_LDPC ? 2 : !!(job->options & C4_LDPC))) return false;
                 if (job->ldpc_group && job->ldpc.mode) {
                     typedef void (*group_fn)(uint32_t *, const uint32_t *, uint32_t, const uint16_t *,
                                              const uint16_t *, uint32_t);
