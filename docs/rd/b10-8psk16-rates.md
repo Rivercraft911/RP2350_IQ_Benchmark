@@ -1,5 +1,10 @@
 # B10: B9 rate admission, SRAM hot paths and service margin
 
+**Device result (coordinator, 2026-10-16):** complete on-chip 8PSK 5/6 at 16 Msym/s (38.76 Mb/s) ran
+60 s clean with masks 4603 and 6395 at 92–95% core load; 3/4 ran dry at 46 s; the SRAM hot-code
+copy recovered the C9 regression (GCS 25.7k -> 19.6k). See
+[results](../../results/b10-8psk16-rates/2026-10-16/README.md).
+
 Implemented and verified offline on `rd/b10-8psk16-rates`, based on `fe3da359cc`.
 **No new device throughput or service-margin result is claimed.** The Pico was
 not accessed. The coordinator must establish recovery of mask 251 and qualify
