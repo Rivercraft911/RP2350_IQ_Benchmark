@@ -373,6 +373,10 @@ static void codes_lut_run(const uint32_t *a, const uint32_t *b, const uint32_t *
                           dvbs2_8psk_codes_stream_t *s, uint32_t count);
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
 extern const uint8_t __start_c4_mapper[], __stop_c4_mapper[];
+extern const uint8_t __start_c6_mapper[], __stop_c6_mapper[];
+void dvbs2_map8_c6(const uint32_t *, const uint32_t *, const uint32_t *,
+                  const dvbs2_8psk_gold_t *, const uint16_t *,
+                  dvbs2_8psk_codes_stream_t *, uint32_t);
 #endif
 
 bool dvbs2_8psk_codes_lut_init(dvbs2_8psk_cfg_t *cfg, uint32_t *arena, uint32_t words) {
@@ -404,7 +408,28 @@ bool dvbs2_8psk_codes_lut_init(dvbs2_8psk_cfg_t *cfg, uint32_t *arena, uint32_t 
     const uintptr_t run = (uintptr_t)codes_lut_run;
 #endif
     memcpy(arena + 224, &run, sizeof run);
+    memset(arena + 226, 0, 2 * sizeof *arena);
     cfg->codes_lut = lut;
+    return true;
+}
+
+bool dvbs2_8psk_codes_c6_init(dvbs2_8psk_cfg_t *cfg, uint32_t *arena, uint32_t words) {
+    if (!cfg || !cfg->code || !cfg->gold || !arena || words < DVBS2_8PSK_CODES_C6_WORDS) return false;
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    const uint32_t bytes = (uint32_t)((uintptr_t)__stop_c6_mapper - (uintptr_t)__start_c6_mapper);
+    if (bytes > 3072u) return false;
+#endif
+    if (!dvbs2_8psk_codes_lut_init(cfg, arena, words)) return false;
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    memcpy(arena + DVBS2_8PSK_CODES_LUT_WORDS, __start_c6_mapper, bytes);
+    __asm volatile("dsb\n\tisb" ::: "memory");
+    const uintptr_t run = (uintptr_t)(arena + DVBS2_8PSK_CODES_LUT_WORDS) | 1u;
+#else
+    // Native verification uses the same algebra and stream contract. The
+    // separate instruction-semantics test checks the actual M33 source.
+    const uintptr_t run = (uintptr_t)codes_lut_run;
+#endif
+    memcpy(arena + 226, &run, sizeof run);
     return true;
 }
 
@@ -499,19 +524,30 @@ static void __attribute__((noinline)) codes_normal_fast(const dvbs2_8psk_cfg_t *
                                                        const uint32_t *frame,
                                                        dvbs2_8psk_codes_stream_t *s,
                                                        uint32_t *data, uint32_t *block,
-                                                       uint32_t budget) {
+                                                       uint32_t budget, bool c6) {
     const uint32_t *a = frame + (cfg->column_reverse ? 1350 : 0), *b = frame + 675,
                    *c = frame + (cfg->column_reverse ? 0 : 1350);
     uint32_t word = *data >> 5;
     while (budget && word < 675) {
         uint32_t end = *block < cfg->pilot_blocks ? (*block + 1u) * 45u : 675;
         if (end - word > budget) end = word + budget;
-        const uint32_t count = end - word;
-        budget -= count;
+        uint32_t count = end - word;
         codes_run_t run;
-        memcpy(&run, (const uint32_t *)cfg->codes_lut + 224, sizeof run);
+        // Even fills cover every C3 frame/pilot boundary. Odd fills keep the
+        // existing general C4 leaf; short columns use the general extractor.
+        unsigned slot = c6 && !(s->fill & 1u) ? 226 : 224;
+        if (slot == 226) {
+            // C6 uses postincrement stores. Clamp to complete output pairs
+            // before the ring edge. Let C4 handle a single crossing pair.
+            const uint32_t after = s->mask - (s->n & s->mask);
+            const uint32_t pairs = (after >> 1) + (after & 1u);
+            if (!pairs) { slot = 224; count = 1; }
+            else if (count > pairs) count = pairs;
+        }
+        budget -= count;
+        memcpy(&run, (const uint32_t *)cfg->codes_lut + slot, sizeof run);
         run(a + word, b + word, c + word, cfg->gold + word, cfg->codes_lut, s, count);
-        word = end;
+        word += count;
         if (*block < cfg->pilot_blocks && word == (*block + 1u) * 45u) {
             codes_pilot_fast(cfg, s, (*block)++);
         }
@@ -534,6 +570,18 @@ bool dvbs2_8psk_codes_begin_fast(dvbs2_8psk_codes_state_t *state,
     return true;
 }
 
+bool dvbs2_8psk_codes_begin_c6(dvbs2_8psk_codes_state_t *state,
+                             const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
+                             dvbs2_8psk_codes_stream_t *stream) {
+    if (!cfg || !cfg->codes_lut) return false;
+    codes_run_t run;
+    memcpy(&run, (const uint32_t *)cfg->codes_lut + 226, sizeof run);
+    if (!run) return false;
+    dvbs2_8psk_codes_begin_fast(state, cfg, frame, stream);
+    state->c6 = true;
+    return true;
+}
+
 bool __attribute__((noinline)) dvbs2_8psk_codes_step(dvbs2_8psk_codes_state_t *state, uint32_t max_words) {
     const dvbs2_8psk_cfg_t *cfg = state->cfg;
     if (state->data == cfg->data_symbols) return true;
@@ -546,7 +594,7 @@ bool __attribute__((noinline)) dvbs2_8psk_codes_step(dvbs2_8psk_codes_state_t *s
     }
     uint32_t data = state->data, block = state->pilot;
     if (!cfg->is_short) {
-        if (state->fast) codes_normal_fast(cfg, state->frame, &s, &data, &block, max_words);
+        if (state->fast) codes_normal_fast(cfg, state->frame, &s, &data, &block, max_words, state->c6);
         else codes_normal(cfg, state->frame, &s, &data, &block, max_words);
         state->data = data; state->pilot = block; *state->stream = s;
         return data == cfg->data_symbols;

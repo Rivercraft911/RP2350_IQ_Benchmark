@@ -1,0 +1,14 @@
+{
+  "passed": false,
+  "failures": [
+    {
+      "modulation": 16,
+      "clock_khz": 128000,
+      "cpw": 8,
+      "faults": [
+        "complete finite capture mismatch"
+      ]
+    }
+  ],
+  "fatal": null
+}

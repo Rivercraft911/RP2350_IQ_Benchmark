@@ -21,7 +21,8 @@ set(TX_SOURCES
     src/iq32offsets.c src/iq32offsets_asm.S src/iq32offsets_native.c
     src/bench_apsk_live.c src/bench32map.c src/bench32bus.c
     src/bench_apsk_fec.c src/dvbs2_apsk.c
-    src/dvbs2.c src/dvbs2_8psk.c src/dvbs2_qpsk8.c src/dvbs2_asm.S src/dvbs2_ldpc_asm.S src/dvbs2_map_asm.S
+    src/dvbs2.c src/dvbs2_8psk.c src/dvbs2_qpsk8.c src/dvbs2_asm.S src/dvbs2_bch_fast.S src/dvbs2_ldpc_asm.S
+    src/dvbs2_ldpc_c5_rows.S src/dvbs2_ldpc_c5.S src/dvbs2_map_asm.S src/dvbs2_map8_asm.S
     src/pvproto.c src/pvproto_asm.S src/pvspi.c
     src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c
     src/bench8quad.c src/bench8live.c src/bench16.c src/bench_pvstress.c
@@ -49,6 +50,11 @@ if(IQ4HIST_EXPERIMENT)
         src/r2grant.c src/bench_r2grant.c)
     target_compile_definitions(iqbench PRIVATE IQ4HIST_EXPERIMENT=1)
 endif()
+# A3 multiply-form 32APSK conversion: linked last so its SCRATCH_Y section follows
+# every existing scratch leaf and none of them moves.
+foreach(target iqbench pvflight)
+    target_sources(${target} PRIVATE src/iq32offsets_mla.c)
+endforeach()
 # git_rev.h is rewritten on every build (only when the revision changes), so logged firmware
 # revisions are current. Records made before 2026-09-30 could carry a stale configure-time value.
 add_custom_target(git_rev ALL
@@ -57,6 +63,8 @@ add_custom_target(git_rev ALL
     BYPRODUCTS ${CMAKE_BINARY_DIR}/git_rev.h)
 set(IQ_KERNEL_OPT "-O3" CACHE STRING "optimisation flag for the C kernels (iqgen.c), for A/B runs")
 set_source_files_properties(src/iqgen.c PROPERTIES COMPILE_OPTIONS "${IQ_KERNEL_OPT}")
+# Declared before its first use below: a fresh configure must see it (R3 review).
+option(CORE0_STACK_SRAM_HI "core 0 stack (4 KiB) at the top of SRAM4-7 instead of above SCRATCH_Y code" ON)
 foreach(target iqbench pvflight)
     add_dependencies(${target} git_rev)
     target_include_directories(${target} PRIVATE ${CMAKE_BINARY_DIR})
@@ -107,7 +115,6 @@ if(IQ4HIST_EXPERIMENT)
            "    .waveform_ring (NOLOAD) : { *(.bss.ring_buf) } > RAM\n\n    .input_ring (NOLOAD) :"
            LD "${LD}")
 endif()
-option(CORE0_STACK_SRAM_HI "core 0 stack (4 KiB) at the top of SRAM4-7 instead of above SCRATCH_Y code" ON)
 if(CORE0_STACK_SRAM_HI)
     # The default 2 KiB core-0 stack sits directly above SCRATCH_Y code; deep print paths
     # overflow it into that code (results/round2/2026-10-15/stack-1). Move it to RAM_HI.
