@@ -28,6 +28,26 @@ static const uint16_t IQ4PTR_PROGRAM[IQ4PTR_PROGRAM_LENGTH] = {
     0x8020, // PUSH BLOCK; wrap
 };
 
+enum {
+    IQ4PTR8_PROGRAM_LENGTH = 7,
+    IQ4PTR8_CYCLES_PER_WORD = 16 * IQ4PTR8_PROGRAM_LENGTH,
+    IQ4PTR8_TABLE_BYTES = 64 * 1024,
+};
+
+// OUT X is an autopull fence: unlike IN OSR it cannot race an empty OSR refill.
+// ISR saves history while X temporarily holds the new code. MOV ISR resets the
+// IN counter; the final two INs autopush at16 bits, retaining the address's high
+// base bits. OUT autopulls32. Each chronological four-byte row is one word.
+static const uint16_t IQ4PTR8_PROGRAM[IQ4PTR8_PROGRAM_LENGTH] = {
+    0xa0c1, // MOV ISR,X
+    0x6022, // OUT X,2
+    0x4022, // IN X,2
+    0xa026, // MOV X,ISR
+    0xa0c2, // MOV ISR,Y (base>>16)
+    0x402e, // IN X,14
+    0x4062, // IN NULL,2; autopush16; wrap
+};
+
 // A packed source word contains16 chronological codes, earliest in bits1:0.
 // Seed the six-symbol prehistory from the immediately preceding packed word.
 uint32_t iq4ptr_seed(uint32_t previous);
@@ -62,6 +82,10 @@ typedef struct {
 bool iq4ptr_prepare(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
                    unsigned input_log2, const uint16_t *table,
                    uint32_t previous_i, uint32_t previous_q);
+// Cyclic-only one-word rows; same ownership/lifecycle,64KiB-aligned table.
+bool iq4ptr_prepare8(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
+                    unsigned input_log2, const uint32_t *table,
+                    uint32_t previous_i, uint32_t previous_q);
 // Live mode: the same rings are filled by the caller. Each axis input DMA chains to a
 // credit DMA that reloads its TRANS_COUNT from iqquadptr-style 512-word grants (four
 // DMA channels in total). published_words counts complete code words written to both

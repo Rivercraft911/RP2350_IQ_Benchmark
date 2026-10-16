@@ -21,7 +21,7 @@ typedef struct {
     int sm[2], dma[2], credit_dma[2];
     unsigned offset, mask;
     uint32_t sm_mask, dma_mask, input_mask, last[2], last_poll_us, poll_limit_us;
-    bool owned, added, live;
+    bool owned, added, live, row8;
     iq4ptr_progress_t result;
 } pointer_state_t;
 
@@ -30,7 +30,7 @@ static pointer_state_t state;
 // SRAM4-7 (NOLOAD, lower SRAM is full): prepare() zeroes every entry before any DMA use.
 static uint32_t credits[IQQUADPTR_GRANT_ENTRIES] __attribute__((aligned(64), section(".sram_hi")));
 static const char *last_error = "not prepared";
-static const pio_program_t program = {
+static pio_program_t program = {
     .instructions = IQ4PTR_PROGRAM, .length = IQ4PTR_PROGRAM_LENGTH, .origin = -1,
 };
 
@@ -114,18 +114,20 @@ static void prepare_channel(int channel) {
 
 static bool prepare(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
                     unsigned input_log2, const uint16_t *table,
-                    uint32_t previous_i, uint32_t previous_q, bool live, uint64_t published_words) {
+                    uint32_t previous_i, uint32_t previous_q, bool live, uint64_t published_words,
+                    bool row8) {
     if (state.owned) { last_error = "pointer producer is already owned"; return false; }
-    state = (pointer_state_t){.pio = pio, .input = {input_i, input_q}, .live = live,
+    state = (pointer_state_t){.pio = pio, .input = {input_i, input_q}, .live = live, .row8 = row8,
         .sm = {-1, -1}, .dma = {-1, -1}, .credit_dma = {-1, -1}};
     const uintptr_t base = (uintptr_t)table;
+    const unsigned table_bytes = row8 ? IQ4PTR8_TABLE_BYTES : IQ4PTR_TABLE_BYTES;
     if ((pio != pio0 && pio != pio1 && pio != pio2) || !input_i || !input_q || !table ||
         input_log2 < 8 || input_log2 > 13 ||
         ((uintptr_t)input_i & ((4u << input_log2) - 1u)) ||
         ((uintptr_t)input_q & ((4u << input_log2) - 1u)) ||
-        (base & (IQ4PTR_TABLE_BYTES - 1u)) ||
-        base < 0x20000000u || base > 0x20080000u - IQ4PTR_TABLE_BYTES)
-        return failed("pointer input needs aligned256..8192-word rings and128KiB-aligned SRAM table",
+        (base & (table_bytes - 1u)) ||
+        base < 0x20000000u || base > 0x20080000u - table_bytes)
+        return failed("pointer input needs aligned256..8192-word rings and aligned SRAM table",
                       IQ4PTR_ERR_CONFIG);
     state.mask = (1u << input_log2) - 1u;
     if (live && (published_words < IQQUADPTR_BATCH_WORDS || published_words > state.mask + 1u))
@@ -133,8 +135,11 @@ static bool prepare(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
                       IQ4PTR_ERR_CONFIG);
     // Maximum issue rate follows the PIO program, even with an unpaced consumer.
     // Reserve eight words for DMA issue/prefetch and timestamp observation.
-    state.poll_limit_us = (uint64_t)(state.mask + 1u - 8u) * IQ4PTR_CYCLES_PER_WORD *
+    state.poll_limit_us = (uint64_t)(state.mask + 1u - 8u) *
+        (row8 ? IQ4PTR8_CYCLES_PER_WORD : IQ4PTR_CYCLES_PER_WORD) *
         1000000u / clock_get_hz(clk_sys);
+    program.instructions = row8 ? IQ4PTR8_PROGRAM : IQ4PTR_PROGRAM;
+    program.length = row8 ? IQ4PTR8_PROGRAM_LENGTH : IQ4PTR_PROGRAM_LENGTH;
     if (!pio_can_add_program(pio, &program))
         return failed("pointer PIO instruction space unavailable", IQ4PTR_ERR_CONFIG);
     if (live) {
@@ -164,17 +169,22 @@ static bool prepare(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
     for (unsigned axis = 0; axis < 2; ++axis) {
         const unsigned sm = (unsigned)state.sm[axis];
         pio_sm_config c = pio_get_default_sm_config();
-        sm_config_set_wrap(&c, state.offset, state.offset + IQ4PTR_PROGRAM_LENGTH - 1);
+        sm_config_set_wrap(&c, state.offset, state.offset + program.length - 1);
         sm_config_set_in_shift(&c, false, false, 32);
         sm_config_set_out_shift(&c, true, false, 32);
         pio_sm_init(pio, sm, state.offset, &c);
-        pio_sm_put(pio, sm, base >> 17);
+        pio_sm_put(pio, sm, base >> (row8 ? 16 : 17));
         pio_sm_exec_wait_blocking(pio, sm, pio_encode_pull(false, true));
         pio_sm_exec_wait_blocking(pio, sm, pio_encode_mov(pio_y, pio_osr));
         pio_sm_put(pio, sm, iq4ptr_seed(previous[axis]));
         pio_sm_exec_wait_blocking(pio, sm, pio_encode_pull(false, true));
         pio_sm_exec_wait_blocking(pio, sm, pio_encode_mov(pio_x, pio_osr));
         pio_sm_exec_wait_blocking(pio, sm, pio_encode_out(pio_null, 32));
+        if (row8) {
+            sm_config_set_in_shift(&c, false, true, 16);
+            sm_config_set_out_shift(&c, true, true, 32);
+            pio_sm_set_config(pio, sm, &c);
+        }
         dma_channel_config d = dma_channel_get_default_config(state.dma[axis]);
         channel_config_set_transfer_data_size(&d, DMA_SIZE_32);
         channel_config_set_read_increment(&d, true);
@@ -209,14 +219,21 @@ static bool prepare(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
 bool iq4ptr_prepare(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
                    unsigned input_log2, const uint16_t *table,
                    uint32_t previous_i, uint32_t previous_q) {
-    return prepare(pio, input_i, input_q, input_log2, table, previous_i, previous_q, false, 0);
+    return prepare(pio, input_i, input_q, input_log2, table, previous_i, previous_q, false, 0, false);
+}
+
+bool iq4ptr_prepare8(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
+                    unsigned input_log2, const uint32_t *table,
+                    uint32_t previous_i, uint32_t previous_q) {
+    return prepare(pio, input_i, input_q, input_log2, (const uint16_t *)table,
+                   previous_i, previous_q, false, 0, true);
 }
 
 bool iq4ptr_prepare_live(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
                         unsigned input_log2, const uint16_t *table,
                         uint32_t previous_i, uint32_t previous_q, uint64_t published_words) {
     return prepare(pio, input_i, input_q, input_log2, table, previous_i, previous_q, true,
-                   published_words);
+                   published_words, false);
 }
 
 bool iq4ptr_start(void) {
@@ -233,6 +250,9 @@ bool iq4ptr_start(void) {
            !pio_sm_is_tx_fifo_full(state.pio, state.sm[1]))
         if ((uint32_t)(time_us_32() - start) >= 1000u)
             return failed("pointer input DMA did not prefill both TX FIFOs", IQ4PTR_ERR_STARTUP);
+    if (state.row8)
+        for (unsigned axis = 0; axis < 2; ++axis)
+            pio_sm_exec_wait_blocking(state.pio, state.sm[axis], pio_encode_pull(false, true));
     state.pio->fdebug = (state.sm_mask << PIO_FDEBUG_TXSTALL_LSB) |
         (state.sm_mask << PIO_FDEBUG_RXSTALL_LSB) | (state.sm_mask << PIO_FDEBUG_TXOVER_LSB) |
         (state.sm_mask << PIO_FDEBUG_RXUNDER_LSB);
