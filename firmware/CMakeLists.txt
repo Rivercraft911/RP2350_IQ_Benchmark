@@ -26,9 +26,6 @@ set(TX_SOURCES
     src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c
     src/bench8quad.c src/bench8live.c src/bench16.c src/bench_pvstress.c
     src/bench_quadptr.c src/bench_quadlive.c)
-if(IQ4HIST_EXPERIMENT)
-    list(APPEND TX_SOURCES src/iq4hist.c src/iq4ptr.c src/bench4live.c)
-endif()
 # Exact placement controls: one original instruction stream, separate code banks.
 set(OFFSET_ASM "${CMAKE_CURRENT_SOURCE_DIR}/src/iq32offsets_asm.S")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${OFFSET_ASM}")
@@ -44,6 +41,11 @@ foreach(bank x y)
 endforeach()
 add_executable(iqbench ${TX_SOURCES})
 add_executable(pvflight ${TX_SOURCES})
+if(IQ4HIST_EXPERIMENT)
+    # Lab-only commands: the autonomous pvflight image has neither them nor their SRAM.
+    target_sources(iqbench PRIVATE src/iq4hist.c src/iq4ptr.c src/bench4live.c src/bench4fec.c)
+    target_compile_definitions(iqbench PRIVATE IQ4HIST_EXPERIMENT=1)
+endif()
 # git_rev.h is rewritten on every build (only when the revision changes), so logged firmware
 # revisions are current. Records made before 2026-09-30 could carry a stale configure-time value.
 add_custom_target(git_rev ALL
@@ -56,9 +58,6 @@ foreach(target iqbench pvflight)
     add_dependencies(${target} git_rev)
     target_include_directories(${target} PRIVATE ${CMAKE_BINARY_DIR})
     target_compile_definitions(${target} PRIVATE IQ_ON_DEVICE=1)
-    if(IQ4HIST_EXPERIMENT)
-        target_compile_definitions(${target} PRIVATE IQ4HIST_EXPERIMENT=1)
-    endif()
     # Lab waveforms share the fixed buffers and never allocate. Keep both2KiB
     # stacks; reserve1KiB minimum heap while retaining the SRAM bank boundary.
     target_compile_definitions(${target} PRIVATE PICO_HEAP_SIZE=1024)

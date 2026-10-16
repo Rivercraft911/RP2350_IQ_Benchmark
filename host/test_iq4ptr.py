@@ -132,12 +132,13 @@ def check_stop(directory, source):
 #include <stddef.h>
 #include <stdint.h>
 typedef int PIO;
-enum { IQ4PTR_ERR_POLL_GAP=16, IQ4PTR_ERR_STOP=32 };
+enum { IQ4PTR_ERR_POLL_GAP=16, IQ4PTR_ERR_STOP=32, IQ4PTR_ERR_OWNERSHIP=128,
+       IQQUADPTR_REUSE_GUARD_WORDS=8 };
 ''' + progress + state + r'''
 static pointer_state_t state;
 static const char *last_error;
 static int program;
-static struct { struct { uint32_t read_addr; } ch[2]; uint32_t abort; } registers;
+static struct { struct { uint32_t read_addr; } ch[4]; uint32_t abort; } registers;
 #define dma_hw (&registers)
 static unsigned ticks, delta, timeout, cleanups, faults, posthalt_faults;
 static uint64_t cleanup_latched;
@@ -164,10 +165,14 @@ static void pio_remove_program(PIO pio,const int *p,unsigned o) { (void)pio;(voi
 ''' + function('static void sample_cursors(') + function('void iq4ptr_stop(') + r'''
 void check_stop(uint64_t before,unsigned advance,unsigned flags,uint64_t *out) {
  ticks=cleanups=faults=posthalt_faults=0;cleanup_latched=0;delta=advance;timeout=flags&4;registers.abort=0;
+ // flags&8: live mode with credit channels2/3, granted/published exactly up to before+1.
+ const bool live=flags&8;
  state=(pointer_state_t){.pio=2,.input={(const uint32_t *)(uintptr_t)0x20020000,
-  (const uint32_t *)(uintptr_t)0x20024000},.sm={0,1},.dma={0,1},.mask=4095,.sm_mask=3,.dma_mask=3,
+  (const uint32_t *)(uintptr_t)0x20024000},.sm={0,1},.dma={0,1},
+  .credit_dma={live?2:-1,live?3:-1},.live=live,.mask=4095,.sm_mask=3,.dma_mask=live?15:3,
   .last={(uint32_t)before&4095,(uint32_t)before&4095},.owned=true,.added=!(flags&2),
-  .result={.input_words={before,before},.running=!(flags&1)}};
+  .result={.input_words={before,before},.granted_words=before+1,.published_words=before+1,
+   .running=!(flags&1)}};
  for(unsigned a=0;a<2;++a)registers.ch[a].read_addr=0x20020000+0x4000*a+4*((uint32_t)before&4095);
  iq4ptr_stop();
  out[0]=state.result.input_words[0];out[1]=state.result.input_words[1];out[2]=state.result.errors;
@@ -196,6 +201,12 @@ void check_stop(uint64_t before,unsigned advance,unsigned flags,uint64_t *out) {
     assert list(result) == [511, 511, 0, 0, 2, 0, 0, 511]
     lib.check_stop(511, 1, 4, result) # ABORT timeout retains claims
     assert list(result) == [511, 511, 32, 1, 0, 1, 0, 0]
+    # Live mode releases the two credit channels too. A read retiring during ABORT may
+    # reach the granted bound but never pass it; passing it is an ownership fault.
+    for advance, errors in ((0, 0), (1, 0), (2, 128), (4, 128)):
+        lib.check_stop(511, advance, 8, result)
+        assert list(result) == [511 + advance, 511 + advance, errors, 0, 4, 1, 0, 511 + advance], list(result)
+        cases += 1
     return cases + 2
 
 

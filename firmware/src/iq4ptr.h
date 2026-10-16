@@ -1,4 +1,5 @@
-// Cyclic immutable 2-bit axes -> pin-free PIO full-history L7 LUT addresses.
+// Cyclic immutable or credit-gated live 2-bit axes -> pin-free PIO full-history
+// L7 LUT addresses.
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
@@ -40,12 +41,16 @@ enum {
     IQ4PTR_ERR_PIO = 1u << 3,
     IQ4PTR_ERR_POLL_GAP = 1u << 4,
     IQ4PTR_ERR_STOP = 1u << 5,
+    IQ4PTR_ERR_SOURCE_EMPTY = 1u << 6, // live: a zero grant sentinel was reached
+    IQ4PTR_ERR_OWNERSHIP = 1u << 7,    // live: read beyond grants or bad publication
 };
 
 typedef struct {
     // Source read-issue counts, including prefetch, not physical output counts.
     uint64_t input_words[2];
-    uint32_t errors, txstall_mask, rxstall_mask;
+    // Live mode only. Both axes have retired every word strictly before reusable_words.
+    uint64_t reusable_words, published_words, granted_words;
+    uint32_t errors, txstall_mask, rxstall_mask, null_trigger_mask;
     bool running;
 } iq4ptr_progress_t;
 
@@ -57,7 +62,18 @@ typedef struct {
 bool iq4ptr_prepare(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
                    unsigned input_log2, const uint16_t *table,
                    uint32_t previous_i, uint32_t previous_q);
+// Live mode: the same rings are filled by the caller. Each axis input DMA chains to a
+// credit DMA that reloads its TRANS_COUNT from iqquadptr-style 512-word grants (four
+// DMA channels in total). published_words counts complete code words written to both
+// rings, at least one batch and at most one ring. Words become reusable only through
+// iq4ptr_publish()'s reusable_words, never through the caller's own cursor.
+bool iq4ptr_prepare_live(PIO pio, const uint32_t *input_i, const uint32_t *input_q,
+                        unsigned input_log2, const uint16_t *table,
+                        uint32_t previous_i, uint32_t previous_q, uint64_t published_words);
 bool iq4ptr_start(void);
+// Live mode, core 0 only: acquire newly completed words, grant whole batches, poll.
+// Stop all output SMs and the DAC clock immediately when errors is nonzero.
+iq4ptr_progress_t iq4ptr_publish(uint64_t published_words);
 iq4ptr_progress_t iq4ptr_progress(void);
 const volatile uint32_t *iq4ptr_rx_fifo(unsigned axis);
 unsigned iq4ptr_rx_dreq(unsigned axis);
