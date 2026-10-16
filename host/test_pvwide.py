@@ -31,6 +31,7 @@ typedef pio_mock_t *PIO;
 #define PV_EMU_WORDS (PV_EMU_MSGS * PV_MSG_WORDS)
 #define IN_WORDS 8192
 #define CAP_WORDS_MAX 14336
+#define SRAM_HI /* device: section(".sram_hi") */
 #define DMA_CH0_CTRL_TRIG_BUSY_BITS 0x04000000u
 #define DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS 0x80000000u
 enum { pio_pins=0,pio_x=1,pio_y=2,pio_null=3,pio_isr=6,pio_osr=7 };

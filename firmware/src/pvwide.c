@@ -52,7 +52,9 @@ typedef struct {
 
 // Four bytes of permanent state. Programs, queue metadata and counters live on
 // the idle command's stack rather than consuming the nearly full SRAM arenas.
-static w_state_t *w_active;
+// In SRAM4-7 (NOLOAD, cleared at command start): lower SRAM has no room left once B9 and N5
+// are linked (4 B over).
+static w_state_t *w_active SRAM_HI;
 static const uint8_t w_pins[7] = {17, 18, 19, 20, 21, 22, 26};
 
 static w_claims_t w_claims(void) {
@@ -296,6 +298,7 @@ void bench_pvwide(int ms, int width, int half, int fault, int emulate) {
     }
     w_state_t state = {.pio = pio2, .ch_rx = -1, .ch_tx = -1, .ch_ctl = -1, .sm_rx = -1, .sm_gate = -1, .sm_tx = -1};
     w_state_t *s = &state;
+    w_active = NULL; // .sram_hi is NOLOAD: not zeroed at boot
     s->emulate = emulate != 0;
     s->irq_num = PIO2_IRQ_0;
     s->sniff_ctrl = dma_hw->sniff_ctrl;
