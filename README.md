@@ -1,189 +1,118 @@
-# Yapogee: RP2350B satellite downlink experiments
+# Yapogee: RP2350B DVB-S2 waveform benchmark
 
-Can an RP2350 through the power of PIO replace the FPGA that generates a DVB-S2 QPSK waveform for a TI AFE7071 transmitter?
+Can an RP2350B replace the FPGA that turns framed, coded bits into pulse-shaped I/Q samples
+for a TI AFE7071? This repository is the **benchmark and groundwork**: it measures how far one
+RP2350B at its rated 128 MHz can go, with every positive result checked against an independent
+reference. Flight software will be ported from the best engines here later.
 
-**Digital result: Yes, with margin!!!** Yapogee builds a complete DVB-S2 digital waveform on a standalone RP2350B:
-BB framing and scrambling, BCH, LDPC, constellation mapping, PL headers, pilots,
-PL scrambling and pulse shaping. DMA and PIO stream 14-bit I/Q samples over the
-parallel interface proposed for the TI AFE7071. The payload sends bytes over SPI;
-it does not generate the waveform or perform FEC.
+Tests use a Pimoroni Pico Plus 2 (RP2350B rev A2), stock voltage, USB only. Input comes from an
+on-chip SPI master unless stated. **Everything here is digital**: AFE pad timing, spectrum, EVM
+and receiver decoding are not measured yet.
 
-The experimental branch now supports **16-Msym/s QPSK**, **9.375-Msym/s 8PSK**, and
-**continuous QPSK/8PSK frame switching**. All three have 60-second digital results.
-The fastest tested BB data-field capacity is **25.844 Mb/s with QPSK 5/6**.
-Complete **16APSK and 32APSK SPI/FEC paths** now have 60-second results too:
-**4.167 and 2.679 Msym/s at 150 MHz**, respectively.
-The earlier autonomous startup profile remains QPSK 2/3 at 8 Msym/s.
+## Best measured option per transmitter type
 
-Tests use a Pimoroni Pico Plus 2, RP2350B rev A2, stock voltage, USB only and
-unconnected external GPIOs. Recent SPI traffic comes from an on-chip master.
-Actual AFE timing, reconstruction images, RF spectrum/EVM and receiver decoding
-still need measurement. The earlier external CM5 camera test is recorded separately.
+| Type | Best approach | Rate, BB capacity | CPU (core 0 / core 1) | Evidence |
+|---|---|---|---|---|
+| **IREC video**: QPSK at 8 Msym/s, TS over SPI | QPSK hardware shaping (`dualptr`): PIO computes LUT addresses, DMA fetches rows | 8 Msym/s; 12.92 Mb/s at 5/6 (IREC plans 2/3: 10.33 Mb/s) | 25.8% / 46.4% (5/6, TS) | 60 s clean, GCS and TS ([dualptr](results/dualptr/2026-10-15/README.md)) |
+| **QPSK, maximum rate** | same engine, DMA read bus priority (mask 13) | 16 Msym/s; 27.94 Mb/s at 9/10, 25.84 at 5/6 | 45.6% / 82.8% (9/10 GCS); TS 97% core 1 | 60 s clean ([round 2](results/round2/2026-10-15/README.md), [B2](results/b2-8psk-live/2026-10-15/README.md), [C2](results/c2-qpsk-910/2026-10-15/README.md)) |
+| **8PSK, complete on-chip transmitter** | live FEC into the 8-bit four-level table (`bench4fec ... 8`) | 8 Msym/s; 19.38 Mb/s at 5/6 in 9.6 MHz | 24–25% / 87–88% | 6/6 60-s runs clean, bus priority 13 and 0 ([B7](results/b7-live8/2026-10-15/README.md)) |
+| **8PSK at the DAC limit** (waveform only) | four PIO address producers, four DMA chains, 8-bit rows (`bench4prod8live`) | 16 Msym/s; 38.76 Mb/s at 5/6 if FEC and 47 Mb/s of coded input came from outside | 19% source + 3.5% / reserved | 6/6 60-s runs clean with runtime data ([B6](results/b6-pio-producers/2026-10-15/README.md)) |
+| QPSK/8PSK frame switching (VCM) | CPU-shaped two-plane engine, 2 SPS | 9.375 Msym/s at 150 MHz; 18.17 Mb/s mean | — | 60 s ([VCM](results/waveforms/2026-10-15/README.md)) |
+| 16APSK / 32APSK | complete SPI/FEC, CPU shaping, 2 SPS | 4.167 / 2.679 Msym/s at 150 MHz; 13.42 / 10.80 Mb/s | encoder 96% / 94% of core 1 | 60 s ([APSK](results/apsk-fec/2026-10-15/README.md)); below QPSK at 16 Msym/s on this chip |
+| Autonomous flight image (`pvflight`) | older CPU-shaped QPSK 2/3 path, starts without USB | 8 Msym/s; 10.33 Mb/s | see [autonomous startup](docs/autonomous-startup.md) | to be moved onto the `dualptr` engine |
 
-## Measured modes
+Capacity includes PL header and pilot time and subtracts the BBHEADER; application throughput
+is lower. Nominal width is 1.2 × symbol rate at α = 0.20, calculated, not measured. Pigeon Vision
+needs a 9 Mb/s MPEG-TS (9.81 Mb/s application budget at QPSK 2/3, 8 Msym/s). The CM5 SPI link is
+proven at 25 MHz, about 24 Mb/s ([cm5-spi](results/cm5-spi/)).
 
-| Complete digital pipeline | Clock | Symbol rate | BB data capacity | Nominal width at α = 0.20 |
-|---|---:|---:|---:|---:|
-| QPSK 5/6 + pilots, L8 / 4 SPS | 128 MHz | 16 Msym/s | **25.844 Mb/s** | 19.2 MHz |
-| 8PSK 5/6 + pilots, L9 / 2 SPS | 128 MHz | 8 Msym/s | 19.378 Mb/s | 9.6 MHz |
-| 8PSK 5/6 + pilots, L9 / 2 SPS | 150 MHz | 9.375 Msym/s | **22.709 Mb/s** | 11.25 MHz |
-| Alternating QPSK/8PSK 5/6, common L9 / 2 SPS | 150 MHz | 9.375 Msym/s | 18.170 Mb/s mean | 11.25 MHz |
-| 16APSK 5/6 + pilots, L8 / 2 SPS | 128 MHz | 3.556 Msym/s | 11.456 Mb/s | 4.267 MHz |
-| 16APSK 5/6 + pilots, L8 / 2 SPS | 150 MHz | **4.167 Msym/s** | **13.424 Mb/s** | 5.000 MHz |
-| 32APSK 5/6 + pilots, L8 / 2 SPS | 128 MHz | 2.286 Msym/s | 9.213 Mb/s | 2.743 MHz |
-| 32APSK 5/6 + pilots, L8 / 2 SPS | 150 MHz | **2.679 Msym/s** | **10.796 Mb/s** | 3.214 MHz |
+**What limits each type.** QPSK is capped by the AFE (65 MSPS per axis = 16.25 Msym/s at 4
+samples/symbol) and by SPI ingress. 8PSK at 16 Msym/s is capped by on-chip FEC: the best
+two-core encoder needs 364k cycles per 2/3 frame against a 355k budget, before supervision
+([C4](results/c4-fec-speed/2026-10-15/README.md), [SRAM banks](results/ldpc-banks/2026-10-15/README.md)).
+APSK is capped by CPU shaping. The [frontier model](docs/frontier/frontier.md) derives these bounds.
 
-The [waveform campaign](results/waveforms/2026-10-15/README.md) links exact
-configurations, immutable run logs, independent capture checks, failed controls,
-source archives and firmware hashes for QPSK/8PSK/VCM. The
-[complete APSK campaign](results/apsk-fec/2026-10-15/README.md) records the four
-new APSK modes. Capacity includes header/pilot time and
-subtracts BBHEADER bits; application throughput is lower. Width is calculated,
-not an RF measurement. The VCM experiment keeps the same symbol clock and pulse
-across frames; it does not switch to the separate 16-Msym/s QPSK engine.
+## How the hardware shaping engine works
 
-![Qualified digital capacity and nominal bandwidth](results/plots/waveforms-2026-10-15/waveform_capacity.png)
+Pulse shaping is a filter over the last 7 symbols. Each axis only takes a few levels (2 for QPSK,
+4 for 8PSK after a π/8 rotation), so every possible output is precomputed into a table at
+startup: 16,384 rows of four 8-bit samples (64 KiB) for the four-level table. At run time:
 
-The full APSK pipeline receives an on-chip SPI source, builds BBFRAMEs, runs
-BCH/LDPC, and generates real PL headers, pilots and scrambled constellation
-symbols. At the 150 MHz limits, encoder work occupies **96.28% of core 1 for
-16APSK** and **94.35% for 32APSK**; core 0 uses about **57% and 59%** for preparation,
-shaping and publication. Sharing some PL mapping between cores is the next
-useful experiment. See the [measurements and review notes](results/apsk-fec/2026-10-15/README.md).
+1. A PIO state machine shifts each 2-bit symbol code into a rolling 14-bit history and emits a
+   table row address (7 instructions per symbol).
+2. A control DMA channel copies that address into a sample DMA channel's start register; the
+   sample channel copies the row into a PIO writer FIFO, then chains back.
+3. PIO writers put one sample per 128 MHz clock on GPIO6–13 with IQ_FLAG on GPIO14; another state
+   machine toggles GPIO28 as the AFE's DDR clock (I on the rising edge, Q on the falling edge).
+   One register write starts writers and clock on the same cycle.
 
-![Complete APSK digital rates and BB capacity](results/plots/apsk-fec-2026-10-15/apsk_fec.png)
-
-Exact **16APSK and 32APSK output components** now sustain **8 Msym/s at 128 MHz**
-and **9.375 Msym/s at 150 MHz**, with 60-second results for both. Two cores build
-alternating sample blocks, including runtime label mapping and filter history.
-At 150 MHz, measured work occupies about **86% per core for 16APSK** and **94%
-for 32APSK**. A pair mapper, byte-offset keys and separate SRAM code banks bring
-32APSK up to the same rate as 16APSK. These tests use cyclic geometric labels;
-complete SPI/FEC/PLFRAME production is still separate. See the
-[two-core APSK results and limits](results/apsk-dual/2026-10-15/README.md) and
-[earlier kernel experiments](results/apsk-frontier/2026-10-15/README.md).
-
-![Two-core APSK output rates and measured work](results/plots/apsk-dual-2026-10-15/apsk_dual.png)
-
-The L8 QPSK encoder/output also passed 60 seconds on one core at **10.667 Msym/s
-at 128 MHz**, and **12.5 Msym/s at 150 MHz**. Those tests use a synthetic BB source;
-live SPI input at the one-core limits still needs its own trial.
-
-## How the engines work
-
-The fast QPSK engine generates **addresses of precomputed samples**:
-
-1. PIO/DMA receive SPI packets; the two cores build BBFRAMEs and run BCH/LDPC/PL mapping.
-2. Core 0 uses its interpolators to turn packed symbol history into LUT addresses.
-3. A control DMA channel moves an address into the sample DMA channel's trigger register.
-4. The sample DMA copies that row of I/Q samples into the output PIO FIFO, then chains
-   back to the control DMA. Multiple PIO writers hide the handoff delay.
-
-The four-symbol L8 QPSK table occupies 64 KiB. A hardware-pointer experiment can
-also generate addresses in two pin-free PIO state machines; its qualification is
-tracked separately from the complete SPI/FEC path. Its cyclic-PRBS test sustained
-**16 Msym/s for 60 seconds with 3.38% measured core-0 supervision and core 1 idle**.
-Connecting that engine to live SPI/FEC production is the next integration step.
-
-The 8PSK/VCM engine uses **two signed amplitude planes**. A fused interpolator/LUT
-kernel sums their precomputed contributions into small sample blocks. DMA and PIO
-stream those blocks. A constant π/8 rotation represents QPSK, 8PSK, headers and
-pilots in the same engine, preserving filter history across mode changes.
-
-The complete APSK experiment assigns SPI consumption, FEC and PL mapping to
-core 1. It publishes compact native I/Q words in batches of 64. Core 0 retains
-eight symbols of history and shapes owned output blocks; 32APSK first converts
-native coordinates directly into byte-offset keys. Both use the existing DMA/PIO
-output service. These are fixed 5/6 profiles, with a continuous filter across frames.
-
-“Control” has two meanings in the measurements: **control DMA** transports LUT
-addresses, while **CPU supervision** checks progress, safe reuse and faults.
-CPU bars report instrumented work or active-loop time, as labeled. Waiting cores
-spin; spare scheduling budget is not a measured sleep state or power saving.
-
-The largest recent changes are packed Boolean mapping, shorter offline-designed
-pulses, hardware SPI admission credits and SRAM bank placement. A one-line section
-move cut the contended BCH stage by about **31%**, rescuing the complete 8PSK path.
-See the [controlled A/B/A evidence](results/memory-placement/2026-10-15/comparison.json)
-and [campaign discussion](results/waveforms/2026-10-15/README.md).
+No CPU touches a sample. The binding limits are the shared fast-peripheral bus (one access per
+cycle; a PIO-sourced address costs two) and the DMA row loop, measured at 10–18 cycles
+([dmaloop](results/dmaloop/2026-10-15/README.md)): 16 Msym/s needs two chains per axis so each
+chain has 16 cycles per row. The QPSK engine uses the same idea with four-symbol rows.
 
 ## Build and reproduce
 
-Requires Pico SDK 2.2.0, GCC Arm 14.2, CMake, Ninja, picotool, Python, NumPy,
-Matplotlib and pyserial. Set `PICO_SDK_PATH` and `PICO_TOOLCHAIN_PATH` if they are not in the
-Pico VS Code extension's default locations.
+Requires Pico SDK 2.2.0, GCC Arm 14.2, CMake, Ninja, picotool, Python, NumPy, Matplotlib and
+pyserial (`PICO_SDK_PATH`, `PICO_TOOLCHAIN_PATH` if not in the VS Code extension's locations).
 
 ```sh
-make check                    # native/model validation; no USB
-make build                    # firmware/build/{iqbench,pvflight}.uf2
-make flash                    # load and verify iqbench on the Pico
-
-# Build and flash first. Each trial needs a fresh output directory.
-python3 host/iq8live_trial.py --ms 60000 --build firmware/build \
-  --out results/8psk-live/local
-python3 host/vcm_trial.py --ms 60000 --build firmware/build \
-  --out results/vcm/local
-
-# Two-core 32APSK mapping/shaping component, without SPI/FEC.
-python3 host/apsk_live_trial.py --ms 60000 --modulations 32 --mappers 3 \
-  --placements 1 --schedules 2 --cpw 4 --build firmware/build \
-  --out results/apsk-dual/local
-
-# Complete 16APSK SPI/FEC path, both clocks. For 32APSK use --modulations 32 --cpw 14.
-python3 host/apsk_fec_trial.py --ms 60000 --modulations 16 --cpw 9 \
-  --build firmware/build --out results/apsk-fec/local16
-
-# Hardware LUT-address generation; cyclic PRBS, without SPI/FEC.
-python3 host/quadlive_trial.py --ms 60000 --clocks 128000 --cpws 1 --faults 0 \
-  --build firmware/build --out results/quad-pointers/local
-
-# Full QPSK SPI comparison, including TS and generic continuous input.
-python3 host/dual_trial.py gcs --clocks 128000 --ms 60000 \
-  --writers 4 --row-symbols 4 --quad-profile 1 --code-index 8 --map-kernel 1 \
-  --build firmware/build --out results/qpsk-codes/local
-# Same, with the Yapogee GPIO28 DDR clock, parity captures and an inverted control.
-python3 host/dual_trial.py gcs --clocks 128000 --ms 60000 \
-  --writers 4 --row-symbols 4 --quad-profile 1 --code-index 8 --map-kernel 1 \
-  --dac-clock ddr --build firmware/build --out results/dac-clock/local
+make check        # native and model validation, no USB
+make build        # firmware/build/{iqbench,pvflight}.uf2 (stable commands)
+# Experiment commands (four-level, 8-bit, B6, C3/C4, dmaloop, c3pair, r2grant):
+cmake -S firmware -B firmware/build-exp -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DIQ4HIST_EXPERIMENT=ON -DCORE0_STACK_SRAM_HI=ON
+make build BUILD=firmware/build-exp
 ```
 
-These tests drive GPIOs. The runners do not build or flash; use the matching
-source and binary snapshots, and pass `--expected-git` to pin firmware identity.
-The 2-SPS and multi-writer interfaces require their own external DAC qualification.
-See [PV-SPI v1](docs/pv-spi-spec.md) for the payload protocol.
+Runners never build or flash; flash the matching image, use a fresh `--out`, and pin the firmware
+with `--expected-git`. One canonical run per type:
 
-`iqbench` accepts USB experiment commands. `pvflight` starts the stored 8-Msym/s
-QPSK profile without USB and exposes `status`, `stop` and `start`; see
-[autonomous startup](docs/autonomous-startup.md). The new waveform modes are opt-in
-lab commands and do not replace that startup profile.
+```sh
+# IREC-class QPSK, hardware shaping, 8 Msym/s (cpw 2), SPI TS and GCS
+python3 host/dualptr_trial.py --ms 60000 --clocks 128000 --cpws 2 --sources 5 6 --faults 0 \
+  --clock-modes 1 --control --build firmware/build-exp --out results/<run>
+# QPSK 9/10 at 16 Msym/s, hardware shaping, DMA read priority
+python3 host/dualptr_trial.py --ms 60000 --cpws 1 --priority 13 --code-index 10 ...
+# Complete on-chip 8PSK transmitter, 8 Msym/s, 8-bit rows
+python3 host/iq4fec_trial.py --bits 8 --ms 60000 --cpws 2 --inverts 0 --prios 13 \
+  --build firmware/build-exp --out results/<run>
+# 8PSK at 16 Msym/s, live runtime data through PIO producers
+python3 host/iq4prod_trial.py --live --ms 60000 --cpws 1 --priorities 13 --inverts 0 \
+  --build firmware/build-exp --out results/<run>
+# Two-core FEC cost per frame, no output (code 5 = 8PSK 2/3)
+#   on the device: c3fec 5 3000 0 2 4096 27      c3pair 5 40 0 2 27
+```
 
-## Evidence and source map
+Each results README lists the exact commands, image hashes and negative controls used.
 
-The earlier [qualified QPSK campaign](results/dual-dma/2026-10-15/README.md),
-[limits report](results/limits/2026-10-14/README.md) and
-[benchmark history](docs/benchmark-history.md) preserve previous results.
-The experiments are consolidated on `experiment/yapogee-limits`; the earlier
-qualified QPSK checkpoint `4b779c0` remains in its history.
-[Filter derivations](docs/derivations.md) explain reconstruction images and SPS.
-The transmitter hardware is designed in [Yapogee](https://github.com/Rivercraft911/yapogee);
-the benchmark's own [hardware requirements draft](hardware/devboard/README.md) is superseded
-and kept as history.
+## Where things are
 
-| Area | Files |
+| Need | Look in |
 |---|---|
-| Run control and default transmitter | `firmware/src/main.c`, `tx.c`, `iqout.c` |
-| Direct LUT DMA and QPSK | `bench_dual.c`, `dual_dma.c`, `iqdesc.c`, `iqquad.c` |
-| Complete 8PSK / VCM experiment | `bench8live.c`, `dvbs2_8psk.c`, `dvbs2_qpsk8.c`, `iq8quad.c` |
-| APSK components | `bench_apsk_live.c`, `iq16fast_asm.S`, `iq32mapkeys_pair.c`, `iq32offsets_asm.S`, `bench32map.c`, `bench32bus.c` |
-| Complete APSK SPI/FEC experiment | `bench_apsk_fec.c`, `dvbs2_apsk.c`, `iq32offsets_native.c`, `host/apsk_fec_trial.py` |
-| GPIO28 DDR DAC clock | `dual_dma.c` (`dualclock`), `host/test_dacclk.py`, [notes](docs/dac-clock.md) |
-| DVB-S2 FEC / mapping | `dvbs2.c`, `dvbs2_asm.S`, `dvbs2_map_asm.S` |
-| SPI ingress | `pvspi.c`, `pvproto.c`, `bench_pvstress.c` |
-| PIO-generated LUT pointers | `iqquadptr.c`, `bench_quadptr.c`, `bench_quadlive.c` |
-| Independent validation | `reference/`, `host/dual_trial.py`, `host/iq8live_trial.py`, `host/vcm_trial.py` |
-| External payload sender | `host/cm5/` |
+| Every results folder, grouped by type | [results/README.md](results/README.md) |
+| R&D rounds 1–3: what each experiment tried and found | [docs/rd/README.md](docs/rd/README.md) |
+| Bounds and strategy | [frontier model](docs/frontier/frontier.md), [strategy report](docs/frontier/strategy-report.md) |
+| Payload protocol, DAC clock, startup | [PV-SPI v1](docs/pv-spi-spec.md), [DAC clock](docs/dac-clock.md), [autonomous startup](docs/autonomous-startup.md) |
+| Earlier front page and history | [README of 2026-10-15](docs/history/readme-2026-10-15.md), [benchmark history](docs/benchmark-history.md) |
 
-Of course, none of this shows RF performance: spectrum and EVM after the AFE, clock jitter, LO leakage, PA
-behaviour and so much more. This is purely the waveform generation.
+| Area | Firmware (`firmware/src/`) | Host |
+|---|---|---|
+| Command dispatch, default transmitter | `main.c`, `tx.c`, `iqout.c` | `iqbench.py` |
+| DMA/PIO output, DDR clock, capture | `dual_dma.c` | `dual_trial.py`, `test_dacclk.py` |
+| QPSK hardware shaping | `iqquadptr.c`, `bench_dual.c` (`dualptr`) | `dualptr_trial.py` |
+| Four-level table, 8-bit rows, producers | `iq4hist.c`, `iq4ptr.c`, `iq4quad.c`, `iq4prod*.c`, `bench4fec.c`, `bench4live.c`, `bench4quad.c`, `bench4prod.c` | `iq4fec_trial.py`, `iq4hist_trial.py`, `iq4quad_trial.py`, `iq4prod_trial.py` |
+| DVB-S2 FEC and mapping | `dvbs2.c`, `dvbs2_asm.S`, `dvbs2_ldpc_asm.S`, `dvbs2_8psk.c`, `c3_fec.c` | `c3_fec_trial.py`, `reference/` |
+| SPI ingress | `pvspi.c`, `pvproto.c` | `cm5/` (external sender) |
+| CPU-shaped QPSK/8PSK/VCM/APSK engines | `bench8live.c`, `dvbs2_qpsk8.c`, `iq8quad.c`, `bench_apsk_*.c`, `dvbs2_apsk.c` | `iq8live_trial.py`, `vcm_trial.py`, `apsk_*_trial.py` |
+| Diagnostics | `dmaloop.c`, `bench_c3_pair.c`, `bench_r2grant.c`, `bench_c3_fec.c` | `dmaloop_sweep.py`, `r2_grant_trial.py` |
 
-No real receiver has decoded this output yet.... Coming soon to a repo near you!
+## Branches
+
+`main` holds everything. Every former experiment branch head is kept as a tag
+`archive/<branch>` (for example `archive/rd/b6-pio-producers`), so each result's recorded
+firmware commit stays reachable. Two experiments were never merged and live only in their tags:
+`archive/rd/b3-8psk-rows` (four-writer router for live 8PSK, superseded by B5/B6) and
+`archive/rd/c1-fec-throughput` (scheduled LDPC, slower live).
+
+The transmitter hardware is designed in [Yapogee](https://github.com/Rivercraft911/yapogee).
