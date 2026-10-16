@@ -1,0 +1,1 @@
+{"cmd": "pvbench", "git": "0a4e1893db", "clk_hz": 128000000, "reps": 64, "crc8_bytes": 187, "crc8": 86, "crc8_cyc": 818, "bbframe_cyc": 32033, "words_kernel": 2, "words_leaf": "flash_c", "words_ready": 1, "words_match": 1, "swap_cyc": [41456, 57905], "words_cyc": [32692, 49681], "words_kbch": [43040, 58192], "words_crc": [656557369, 408789036]}
