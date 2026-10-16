@@ -7,6 +7,7 @@ import tempfile
 import numpy as np
 import test_iq16chunk_asm as vm
 import test_iq32native8 as native
+import fwsrc
 
 
 class Machine(vm.Machine):
@@ -119,13 +120,13 @@ def execute(code,labels,lib,arrays,words,previous):
 def main():
     source=native.ROOT/'firmware/src'
     vm.BASE['tables']=0x20040000
-    code,labels=vm.program(source/'iq32native8_asm.S')
+    code,labels=vm.program(source / 'apsk/iq32native8_asm.S')
     cases=instructions=0
     rng=np.random.default_rng(812983)
     with tempfile.TemporaryDirectory(prefix='iq32native8-asm-') as temp:
         library=Path(temp)/'native.so'
         subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',
-                        f'-I{source}',str(source/'iq32native8.c'),'-o',str(library)],check=True)
+                        *fwsrc.INCLUDES,str(source / 'apsk/iq32native8.c'),'-o',str(library)],check=True)
         lib=ctypes.CDLL(str(library))
         lib.iq32native8_build.argtypes=[ctypes.POINTER(native.Tables),ctypes.c_uint]
         lib.iq32native8_build.restype=ctypes.c_bool

@@ -31,7 +31,7 @@ The imported branch contains the requested committed artifacts. The existing wor
 files also contain the changes. Build identity in this restricted worktree is therefore
 `8014ed33b9-dirty`; a clean checkout of the imported branch gets its own commit identity.
 
-The implementation reuses [bench_dual.c](../../firmware/src/bench_dual.c), including its actual
+The implementation reuses [bench_dual.c](../../firmware/src/bench/bench_dual.c), including its actual
 SPI prefill, BB queues, sliced frontend and ordered backend. The command fixes normal
 5/6, pilots, L8/N4, packed mapper and streaming LDPC packer. It requires `bchkernel 2`,
 `mapkernel 1`, `ldpcpack 1`; the runner additionally selects `bchbank 1`. Existing commands,

@@ -210,18 +210,20 @@ Each results README lists its exact commands, image hashes and negative controls
 | Filter and sampling derivations, DAC clock | [derivations](docs/derivations.md), [DAC clock](docs/dac-clock.md) |
 | History | [benchmark history](docs/benchmark-history.md), [front page of 2026-10-15](docs/history/readme-2026-10-15.md) |
 
-| Area | Firmware (`firmware/src/`) | Host |
+Firmware sources are grouped by area under `firmware/src/`:
+
+| Folder | What is in it | Main host tools |
 |---|---|---|
-| Command dispatch, default transmitter | `main.c`, `tx.c`, `iqout.c` | `iqbench.py` |
-| DMA/PIO output, DDR clock, capture | `dual_dma.c` | `dual_trial.py`, `test_dacclk.py` |
-| QPSK hardware shaping | `iqquadptr.c`, `bench_dual.c` (`dualptr`) | `dualptr_trial.py` |
-| Complete 8PSK at 16 Msym/s | `bench_b9.c`, `iq4prod_dma.c` (IRQ grants) | `b9_trial.py` |
-| 5 samples/symbol | `iq5hist.c`, `bench5quad.c` | `iq5quad_trial.py`, `design_iq5pulse.py` |
-| Four-level table, 8-bit rows, PIO producers | `iq4hist.c`, `iq4ptr.c`, `iq4quad.c`, `iq4prod*.c`, `bench4*.c` | `iq4fec_trial.py`, `iq4hist_trial.py`, `iq4quad_trial.py`, `iq4prod_trial.py` |
-| DVB-S2 FEC and mapping | `dvbs2.c`, `dvbs2_asm.S`, `dvbs2_bch_fast.S`, `dvbs2_ldpc_asm.S`, `dvbs2_ldpc_c5*.S`, `dvbs2_map8_asm.S`, `dvbs2_8psk.c`, `c3_fec.c` | `c3_fec_trial.py`, `reference/` |
-| CPU-shaped 8PSK, VCM, APSK | `bench8live.c`, `dvbs2_qpsk8.c`, `iq8quad.c`, `bench_apsk_*.c`, `dvbs2_apsk.c` | `iq8live_trial.py`, `vcm_trial.py`, `apsk_*_trial.py` |
-| SPI and wide ingress | `pvspi.c`, `pvproto.c`, `pvproto_asm.S`, `pvwide.c` | `cm5/` (external sender), `pvwide_trial.py` |
-| Diagnostics | `dmaloop.c`, `bench_c3_fec.c`, `bench_c3_pair.c`, `bench_r2grant.c` | `dmaloop_sweep.py`, `r2_grant_trial.py` |
+| `app/` | `main.c` (USB command dispatch), `tx.c` (default transmitter, core-1 tasks), `config.h` (pins, buffers) | `iqbench.py` |
+| `output/` | PIO/DMA output engines and their tables: `dual_dma.c` (writers, DDR clock, capture), `iqquadptr.c` (QPSK PIO addresses), `iq4hist.c` / `iq5hist.c` (8PSK tables at 4 and 5 SPS), `iq4prod*.c` (PIO producers, IRQ grants), `iqout.c` (CPU-fed output) | `dualptr_trial.py`, `iq4*_trial.py`, `iq5quad_trial.py` |
+| `dvbs2/` | DVB-S2 encoder: `dvbs2.c` (BB, BCH, LDPC, QPSK PL), assembly leaves (`*_asm.S`, `dvbs2_bch_fast.S`, `dvbs2_ldpc_c5*.S`), `dvbs2_8psk.c`, `dvbs2_apsk.c`, `c3_fec.c` (two-core frame-parallel FEC) | `c3_fec_trial.py`, `reference/dvbs2/` |
+| `ingress/` | Payload input: `pvspi.c` / `pvproto.c` (PV-SPI), `pvwide.c` (4-bit link), `link.c` | `pvwide_trial.py`, `cm5/` |
+| `cpu_shaping/` | Superseded CPU pulse shapers: QPSK LUT kernels (`iqgen.c`, `iqasm.S`), 8PSK at 2 SPS (`iq8*.c`) | `iq8live_trial.py`, `vcm_trial.py` |
+| `apsk/` | 16APSK and 32APSK CPU shaping kernels (`iq16*`, `iq32*`) | `apsk_*_trial.py` |
+| `bench/` | One file per console benchmark command: `bench_b9.c` (complete 8PSK at 16 Msym/s), `bench_dual.c` (`dualptr`), `bench4fec.c`, `bench5quad.c`, `bench_apsk_fec.c`, `dmaloop.c`, `bench_c3_*.c` and the rest | the matching `*_trial.py` |
+
+Headers are included by bare name from any folder; `firmware/CMakeLists.txt` and `host/fwsrc.py`
+list the folders.
 
 All work that runs together in one image lives on `main`. Each former experiment branch is kept
 as a tag `archive/<branch>` so every recorded firmware commit stays reachable; C9 and B10 (8PSK

@@ -74,7 +74,7 @@ BCH_T = I("bch_t_normal", {"1/2": 12, "3/5": 12, "2/3": 10, "3/4": 12, "4/5": 12
 KLDPC = {r: KBCH[r] + 16 * BCH_T[r] for r in KBCH}          # Nbch = Kbch + 16 t (normal frames)
 LDPC_ENTRIES = I("ldpc_addr_entries", {"3/5": 648, "2/3": 480, "3/4": 540, "4/5": 576, "5/6": 600, "8/9": 500,
                                        "9/10": 504}, "360-bit rotate-XOR ops/frame", "spec",
-                 "firmware/src/dvbs2_codes.h addr_n* array lengths (generated from EN 302 307-1 annex B)")
+                 "firmware/src/dvbs2/dvbs2_codes.h addr_n* array lengths (generated from EN 302 307-1 annex B)")
 ESN0 = I("esn0_qef_awgn", {
     ("QPSK", "1/2"): 1.00, ("QPSK", "3/5"): 2.23, ("QPSK", "2/3"): 3.10, ("QPSK", "3/4"): 4.03,
     ("QPSK", "4/5"): 4.68, ("QPSK", "5/6"): 5.18, ("QPSK", "8/9"): 6.20, ("QPSK", "9/10"): 6.42,
@@ -146,7 +146,7 @@ CPB_BCH160 = I("bch160_cycles_per_bit", A["5/6"][1] / KBCH["5/6"], "cycles/bit",
 CPB_BCH_GENERIC = I("bch_generic_cycles_per_bit", np.mean([A["3/4"][1] / KBCH["3/4"], A["9/10"][1] / KBCH["9/10"]]),
                     "cycles/bit", "derived",
                     SRC_A + ": t=12 (3/4) and t=8 (9/10) use the 8-word baseline kernel "
-                    "(firmware/src/dvbs2.c:224 uses bch160 only when bch_deg == 160)")
+                    "(firmware/src/dvbs2/dvbs2.c:224 uses bch160 only when bch_deg == 160)")
 CPB_BBSCR = I("bb_scramble_cycles_per_bit",
               np.mean([(A[r][0] - A[r][1]) / KBCH[r] for r in A]), "cycles/bit", "derived",
               SRC_A + ": (f_bb_bch - cyc_bch)/Kbch averaged over 4 codes")
@@ -327,7 +327,7 @@ ETA_DMA_DEMO = I("dma_bandwidth_demonstrated", (4 + 0.5 + 2 / 32) * 16e6 / 128e6
                  "0.5 pointer + 0.0625 source transfers/symbol = 73 M/s of 128 M/s (credit DMAs not counted)")
 
 DMA_CH_PER_POINTER_SM = I("dma_channels_per_pointer_sm", 2, "channels", "measured",
-                          "firmware/src/iqquadptr.c:209-264 (input_dma + credit_dma per pointer SM)")
+                          "firmware/src/output/iqquadptr.c:209-264 (input_dma + credit_dma per pointer SM)")
 DMA_CH_PER_CHAIN = I("dma_channels_per_output_chain", 2, "channels", "measured",
                      "results/waveforms/2026-10-15/README.md 'Two control/sample-DMA pairs'; dual_dma.c")
 
@@ -436,7 +436,7 @@ def stage_costs(mod, rate, fec, ingress):
 
 def frontend_split_ok(rate, fec, e=None):
     """BB/BCH on core 0 alongside shaping. The sliced (128-word) frontend exists only for t=10 (bch_deg 160,
-    firmware/src/dvbs2.c:669); otherwise bench_dual.c:318-324 runs a whole-frame BCH (~1.3 ms) on core 0. The
+    firmware/src/dvbs2/dvbs2.c:669); otherwise bench_dual.c:318-324 runs a whole-frame BCH (~1.3 ms) on core 0. The
     descriptor engine cannot absorb that; the PIO-pointer engine can only if the generic kernel is also sliced
     (same cycles) or supervision moves to an IRQ, because its credit supervision must run every <= 256 us
     (results/waveforms/2026-10-15/pointer-polling-proof.md). bchT assumes sliced, faster t=8/12 kernels."""
@@ -720,7 +720,7 @@ def hw_apsk_tables():
                              rs_bw_bound_msym=SYS128 / (xfer * n_sps) / 1e6))
     out["sniffer"] = snif
     out["sniffer_src"] = ("docs/sources/rp2350.txt line 85588 (SNIFF_CTRL.CALC 0xf SUM, p1135); one sniffer, observes "
-                          "one channel; PV-SPI already uses it for message CRC-32 (firmware/src/pvspi.c slot_crc, "
+                          "one channel; PV-SPI already uses it for message CRC-32 (firmware/src/ingress/pvspi.c slot_crc, "
                           "docs/pv-spi-spec.md)")
     out["sio_src"] = ("docs/sources/rp2350.txt line 43724 (p596 'The DMA cannot access registers in the SIO') and "
                       "line 83218 (§12.6.7 p1104 'SIO is not visible from the DMA bus ports'): interpolator adders are "

@@ -11,6 +11,7 @@ import numpy as np
 import apsk_live_trial as live
 import iq32out_trial as reference
 from test_iq32mapkeys import State, U8P, U32P, p8, p32
+import fwsrc
 
 
 class Tables(ct.Structure):
@@ -30,7 +31,7 @@ def main():
         sources = ('iq16maplabels.c','iq32mapkeys.c','iq32mapkeys_pair.c',
                    'iq32keys.c','iq32native8.c','iq16native8.c','iq32offsets.c')
         subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',
-                        f'-I{source}',*[str(source/name) for name in sources],'-o',str(path)],check=True)
+                        *fwsrc.INCLUDES,*[str(fwsrc.path(name)) for name in sources],'-o',str(path)],check=True)
         lib = ct.CDLL(str(path))
         lib.iq16maplabels_encode.argtypes = [U32P,U8P,ct.c_uint32]
         lib.iq32mapkeys_init.argtypes = [ct.POINTER(State),U8P]

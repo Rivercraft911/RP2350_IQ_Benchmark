@@ -301,7 +301,7 @@ Native exactness does not prove the 95k target, QPSK device timing, or a complet
 
 No commits were created. Intended small logical commits:
 
-1. `firmware/src/dvbs2_ldpc_asm.S`, new `dvbs2_ldpc_c5_rows.S` and
+1. `firmware/src/dvbs2/dvbs2_ldpc_asm.S`, new `dvbs2_ldpc_c5_rows.S` and
    `dvbs2_ldpc_c5.S`, `dvbs2.{c,h}`, `firmware/CMakeLists.txt`:
    **Add opt-in C5 reentrant LDPC preparation and fused SRAM parity packing.**
 2. `firmware/src/c3_fec.{c,h}`, `bench_c3_fec.c`, `bench_c3_pair.c`, `main.c`,

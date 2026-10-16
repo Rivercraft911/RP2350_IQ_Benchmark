@@ -1,4 +1,4 @@
-"""Emit firmware/src/coeffs.h: integer RRC coefficients and expected table CRCs.
+"""Emit firmware/src/cpu_shaping/coeffs.h: integer RRC coefficients and expected table CRCs.
 
 Run from the repo root:  python3 reference/gen_coeffs.py
 """
@@ -15,7 +15,7 @@ ALPHA = 0.20
 HEADROOM_DB = 1.0
 KAISER_BETA = 1.0     # window on the truncated RRC: L = 12 then passes the EN 302 307-1 mask (analyze.py)
 VARIANTS = [(2, 8), (2, 10), (2, 12), (4, 8), (4, 10), (4, 12), (8, 8), (8, 10)]
-OUT = Path(__file__).resolve().parents[1] / "firmware" / "src" / "coeffs.h"
+OUT = Path(__file__).resolve().parents[1] / "firmware" / "src" / "cpu_shaping" / "coeffs.h"
 
 
 def table_crc(lut: m.Lut) -> tuple[int, int]:

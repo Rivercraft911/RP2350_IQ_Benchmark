@@ -346,10 +346,10 @@ commands exercise runner support; this B3-only image rejects SYS256, as required
 
 Git metadata was treated as read-only; no commit or bundle was created.
 
-1. `firmware/src/dual_dma.c`, `firmware/src/dual_dma.h`, `host/test_dual_fifo.py`,
+1. `firmware/src/output/dual_dma.c`, `firmware/src/output/dual_dma.h`, `host/test_dual_fifo.py`,
    `host/test_dacclk.py`, `host/test_iq4rows_order.py`:
    **Add opt-in alternating two-word axis rows with four PIO writers.**
-2. `firmware/src/bench4fec.c`, `firmware/src/bench4fec.h`, `firmware/src/main.c`,
+2. `firmware/src/bench/bench4fec.c`, `firmware/src/bench/bench4fec.h`, `firmware/src/app/main.c`,
    `host/iq4fec_trial.py`, `host/test_iq4fec_trial.py`, `Makefile`:
    **Expose live 8PSK writer and DMA-schedule probes with independent validation.**
 3. `REPORT.md`, `docs/rd/b3-regression.md`, `docs/rd/b3-linker-comparison.json`,

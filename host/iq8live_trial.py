@@ -372,7 +372,7 @@ def main():
     if a.out is None:p.error('--out is required for hardware trials')
     a.out.mkdir(parents=True,exist_ok=False)
     source=a.source.resolve();build=a.build.resolve()
-    firmware_files=[f for f in (source/'src').glob('*') if f.suffix in ('.c','.h','.S')]
+    firmware_files=[f for f in (source/'src').rglob('*') if f.suffix in ('.c','.h','.S')]
     firmware_files += [source/'CMakeLists.txt',source/'git_rev.cmake',source/'pico_sdk_import.cmake']
     files = [Path(__file__),iq.ROOT/'host/dual_spi.py',
               iq.ROOT/'host/iqbench.py',iq.ROOT/'host/dual_trial.py',iq.ROOT/'host/test_dvbs2_8psk.py',

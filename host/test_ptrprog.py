@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import zlib
 from pathlib import Path
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -91,7 +92,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="ptrprog-native-") as build:
         exe = Path(build) / "ptrprog_test"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
-                        f"-I{ROOT / 'firmware/src'}", str(ROOT / "host/native/ptrprog_test.c"), "-o", str(exe)], check=True)
+                        *fwsrc.INCLUDES, str(ROOT / "host/native/ptrprog_test.c"), "-o", str(exe)], check=True)
         raw = subprocess.check_output([str(exe)])
     code = struct.unpack(f"<{len(raw) // 2}H", raw)
     cases = 0

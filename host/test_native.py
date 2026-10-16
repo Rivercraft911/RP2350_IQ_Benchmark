@@ -9,12 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reference"))
 import gen_coeffs  # noqa: E402
 import iqlut as m  # noqa: E402
+import fwsrc  # noqa: E402  firmware/src/<area>/ layout
 
 exe = ROOT / "host" / "build" / "kernel_test"
 exe.parent.mkdir(exist_ok=True)
 src = ROOT / "firmware" / "src"
-subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{src}",
-                str(src / "iqgen.c"), str(ROOT / "host" / "native" / "kernel_test.c"),
+subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                str(src / "cpu_shaping/iqgen.c"), str(ROOT / "host" / "native" / "kernel_test.c"),
                 "-o", str(exe)], check=True)
 rows = [json.loads(l) for l in subprocess.run([str(exe)], check=True, capture_output=True,
                                                text=True).stdout.splitlines()]

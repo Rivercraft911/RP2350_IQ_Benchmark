@@ -17,11 +17,12 @@ import numpy as np
 import iq32out_trial as trial
 from test_dual_faults import function_body
 from test_iq32native8 import Tables, ROWS, ptr
+import fwsrc
 
 
 def main():
     source = trial.iq.ROOT/'firmware/src'
-    bench = (source/'bench32out.c').read_text()
+    bench = (source / 'bench/bench32out.c').read_text()
     enum = re.search(r'enum\s*\{[\s\S]*?\};', bench)[0]
     body = function_body(bench, 'shape_block')
     fixture = f'''
@@ -59,7 +60,7 @@ unsigned checked_calls(void) {{ return calls; }}
         (path/'check.c').write_text(fixture)
         library = path/'check.so'
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
-                        f'-I{source}', str(path/'check.c'), str(source/'iq32native8.c'),str(source/'iq32keys.c'), '-o', str(library)], check=True)
+                        *fwsrc.INCLUDES, str(path/'check.c'), str(source / 'apsk/iq32native8.c'),str(source / 'apsk/iq32keys.c'), '-o', str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.checked_shape.argtypes = [ctypes.POINTER(ctypes.c_uint32), ctypes.c_uint32, ctypes.POINTER(Tables)]
         lib.iq32native8_build.argtypes = [ctypes.POINTER(Tables), ctypes.c_uint]

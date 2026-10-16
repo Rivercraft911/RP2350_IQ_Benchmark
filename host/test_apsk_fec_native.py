@@ -21,6 +21,7 @@ import apsk_fec_trial as oracle
 from test_dvbs2_apsk import Config, Stream, SERVICE, Fast, FAST_WORDS
 from test_dvbs2_8psk import frame_words
 from test_iq16native8 import Tables
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 PTR = ct.POINTER(ct.c_uint32)
@@ -180,7 +181,7 @@ def main():
         files = ('dvbs2.c', 'iqgen.c', 'dvbs2_apsk.c', 'iq16native8.c',
                  'iq32native8.c', 'iq32keys.c', 'iq32offsets.c', 'iq32offsets_native.c', 'iq32offsets_mla.c')
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
-                        f'-I{source}', *(str(source/name) for name in files), str(bridge), '-o', str(library)], check=True)
+                        *fwsrc.INCLUDES, *(str(fwsrc.path(name)) for name in files), str(bridge), '-o', str(library)], check=True)
         lib = ct.CDLL(str(library)); configure(lib)
         frames = [encode_fec(lib, index) for index in range(3)]
         # Random access ensures the BB/FEC oracle is not accidentally tied to a

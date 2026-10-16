@@ -11,6 +11,7 @@ import random
 import re
 import subprocess
 import tempfile
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 MASK = 0xFFFFFFFF
@@ -57,7 +58,7 @@ def program():
         elif not line.startswith((".", "#")):
             code.append(line)
 
-    for raw in (ROOT / "firmware/src/dvbs2_asm.S").read_text().splitlines():
+    for raw in (ROOT / "firmware/src/dvbs2/dvbs2_asm.S").read_text().splitlines():
         line = raw.split("//")[0].strip()
         if not line:
             continue
@@ -205,7 +206,7 @@ void setup(int ci, uint32_t *table, uint32_t *generator) {
         source, binary = Path(folder) / "bridge.c", Path(folder) / "bridge.so"
         source.write_text(bridge)
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        f"-I{ROOT / 'firmware/src'}", str(source), "-o", str(binary)], check=True)
+                        *fwsrc.INCLUDES, str(source), "-o", str(binary)], check=True)
         lib = ct.CDLL(str(binary))
         for ci, nw, degree in ((9, 1796, 128), (10, 1818, 128), (6, 1512, 192)):
             entries = ("dvbs2_bch192_continue_y",) if degree == 192 else (

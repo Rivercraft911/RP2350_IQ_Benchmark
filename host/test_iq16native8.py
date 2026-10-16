@@ -18,6 +18,7 @@ import numpy as np
 
 import test_iq16chunk as old
 import test_iq16chunk_asm as vm
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 PTR = old.PTR
@@ -138,11 +139,11 @@ def assembly_output(code, labels, lib, tables, words, previous):
 def main():
     source = ROOT/'firmware/src'
     assert hashlib.sha256(COEFFICIENTS.astype('<i4').tobytes()).hexdigest() == COEFFICIENT_SHA
-    header = (source/'iq16native8.h').read_text()
+    header = (source / 'apsk/iq16native8.h').read_text()
     def constant(name):
         return int(re.search(r'#define ' + name + r' (\d+)u', header)[1])
     assert COEFFICIENT_SHA in header
-    code, labels = vm.program(source/'iq16native8_asm.S')
+    code, labels = vm.program(source / 'apsk/iq16native8_asm.S')
     # Only the native-C hook symbol is translated; instructions/labels remain
     # those expanded from the real new assembly file by the shared interpreter.
     code = [line.replace('iq16native8_kernel_c', 'iq16chunk_kernel_c') for line in code]
@@ -151,7 +152,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='iq16native8-native-') as temp:
         library = Path(temp)/'native8.so'
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
-                        f'-I{source}', str(source/'iq16native8.c'), str(source/'iq16chunk.c'),
+                        *fwsrc.INCLUDES, str(source / 'apsk/iq16native8.c'), str(source / 'apsk/iq16chunk.c'),
                         '-o', str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.iq16native8_build.argtypes = [ctypes.POINTER(Tables), ctypes.c_uint]

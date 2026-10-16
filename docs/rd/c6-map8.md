@@ -15,7 +15,7 @@ Compare options within this image: larger borrowed contexts change addresses fro
 
 ## Implementation and selection
 
-[The leaf](../../firmware/src/dvbs2_map8_asm.S) retains the existing chronological bit-plane
+[The leaf](../../firmware/src/dvbs2/dvbs2_map8_asm.S) retains the existing chronological bit-plane
 algebra. For three deinterleaver columns `a,b,c` and Gold planes `r0,r1`:
 
 ```text
@@ -37,7 +37,7 @@ for fills 0,2,…14. C3's frame adds two symbols modulo sixteen, its header adds
 pilot adds four, so these fills cover its entire schedule. The upper-half lookup reuses a
 consumed plane register to preload I carry and hide two dependencies.
 
-[The wrapper](../../firmware/src/dvbs2_8psk.c) clamps assembly calls to contiguous pairs of
+[The wrapper](../../firmware/src/dvbs2/dvbs2_8psk.c) clamps assembly calls to contiguous pairs of
 output words. One pair crossing a ring edge uses C4 for that input word. Odd fills also use
 C4; short columns retain the general extractor, including their 24-bit tail. PLHEADER and
 pilots remain identically prepacked. Deferred first words, partial carries, ring masks and
@@ -284,10 +284,10 @@ complete16-Msym/s cadence and live integration all remain unproven.
 
 ## Intended small commits (not created)
 
-1. `firmware/src/dvbs2_8psk.{c,h}`, `firmware/src/dvbs2_map8_asm.S`,
+1. `firmware/src/dvbs2_8psk.{c,h}`, `firmware/src/dvbs2/dvbs2_map8_asm.S`,
    `firmware/CMakeLists.txt`, `host/test_dvbs2_8psk_codes.py`, `host/test_c6_map8_asm.py`,
    `Makefile` — **Add opt-in fixed-shift packed 8PSK mapper and independent native checks.**
-2. `firmware/src/c3_fec.{c,h}`, `firmware/src/bench_c3_{fec,pair}.c`, `firmware/src/main.c`,
+2. `firmware/src/c3_fec.{c,h}`, `firmware/src/bench_c3_{fec,pair}.c`, `firmware/src/app/main.c`,
    `host/c3_fec_trial.py`, `host/native/c3_pipeline_test.c`, `host/test_c3_{pipeline,bench}.py`
    — **Expose C6 bit32, larger mapper slices and isolated mapper-code placement diagnostics.**
 3. `docs/rd/c6-map8.md`, `docs/rd/README.md` — **Document C6 budgets, rejected designs and

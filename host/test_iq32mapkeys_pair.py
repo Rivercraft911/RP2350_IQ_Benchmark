@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import numpy as np
 import test_iq32mapkeys as base
+import fwsrc
 
 
 def execute(lib, kernel, table, tokens, previous, partitions):
@@ -32,8 +33,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix='iq32mapkeys-pair-') as temp:
         library = Path(temp)/'native.so'
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
-                        '-shared', '-fPIC', f'-I{source}', str(source/'iq32mapkeys.c'),
-                        str(source/'iq32mapkeys_pair.c'), '-o', str(library)], check=True)
+                        '-shared', '-fPIC', *fwsrc.INCLUDES, str(source / 'apsk/iq32mapkeys.c'),
+                        str(source / 'apsk/iq32mapkeys_pair.c'), '-o', str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.iq32mapkeys_init.argtypes = [ctypes.POINTER(base.State), base.U8P]
         lib.iq32mapkeys_canonical.argtypes = [ctypes.c_uint8]

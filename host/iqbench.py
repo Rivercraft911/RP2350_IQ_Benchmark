@@ -5,7 +5,7 @@
   python3 host/iqbench.py stream lut_asm 4 10 --cores 0 --cpw 2 --ms 2000 [--cap 4096]
                                                    [--lanes 4 --half 6]
   python3 host/iqbench.py sweep [--note "..."]
-  python3 host/iqbench.py dvbs2 3 5 6 11 [--pilots 1]     (code indices: firmware/src/dvbs2_codes.h)
+  python3 host/iqbench.py dvbs2 3 5 6 11 [--pilots 1]     (code indices: firmware/src/dvbs2/dvbs2_codes.h)
   python3 host/iqbench.py txs2 5 lut_asm_p 4 10 --cpw 2 --ms 3000 --cap 4096   (full transmitter)
   python3 host/iqbench.py txs2 5 lut_asm_p 4 12 --cpw 4 --single-core --ms 3000 --cap 4096
   python3 host/iqbench.py pvtx --selftest --cap 4096      (PigeonVision SPI TX; drop --selftest for the CM5)

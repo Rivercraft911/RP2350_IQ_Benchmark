@@ -10,6 +10,7 @@ import zlib
 
 import numpy as np
 import quadptr_trial as trial
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 PTR = ct.POINTER(ct.c_uint32)
@@ -45,7 +46,7 @@ class PointerTrial(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix='quadptr-address-native-')
         d = Path(cls.temp.name)
-        source = (ROOT/'firmware/src/bench_quadptr.c').read_text()
+        source = (ROOT/'firmware/src/bench/bench_quadptr.c').read_text()
         match = re.search(r'static unsigned address_mismatches\([^)]*\)\s*\{',source)
         start,end,depth = match.start(),match.end(),1
         while depth:
@@ -65,7 +66,7 @@ void check_vectors(const uint32_t *input,const uint32_t *cap,uint32_t base,int m
 '''
         (d/'check.c').write_text(wrapper)
         subprocess.run(['cc','-std=c11','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',
-                        '-I'+str(ROOT/'firmware/src'),str(d/'check.c'),str(ROOT/'firmware/src/iqgen.c'),
+                        *fwsrc.INCLUDES,str(d/'check.c'),str(ROOT/'firmware/src/cpu_shaping/iqgen.c'),
                         '-o',str(d/'check.so')],check=True)
         cls.lib=ct.CDLL(str(d/'check.so'))
         cls.lib.check_vectors.argtypes=[PTR,PTR,ct.c_uint32,ct.c_int,PTR,PTR]

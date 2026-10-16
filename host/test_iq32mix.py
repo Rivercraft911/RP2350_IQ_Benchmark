@@ -12,6 +12,7 @@ import tempfile
 import numpy as np
 import test_iq32native8 as native
 import test_iq32keys as keys
+import fwsrc
 
 
 def points(rate):
@@ -41,7 +42,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='iq32mix-') as temp:
         library=Path(temp)/'native.so'
         subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',
-                        f'-I{source}',str(source/'iq32native8.c'),str(source/'iq32keys.c'),'-o',str(library)],check=True)
+                        *fwsrc.INCLUDES,str(source / 'apsk/iq32native8.c'),str(source / 'apsk/iq32keys.c'),'-o',str(library)],check=True)
         lib=ctypes.CDLL(str(library))
         lib.iq32native8_build.argtypes=[ctypes.POINTER(native.Tables),ctypes.c_uint]
         lib.iq32native8_build.restype=ctypes.c_bool

@@ -14,9 +14,9 @@ and [integrated DDR image](../../results/integration/2026-10-15/README.md) passe
 complete 16-Msym/s GCS and TS pipelines. Their success supports testing additional
 writer FIFO runway; it does not establish this new DMA graph's throughput.
 
-The implementation is in [dual_dma.c](../../firmware/src/dual_dma.c),
-[bench_dual.c](../../firmware/src/bench_dual.c) and [main.c](../../firmware/src/main.c), with
-interfaces in [dual_dma.h](../../firmware/src/dual_dma.h) and [bench.h](../../firmware/src/bench.h).
+The implementation is in [dual_dma.c](../../firmware/src/output/dual_dma.c),
+[bench_dual.c](../../firmware/src/bench/bench_dual.c) and [main.c](../../firmware/src/app/main.c), with
+interfaces in [dual_dma.h](../../firmware/src/output/dual_dma.h) and [bench.h](../../firmware/src/bench/bench.h).
 `dualptr` retains its two-writer selection. `dualptr4 cpw ms source fault` selects
 four writers; source 5 is TS and 6 is GCS, cpw 2/1 gives 8/16 Msym/s at SYS128,
 and fault 1 freezes publication credits. Both commands use the same normal 5/6
@@ -355,10 +355,10 @@ existing clock report. No new RF qualification is claimed.
 
 Intended small logical commits, for the coordinating engineer to create:
 
-1. `firmware/src/dual_dma.c`, `firmware/src/dual_dma.h`,
+1. `firmware/src/output/dual_dma.c`, `firmware/src/output/dual_dma.h`,
    `host/test_dual_fifo.py`, `host/test_quad_fifo_order.py`, `Makefile`:
    **Route sole-RX pointer DMA alternately to four QPSK writers.**
-2. `firmware/src/bench_dual.c`, `firmware/src/bench.h`, `firmware/src/main.c`,
+2. `firmware/src/bench/bench_dual.c`, `firmware/src/bench/bench.h`, `firmware/src/app/main.c`,
    `host/dualptr_trial.py`, `host/test_dualptr_trial.py`:
    **Add opt-in live dualptr4 command and strict trial validation.**
 3. `REPORT.md`: **Document A2 budgets, native evidence and coordinator trials.**

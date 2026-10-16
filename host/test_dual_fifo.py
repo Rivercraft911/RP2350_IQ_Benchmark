@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 
 from test_dual_faults import function_body
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -634,12 +635,12 @@ def compile_run(code, stem, experiment=False):
         test.write_text(code)
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
                         *(["-DIQ4HIST_EXPERIMENT=1"] if experiment else []),
-                        f"-I{ROOT / 'firmware/src'}", str(test), "-o", str(executable)], check=True)
+                        *fwsrc.INCLUDES, str(test), "-o", str(executable)], check=True)
         subprocess.run([str(executable)], check=True)
 
 
 def main():
-    source = (ROOT / "firmware/src/dual_dma.c").read_text()
+    source = (ROOT / "firmware/src/output/dual_dma.c").read_text()
     functions = [
         ("static void", "claim_init", "void"),
         ("static void", "axis_data_dma", "int control, int data, uint sm"),

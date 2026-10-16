@@ -31,8 +31,8 @@ REFERENCE_FILES = ('host/apsk_fec_trial.py', 'host/dual_spi.py', 'host/iqbench.p
                    'host/test_iq32native8.py', 'host/cm5/pv_spi_tx.py',
                    'reference/dvbs2/dvbs2.py', 'reference/iqlut.py', 'reference/gen_coeffs.py')
 REQUIRED_FIRMWARE = ('firmware/CMakeLists.txt', 'firmware/git_rev.cmake',
-                     'firmware/src/bench_apsk_fec.c', 'firmware/src/dvbs2_apsk.c',
-                     'firmware/src/dvbs2.c', 'firmware/src/iqout.c')
+                     'firmware/src/bench/bench_apsk_fec.c', 'firmware/src/dvbs2/dvbs2_apsk.c',
+                     'firmware/src/dvbs2/dvbs2.c', 'firmware/src/output/iqout.c')
 
 
 def require(condition, message):
@@ -349,14 +349,14 @@ def self_test():
         (build/'flash.txt').write_text(original_flash)
         (build/'flash-image.json').write_text(json.dumps(binding))
         manifest_path = folders[0]/'manifest.json'; original_manifest = manifest_path.read_text()
-        for field in ('iqbench.uf2','firmware/src/dvbs2.c','host/dual_spi.py'):
+        for field in ('iqbench.uf2','firmware/src/dvbs2/dvbs2.c','host/dual_spi.py'):
             broken = json.loads(original_manifest); broken['sha256'][field] = '0'*64
             manifest_path.write_text(json.dumps(broken))
             rejected(lambda: load_campaign(folders[0],16,128000), 'campaign hash '+field)
         manifest_path.write_text(original_manifest)
         archived = build/'firmware-source.tar.gz'; original_archive = archived.read_bytes()
         with tarfile.open(archived,'w:gz') as archive:
-            member = tarfile.TarInfo('firmware/src/dvbs2.c'); member.size = 1
+            member = tarfile.TarInfo('firmware/src/dvbs2/dvbs2.c'); member.size = 1
             archive.addfile(member,io.BytesIO(b'x'))
         rejected(lambda: load_campaign(folders[0],16,128000), 'altered source archive')
         archived.write_bytes(original_archive)

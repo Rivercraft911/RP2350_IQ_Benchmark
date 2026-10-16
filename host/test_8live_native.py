@@ -6,7 +6,8 @@ sys.path[:0]=[str(ROOT/'host')]
 import test_dual_codes as dc
 import test_dvbs2_8psk as maptest
 import test_iq8quad as pulse
-s=(SRC/'bench8live.c').read_text();function=dc.function
+import fwsrc
+s=fwsrc.path('bench8live.c').read_text();function=dc.function
 constants=s[s.index('enum {'):s.index('};')+2]
 state=s[s.index('static struct {'):s.index('} live;')+len('} live;')]
 head='''#include <stdint.h>
@@ -85,8 +86,8 @@ const uint32_t *output(void){return trace;}
 '''
 with tempfile.TemporaryDirectory(prefix='8live-native-') as d:
  d=Path(d);c=d/'trial.c';so=d/'trial.so';c.write_text(head+constants+state+function(s,'encode_frame')+tail)
- subprocess.run(['cc','-std=gnu11','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC','-I'+str(SRC),str(c),
-   *(str(SRC/n) for n in ('dvbs2.c','dvbs2_8psk.c','dvbs2_qpsk8.c','pvproto.c','iqgen.c','iq8quad.c')),'-o',str(so)],check=True)
+ subprocess.run(['cc','-std=gnu11','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',*fwsrc.INCLUDES,str(c),
+   *(str(fwsrc.path(n)) for n in ('dvbs2.c','dvbs2_8psk.c','dvbs2_qpsk8.c','pvproto.c','iqgen.c','iq8quad.c')),'-o',str(so)],check=True)
  lib=ct.CDLL(str(so));lib.output.restype=ct.POINTER(ct.c_uint32)
  get=lambda n:ct.c_uint32.in_dll(lib,n).value
  for vcm in (False,True):

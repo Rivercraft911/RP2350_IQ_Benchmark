@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT / "reference"))
 sys.path.insert(0, str(ROOT / "reference/dvbs2"))
 import dvbs2 as ref  # noqa: E402
 import iqlut  # noqa: E402
+import fwsrc  # noqa: E402  firmware/src/<area>/ layout
 
 
 def main() -> None:
@@ -29,7 +30,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="dvbs2-parallel-") as build:
         exe = Path(build) / "parallel_test"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
-                        f"-I{src}", str(src / "dvbs2.c"),
+                        *fwsrc.INCLUDES, str(src / "dvbs2/dvbs2.c"),
                         str(ROOT / "host/native/dvbs2_parallel_test.c"), "-o", str(exe)], check=True)
         result = subprocess.run([str(exe)], check=True, capture_output=True, text=True)
     records = [json.loads(line) for line in result.stdout.splitlines()]

@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT / "reference/dvbs2"))
 import iqlut as m
 import dvbs2 as s2
 from pulse_profiles import L8_COEFFICIENTS
+import fwsrc  # noqa: E402  firmware/src/<area>/ layout
 
 L, SPS, ROWS, ROW_WORDS = 9, 4, 4096, 8
 U32 = 0xffffffff
@@ -226,7 +227,7 @@ def full_frame_check(lib, rows, lut):
 
 
 def program(name):
-    source = (ROOT / "firmware/src/dual_dma.c").read_text()
+    source = (ROOT / "firmware/src/output/dual_dma.c").read_text()
     match = re.search(r"\b" + name + r"\[\]\s*=\s*\{([^}]+)\}", source)
     assert match, name
     body = re.sub(r"//[^\n]*", "", match[1])
@@ -305,7 +306,7 @@ def main():
         library = Path(build) / "iqquad.so"
         src = ROOT / "firmware/src"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        f"-I{src}", str(src / "iqquad.c"), str(src / "iqdesc.c"), "-o", str(library)], check=True)
+                        *fwsrc.INCLUDES, str(src / "output/iqquad.c"), str(src / "output/iqdesc.c"), "-o", str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.iqquad_build.argtypes = [PTR]
         lib.iqquad_profile_info.argtypes = [ctypes.c_int]

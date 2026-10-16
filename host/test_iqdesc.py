@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reference"))
 import gen_coeffs as g
 import iqlut as m
+import fwsrc  # noqa: E402  firmware/src/<area>/ layout
 
 WORDS, L, N = 137, 12, 4
 
@@ -96,8 +97,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="iqdesc-native-") as build:
         exe = Path(build) / "iqdesc_test"
         src = ROOT / "firmware/src"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{src}",
-                        str(src / "iqdesc.c"), str(ROOT / "host/native/iqdesc_test.c"),
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        str(src / "output/iqdesc.c"), str(ROOT / "host/native/iqdesc_test.c"),
                         "-o", str(exe)], check=True)
         for seed in (0, 1, 0x1234abcd, 0xffffffff):
             words = m.xorshift32(seed, WORDS)

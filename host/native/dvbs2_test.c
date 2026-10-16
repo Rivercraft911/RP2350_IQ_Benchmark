@@ -1,4 +1,4 @@
-// Host build of firmware/src/dvbs2.c. For each code and pilot setting: check the fast BCH and
+// Host build of firmware/src/dvbs2/dvbs2.c. For each code and pilot setting: check the fast BCH and
 // LDPC against the bit-serial forms, then print the PLFRAME in shaper-format words for comparison
 // with reference/dvbs2/dvbs2.py. Input: xorshift32 words (seed per code) as the unscrambled
 // BBFRAME, truncated to Kbch bits.

@@ -24,8 +24,8 @@ def body(source, name):
 
 class StartupOrdering(unittest.TestCase):
     def setUp(self):
-        self.spi = (ROOT / 'firmware/src/pvspi.c').read_text()
-        self.tx = (ROOT / 'firmware/src/tx.c').read_text()
+        self.spi = (ROOT / 'firmware/src/ingress/pvspi.c').read_text()
+        self.tx = (ROOT / 'firmware/src/app/tx.c').read_text()
 
     def test_flight_usb_has_no_reset_interfaces(self):
         cmake = (ROOT / 'firmware/CMakeLists.txt').read_text()
@@ -33,7 +33,7 @@ class StartupOrdering(unittest.TestCase):
         self.assertIn('PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=0', definitions)
         self.assertIn('PICO_STDIO_USB_ENABLE_RESET_VIA_VENDOR_INTERFACE=0', definitions)
         self.assertIn('target_compile_definitions(iqbench PRIVATE PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1)', cmake)
-        service = body((ROOT / 'firmware/src/main.c').read_text(), 'flight_service')
+        service = body((ROOT / 'firmware/src/app/main.c').read_text(), 'flight_service')
         self.assertNotIn('reset_usb_boot', service)
         self.assertNotIn('bootsel', service)
 

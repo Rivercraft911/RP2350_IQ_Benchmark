@@ -20,6 +20,7 @@ import zlib
 import numpy as np
 
 import c3_fec_trial as trial
+import fwsrc
 
 
 def fixture(code=5, frames=72, slow=0):
@@ -48,7 +49,7 @@ class C3Reference(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="c3-gcs-native-") as directory:
             library = Path(directory) / "pv.so"
             subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                            str(root / "firmware/src/pvproto.c"), "-o", str(library)], check=True)
+                            str(root / "firmware/src/ingress/pvproto.c"), "-o", str(library)], check=True)
             lib = ct.CDLL(str(library))
             lib.pv_init.argtypes = [ct.c_uint32]
             lib.pv_gcs_bbframe.argtypes = [ct.c_void_p, ct.c_uint32, ct.c_uint8, ct.c_uint8, packet]
@@ -261,7 +262,7 @@ class C3FirmwareOptions(unittest.TestCase):
     def test_production_main_dispatch_expands_best_for_each_command(self):
         """Compile the actual parser helpers and C3/B9 dispatch branches, no Pico APIs."""
         root = Path(__file__).resolve().parents[1]
-        source = (root / "firmware/src/main.c").read_text()
+        source = (root / "firmware/src/app/main.c").read_text()
         numeric = source[source.index("static bool num("):source.index("#ifdef IQ4HIST_EXPERIMENT", source.index("static bool num("))]
         begin = source.index("static bool c3_options(")
         options = source[begin:source.index("#endif", begin)]
@@ -302,7 +303,7 @@ BRANCHES
             cfile, library = Path(directory) / "options.c", Path(directory) / "options.so"
             cfile.write_text(harness)
             subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                            "-I" + str(root / "firmware/src"), str(cfile), "-o", str(library)], check=True)
+                            *fwsrc.INCLUDES, str(cfile), "-o", str(library)], check=True)
             lib = ct.CDLL(str(library))
             lib.parse.argtypes = [ct.c_uint, ct.POINTER(ct.c_char_p)]
             lib.parse.restype = ct.c_char_p

@@ -1,4 +1,4 @@
-// Host build of firmware/src/pvproto.c: prints pattern messages, validation counters and BBFRAMEs
+// Host build of firmware/src/ingress/pvproto.c: prints pattern messages, validation counters and BBFRAMEs
 // as JSON for host/test_pv_native.py.
 #include <stdio.h>
 #include <string.h>

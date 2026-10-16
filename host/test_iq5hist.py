@@ -20,6 +20,7 @@ import numpy as np
 
 from pulse_profiles import (FOUR_LEVELS_Q30, N5_COEFFICIENTS, N5_PROFILE,
                             N5_SCALE_DEN, iq5hist_rows, iq4hist_prbs)
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "firmware/src"
@@ -243,8 +244,8 @@ def main():
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="iq5hist-native-") as temporary:
         executable = Path(temporary) / "iq5hist_test"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{SRC}",
-                        str(SRC / "iq5hist.c"), str(ROOT / "host/native/iq5hist_test.c"),
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        str(SRC / "output/iq5hist.c"), str(ROOT / "host/native/iq5hist_test.c"),
                         "-o", str(executable)], check=True)
         rows = np.frombuffer(subprocess.check_output([str(executable)]), dtype="<u4").reshape(ROWS, 2)
     assert rows.nbytes == 131072 and not np.any(rows[:, 1] & 0xffffff00)

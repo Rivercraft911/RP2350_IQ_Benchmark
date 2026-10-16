@@ -17,6 +17,7 @@ import numpy as np
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'reference'))
 import iqlut as m
+import fwsrc
 
 L,N,K,ROWS,BLOCKS=9,2,4,4096,8192
 PTR=ctypes.POINTER(ctypes.c_uint32)
@@ -110,8 +111,8 @@ def main():
     taps,coef=filter_coefficients();records=[];cases=0
     with tempfile.TemporaryDirectory(prefix='iq16chunk-native-') as temp:
         source=ROOT/'firmware/src';library=Path(temp)/'chunk.so'
-        subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',f'-I{source}',
-                        str(source/'iq16chunk.c'),'-o',str(library)],check=True)
+        subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',*fwsrc.INCLUDES,
+                        str(fwsrc.path('iq16chunk.c')),'-o',str(library)],check=True)
         lib=ctypes.CDLL(str(library));lib.iq16chunk_build.argtypes=[ctypes.POINTER(Tables),ctypes.c_uint]
         lib.iq16chunk_build.restype=ctypes.c_bool;lib.iq16chunk_build_reverse.argtypes=[P16]
         lib.iq16chunk_coefficients.restype=ctypes.POINTER(ctypes.c_int32)

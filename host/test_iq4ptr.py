@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 
 from test_dacclk import Machine, firmware_program
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 MASK = 0xffffffff
@@ -94,7 +95,7 @@ def check_dma_rings():
 def check_axis_writers():
     # The shared row contains no axis flag; actual paired-writer opcodes put
     # GPIO14 high for I and low for Q, while consuming complete16-bit slots.
-    source = (ROOT / "firmware/src/dual_dma.c").read_text()
+    source = (ROOT / "firmware/src/output/dual_dma.c").read_text()
     assert "state.row_words >= 4 || state.shared_axis_row" in source
     assert "shared_samples() ? &paired_i_program : &out_program" in source
     for inverted in (False, True):
@@ -114,8 +115,8 @@ def check_axis_writers():
 def check_stop(directory, source):
     # Compile the actual lifecycle/cursor leaves against a tiny register model.
     # A pending source read retires during ABORT; a timeout must retain claims.
-    original = (source / "iq4ptr.c").read_text()
-    header = (source / "iq4ptr.h").read_text()
+    original = (source / "output/iq4ptr.c").read_text()
+    header = (source / "output/iq4ptr.h").read_text()
     def function(signature):
         start = original.index(signature)
         end, depth = original.index('{', start) + 1, 1
@@ -221,7 +222,7 @@ def main():
                         'unsigned test_cycles(void) { return IQ4PTR_CYCLES_PER_WORD; }\n')
         library = directory / "iq4ptr.so"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        f"-I{source}", str(source / "iq4ptr.c"), str(shim), "-o", str(library)], check=True)
+                        *fwsrc.INCLUDES, str(source / "output/iq4ptr.c"), str(shim), "-o", str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.test_program.restype = ctypes.POINTER(ctypes.c_uint16)
         lib.iq4ptr_seed.argtypes = [ctypes.c_uint32]

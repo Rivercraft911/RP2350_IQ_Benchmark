@@ -305,7 +305,7 @@ def _archive(args, identity):
     shutil.copy2(__file__, args.out / "driver.py")
     hashes["driver.py"] = _sha(Path(__file__))
     for directory in (ROOT / "firmware/src", ROOT / "firmware/pio"):
-        for source in sorted(directory.glob("*")):
+        for source in sorted(directory.rglob("*")):
             if source.is_file() and source.suffix in (".c", ".h", ".S", ".pio"):
                 hashes[str(source.relative_to(ROOT))] = _sha(source)
     for relative in ("firmware/CMakeLists.txt", "host/pvwide_trial.py", "host/cm5/pv_spi_tx.py", "host/iqbench.py"):

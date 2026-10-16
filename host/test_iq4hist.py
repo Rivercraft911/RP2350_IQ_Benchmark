@@ -22,6 +22,7 @@ import numpy as np
 from pulse_profiles import (FOUR_LEVELS_Q30, L7_COEFFICIENTS, L7_PROFILE,
                             iq4hist_prbs, iq4hist_rows)
 import test_dvbs2_8psk as mapper
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "firmware/src"
@@ -94,7 +95,7 @@ def mapper_check(directory, rows):
                       'const dvbs2_code_t *test_code(unsigned i){return &DVBS2_CODES[i];}\n')
     library = directory / "mapper.so"
     subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                    f"-I{SRC}", *(str(SRC / name) for name in
+                    *fwsrc.INCLUDES, *(str(fwsrc.path(name)) for name in
                     ("iq4hist.c", "dvbs2.c", "dvbs2_8psk.c", "dvbs2_qpsk8.c", "iqgen.c")),
                     str(bridge), "-o", str(library)], check=True)
     lib = ct.CDLL(str(library))
@@ -334,8 +335,8 @@ def main():
     assert hashlib.sha256(L7_COEFFICIENTS.astype("<i4").tobytes()).hexdigest() == profile["coefficient_bytes_sha256"]
     with tempfile.TemporaryDirectory(prefix="iq4hist-native-") as temp:
         directory = Path(temp); exe = directory / "iq4hist_test"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{SRC}",
-                        str(SRC / "iq4hist.c"), str(SRC / "iq8.c"),
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        str(SRC / "output/iq4hist.c"), str(SRC / "cpu_shaping/iq8.c"),
                         str(ROOT / "host/native/iq4hist_test.c"), "-o", str(exe)], check=True)
         rows = np.frombuffer(subprocess.check_output([str(exe)]), dtype="<u4").reshape(ROWS, ROW_WORDS)
         np.testing.assert_array_equal(rows, scalar_rows())

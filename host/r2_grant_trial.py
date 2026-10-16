@@ -129,8 +129,8 @@ def main():
         parser.error("cannot read built git_rev.h identity")
     expected_git = args.expected_git or built_git.group(1)
     args.out.mkdir(parents=True, exist_ok=False)
-    paths = [iq.ROOT / path for path in ("firmware/src/r2grant.c", "firmware/src/r2grant.h",
-             "firmware/src/bench_r2grant.c", "firmware/src/main.c", "firmware/src/iqgen.c",
+    paths = [iq.ROOT / path for path in ("firmware/src/output/r2grant.c", "firmware/src/output/r2grant.h",
+             "firmware/src/bench/bench_r2grant.c", "firmware/src/app/main.c", "firmware/src/cpu_shaping/iqgen.c",
              "firmware/CMakeLists.txt", "Makefile", "host/r2_grant_trial.py", "host/test_r2grant.py",
              "host/test_bench_r2grant.py", "host/iqbench.py")]
     hashes = {str(p.relative_to(iq.ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}

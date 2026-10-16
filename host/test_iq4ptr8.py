@@ -12,6 +12,7 @@ import tempfile
 
 from test_dacclk import Machine, firmware_program
 from test_iq4ptr import reference
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -86,7 +87,7 @@ def main():
                         'unsigned cycles8(void){return IQ4PTR8_CYCLES_PER_WORD;}\n')
         library = directory/'pointer.so'
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
-                        f'-I{source}', str(shim), '-o', str(library)], check=True)
+                        *fwsrc.INCLUDES, str(shim), '-o', str(library)], check=True)
         native = ctypes.CDLL(str(library))
         native.program8.restype = ctypes.POINTER(ctypes.c_uint16)
         code = list(native.program8()[:native.length8()])

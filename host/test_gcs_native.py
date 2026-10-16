@@ -50,7 +50,7 @@ class GcsNative(unittest.TestCase):
         src = pathlib.Path(__file__).resolve().parents[1] / "firmware/src"
         library = pathlib.Path(cls.tmp.name) / "pvproto.so"
         subprocess.run([shutil.which("cc"), "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
-                        "-shared", "-fPIC", str(src / "pvproto.c"), "-o", str(library)], check=True)
+                        "-shared", "-fPIC", str(src / "ingress/pvproto.c"), "-o", str(library)], check=True)
         cls.lib = ct.CDLL(str(library))
         cls.lib.pv_init.argtypes = [ct.c_uint32]
         cls.lib.pv_gcs_bbframe.argtypes = [ct.c_void_p, ct.c_uint32, ct.c_uint8, ct.c_uint8, Packet]

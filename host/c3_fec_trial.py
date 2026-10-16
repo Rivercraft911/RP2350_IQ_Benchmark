@@ -35,7 +35,7 @@ SYMBOL_CYCLES = 8
 SOURCE_BYTES = 256
 SOURCE = bytes((29 * j + 7) & 255 for j in range(SOURCE_BYTES))
 STAGES = ("gcs", "bch", "ldpc", "map", "delay")
-# Keep these masks in sync with firmware/src/c3_fec.h. The three-table BCH
+# Keep these masks in sync with firmware/src/dvbs2/c3_fec.h. The three-table BCH
 # diagnostic needs c3pair layout4; the cadence benchmark has no table arena.
 C8_ALL = 2047
 C8_FEC_ALL = C8_ALL & ~1024

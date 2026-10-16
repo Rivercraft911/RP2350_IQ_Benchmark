@@ -73,7 +73,7 @@ Normal frames have 16,200 (16APSK) or 12,960 (32APSK) data symbols per interleav
 column. Every 32-symbol data run therefore starts on a frame word. The 16APSK columns sit at word offsets
 0/506/1012/1518 with fixed bit shifts 0/8/16/24. The 32APSK columns sit at multiples of 405 words
 with no shift. Gold is `gold[run]`. Three leaves exploit that
-([dvbs2_apsk.c](../../firmware/src/dvbs2_apsk.c)):
+([dvbs2_apsk.c](../../firmware/src/dvbs2/dvbs2_apsk.c)):
 
 - **16APSK** (`fast16_run0`, `fast16_run2`): four column reads and the existing
   bit-parallel `map16` label/Gold algebra give four planes. Zipping magnitude and
@@ -113,7 +113,7 @@ into rolling radix-17 byte offsets. The original evaluates
 become `8·s[-2] + 136·u` and `8·u + 2312·s1`. That is the same integer polynomial, so the
 output is identical modulo 2³² for every input, including invalid codes that overflow
 a lane. Unrolled by two, the loop is **24 instructions per 4 symbols, 6 of them
-single-cycle MUL/MLA** ([iq32offsets_mla.c](../../firmware/src/iq32offsets_mla.c)).
+single-cycle MUL/MLA** ([iq32offsets_mla.c](../../firmware/src/apsk/iq32offsets_mla.c)).
 
 Without an empty asm barrier on the constants, GCC turns the products back into
 shift-add chains: 19 instructions per 2 symbols, against 12 with MUL/MLA. The function is linked last
@@ -348,9 +348,9 @@ Dead ends and corrections made along the way:
 ## Files
 
 - `firmware/src/dvbs2_apsk.{c,h}`: fast mapper API, leaves, driver.
-- `firmware/src/iq32offsets_mla.c`, `iq32offsets_native.h`: multiply-form conversion.
+- `firmware/src/apsk/iq32offsets_mla.c`, `iq32offsets_native.h`: multiply-form conversion.
 - `firmware/CMakeLists.txt`: links the conversion last.
-- `firmware/src/bench_apsk_fec.{c,h}`, `firmware/src/main.c`: `options` selector and record fields.
+- `firmware/src/bench_apsk_fec.{c,h}`, `firmware/src/app/main.c`: `options` selector and record fields.
 - `host/apsk_fec_trial.py`: `--options`, record checks, self-test.
 - `host/test_dvbs2_apsk.py`, `test_apsk_fec_native.py`, `test_apsk_split_native.py`,
   `test_iq32offsets_native.py`, new `test_apsk_fast_pic.py`, `Makefile`.

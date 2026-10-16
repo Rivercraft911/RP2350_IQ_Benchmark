@@ -9,6 +9,7 @@ import tempfile
 
 from test_dual_faults import function_body
 from test_dual_fifo import FIXTURE
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -72,7 +73,7 @@ int main(void) {
 
 
 def main():
-    source = (ROOT / 'firmware/src/dual_dma.c').read_text()
+    source = (ROOT / 'firmware/src/output/dual_dma.c').read_text()
     fixture = '#define IQ4HIST_EXPERIMENT 1\n' + FIXTURE
     signatures = [
         ('bool', 'dual_dma_set_row_words', 'unsigned row_words'),
@@ -95,7 +96,7 @@ def main():
         (path / 'test.c').write_text(fixture + '\n'.join(functions) + CHECKS)
         subprocess.run(['cc', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
                         '-Wno-pointer-to-int-cast', '-Wno-unused-function',
-                        f'-I{ROOT / "firmware/src"}', str(path / 'test.c'),
+                        *fwsrc.INCLUDES, str(path / 'test.c'),
                         '-o', str(path / 'test')], check=True)
         subprocess.run([str(path / 'test')], check=True)
 

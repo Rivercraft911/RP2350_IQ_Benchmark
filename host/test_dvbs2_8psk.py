@@ -19,6 +19,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reference/dvbs2"))
 import dvbs2 as ref
+import fwsrc
 
 PTR = ctypes.POINTER(ctypes.c_uint32)
 CANARY = 0x9ad4c781
@@ -133,8 +134,8 @@ def main():
                           'const dvbs2_code_t *test_code(unsigned i){return i<N_DVBS2_CODES?&DVBS2_CODES[i]:0;}\n'
                           'unsigned test_cfg_size(void){return sizeof(dvbs2_8psk_cfg_t);}\n'
                           'unsigned test_stream_size(void){return sizeof(dvbs2_8psk_stream_t);}\n')
-        subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',f'-I{src}',
-                        str(src/'dvbs2_8psk.c'),str(bridge),'-o',str(library)],check=True)
+        subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',*fwsrc.INCLUDES,
+                        str(fwsrc.path('dvbs2_8psk.c')),str(bridge),'-o',str(library)],check=True)
         lib=ctypes.CDLL(str(library));lib.test_code.argtypes=[ctypes.c_uint];lib.test_code.restype=ctypes.c_void_p
         lib.dvbs2_8psk_arena_words.argtypes=[ctypes.c_void_p,ctypes.c_bool];lib.dvbs2_8psk_arena_words.restype=ctypes.c_uint32
         lib.dvbs2_8psk_init.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_bool,ctypes.c_uint32,PTR,ctypes.c_uint32]

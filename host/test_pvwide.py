@@ -13,6 +13,7 @@ import zlib
 
 from cm5.pv_spi_tx import message, pattern_payload
 from test_dual_faults import function_body
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -232,7 +233,7 @@ int main(void) {
 
 
 def native():
-    source = (ROOT / "firmware/src/pvwide.c").read_text()
+    source = (ROOT / "firmware/src/ingress/pvwide.c").read_text()
     declarations = source[source.index("enum {"):source.index("static w_claims_t w_claims")]
     functions = [("static uint32_t *", "w_slot", "uint32_t n"),
                  ("static void", "w_build", "w_state_t *s, int width, int half"),
@@ -249,7 +250,7 @@ def native():
         path, exe = directory / "test.c", directory / "test"
         path.write_text(code)
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
-                        f"-I{ROOT / 'firmware/src'}", str(path), str(ROOT / "firmware/src/pvproto.c"),
+                        *fwsrc.INCLUDES, str(path), str(ROOT / "firmware/src/ingress/pvproto.c"),
                         "-o", str(exe)], check=True)
         return json.loads(subprocess.run([str(exe)], check=True, capture_output=True, text=True).stdout)
 

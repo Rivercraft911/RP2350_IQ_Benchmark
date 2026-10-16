@@ -17,6 +17,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "firmware" / "src"
@@ -35,12 +36,12 @@ def function(source: str, name: str) -> str:
 
 
 def harness() -> str:
-    source = (SRC / "bench_apsk_fec.c").read_text()
+    source = (SRC / "bench/bench_apsk_fec.c").read_text()
     constants = source[source.index("enum {\n    INPUT_MASK"):]
     constants = constants[:constants.index("};") + 2]
     live_type = source[source.index("typedef struct {\n    union"):source.index("} live_t;") + len("} live_t;")]
     macros = "\n".join(line for name in ("pvspi.h", "tx.h")
-                       for line in (SRC / name).read_text().splitlines()
+                       for line in (fwsrc.path(name)).read_text().splitlines()
                        if line.startswith(("#define PV_SLOTS ", "#define PV_EMU_MSGS ",
                                            "#define PV_EMU_WORDS ", "#define BB_WORDS ")))
     head = r'''
@@ -152,9 +153,9 @@ def main() -> None:
         source, library = Path(build) / "trial.c", Path(build) / "trial.so"
         source.write_text(harness())
         subprocess.run([shutil.which("cc"), "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror",
-                        "-Wno-unused-function", "-shared", "-fPIC", "-I" + str(SRC), str(source),
-                        str(SRC / "dvbs2.c"), str(SRC / "dvbs2_apsk.c"), str(SRC / "iqgen.c"),
-                        str(SRC / "pvproto.c"), "-o", str(library)], check=True)
+                        "-Wno-unused-function", "-shared", "-fPIC", *fwsrc.INCLUDES, str(source),
+                        str(SRC / "dvbs2/dvbs2.c"), str(SRC / "dvbs2/dvbs2_apsk.c"), str(SRC / "cpu_shaping/iqgen.c"),
+                        str(SRC / "ingress/pvproto.c"), "-o", str(library)], check=True)
         lib = ct.CDLL(str(library))
         lib.trial.argtypes = [ct.c_int, ct.c_uint, ct.c_uint32, ct.c_uint, ct.c_uint]
         lib.trial.restype = ct.c_int

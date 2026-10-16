@@ -20,6 +20,7 @@ import zlib
 import numpy as np
 
 import dual_spi as spi
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -188,7 +189,7 @@ def build(directory):
     source.write_text(HARNESS)
     src = ROOT/'firmware/src'
     subprocess.run(['cc', '-std=gnu11', '-O2', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined',
-                    '-fno-sanitize-recover=all', '-I'+str(src), str(source), str(src/'pvproto.c'),
+                    '-fno-sanitize-recover=all', *fwsrc.INCLUDES, str(source), str(src / 'ingress/pvproto.c'),
                     '-o', str(exe)], check=True)
     return exe
 

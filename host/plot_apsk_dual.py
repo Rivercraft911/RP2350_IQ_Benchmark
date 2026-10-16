@@ -275,7 +275,7 @@ def self_test():
     except ValueError: cases += 1
     else: raise AssertionError('accepted wrong waveform with matching transport CRC')
     manifest = json.loads((SOURCE16/'manifest.json').read_text())
-    for field in ('iqbench.uf2', 'firmware/src/bench_apsk_live.c'):
+    for field in ('iqbench.uf2', 'firmware/src/bench/bench_apsk_live.c'):
         bad_manifest = copy.deepcopy(manifest)
         bad_manifest['sha256'][field] = '0'*64
         try: build_evidence(SOURCE16, bad_manifest)

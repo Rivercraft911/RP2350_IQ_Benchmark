@@ -11,6 +11,7 @@ import tempfile
 import numpy as np
 
 import dual_spi as spi
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -155,7 +156,7 @@ int main(void) {
 
 def main():
     src = ROOT/'firmware/src'
-    text = (src/'bench_dual.c').read_text()
+    text = (src / 'bench/bench_dual.c').read_text()
     start = text.index('static struct {')
     end = text.index('} encoder;', start) + len('} encoder;')
     leaves = ('static bool build_spi_frame(', 'static void split_flip_bb(',
@@ -167,7 +168,7 @@ def main():
         c, exe = Path(directory)/'test.c', Path(directory)/'test'
         c.write_text(code)
         subprocess.run(['cc', '-std=gnu11', '-O2', '-Wall', '-Wextra', '-Werror',
-                        '-I'+str(src), str(c), *[str(src/name) for name in
+                        *fwsrc.INCLUDES, str(c), *[str(fwsrc.path(name)) for name in
                         ('dvbs2.c', 'iqgen.c', 'pvproto.c', 'iqquadptr.c', 'iqquad.c')],
                         '-o', str(exe)], check=True)
         records = [json.loads(line) for line in subprocess.check_output([str(exe)], text=True).splitlines()]

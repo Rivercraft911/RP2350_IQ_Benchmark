@@ -1,6 +1,6 @@
-"""Emit firmware/src/dvbs2_codes.h (QPSK codes, EN 302 307-1) from reference/dvbs2/dvbs2_tables.py.
+"""Emit firmware/src/dvbs2/dvbs2_codes.h (QPSK codes, EN 302 307-1) from reference/dvbs2/dvbs2_tables.py.
 
-Also checks the BCH exponent lists typed into firmware/src/dvbs2.c against the reference tables,
+Also checks the BCH exponent lists typed into firmware/src/dvbs2/dvbs2.c against the reference tables,
 which were transcribed independently (see reference/dvbs2/gen_tables.py).
 Run from the repo root:  python3 reference/gen_dvbs2_codes.py
 """
@@ -13,11 +13,11 @@ sys.path.insert(0, str(ROOT / "reference" / "dvbs2"))
 import dvbs2_tables as T  # noqa: E402
 
 RATES = ("1/4", "1/3", "2/5", "1/2", "3/5", "2/3", "3/4", "4/5", "5/6", "8/9", "9/10")
-OUT = ROOT / "firmware" / "src" / "dvbs2_codes.h"
+OUT = ROOT / "firmware" / "src" / "dvbs2" / "dvbs2_codes.h"
 
 
 def check_bch_polys():
-    src = (ROOT / "firmware" / "src" / "dvbs2.c").read_text()
+    src = (ROOT / "firmware" / "src" / "dvbs2" / "dvbs2.c").read_text()
     for name, key in (("G16", "normal"), ("G14", "short")):
         body = re.search(name + r"\[12\]\[\d+\] = \{(.*?)\};", src, re.S).group(1)
         rows = [tuple(int(v) for v in r.split(",")) for r in re.findall(r"\{([\d, ]+)\}", body)]

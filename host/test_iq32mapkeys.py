@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import zlib
 import numpy as np
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 U8P = ctypes.POINTER(ctypes.c_uint8)
@@ -110,8 +111,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix='iq32mapkeys-') as temp:
         library = Path(temp)/'native.so'
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
-                        '-shared', '-fPIC', f'-I{source}', str(source/'iq32mapkeys.c'),
-                        str(source/'iq32keys.c'), '-o', str(library)], check=True)
+                        '-shared', '-fPIC', *fwsrc.INCLUDES, str(source / 'apsk/iq32mapkeys.c'),
+                        str(source / 'apsk/iq32keys.c'), '-o', str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.iq32mapkeys_coordinate.argtypes = [ctypes.c_uint8]
         lib.iq32mapkeys_coordinate.restype = ctypes.c_uint32

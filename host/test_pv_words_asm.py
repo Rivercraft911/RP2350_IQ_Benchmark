@@ -17,7 +17,7 @@ import tempfile
 from test_bch128_asm import operands, register, registers
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'firmware/src/pvproto_asm.S'
+SOURCE = ROOT / 'firmware/src/ingress/pvproto_asm.S'
 TOOLS = Path.home() / '.pico-sdk/toolchain/14_2_Rel1/bin'
 MASK, END = 0xFFFFFFFF, 0xEEEEEEE0
 

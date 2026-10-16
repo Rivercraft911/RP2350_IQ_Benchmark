@@ -35,16 +35,16 @@ The BB+BCH average falls about31%, while shaping falls9.5% at128MHz and9.4% at15
 
 Do not call the historical comparison a perfectly isolated one-line causal experiment. The two frozen source trees also differ in the following files:
 
-- `src/bench.h`
-- `src/bench_dual.c`
-- `src/dvbs2_asm.S`
-- `src/iqdesc.c`
-- `src/iqdesc.h`
-- `src/iqquad.c`
-- `src/iqquad.h`
-- `src/iqquadptr.c`
-- `src/iqquadptr.h`
-- `src/main.c`
+- `src/bench/bench.h`
+- `src/bench/bench_dual.c`
+- `src/dvbs2/dvbs2_asm.S`
+- `src/output/iqdesc.c`
+- `src/output/iqdesc.h`
+- `src/output/iqquad.c`
+- `src/output/iqquad.h`
+- `src/output/iqquadptr.c`
+- `src/output/iqquadptr.h`
+- `src/app/main.c`
 
 There are nine changed files besides the BCH section file. The first placement trial with correct digital outputs but the wrong expected-git argument is retained under `bch-placement-quick-1`; use the identity-correct `quick-2` for qualification. The measured recovery is real; exact attribution of every cycle to placement alone remains a controlled-test question. The failing observation's short run also overweights startup frame work; compare matched short windows or steady-state complete windows for numerical attribution.
 

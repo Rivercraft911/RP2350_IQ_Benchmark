@@ -14,6 +14,7 @@ import numpy as np
 import test_dvbs2_8psk_codes as codes
 import test_dvbs2_8psk as old
 import r2_hazard3_trial as trial
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -31,8 +32,8 @@ def main():
                           'uint32_t test_spread(uint32_t x){return r2_hazard3_spread16(x);}\n')
         library = temp / "r2.so"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        "-DIQ_R2_HAZARD3=1", "-DIQ_R2_HAZARD3_EMULATE=1", f"-I{src}",
-                        str(src / "dvbs2_8psk.c"), str(src / "iq4hist.c"), str(bridge),
+                        "-DIQ_R2_HAZARD3=1", "-DIQ_R2_HAZARD3_EMULATE=1", *fwsrc.INCLUDES,
+                        str(src / "dvbs2/dvbs2_8psk.c"), str(src / "output/iq4hist.c"), str(bridge),
                         "-o", str(library)], check=True)
         lib = ct.CDLL(str(library))
         lib.test_code.argtypes = [ct.c_uint]; lib.test_code.restype = ct.c_void_p

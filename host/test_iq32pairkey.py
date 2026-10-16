@@ -13,6 +13,7 @@ import numpy as np
 import test_iq16chunk_asm as vm
 import test_iq32native8 as native
 import test_iq32native8_asm as asm
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,7 +40,7 @@ def c_output(lib, words, previous, tables, partition):
 def main():
     source = ROOT/'firmware/src'
     vm.BASE['tables'] = 0x20040000
-    code, labels = vm.program(source/'iq32pairkey_asm.S')
+    code, labels = vm.program(source / 'apsk/iq32pairkey_asm.S')
     # BIC x,mask is exact AND x,~mask. The shared32-bit semantics model
     # already validates AND; these actual BIC immediates also assemble on M33.
     code = [line.replace('bic ', 'and ').replace('#0xfe00fe00', '#0x01ff01ff')
@@ -70,8 +71,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix='iq32pairkey-proof-') as temp:
         library = Path(temp)/'native.so'
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
-                        '-shared', '-fPIC', f'-I{source}', str(source/'iq32native8.c'),
-                        str(source/'iq32pairkey.c'), '-o', str(library)], check=True)
+                        '-shared', '-fPIC', *fwsrc.INCLUDES, str(source / 'apsk/iq32native8.c'),
+                        str(source / 'apsk/iq32pairkey.c'), '-o', str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.iq32native8_build.argtypes = [ctypes.POINTER(native.Tables), ctypes.c_uint]
         lib.iq32native8_build.restype = ctypes.c_bool

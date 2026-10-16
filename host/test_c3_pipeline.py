@@ -15,6 +15,7 @@ import zlib
 import numpy as np
 
 import c3_fec_trial as reference
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 RING = 4096
@@ -62,8 +63,8 @@ def main() -> None:
     expected_cache, physical_cache, records = {}, {}, 0
     with tempfile.TemporaryDirectory(prefix="c3-pipeline-") as build:
         exe = Path(build) / "pipeline_test"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{src}",
-                        *(str(src / name) for name in ("dvbs2.c", "dvbs2_8psk.c", "pvproto.c", "c3_fec.c")),
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        *(str(fwsrc.path(name)) for name in ("dvbs2.c", "dvbs2_8psk.c", "pvproto.c", "c3_fec.c")),
                         str(ROOT / "host/native/c3_pipeline_test.c"), "-o", str(exe)], check=True)
         for options in OPTION_CASES:
             result = subprocess.run([str(exe), str(options)], check=True, capture_output=True, text=True)

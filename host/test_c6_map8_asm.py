@@ -19,7 +19,7 @@ from test_bch128_asm import operands, register, registers
 from test_c4_mapper_pic import tool
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "firmware/src/dvbs2_map8_asm.S"
+SOURCE = ROOT / "firmware/src/dvbs2/dvbs2_map8_asm.S"
 MASK, END, GUARD = 0xffffffff, 0xeeeeeee0, 0x9ad4c781
 # Integer phase index in units of pi/4, label bits read MSB first.
 GRAY_PHASE = (1, 0, 4, 5, 2, 7, 3, 6)

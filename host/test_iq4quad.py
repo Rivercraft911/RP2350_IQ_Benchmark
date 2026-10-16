@@ -15,6 +15,7 @@ import zlib
 import numpy as np
 
 from pulse_profiles import FOUR_LEVELS_Q30, L7_COEFFICIENTS, iq4hist_prbs
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "firmware/src"
@@ -94,8 +95,8 @@ def main():
     fixtures = []
     with tempfile.TemporaryDirectory(prefix="iq4quad-native-") as temporary:
         executable = Path(temporary) / "iq4quad_test"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{SRC}",
-                        *(str(SRC / name) for name in ("iq4hist.c", "iq8.c", "iq4quad.c")),
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        *(str(fwsrc.path(name)) for name in ("iq4hist.c", "iq8.c", "iq4quad.c")),
                         str(ROOT / "host/native/iq4quad_test.c"), "-o", str(executable)], check=True)
         for bits in (8, 14):
             table = np.frombuffer(subprocess.check_output([str(executable), f"table{bits}"]), dtype="<u4")

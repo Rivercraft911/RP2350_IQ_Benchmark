@@ -49,7 +49,7 @@ accounting for the sender and receiver scheduling.
 ## Candidate comparison
 
 Counts below are proposed **external-receiver** resources, excluding the
-emulated sender. The existing [PV-SPI](../../firmware/src/pvspi.c) uses a
+emulated sender. The existing [PV-SPI](../../firmware/src/ingress/pvspi.c) uses a
 four-word receiver plus a five-word CS/READY gate; it actually reserves an
 emulator SM and two extra DMA channels even with its emulator disabled. The
 candidate counts distinguish useful production resources from that legacy
@@ -159,7 +159,7 @@ asynchronous electrical margin.
 `pvwide` is compiled only into experimental `iqbench`, under the existing
 `IQ4HIST_EXPERIMENT` option. It uses borrowed idle transmitter buffers and
 does not alter `pvspi.c`, `pvproto.c`, autonomous `pvflight`, or default output
-selection. [The implementation](../../firmware/src/pvwide.c) has these commands:
+selection. [The implementation](../../firmware/src/ingress/pvwide.c) has these commands:
 
 ```
 pvwide ms width half fault [emulate]
@@ -520,7 +520,7 @@ XIP and contention before deciding which old idle-only buffers can hold code.
 
 No commits were created. Intended small logical commits:
 
-1. `firmware/src/pvwide.{c,h}`, `firmware/src/main.c`, `firmware/CMakeLists.txt`:
+1. `firmware/src/pvwide.{c,h}`, `firmware/src/app/main.c`, `firmware/CMakeLists.txt`:
    **Add opt-in framed four-bit ingress and on-chip sender benchmark.**
 2. `host/test_pvwide.py`, `host/pvwide_trial.py`, `Makefile`:
    **Verify wide ingress against CM5 vectors and add strict coordinator sweeps.**

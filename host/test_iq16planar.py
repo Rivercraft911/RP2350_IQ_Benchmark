@@ -17,11 +17,12 @@ import iq16out_trial as base
 import test_iq16native8 as native
 import test_iq16fast_planar as planar
 from test_dual_faults import function_body
+import fwsrc
 
 
 def main():
     source = base.iq.ROOT/'firmware/src'
-    bench = (source/'bench16planar.c').read_text()
+    bench = (source / 'bench/bench16planar.c').read_text()
     enum = re.search(r'enum\s*\{[\s\S]*?\};', bench)[0]
     fixture = f'''
 #include <assert.h>
@@ -46,13 +47,13 @@ void checked_descriptors(uint32_t *di,uint32_t *dq,uint32_t *output) {{
 {function_body(bench,'descriptor_rows')}
 }}
 '''
-    code, labels = planar.program(source/'iq16fast_planar_asm.S')
+    code, labels = planar.program(source / 'apsk/iq16fast_planar_asm.S')
     labels['iq16native8_kernel_asm'] = labels['iq16fast_planar_asm']
     with tempfile.TemporaryDirectory(prefix='iq16planar-glue-') as directory:
         path = Path(directory); (path/'check.c').write_text(fixture)
         library = path/'check.so'
-        subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',f'-I{source}',
-                        str(path/'check.c'),str(source/'iq16native8.c'),'-o',str(library)],check=True)
+        subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',*fwsrc.INCLUDES,
+                        str(path/'check.c'),str(source / 'apsk/iq16native8.c'),'-o',str(library)],check=True)
         lib = ctypes.CDLL(str(library))
         lib.checked_descriptors.argtypes = [native.PTR,native.PTR,native.PTR]
         lib.checked_shape.argtypes = [native.PTR,ctypes.c_uint32,ctypes.POINTER(native.Tables)]

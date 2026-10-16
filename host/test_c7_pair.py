@@ -17,6 +17,7 @@ import zlib
 import numpy as np
 
 import c3_fec_trial as reference
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "firmware/src"
@@ -181,12 +182,12 @@ class C7Pair(unittest.TestCase):
         (directory / "pico/stdlib.h").write_text('#pragma once\n')
         (directory / "git_rev.h").write_text('#define GIT_REV "native-c7-pair"\n')
         (directory / "tx.h").write_text(TX_HEADER)
-        shutil.copyfile(SRC / "bench_c3_pair.c", directory / "bench_c3_pair.c")
+        shutil.copyfile(SRC / "bench/bench_c3_pair.c", directory / "bench_c3_pair.c")
         (directory / "harness.c").write_text(HARNESS)
         cls.executable = directory / "bench"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
-                        "-I" + str(directory), "-I" + str(SRC), str(directory / "harness.c"),
-                        *(str(SRC / name) for name in ("c3_fec.c", "dvbs2.c", "dvbs2_8psk.c", "pvproto.c")),
+                        "-I" + str(directory), *fwsrc.INCLUDES, str(directory / "harness.c"),
+                        *(str(fwsrc.path(name)) for name in ("c3_fec.c", "dvbs2.c", "dvbs2_8psk.c", "pvproto.c")),
                         "-o", str(cls.executable)], check=True)
         cls.gold = {code: independent_rings(code) for code in RATES}
 

@@ -45,7 +45,7 @@ means arithmetic here; "unverified" means no source states it.
   unplugged) [SDK board header].
 - The Pico Plus 2 W (PIM726) is a different board: RM2 radio on GPIO23–25/29, no SP/CE.
 
-Pin use. `firmware/src/config.h` is the authority.
+Pin use. `firmware/src/app/config.h` is the authority.
 
 | GPIO | Header pin | Use |
 |---|---|---|

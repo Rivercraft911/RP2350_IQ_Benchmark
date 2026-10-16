@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import unittest
 import zlib
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / 'firmware/src'
@@ -160,14 +161,14 @@ class Bench4Quad(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix='bench4quad-native-')
         directory = Path(cls.temp.name)
-        source = (SRC / 'bench4quad.c').read_text()
+        source = (SRC / 'bench/bench4quad.c').read_text()
         # Retain the complete production enums, claim snapshot and command body.
         body = source[source.index('enum {'):]
         native = directory / 'bench.c'
         native.write_text(FIXTURE + body + MAIN)
         cls.executable = directory / 'bench'
-        subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror', '-I'+str(SRC),
-                        str(native), *(str(SRC/name) for name in
+        subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror', *fwsrc.INCLUDES,
+                        str(native), *(str(fwsrc.path(name)) for name in
                                        ('iqgen.c', 'iq8.c', 'iq4hist.c', 'iq4quad.c')),
                         '-o', str(cls.executable)], check=True)
 

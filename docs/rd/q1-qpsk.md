@@ -422,10 +422,10 @@ plus the leaf's 40-byte frame.
 
 ## Files
 
-- `firmware/src/pvproto.c`, `pvproto.h`, `pvproto_asm.S` (new): fused adapter, step form and
+- `firmware/src/ingress/pvproto.c`, `pvproto.h`, `pvproto_asm.S` (new): fused adapter, step form and
   leaf.
-- `firmware/src/bench_dual.c`: `pvkernel`, `ingress_step` and result fields.
-- `firmware/src/main.c`, `bench.h`, `bench.c` (`pvbench`).
+- `firmware/src/bench/bench_dual.c`: `pvkernel`, `ingress_step` and result fields.
+- `firmware/src/app/main.c`, `bench.h`, `bench.c` (`pvbench`).
 - `firmware/CMakeLists.txt`: adds the `.S` file.
 - `host/dualptr_trial.py`: `--pv-kernel`.
 - Tests: `host/test_pv_words.py`, `host/test_pv_words_asm.py` (both new),

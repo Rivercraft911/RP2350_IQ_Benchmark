@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -162,7 +163,7 @@ int main(void) {
 
 
 def main():
-    source = (ROOT / "firmware/src/dual_dma.c").read_text()
+    source = (ROOT / "firmware/src/output/dual_dma.c").read_text()
     functions = [("static void", "sample_capture", "uint32_t dma_interrupts"),
                  ("static void", "sample_faults", "void"),
                  ("dual_dma_progress_t", "dual_dma_progress", "void"),
@@ -177,7 +178,7 @@ def main():
         executable = Path(directory) / "faults"
         test.write_text(code)
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
-                        f"-I{ROOT / 'firmware/src'}", str(test), "-o", str(executable)], check=True)
+                        *fwsrc.INCLUDES, str(test), "-o", str(executable)], check=True)
         subprocess.run([str(executable)], check=True)
 
 

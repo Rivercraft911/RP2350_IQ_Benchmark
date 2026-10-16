@@ -154,7 +154,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="r2grant-native-") as build:
         library = Path(build) / "r2grant.so"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        str(ROOT / "firmware/src/r2grant.c"), "-o", str(library)], check=True)
+                        str(ROOT / "firmware/src/output/r2grant.c"), "-o", str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         checked = verify_native(lib)
         words, aborts = verify_chains(lib)

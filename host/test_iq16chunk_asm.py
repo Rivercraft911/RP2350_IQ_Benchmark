@@ -19,6 +19,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 from test_iq16chunk import Tables, PTR, P16, CANARY, ROWS, filter_coefficients, levels, direct_output, decode_words
+import fwsrc  # noqa: E402  firmware/src/<area>/ layout
 
 MASK = (1 << 32) - 1
 END = 0xeeeeeee0
@@ -263,13 +264,13 @@ def execute(code, labels, lib, edge, middle, reverse, data, previous, use_map=Tr
 
 def main():
     source = ROOT / 'firmware/src'
-    assembly = source / 'iq16chunk_asm.S'
+    assembly = source / 'apsk/iq16chunk_asm.S'
     code, labels = program(assembly)
     cases = instructions = 0
     with tempfile.TemporaryDirectory(prefix='iq16chunk-asm-') as temp:
         library = Path(temp) / 'chunk.so'
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
-                        f'-I{source}', str(source/'iq16chunk.c'), '-o', str(library)], check=True)
+                        *fwsrc.INCLUDES, str(source / 'apsk/iq16chunk.c'), '-o', str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.iq16chunk_build.argtypes = [ctypes.POINTER(Tables), ctypes.c_uint]
         lib.iq16chunk_build.restype = ctypes.c_bool

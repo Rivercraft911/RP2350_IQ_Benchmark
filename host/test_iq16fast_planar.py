@@ -11,6 +11,7 @@ import tempfile
 import numpy as np
 import test_iq16native8 as native
 import test_iq16chunk_asm as vm
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,13 +39,13 @@ def program(path):
 
 def main():
     source = ROOT/'firmware/src'
-    code, labels = program(source/'iq16fast_planar_asm.S')
+    code, labels = program(source / 'apsk/iq16fast_planar_asm.S')
     labels['iq16native8_kernel_asm'] = labels['iq16fast_planar_asm']
     cases = instructions = 0
     with tempfile.TemporaryDirectory(prefix='iq16planar-proof-') as temp:
         library = Path(temp)/'native.so'
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
-                        '-shared', '-fPIC', f'-I{source}', str(source/'iq16native8.c'),
+                        '-shared', '-fPIC', *fwsrc.INCLUDES, str(source / 'apsk/iq16native8.c'),
                         '-o', str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.iq16native8_build.argtypes = [ctypes.POINTER(native.Tables), ctypes.c_uint]

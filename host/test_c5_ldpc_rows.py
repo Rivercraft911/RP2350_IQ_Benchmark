@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def program():
     source = [line.split("//")[0].strip() for line in
-              (ROOT / "firmware/src/dvbs2_ldpc_c5_rows.S").read_text().splitlines()]
+              (ROOT / "firmware/src/dvbs2/dvbs2_ldpc_c5_rows.S").read_text().splitlines()]
     code, labels = [], {}
 
     def emit(lines):

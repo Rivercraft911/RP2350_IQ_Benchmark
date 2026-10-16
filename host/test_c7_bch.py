@@ -18,6 +18,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reference/dvbs2"))
 import dvbs2 as ref  # noqa: E402
+import fwsrc  # noqa: E402  firmware/src/<area>/ layout
 
 MASK = 0xFFFFFFFF
 GUARD = 0xC790A53D
@@ -54,7 +55,7 @@ class C7BCH(unittest.TestCase):
         cls.temporary = tempfile.TemporaryDirectory(prefix="c7-bch-native-")
         library = Path(cls.temporary.name) / "c7.so"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        f"-I{ROOT / 'firmware/src'}", str(ROOT / "host/native/c7_bch_test.c"),
+                        *fwsrc.INCLUDES, str(ROOT / "host/native/c7_bch_test.c"),
                         "-o", str(library)], check=True)
         cls.lib = ct.CDLL(str(library))
         cls.lib.c7_setup.argtypes = [ct.c_uint, PTR, PTR]
