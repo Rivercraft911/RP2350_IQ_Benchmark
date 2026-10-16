@@ -50,4 +50,3 @@ dvbs2_ldpc_accumulate_c5_pic:
     .size dvbs2_ldpc_accumulate_c5_pic, .-dvbs2_ldpc_accumulate_c5_pic
 dvbs2_ldpc_rows_c5_pic_end:
 #endif
-    .section .note.GNU-stack, "", %progbits
