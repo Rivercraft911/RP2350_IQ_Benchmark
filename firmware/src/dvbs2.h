@@ -101,12 +101,35 @@ typedef struct {
     uint32_t cursor;
     uint32_t parity[7];
     dvbs2_bch_kernel_t kernel;
-    bool done;
+    bool done, profile;
 } dvbs2_frontend_t;
 bool dvbs2_frontend_begin(const uint32_t *bbframe, uint32_t *frame, dvbs2_frontend_t *state);
+// Concurrent alternative: no shared profiling writes, accepts degree192 as well. The
+// initialized code/tables and selectors must stay fixed; BB/frame/state must be disjoint
+// between workers. Like the original begin, the copy/scramble is one complete bounded pass.
+bool dvbs2_frontend_begin_reentrant(const uint32_t *bbframe, uint32_t *frame,
+                                  dvbs2_frontend_t *state);
 // Call only after successful begin. max_words0 makes no progress; completed calls are
 // idempotent and return true. On Arm selector2 continues the streamed assembly recurrence.
 bool dvbs2_frontend_step(dvbs2_frontend_t *state, uint32_t max_words);
+// Concurrent bounded LDPC for q<=64, using the pack1 streaming order. Each worker owns
+// frame, state, and q*12 uint32 workspace words (2880/2160/1440 bytes for normal2/3,
+// 3/4, 5/6). There is no shared P or profiling write. Configuration must remain fixed.
+// A step unit clears one row, handles one 360-bit group, accumulates one row, computes
+// the 12-word prefix, applies it to one row, or packs one 32-column block. Steps are
+// bounded by max_units; zero makes no progress, completed steps are idempotent.
+// Begin validates arguments without changing them on failure. Workspace is cleared in
+// the first steps; frame contains BB+BCH on entry and a complete FECFRAME on completion.
+typedef struct {
+    uint32_t *frame;
+    uint32_t (*rows)[12];
+    uint32_t cursor, stage, prefix[12], acc, fill, written;
+    bool done;
+} dvbs2_ldpc_state_t;
+uint32_t dvbs2_ldpc_workspace_words(void); // zero if q>64
+bool dvbs2_ldpc_begin_reentrant(uint32_t *frame, uint32_t *workspace,
+                               uint32_t workspace_words, dvbs2_ldpc_state_t *state);
+bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units);
 // Instruction placement for frontend steps with selectors STREAM_ARM/T8_ARM: 0 = striped SRAM
 // (default), 1 = an identical copy in scratch Y, for a core-0 caller. Select while idle.
 // T8_ARM degree128 specializes only bank1 to four words; bank0 retains the five-word leaf.
