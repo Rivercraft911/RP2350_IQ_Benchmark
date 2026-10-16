@@ -83,14 +83,24 @@
       "docs/benchmark-history.md"
     ],
     [
-      "two-core\nreentrant (C3)",
+      "two-core\n(C3)",
       242.6,
       "results/c3-8psk-fec16/2026-10-15/gap4096.jsonl"
     ],
     [
-      "C4 kernels",
+      "C4",
       226.3,
       "results/ldpc-banks/2026-10-15/pair-bch.jsonl (who 0, options 27)"
+    ],
+    [
+      "C5\nLDPC",
+      169.9,
+      "results/c8-fec-combined/2026-10-16/pair.jsonl (c3pair 5 40 0 0 123, job A)"
+    ],
+    [
+      "C7\nBCH",
+      152.7,
+      "results/c8-fec-combined/2026-10-16/pair.jsonl (c3pair 5 40 4 0 best, job A)"
     ]
   ],
   "core0": [
@@ -138,7 +148,7 @@
     {
       "thread": "Pulse shaping",
       "stage": "Oct 15 midday APSK",
-      "status": "best",
+      "status": "done",
       "label": "APSK on the CPU",
       "source": "results/apsk-fec/2026-10-15"
     },
@@ -264,7 +274,7 @@
     {
       "thread": "FEC and mapping",
       "stage": "Oct 15–16 round 3",
-      "status": "best",
+      "status": "done",
       "label": "C4 kernels, −11 to −14%",
       "source": "results/c4-fec-speed/2026-10-15"
     },
@@ -334,7 +344,7 @@
     {
       "thread": "Higher order",
       "stage": "Oct 15 midday APSK",
-      "status": "best",
+      "status": "done",
       "label": "16APSK / 32APSK complete",
       "source": "results/apsk-fec/2026-10-15"
     },
@@ -355,7 +365,7 @@
     {
       "thread": "Higher order",
       "stage": "Oct 15–16 round 3",
-      "status": "best",
+      "status": "done",
       "label": "8PSK waveform, 16 Msym/s",
       "source": "results/b6-pio-producers/2026-10-15"
     },
@@ -369,7 +379,7 @@
     {
       "thread": "Input",
       "stage": "Oct 15 a.m. 16 Msym/s, 8PSK",
-      "status": "best",
+      "status": "done",
       "label": "PIO/DMA SPI ingress, 32 MHz",
       "source": "results/dual-dma/2026-10-15"
     },
@@ -379,6 +389,90 @@
       "status": "no",
       "label": "USB input, hardware FEC",
       "source": "docs/rd/r2-hw-offload.md"
+    },
+    {
+      "thread": "Pulse shaping",
+      "stage": "Oct 16 round 4: combine",
+      "status": "best",
+      "label": "5 SPS: 12.8 Msym/s",
+      "source": "results/n5-12m8/2026-10-16"
+    },
+    {
+      "thread": "DMA/PIO output",
+      "stage": "Oct 16 round 4: combine",
+      "status": "best",
+      "label": "IRQ grant re-arm",
+      "source": "results/b9-8psk16/2026-10-16"
+    },
+    {
+      "thread": "FEC and mapping",
+      "stage": "Oct 16 round 4: combine",
+      "status": "best",
+      "label": "C5–C8: 2/3 at 16 Msym/s",
+      "source": "results/c8-fec-combined/2026-10-16"
+    },
+    {
+      "thread": "FEC and mapping",
+      "stage": "Oct 16 round 4: combine",
+      "status": "done",
+      "label": "C9: 5/6 −14k cycles",
+      "source": "results/c9-fec-fit/2026-10-16"
+    },
+    {
+      "thread": "Memory, clock, bus",
+      "stage": "Oct 16 round 4: combine",
+      "status": "found",
+      "label": "XIP cache-set clash",
+      "source": "results/b10-8psk16-rates/2026-10-16"
+    },
+    {
+      "thread": "Memory, clock, bus",
+      "stage": "Oct 16 round 4: combine",
+      "status": "found",
+      "label": "gate timed startup",
+      "source": "results/c8-fec-combined/2026-10-16"
+    },
+    {
+      "thread": "Higher order",
+      "stage": "Oct 16 round 4: combine",
+      "status": "best",
+      "label": "8PSK 2/3, 16 Msym/s",
+      "source": "results/b9-8psk16/2026-10-16"
+    },
+    {
+      "thread": "Higher order",
+      "stage": "Oct 16 round 4: combine",
+      "status": "best",
+      "label": "8PSK 5/6, 16 Msym/s*",
+      "source": "results/b10-8psk16-rates/2026-10-16"
+    },
+    {
+      "thread": "Higher order",
+      "stage": "Oct 16 round 4: combine",
+      "status": "no",
+      "label": "8PSK 3/4: dry at 46 s",
+      "source": "results/b10-8psk16-rates/2026-10-16"
+    },
+    {
+      "thread": "Higher order",
+      "stage": "Oct 16 round 4: combine",
+      "status": "best",
+      "label": "APSK mapper +14/+33%",
+      "source": "results/a3-apsk/2026-10-16"
+    },
+    {
+      "thread": "Input",
+      "stage": "Oct 16 round 4: combine",
+      "status": "best",
+      "label": "4-bit ingress, 47.8 Mb/s",
+      "source": "results/ingress-wide/2026-10-16"
+    },
+    {
+      "thread": "Input",
+      "stage": "Oct 16 round 4: combine",
+      "status": "best",
+      "label": "TS adapter, core 1 −25 pts",
+      "source": "results/q1-qpsk/2026-10-16"
     }
   ]
 }

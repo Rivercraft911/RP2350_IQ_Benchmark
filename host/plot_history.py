@@ -34,8 +34,10 @@ FEC = [('bit-serial', 1356 + 2771, 'docs/benchmark-history.md'),
        ('v2', 110 + 163, 'docs/benchmark-history.md'),
        ('v3', 110 + 144, 'docs/benchmark-history.md'),
        ('v4', 110 + 127, 'docs/benchmark-history.md'),
-       ('two-core\nreentrant (C3)', 85.9 + 156.7, 'results/c3-8psk-fec16/2026-10-15/gap4096.jsonl'),
-       ('C4 kernels', 84.3 + 142.0, 'results/ldpc-banks/2026-10-15/pair-bch.jsonl (who 0, options 27)')]
+       ('two-core\n(C3)', 85.9 + 156.7, 'results/c3-8psk-fec16/2026-10-15/gap4096.jsonl'),
+       ('C4', 84.3 + 142.0, 'results/ldpc-banks/2026-10-15/pair-bch.jsonl (who 0, options 27)'),
+       ('C5\nLDPC', 85.0 + 84.9, 'results/c8-fec-combined/2026-10-16/pair.jsonl (c3pair 5 40 0 0 123, job A)'),
+       ('C7\nBCH', 65.7 + 87.0, 'results/c8-fec-combined/2026-10-16/pair.jsonl (c3pair 5 40 4 0 best, job A)')]
 
 # Core-0 work for complete QPSK pipelines, % of core: (engine, 8 Msym/s, 16 Msym/s, source)
 CORE0 = [('CPU shaper', 72.0, None, 'docs/benchmark-history.md (QPSK 2/3, L=10)'),
@@ -171,7 +173,8 @@ OFFLOAD = []
 # ---- map of what was tried ----
 STAGES = [('Sep 29–Oct 2', 'CPU transmitter'), ('Oct 14', 'limits, LUT DMA'),
           ('Oct 15 a.m.', '16 Msym/s, 8PSK'), ('Oct 15 midday', 'APSK'),
-          ('Oct 15 p.m.', 'R&D round 1'), ('Oct 15 eve.', 'round 2'), ('Oct 15–16', 'round 3')]
+          ('Oct 15 p.m.', 'R&D round 1'), ('Oct 15 eve.', 'round 2'), ('Oct 15–16', 'round 3'),
+          ('Oct 16', 'round 4: combine')]
 THREADS = ['Pulse shaping', 'DMA/PIO output', 'FEC and mapping', 'Memory, clock, bus', 'Higher order', 'Input']
 # (thread, stage, status, label, source). Status: best = current best, done = worked but
 # superseded or not adopted, found = measurement that explained something, no = failed or ruled out.
@@ -179,7 +182,7 @@ ITEMS = [
     (0, 0, 'done', 'LUT kernels, 918 → 10.8 cycles', 'docs/benchmark-history.md'),
     (0, 2, 'done', '2 SPS (images −18 dBc)', 'docs/frontier/strategy-report.md'),
     (0, 2, 'done', 'signed-plane 8PSK / VCM', 'results/waveforms/2026-10-15'),
-    (0, 3, 'best', 'APSK on the CPU', 'results/apsk-fec/2026-10-15'),
+    (0, 3, 'done', 'APSK on the CPU', 'results/apsk-fec/2026-10-15'),
     (0, 4, 'best', 'four-level 8PSK table', 'results/b1-four-level/2026-10-15'),
     (0, 4, 'no', 'APSK table in hardware (MiB)', 'docs/frontier/frontier.md'),
     (0, 6, 'best', '8-bit table rows', 'results/b4-8bit-rows/2026-10-15'),
@@ -197,7 +200,7 @@ ITEMS = [
     (2, 4, 'no', 'scheduled LDPC: slower live', 'archive/rd/c1-fec-throughput'),
     (2, 5, 'best', 't=8 BCH, QPSK 9/10', 'results/c2-qpsk-910/2026-10-15'),
     (2, 6, 'done', 'two-core frame-parallel FEC', 'results/c3-8psk-fec16/2026-10-15'),
-    (2, 6, 'best', 'C4 kernels, −11 to −14%', 'results/c4-fec-speed/2026-10-15'),
+    (2, 6, 'done', 'C4 kernels, −11 to −14%', 'results/c4-fec-speed/2026-10-15'),
     (2, 6, 'no', '8PSK FEC at 16 Msym/s', 'results/c4-fec-speed/2026-10-15'),
     (3, 2, 'done', 'BCH in SCRATCH_Y, −31%', 'results/memory-placement'),
     (3, 4, 'best', 'GPIO28 DDR clock', 'results/dac-clock/2026-10-15'),
@@ -207,13 +210,25 @@ ITEMS = [
     (3, 6, 'done', 'self-re-arming DMA grants', 'results/r2-hw-offload/2026-10-15'),
     (3, 6, 'no', '256 MHz overclock', 'not pursued'),
     (4, 2, 'done', '8PSK and VCM at 150 MHz', 'results/waveforms/2026-10-15'),
-    (4, 3, 'best', '16APSK / 32APSK complete', 'results/apsk-fec/2026-10-15'),
+    (4, 3, 'done', '16APSK / 32APSK complete', 'results/apsk-fec/2026-10-15'),
     (4, 4, 'found', 'APSK below QPSK-16', 'docs/frontier/frontier.md'),
     (4, 6, 'best', '8PSK complete, 8 Msym/s', 'results/b7-live8/2026-10-15'),
-    (4, 6, 'best', '8PSK waveform, 16 Msym/s', 'results/b6-pio-producers/2026-10-15'),
+    (4, 6, 'done', '8PSK waveform, 16 Msym/s', 'results/b6-pio-producers/2026-10-15'),
     (5, 0, 'best', 'PV-SPI from a CM5, 210 s', 'results/cm5-spi'),
-    (5, 2, 'best', 'PIO/DMA SPI ingress, 32 MHz', 'results/dual-dma/2026-10-15'),
+    (5, 2, 'done', 'PIO/DMA SPI ingress, 32 MHz', 'results/dual-dma/2026-10-15'),
     (5, 6, 'no', 'USB input, hardware FEC', 'docs/rd/r2-hw-offload.md'),
+    (0, 7, 'best', '5 SPS: 12.8 Msym/s', 'results/n5-12m8/2026-10-16'),
+    (1, 7, 'best', 'IRQ grant re-arm', 'results/b9-8psk16/2026-10-16'),
+    (2, 7, 'best', 'C5–C8: 2/3 at 16 Msym/s', 'results/c8-fec-combined/2026-10-16'),
+    (2, 7, 'done', 'C9: 5/6 −14k cycles', 'results/c9-fec-fit/2026-10-16'),
+    (3, 7, 'found', 'XIP cache-set clash', 'results/b10-8psk16-rates/2026-10-16'),
+    (3, 7, 'found', 'gate timed startup', 'results/c8-fec-combined/2026-10-16'),
+    (4, 7, 'best', '8PSK 2/3, 16 Msym/s', 'results/b9-8psk16/2026-10-16'),
+    (4, 7, 'best', '8PSK 5/6, 16 Msym/s*', 'results/b10-8psk16-rates/2026-10-16'),
+    (4, 7, 'no', '8PSK 3/4: dry at 46 s', 'results/b10-8psk16-rates/2026-10-16'),
+    (4, 7, 'best', 'APSK mapper +14/+33%', 'results/a3-apsk/2026-10-16'),
+    (5, 7, 'best', '4-bit ingress, 47.8 Mb/s', 'results/ingress-wide/2026-10-16'),
+    (5, 7, 'best', 'TS adapter, core 1 −25 pts', 'results/q1-qpsk/2026-10-16'),
 ]
 STYLE = {'best': dict(marker='o', mfc=INK, mec=INK), 'done': dict(marker='o', mfc='white', mec=INK),
          'found': dict(marker='D', mfc='white', mec=DARK), 'no': dict(marker='x', mfc='none', mec=INK)}
@@ -250,6 +265,8 @@ def fig_map():
     ax.tick_params(axis='y', length=0)
     ax.legend(handles=[Line2D([], [], ls='none', ms=4.5, mew=0.8, color=INK, label=LEGEND[k], **STYLE[k])
                        for k in STYLE], loc='upper center', bbox_to_anchor=(0.5, -0.02), ncol=4, fontsize=7)
+    ax.text(len(STAGES), -0.62, '* own image (tag archive/b10-8psk16-rates); not yet in the combined main image',
+            ha='right', va='top', fontsize=6.4, color=DARK)
     save_figure(fig, OUT / 'experiment_map')
 
 

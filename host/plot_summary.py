@@ -61,14 +61,19 @@ point('qpsk16_56', 'QPSK 5/6', 'QPSK', 8, 'results/b2-8psk-live/2026-10-15/a1-16
       cmd='dualptr', source=6)
 point('qpsk8_56', 'QPSK 5/6', 'QPSK', 8, 'results/dualptr/2026-10-15/a1-8msym-60s/runs.jsonl', cmd='dualptr', source=5)
 point('8psk8_hw', '8PSK 5/6', '8PSK', 8, 'results/b7-live8/2026-10-15/live8-60s-prio13-1/runs.jsonl', cmd='bench4fec')
+point('8psk16_23', '8PSK 2/3', '8PSK', 5, 'results/b9-8psk16/2026-10-16/run-60s-1/runs.jsonl', cmd='b9', cpw=1,
+      bus_priority=13)
+point('8psk16_56', '8PSK 5/6', '8PSK', 8, 'results/b10-8psk16-rates/2026-10-16/code8-6395-60s-1/runs.jsonl', cmd='b9')
 point('8psk150_cpu', '8PSK 5/6', '8PSK', 8, 'results/8psk-live/2026-10-15/*/runs.jsonl', cmd='bench8live', clk_hz=150000000)
 point('vcm150', 'VCM', 'VCM', 8, 'results/vcm/2026-10-15/*/runs.jsonl', cmd='benchvcm', clk_hz=150000000)
+for m, cpw in ((16, 7), (32, 9)):
+    point(f'{m}apsk128', f'{m}APSK 5/6', f'{m}APSK', 8,
+          f'results/a3-apsk/2026-10-16/qualified-{m}-cpw{cpw}-1/runs.jsonl', cmd='benchapskfec')
 for m in (16, 32):
-    for clk in (128, 150):
-        point(f'{m}apsk{clk}', f'{m}APSK 5/6', f'{m}APSK', 8,
-              f'results/apsk-fec/2026-10-15/qualified-{m}-{clk}-1/runs.jsonl', cmd='benchapskfec')
-b6 = point('8psk16_waveform', '8PSK 5/6', '8PSK', 8, 'results/b6-pio-producers/2026-10-15/live-60s/runs.jsonl',
-           complete=False, cmd='bench4prod8live', cpw=1)
+    point(f'{m}apsk150', f'{m}APSK 5/6', f'{m}APSK', 8,
+          f'results/apsk-fec/2026-10-15/qualified-{m}-150-1/runs.jsonl', cmd='benchapskfec')
+n5 = point('8psk_n5_waveform', '8PSK 5/6', '8PSK', 8, 'results/n5-12m8/2026-10-16/n5-60s/runs.jsonl',
+           complete=False, cmd='bench5quad8', cpw=1, bus_priority=13)
 
 MARK = {'QPSK': 's', '8PSK': 'o', 'VCM': 'D', '16APSK': '^', '32APSK': 'v'}
 
@@ -87,13 +92,16 @@ def fig_capacity():
     ax.text(19.8, 1.0, 'AFE7071 RF bandwidth', ha='right', va='bottom', fontsize=7.5, color=DARK)
     ax.axhline(9.81, color=MID, ls=':', lw=0.7)
     ax.text(19.8, 8.9, 'Pigeon Vision budget, 9.81 Mb/s', ha='right', va='top', fontsize=7.5, color=DARK)
-    ax.annotate('8PSK 5/6 waveform only\n(FEC and input off-chip)', (19.2, POINTS[-1][4] / 1e6),
-                xytext=(12.6, 37.0), fontsize=7.5, color=DARK, va='center',
+    ax.annotate('8PSK 5/6 at 5 SPS, 12.8 Msym/s:\nwaveform only (cyclic source)', (1.2 * 12.8, POINTS[-1][4] / 1e6),
+                xytext=(6.2, 36.5), fontsize=7.2, color=DARK, va='center',
                 arrowprops=dict(arrowstyle='-', color=MID, lw=0.6))
+    ax.annotate('separate image\n(tag b10)', (19.2, 38.76), xytext=(16.3, 40.6), fontsize=6.6, color=DARK,
+                va='center', ha='right', arrowprops=dict(arrowstyle='-', color=MID, lw=0.5))
     # One label per mode and clock pair; open/filled markers carry the clock.
     labels = {('QPSK', 16e6): ('QPSK 5/6, 9/10', -0.4, -1.0, 'right'),
               ('QPSK', 8e6): ('QPSK 5/6', 0.45, 0, 'left'),
               ('8PSK', 8e6): ('8PSK 5/6', -0.45, 0, 'right'),
+              ('8PSK', 16e6): ('8PSK 2/3, 5/6', -0.45, 0, 'right'),
               ('8PSK', 9375000.0): ('8PSK 5/6', 0.45, 0, 'left'),
               ('VCM', 9375000.0): ('VCM', 0.45, 0, 'left'),
               ('16APSK', None): ('16APSK 5/6', 0.45, 0, 'left'),
@@ -101,13 +109,13 @@ def fig_capacity():
     done = set()
     for label, mod, clk, rs, cap, complete in POINTS[:-1]:
         key = (mod, None) if 'APSK' in mod else (mod, round(rs))
-        if key in done or key not in labels or ('APSK' in mod and clk != 150):
+        if key in done or key not in labels or ('APSK' in mod and clk != 128):
             continue
         done.add(key)
         text, dx, dy, ha = labels[key]
         ax.text(1.2 * rs / 1e6 + dx, cap / 1e6 + dy, text, fontsize=7.2, va='center', ha=ha, color=INK)
     ax.set_xlim(0, 21)
-    ax.set_ylim(0, 42)
+    ax.set_ylim(0, 43)
     ax.set_xticks(range(0, 21, 5))
     ax.set_xlabel('Nominal occupied bandwidth, 1.2 $R_s$ (MHz)')
     ax.set_ylabel('BB data-field capacity (Mb/s)')
@@ -122,21 +130,32 @@ def fig_capacity():
 # ---- CPU per core for complete pipelines ----
 def fig_cpu():
     rows = []
-    path, r = record('results/dualptr/2026-10-15/a1-8msym-60s/runs.jsonl', cmd='dualptr', source=5)
-    note('cpu_qpsk8', path, r, ('core0_work_busy', 'core1_work_busy'))
-    rows.append(('QPSK 5/6, 8 Msym/s, TS', r['core0_work_busy'], r['core1_work_busy']))
+    path, r = record('results/q1-qpsk/2026-10-16/pv23-60s-p0/runs.jsonl', cmd='dualptr', source=5)
+    note('cpu_qpsk8_23', path, r, ('core0_work_busy', 'core1_work_busy'))
+    rows.append(('QPSK 2/3, 8 Msym/s, TS (IREC)', r['core0_work_busy'], r['core1_work_busy']))
     path, r = record('results/round2/2026-10-15/q1-*/runs.jsonl', cmd='dualptr', source=6)
     note('cpu_qpsk16', path, r, ('core0_work_busy', 'core1_work_busy'))
     rows.append(('QPSK 9/10, 16 Msym/s, GCS', r['core0_work_busy'], r['core1_work_busy']))
+    path, r = record('results/q1-qpsk/2026-10-16/ts16-6-k3/runs.jsonl', cmd='dualptr', pv_kernel=3)
+    note('cpu_qpsk16_ts', path, r, ('core0_work_busy', 'core1_work_busy'))
+    rows.append(('QPSK 9/10, 16 Msym/s, TS', r['core0_work_busy'], r['core1_work_busy']))
     path, r = record('results/b7-live8/2026-10-15/live8-60s-prio13-1/runs.jsonl', cmd='bench4fec')
     note('cpu_8psk8', path, r, ('core0_work_busy', 'encoder_busy'))
     rows.append(('8PSK 5/6, 8 Msym/s, GCS', r['core0_work_busy'], r['encoder_busy']))
-    for m, clk in ((16, 150), (32, 150)):
-        path, r = record(f'results/apsk-fec/2026-10-15/qualified-{m}-{clk}-1/runs.jsonl', cmd='benchapskfec')
+    for key, label, pattern, want in (
+            ('cpu_8psk16_23', '8PSK 2/3, 16 Msym/s, memory GCS', 'results/b9-8psk16/2026-10-16/run-60s-1/runs.jsonl',
+             dict(cmd='b9', cpw=1, bus_priority=13)),
+            ('cpu_8psk16_56', '8PSK 5/6, 16 Msym/s, memory GCS*',
+             'results/b10-8psk16-rates/2026-10-16/code8-6395-60s-1/runs.jsonl', dict(cmd='b9'))):
+        path, r = record(pattern, **want)
+        selection[key] = dict(source=path, busy=[c['busy'] for c in r['core']])
+        rows.append((label, r['core'][0]['busy'], r['core'][1]['busy']))
+    for m, cpw in ((16, 7), (32, 9)):
+        path, r = record(f'results/a3-apsk/2026-10-16/qualified-{m}-cpw{cpw}-1/runs.jsonl', cmd='benchapskfec')
         note(f'cpu_{m}apsk', path, r, ('producer_work_busy', 'encoder_busy', 'sym_rate'))
-        rows.append((f'{m}APSK 5/6, {r["sym_rate"] / 1e6:.3f} Msym/s, 150 MHz',
+        rows.append((f'{m}APSK 5/6, {r["sym_rate"] / 1e6:.3f} Msym/s',
                      r['producer_work_busy'], r['encoder_busy']))
-    fig, ax = plt.subplots(figsize=(WIDTH, 2.6))
+    fig, ax = plt.subplots(figsize=(WIDTH, 3.6))
     h = 0.36
     for i, (label, c0, c1) in enumerate(rows):
         y = len(rows) - 1 - i
@@ -151,7 +170,9 @@ def fig_cpu():
     from matplotlib.patches import Patch
     ax.legend(handles=[Patch(facecolor=FILL, edgecolor=INK, lw=0.5, label='core 0'),
                        Patch(facecolor=DARK, edgecolor=INK, lw=0.5, label='core 1')],
-              loc='upper right', fontsize=7.5)
+              loc='lower right', fontsize=7.5)
+    ax.text(1, -0.85, '* separate image, tag archive/b10-8psk16-rates', ha='left', fontsize=6.4, color=DARK)
+    ax.set_ylim(-1.2, len(rows) - 0.4)
     save_figure(fig, OUT / 'cpu')
 
 
@@ -202,22 +223,25 @@ def fig_loop():
 
 # ---- two-core FEC per frame against the 16 Msym/s budget ----
 def fig_fec():
-    def job(fn, label, who, options, layout=0):
-        for line in open(ROOT / 'results/ldpc-banks/2026-10-15' / fn):
+    def job(path, label, code=5, **want):
+        for line in open(ROOT / path):
             r = json.loads(line)
-            if r.get('cmd') == 'c3pair' and r.get('code_index') == 5 and r.get('who') == who and \
-                    r.get('options') == options and r.get('layout') == layout:
+            if r.get('cmd') == 'c3pair' and r.get('code_index', int(r.get('label', '0 0').split()[1])) == code and \
+                    all(r.get(k) == v for k, v in want.items()):
                 j = r['jobs'][0]
-                selection[f'fec_{label}'] = dict(source=f'results/ldpc-banks/2026-10-15/{fn}',
-                                                 command=r['label'], avg_stage=j['avg_stage'])
+                selection[f'fec_{label}'] = dict(source=path, command=r['label'], avg_stage=j['avg_stage'])
                 return j['avg_stage']
-        raise SystemExit(f'no c3pair record {fn} {who} {options}')
-    rows = [('one core', job('pair-bch.jsonl', 'solo', 0, 31)),
-            ('both cores, BCH code in SCRATCH_Y', job('pair-bch.jsonl', 'both_scratch', 2, 31)),
-            ('both cores, BCH code in striped SRAM', job('pair-bch.jsonl', 'both_striped', 2, 27))]
+        raise SystemExit(f'no c3pair record {path} {want}')
+    banks, c8, c9 = ('results/ldpc-banks/2026-10-15/pair-bch.jsonl', 'results/c8-fec-combined/2026-10-16/pair.jsonl',
+                     'results/c9-fec-fit/2026-10-16/pair.jsonl')
+    rows = [('C4, one core', job(banks, 'c4_solo', who=0, options=31, layout=0)),
+            ('C4, both cores', job(banks, 'c4_both', who=2, options=27, layout=0)),
+            ('C8 (C5 LDPC, C6 map), both cores', job(c8, 'c8_251_both', who=2, options=251, layout=0)),
+            ('C9 mask 6395, both cores', job(c9, 'c9_6395_both', who=2, options=6395, layout=0)),
+            ('C8 three-table BCH, both cores', job(c8, 'c8_best_both', who=2, options=1275, layout=4))]
     stages = (('gcs', 'framing', 'white', ''), ('bch', 'BCH', FILL, ''), ('ldpc', 'LDPC', MID, ''),
               ('map', '8PSK map', 'white', '////'))
-    fig, ax = plt.subplots(figsize=(WIDTH, 2.4))
+    fig, ax = plt.subplots(figsize=(WIDTH, 3.0))
     for i, (label, st) in enumerate(rows):
         y, left = len(rows) - 1 - i, 0
         for key, name, color, hatch in stages:
@@ -226,13 +250,13 @@ def fig_fec():
             left += st[key] / 1e3
         ax.text(max(left, 355.104) + 5, y, f'{left:.0f}k', va='center', fontsize=7.5)
     ax.axvline(355.104, color=INK, ls='--', lw=0.8)
-    ax.text(359, 2.62, '16 Msym/s budget, 355k cycles', ha='left', va='center', fontsize=7.2, color=DARK)
+    ax.text(359, len(rows) - 0.38, '16 Msym/s budget, 355k cycles', ha='left', va='center', fontsize=7.2, color=DARK)
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels([r[0] for r in rows][::-1], fontsize=7.5)
     ax.set_xlim(0, 540)
-    ax.set_ylim(-0.55, 2.9)
-    ax.set_xlabel('SYS cycles per 8PSK 2/3 frame on one core, sum of stages (thousands)')
-    ax.legend(loc='upper center', ncol=4, fontsize=7.2, bbox_to_anchor=(0.5, -0.36), handlelength=1.5)
+    ax.set_ylim(-0.55, len(rows) - 0.1)
+    ax.set_xlabel('SYS cycles per 8PSK 2/3 frame per core, sum of stages (thousands)')
+    ax.legend(loc='upper center', ncol=4, fontsize=7.2, bbox_to_anchor=(0.5, -0.27), handlelength=1.5)
     save_figure(fig, OUT / 'fec_cycles')
 
 

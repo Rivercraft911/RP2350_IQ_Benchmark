@@ -37,6 +37,22 @@
       "bb_payload_bps": 19378210.3,
       "label": "bench4fec-cpw2-invert0-prio13-bits8"
     },
+    "8psk16_23": {
+      "source": "results/b9-8psk16/2026-10-16/run-60s-1/runs.jsonl",
+      "cmd": "b9",
+      "clk_hz": 128000000,
+      "sym_rate": 16000000.0,
+      "bb_payload_bps": null,
+      "label": "b9-cpw1-invert0-prio13-slow0-opt251"
+    },
+    "8psk16_56": {
+      "source": "results/b10-8psk16-rates/2026-10-16/code8-6395-60s-1/runs.jsonl",
+      "cmd": "b9",
+      "clk_hz": 128000000,
+      "sym_rate": 16000000.0,
+      "bb_payload_bps": null,
+      "label": "b9-cpw1-invert0-prio13-slow0-opt6395-code8"
+    },
     "8psk150_cpu": {
       "source": "results/8psk-live/2026-10-15/bch-placement-quick-2/runs.jsonl",
       "cmd": "bench8live",
@@ -54,12 +70,20 @@
       "label": "vcm-150000"
     },
     "16apsk128": {
-      "source": "results/apsk-fec/2026-10-15/qualified-16-128-1/runs.jsonl",
+      "source": "results/a3-apsk/2026-10-16/qualified-16-cpw7-1/runs.jsonl",
+      "cmd": "benchapskfec",
+      "clk_hz": 128000000,
+      "sym_rate": 4571428.6,
+      "bb_payload_bps": 14728514.9,
+      "label": "16apsk-fec-128000-cpw7"
+    },
+    "32apsk128": {
+      "source": "results/a3-apsk/2026-10-16/qualified-32-cpw9-1/runs.jsonl",
       "cmd": "benchapskfec",
       "clk_hz": 128000000,
       "sym_rate": 3555555.6,
-      "bb_payload_bps": 11455511.6,
-      "label": "16apsk-fec-128000-cpw9"
+      "bb_payload_bps": 14330984.2,
+      "label": "32apsk-fec-128000-cpw9"
     },
     "16apsk150": {
       "source": "results/apsk-fec/2026-10-15/qualified-16-150-1/runs.jsonl",
@@ -69,14 +93,6 @@
       "bb_payload_bps": 13424427.7,
       "label": "16apsk-fec-150000-cpw9"
     },
-    "32apsk128": {
-      "source": "results/apsk-fec/2026-10-15/qualified-32-128-1/runs.jsonl",
-      "cmd": "benchapskfec",
-      "clk_hz": 128000000,
-      "sym_rate": 2285714.3,
-      "bb_payload_bps": 9212775.5,
-      "label": "32apsk-fec-128000-cpw14"
-    },
     "32apsk150": {
       "source": "results/apsk-fec/2026-10-15/qualified-32-150-1/runs.jsonl",
       "cmd": "benchapskfec",
@@ -85,40 +101,59 @@
       "bb_payload_bps": 10796221.3,
       "label": "32apsk-fec-150000-cpw14"
     },
-    "8psk16_waveform": {
-      "source": "results/b6-pio-producers/2026-10-15/live-60s/runs.jsonl",
-      "cmd": "bench4prod8live",
+    "8psk_n5_waveform": {
+      "source": "results/n5-12m8/2026-10-16/n5-60s/runs.jsonl",
+      "cmd": "bench5quad8",
       "clk_hz": 128000000,
-      "sym_rate": 16000000.0,
+      "sym_rate": 12800000.0,
       "bb_payload_bps": null,
       "label": null
     },
-    "cpu_qpsk8": {
-      "source": "results/dualptr/2026-10-15/a1-8msym-60s/runs.jsonl",
-      "core0_work_busy": 0.257592,
-      "core1_work_busy": 0.4636
+    "cpu_qpsk8_23": {
+      "source": "results/q1-qpsk/2026-10-16/pv23-60s-p0/runs.jsonl",
+      "core0_work_busy": 0.214238,
+      "core1_work_busy": 0.4317
     },
     "cpu_qpsk16": {
       "source": "results/round2/2026-10-15/q1-ptr2-910k3-p13-60s/runs.jsonl",
       "core0_work_busy": 0.455798,
       "core1_work_busy": 0.8276
     },
+    "cpu_qpsk16_ts": {
+      "source": "results/q1-qpsk/2026-10-16/ts16-6-k3/runs.jsonl",
+      "core0_work_busy": 0.637748,
+      "core1_work_busy": 0.7087
+    },
     "cpu_8psk8": {
       "source": "results/b7-live8/2026-10-15/live8-60s-prio13-1/runs.jsonl",
       "core0_work_busy": 0.244414,
       "encoder_busy": 0.879
     },
+    "cpu_8psk16_23": {
+      "source": "results/b9-8psk16/2026-10-16/run-60s-1/runs.jsonl",
+      "busy": [
+        0.869763,
+        0.846436
+      ]
+    },
+    "cpu_8psk16_56": {
+      "source": "results/b10-8psk16-rates/2026-10-16/code8-6395-60s-1/runs.jsonl",
+      "busy": [
+        0.952499,
+        0.91467
+      ]
+    },
     "cpu_16apsk": {
-      "source": "results/apsk-fec/2026-10-15/qualified-16-150-1/runs.jsonl",
-      "producer_work_busy": 0.573717,
-      "encoder_busy": 0.962816,
-      "sym_rate": 4166666.7
+      "source": "results/a3-apsk/2026-10-16/qualified-16-cpw7-1/runs.jsonl",
+      "producer_work_busy": 0.721921,
+      "encoder_busy": 0.764563,
+      "sym_rate": 4571428.6
     },
     "cpu_32apsk": {
-      "source": "results/apsk-fec/2026-10-15/qualified-32-150-1/runs.jsonl",
-      "producer_work_busy": 0.594898,
-      "encoder_busy": 0.94349,
-      "sym_rate": 2678571.4
+      "source": "results/a3-apsk/2026-10-16/qualified-32-cpw9-1/runs.jsonl",
+      "producer_work_busy": 0.75875,
+      "encoder_busy": 0.782715,
+      "sym_rate": 3555555.6
     },
     "loop_2_1_pio_pointers": {
       "source": "results/dmaloop/2026-10-15/pio-pointers.jsonl",
@@ -144,7 +179,7 @@
       "source": "results/dmaloop/2026-10-15/pio-pointers.jsonl",
       "cycles": 11.000833333333333
     },
-    "fec_solo": {
+    "fec_c4_solo": {
       "source": "results/ldpc-banks/2026-10-15/pair-bch.jsonl",
       "command": "c3pair 5 40 0 0 31",
       "avg_stage": {
@@ -154,17 +189,7 @@
         "map": 99479
       }
     },
-    "fec_both_scratch": {
-      "source": "results/ldpc-banks/2026-10-15/pair-bch.jsonl",
-      "command": "c3pair 5 40 0 2 31",
-      "avg_stage": {
-        "gcs": 24686,
-        "bch": 151720,
-        "ldpc": 174562,
-        "map": 105986
-      }
-    },
-    "fec_both_striped": {
+    "fec_c4_both": {
       "source": "results/ldpc-banks/2026-10-15/pair-bch.jsonl",
       "command": "c3pair 5 40 0 2 27",
       "avg_stage": {
@@ -172,6 +197,36 @@
         "bch": 87798,
         "ldpc": 174478,
         "map": 105933
+      }
+    },
+    "fec_c8_251_both": {
+      "source": "results/c8-fec-combined/2026-10-16/pair.jsonl",
+      "command": "c3pair 5 40 0 2 251",
+      "avg_stage": {
+        "gcs": 26329,
+        "bch": 94134,
+        "ldpc": 91229,
+        "map": 73195
+      }
+    },
+    "fec_c9_6395_both": {
+      "source": "results/c9-fec-fit/2026-10-16/pair.jsonl",
+      "command": "c3pair 5 100 0 2 6395",
+      "avg_stage": {
+        "gcs": 25025,
+        "bch": 86233,
+        "ldpc": 86983,
+        "map": 74065
+      }
+    },
+    "fec_c8_best_both": {
+      "source": "results/c8-fec-combined/2026-10-16/pair.jsonl",
+      "command": "c3pair 5 40 4 2 best",
+      "avg_stage": {
+        "gcs": 26309,
+        "bch": 67160,
+        "ldpc": 94236,
+        "map": 72167
       }
     }
   }
