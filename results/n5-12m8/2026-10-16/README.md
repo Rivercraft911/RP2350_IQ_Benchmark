@@ -32,3 +32,9 @@ The pulse passes the held-DAC Annex A mask model by +0.027 dB on the upper side
 mask. Cyclic source only; no AFE, RF or receiver. The first sampling image's lower edge moves to about 56.3 MHz
 (64 MSPS minus half of the 15.36 MHz occupied bandwidth); the analog filter plan has not been checked
 against it.
+
+## Merged with main (`e8bff7894d`)
+
+N5 3 s at 12.8 Msym/s, priorities 0 and 13: clean (`merged-n5-short`). B9 as a placement
+canary: three 3 s runs and one 60 s run at 16 Msym/s, priority 13, all clean (43,257 frames,
+worst service gap 121 µs), GCS 23.5k per frame as on main (`merged-b9-canary`, `merged-b9-60s`).
