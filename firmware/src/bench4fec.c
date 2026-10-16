@@ -143,9 +143,9 @@ static void restore_buffers(bool inputs) {
     if (inputs) { uint32_t seed = SEED; prbs_fill(in_buf, IN_WORDS, &seed); }
 }
 
-void bench4fec(int cpw, int ms, int invert) {
+void bench4fec(int cpw, int ms, int invert, int prio) {
     const uint32_t hz = clock_get_hz(clk_sys);
-    if ((cpw != 2 && cpw != 4) || ms < 100 || ms > 60000 || (invert != 0 && invert != 1) ||
+    if ((cpw != 2 && cpw != 4) || ms < 100 || ms > 60000 || (invert != 0 && invert != 1) || prio < 0 || prio > 15 ||
         hz != 128000000u || ((uintptr_t)ring_buf & (128u * 1024u - 1u)) || !resources_available()) {
         printf("@{\"cmd\":\"bench4fec\",\"error\":\"needs SYS128, aligned experiment build, cpw2/4, 100..60000ms, invert0/1 and idle PIO1/PIO2 resources\"}\n");
         return;
@@ -160,7 +160,7 @@ void bench4fec(int cpw, int ms, int invert) {
     const unsigned saved_schedule = dual_dma_get_schedule(), saved_priority = dual_dma_get_bus_priority();
     const unsigned saved_clock = dual_dma_get_dac_clock();
     if (!dual_dma_set_writers(2) || !dual_dma_set_row_words(2) ||
-        !dual_dma_set_schedule(0) || !dual_dma_set_bus_priority(0) ||
+        !dual_dma_set_schedule(0) || !dual_dma_set_bus_priority((unsigned)prio) ||
         !dual_dma_set_dac_clock(invert ? DUAL_DMA_DAC_CLOCK_DDR_PIO_INVERTED : DUAL_DMA_DAC_CLOCK_DDR_PIO)) {
         printf("@{\"cmd\":\"bench4fec\",\"error\":\"output selectors unavailable\"}\n");
         return;
@@ -324,7 +324,7 @@ cleanup:
     for (unsigned n = 0; n < STAGES; ++n) encoder_cycles += live.stage_cycles[n];
     const double rs = hz / (8.0 * cpw);
     printf("@{\"cmd\":\"bench4fec\",\"git\":\"%s\",\"clk_hz\":%lu,\"cpw\":%d,\"divider256\":%d,"
-           "\"ms\":%d,\"invert\":%d,\"source\":6,\"waveform_plan\":\"8psk_ccm\",\"code_index\":8,"
+           "\"ms\":%d,\"invert\":%d,\"bus_priority_mask\":%d,\"source\":6,\"waveform_plan\":\"8psk_ccm\",\"code_index\":8,"
            "\"s2_code\":\"normal 5/6\",\"modcod\":15,\"kbch\":53840,\"pilots\":true,\"gold\":0,"
            "\"rotation_pi\":0.125,\"L\":7,\"sps\":4,\"row_profile\":\"%s\",\"row_symbols\":1,"
            "\"row_words\":2,\"writers\":2,\"sym_rate\":%.1f,\"bb_payload_bps\":%.1f,"
@@ -353,7 +353,7 @@ cleanup:
            "\"ts_packets\":%lu,\"null_packets\":%lu,\"gcs_packets\":%lu,\"gcs_bytes\":%lu,\"gcs_underflows\":%lu,"
            "\"short_msgs\":%lu,\"long_msgs\":%lu,\"overflows\":%lu,\"deferred_msgs\":%lu,"
            "\"drain_timeouts\":%lu,\"late_closes\":%lu}}\n",
-           GIT_REV, (unsigned long)hz, cpw, cpw * 256, ms, invert, IQ4HIST_PROFILE,
+           GIT_REV, (unsigned long)hz, cpw, cpw * 256, ms, invert, prio, IQ4HIST_PROFILE,
            rs, rs * (BB_BITS - 80) / live.profile.frame_symbols,
            (unsigned long)live.profile.frame_symbols, (unsigned long)live.frame_groups, GROUPS, AXIS_WORDS,
            (unsigned long)table_crc, (unsigned long)errors, (unsigned long)p.errors, (unsigned long)output.errors,

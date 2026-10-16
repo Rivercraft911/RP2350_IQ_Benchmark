@@ -730,7 +730,7 @@ void bench_dual_pointer(int cpw, int ms, int source, int fault) {
     const char *e = tx_shaper("lut_asm_p", 4, 12, &unused, &tables_ok);
     if (e || !tables_ok || base + 4 * IQQUAD_L8_WORDS > arena_end ||
         !dual_dma_set_writers(2) || !dual_dma_set_row_words(8) ||
-        !dual_dma_set_schedule(0) || !dual_dma_set_bus_priority(0)) {
+        !dual_dma_set_schedule(0) || !dual_dma_set_bus_priority(saved_priority)) {
         errors |= ERR_CONFIG; reason = "tables, arena or output selectors unavailable"; goto cleanup;
     }
     if (!iqquadptr_build_table_profile((uint32_t *)base, (arena_end - base) / 4, pulse) ||
@@ -850,7 +850,7 @@ cleanup:
     printf("@{\"cmd\":\"dualptr\",\"git\":\"%s\",\"clk_hz\":%lu,\"source\":%d,\"cpw\":%d,\"divider256\":%d,"
            "\"ms\":%d,\"fault\":%d,\"elapsed_us\":%lu,\"sym_rate\":%.1f,\"sps\":4,\"L\":8,"
            "\"row_profile\":\"qpsk_l8_n4_both_m010_far2\",\"filter_beta\":null,\"row_symbols\":4,\"writers\":2,"
-           "\"schedule\":0,\"bus_priority_mask\":0,\"code_index\":8,\"s2_code\":\"normal 5/6\",\"kbch\":53840,"
+           "\"schedule\":0,\"bus_priority_mask\":%u,\"code_index\":8,\"s2_code\":\"normal 5/6\",\"kbch\":53840,"
            "\"bch_kernel\":2,\"map_kernel\":1,\"ldpc_pack\":1,\"bch_bank\":%u,\"frame_parallel\":false,"
            "\"descriptor_gen_busy\":0.0,\"sample_math_busy\":0.0,\"table_base\":%lu,\"table_bytes\":65536,\"table_crc\":%lu,"
            "\"input_base\":%lu,\"in_words\":8192,\"errors\":%lu,\"pointer_errors\":%lu,\"output_errors\":%lu,\"reason\":\"%s\","
@@ -866,7 +866,8 @@ cleanup:
            "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%d,"
            "\"cap_fifo_only\":false,\"cap_format\":\"%s\",\"dac_clock\":\"%s\",\"dac_clock_pio\":%d,\"dac_clock_sm\":%d",
            GIT_REV, (unsigned long)clock_hz, source, cpw, cpw * 256, ms, fault, (unsigned long)elapsed,
-           (double)clock_hz / (8 * cpw), dvbs2_frontend_get_bank(), (unsigned long)base, (unsigned long)table_crc,
+           (double)clock_hz / (8 * cpw), dual_dma_get_bus_priority(), dvbs2_frontend_get_bank(),
+           (unsigned long)base, (unsigned long)table_crc,
            (unsigned long)(uintptr_t)in_buf, (unsigned long)errors, (unsigned long)p.errors, (unsigned long)output.errors, reason,
            (unsigned long)output.txstalls_i, (unsigned long)output.txstalls_q, (unsigned long)pointer_sm_mask,
            (unsigned long)p.txstall_mask, (unsigned long)p.rxstall_mask, (unsigned long)p.null_trigger_mask,

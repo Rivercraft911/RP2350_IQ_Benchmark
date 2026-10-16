@@ -28,7 +28,7 @@ SOURCE_EMPTY, PIO_ERROR, ERR_POINTER, OUTPUT_TXSTALL = 8, 16, 1 << 19, 3
 
 def validate_run(result: dict, lines: list[str], cpw: int, ms: int, source: int,
                  fault: int = 0, clock_mode: int = 1, clock_hz: int | None = None,
-                 expected_git: str | None = None) -> dict:
+                 expected_git: str | None = None, priority: int = 0) -> dict:
     """Fail closed on configuration, ownership, SPI provenance and every snapshot."""
     r, faults, capture = result, [], {}
     try:
@@ -37,7 +37,7 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, source: int,
         expected = dict(cmd='dualptr', source=source, cpw=cpw, divider256=256*cpw,
                         ms=ms, fault=fault, sps=4, L=8, row_symbols=4, writers=2,
                         row_profile=L8_PROFILE, filter_beta=None, schedule=0,
-                        bus_priority_mask=0, code_index=8, s2_code='normal 5/6',
+                        bus_priority_mask=priority, code_index=8, s2_code='normal 5/6',
                         kbch=53840, bch_kernel=2, map_kernel=1, ldpc_pack=1,
                         frame_parallel=False, descriptor_gen_busy=0.0,
                         sample_math_busy=0.0, in_words=INPUT_WORDS, table_bytes=65536,
@@ -174,6 +174,8 @@ def main():
     p.add_argument('--faults', nargs='+', type=int, choices=(0, 1), default=[0])
     p.add_argument('--clock-modes', nargs='+', type=int, choices=(1, 2), default=[1])
     p.add_argument('--control', action='store_true', help='Also run the existing four-writer pipeline')
+    p.add_argument('--priority', type=int, choices=range(16), default=0,
+                   help='dualprio bus-priority mask for every run (register fields PROC0/PROC1/DMA_R/DMA_W)')
     p.add_argument('--ms', type=int, default=3000)
     p.add_argument('--reps', type=int, default=1)
     p.add_argument('--port')
@@ -238,7 +240,7 @@ def main():
         failed |= bool(result['faults'])
 
     try:
-        for option in ('dualprio 0', 'dualwriters 4', 'quadprofile 1', 'bchkernel 2',
+        for option in (f'dualprio {args.priority}', 'dualwriters 4', 'quadprofile 1', 'bchkernel 2',
                        'mapkernel 1', 'ldpcpack 1', 'bchbank 1'):
             command(option)
         for clock in args.clocks:
@@ -260,7 +262,8 @@ def main():
                                 label = f'dualptr-{clock}-{cpw}-{source_id}-clock{clock_mode}-fault{fault}-{rep}'
                                 run(label, f'dualptr {cpw} {args.ms} {source_id} {fault}',
                                     lambda r, lines: validate_run(r, lines, cpw, args.ms, source_id,
-                                                                  fault, clock_mode, clock*1000, args.expected_git))
+                                                                  fault, clock_mode, clock*1000, args.expected_git,
+                                                                  args.priority))
     finally:
         try:
             command('dualclock 0')

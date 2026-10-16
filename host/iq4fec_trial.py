@@ -217,6 +217,8 @@ def main():
     p.add_argument('--inverts', nargs='+', type=int, choices=(0, 1), default=[0, 1])
     p.add_argument('--ms', type=int, default=3000)
     p.add_argument('--ldpc-pack', type=int, choices=(0, 1), default=1)
+    p.add_argument('--prios', nargs='+', type=int, choices=range(16), default=[0],
+                   help='dual_dma bus-priority masks to try (register fields PROC0/PROC1/DMA_R/DMA_W)')
     p.add_argument('--port')
     p.add_argument('--expected-git')
     p.add_argument('--build', type=Path, default=iq.ROOT / 'firmware/build-b1')
@@ -243,6 +245,7 @@ def main():
     hashes.update({str(f.relative_to(iq.ROOT)): hashlib.sha256(f.read_bytes()).hexdigest() for f in sorted(sources)})
     git = lambda *a: subprocess.run(['git', *a], cwd=iq.ROOT, capture_output=True, text=True).stdout.strip()
     manifest = dict(started=dt.datetime.now().isoformat(), ms=args.ms, cpws=args.cpws, inverts=args.inverts,
+                    prios=args.prios,
                     ldpc_pack=args.ldpc_pack, expected_firmware_git=args.expected_git,
                     head=git('rev-parse', 'HEAD'), branch=git('branch', '--show-current'),
                     status=git('status', '--short'), cmake_flag='IQ4HIST_EXPERIMENT:BOOL=ON', sha256=hashes,
@@ -261,22 +264,23 @@ def main():
                 f.write(json.dumps(dict(label=line, **r)) + '\n')
             if 'error' in r:
                 raise SystemExit(f"{line}: {r['error']}")
-        for cpw in args.cpws:
-            for invert in args.inverts:
-                label = f'bench4fec-cpw{cpw}-invert{invert}'
-                r, lines = board.cmd(f'bench4fec {cpw} {args.ms} {invert}', timeout=args.ms / 1000 + 60)
-                (args.out / f'{label}.txt').write_text('\n'.join(lines) + '\n')
-                if 'error' not in r:
-                    r.update(validate_capture(r, lines, invert))
-                r['faults'] = run_faults(r, cpw, args.ms, invert, args.expected_git)
-                r['label'] = label
-                with (args.out / 'runs.jsonl').open('a') as f:
-                    f.write(json.dumps(r) + '\n')
-                print(label, json.dumps({k: r.get(k) for k in (
-                    'elapsed_us', 'sym_rate', 'core0_work_busy', 'convert_busy', 'supervision_busy',
-                    'encoder_busy', 'min_credit_runway_words', 'cap_mismatches', 'cap_clock_mismatches',
-                    'reason', 'faults')}), flush=True)
-                failed |= bool(r['faults'])
+        for cpw, invert, prio in ((c, i, m) for m in args.prios for c in args.cpws for i in args.inverts):
+            label = f'bench4fec-cpw{cpw}-invert{invert}' + (f'-prio{prio}' if prio else '')
+            r, lines = board.cmd(f'bench4fec {cpw} {args.ms} {invert} {prio}', timeout=args.ms / 1000 + 60)
+            (args.out / f'{label}.txt').write_text('\n'.join(lines) + '\n')
+            if 'error' not in r:
+                r.update(validate_capture(r, lines, invert))
+            r['faults'] = run_faults(r, cpw, args.ms, invert, args.expected_git)
+            if r.get('bus_priority_mask', 0) != prio:
+                r['faults'].append('reported bus priority differs from request')
+            r['label'] = label
+            with (args.out / 'runs.jsonl').open('a') as f:
+                f.write(json.dumps(r) + '\n')
+            print(label, json.dumps({k: r.get(k) for k in (
+                'elapsed_us', 'sym_rate', 'core0_work_busy', 'convert_busy', 'supervision_busy',
+                'encoder_busy', 'min_credit_runway_words', 'cap_mismatches', 'cap_clock_mismatches',
+                'reason', 'faults')}), flush=True)
+            failed |= bool(r['faults'])
     finally:
         for line in ('ldpcpack 0', 'bchkernel 0'):
             board.cmd(line, timeout=60)
