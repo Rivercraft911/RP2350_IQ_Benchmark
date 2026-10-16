@@ -266,6 +266,14 @@ static inline uint32_t codes_spread16(uint32_t bits) {
     return (bits | bits << 1) & 0x55555555u;
 }
 
+static inline uint32_t codes_spread_lut(uint32_t bits, const uint16_t *lut) {
+    return (uint32_t)lut[bits & 255u] | (uint32_t)lut[(bits >> 8) & 255u] << 16;
+}
+
+static inline uint32_t codes_zip_lut(uint32_t lo, uint32_t hi, const uint16_t *lut) {
+    return codes_spread_lut(lo, lut) | codes_spread_lut(hi, lut) << 1;
+}
+
 // Perfect shuffle of two 16-bit lanes into successive two-bit codes. Four
 // swap stages avoid separately spreading both signs and then combining them.
 static inline uint32_t codes_zip16(uint32_t lo, uint32_t hi) {
@@ -342,6 +350,64 @@ static void codes_pilot(const dvbs2_8psk_cfg_t *cfg, dvbs2_8psk_codes_stream_t *
     codes_map_put(s, 0, 0, 0, gold32(cfg->gold, position + 32u), 4);
 }
 
+typedef struct { uint32_t i, q; } codes_pair_t;
+
+typedef void (*codes_run_t)(const uint32_t *, const uint32_t *, const uint32_t *,
+                            const dvbs2_8psk_gold_t *, const uint16_t *,
+                            dvbs2_8psk_codes_stream_t *, uint32_t);
+static void codes_lut_run(const uint32_t *a, const uint32_t *b, const uint32_t *c,
+                          const dvbs2_8psk_gold_t *gold, const uint16_t *lut,
+                          dvbs2_8psk_codes_stream_t *s, uint32_t count);
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+extern const uint8_t __start_c4_mapper[], __stop_c4_mapper[];
+#endif
+
+bool dvbs2_8psk_codes_lut_init(dvbs2_8psk_cfg_t *cfg, uint32_t *arena, uint32_t words) {
+    if (!cfg || !cfg->code || !cfg->gold || !arena || words < DVBS2_8PSK_CODES_LUT_WORDS) return false;
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    const uint32_t bytes = (uint32_t)((uintptr_t)__stop_c4_mapper - (uintptr_t)__start_c4_mapper);
+    if (bytes > 1024u) return false;
+#endif
+    uint16_t *lut = (uint16_t *)arena;
+    for (unsigned i = 0; i < 256; i++) lut[i] = (uint16_t)codes_spread16(i);
+    codes_pair_t *packed = (codes_pair_t *)(arena + 128);
+    for (unsigned j = 0; j < 6; j++) {
+        const iq8_input_t h = cfg->header[j];
+        packed[j] = (codes_pair_t){codes_zip16(h.a, h.b), codes_zip16(h.a >> 16, h.b >> 16)};
+    }
+    for (unsigned block = 0; block < cfg->pilot_blocks; block++) {
+        uint32_t i[2], q[2];
+        dvbs2_8psk_codes_stream_t s = {.i = i, .q = q, .mask = ~0u};
+        codes_pilot(cfg, &s, block);
+        packed[6 + 3 * block] = (codes_pair_t){i[0], q[0]};
+        packed[7 + 3 * block] = (codes_pair_t){i[1], q[1]};
+        packed[8 + 3 * block] = (codes_pair_t){s.acc_i, s.acc_q};
+    }
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    memcpy(arena + 228, __start_c4_mapper, bytes);
+    __asm volatile("dsb\n\tisb" ::: "memory");
+    const uintptr_t run = (uintptr_t)(arena + 228) | 1u;
+#else
+    const uintptr_t run = (uintptr_t)codes_lut_run;
+#endif
+    memcpy(arena + 224, &run, sizeof run);
+    cfg->codes_lut = lut;
+    return true;
+}
+
+static void codes_header_fast(const dvbs2_8psk_cfg_t *cfg, dvbs2_8psk_codes_stream_t *s) {
+    const codes_pair_t *packed = (const codes_pair_t *)((const uint32_t *)cfg->codes_lut + 128);
+    for (unsigned j = 0; j < 6; j++) codes_put(s, packed[j].i, packed[j].q, j == 5 ? 10 : 16);
+}
+
+static void codes_pilot_fast(const dvbs2_8psk_cfg_t *cfg, dvbs2_8psk_codes_stream_t *s,
+                             uint32_t block) {
+    const codes_pair_t *packed = (const codes_pair_t *)((const uint32_t *)cfg->codes_lut + 128) + 6 + 3 * block;
+    codes_put16(s, packed[0].i, packed[0].q);
+    codes_put16(s, packed[1].i, packed[1].q);
+    codes_put_small(s, packed[2].i, packed[2].q, 4);
+}
+
 // The normal-frame columns and pilot intervals are whole 32-bit words. Keep
 // their inner loop free of general extractors, short tails and stream checks.
 // The header has already emitted the deferred first word before this runs.
@@ -383,10 +449,76 @@ static void __attribute__((noinline)) codes_normal(const dvbs2_8psk_cfg_t *cfg,
     *data = word << 5;
 }
 
+// This section is copied complete into the caller's arena on M33. It contains
+// no calls, external data references or branch targets outside the section.
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+#define CODES_LEAF __attribute__((section("c4_mapper"), noinline, noclone, used))
+#else
+#define CODES_LEAF __attribute__((noinline))
+#endif
+static void CODES_LEAF codes_lut_run(const uint32_t *a, const uint32_t *b, const uint32_t *c,
+                                     const dvbs2_8psk_gold_t *gold, const uint16_t *lut,
+                                     dvbs2_8psk_codes_stream_t *s, uint32_t count) {
+    const uint32_t shift = 2u * s->fill, reverse = 31u - shift, mask = s->mask;
+    uint32_t *out_i = s->i, *out_q = s->q;
+    uint32_t carry_i = s->acc_i, carry_q = s->acc_q, n = s->n, word = 0;
+    do {
+        const dvbs2_8psk_gold_t g = gold[word];
+        const uint32_t av = reverse32(a[word]), bv = reverse32(b[word]), cv = reverse32(c[word]);
+        const uint32_t w = (av & (bv ^ cv ^ g.r0)) ^ g.r1;
+        const uint32_t qa = bv ^ w, qb = cv ^ w ^ g.r0, d = av ^ g.r0;
+        const uint32_t q0 = codes_zip_lut(qa, qb, lut);
+        const uint32_t i0 = q0 ^ (3u * codes_spread_lut(d, lut)) ^ 0xaaaaaaaau;
+        uint32_t index = n++ & mask;
+        out_i[index] = carry_i | i0 << shift; out_q[index] = carry_q | q0 << shift;
+        carry_i = (i0 >> reverse) >> 1; carry_q = (q0 >> reverse) >> 1;
+        const uint32_t q1 = codes_zip_lut(qa >> 16, qb >> 16, lut);
+        const uint32_t i1 = q1 ^ (3u * codes_spread_lut(d >> 16, lut)) ^ 0xaaaaaaaau;
+        index = n++ & mask;
+        out_i[index] = carry_i | i1 << shift; out_q[index] = carry_q | q1 << shift;
+        carry_i = (i1 >> reverse) >> 1; carry_q = (q1 >> reverse) >> 1;
+    } while (++word < count);
+    s->acc_i = carry_i; s->acc_q = carry_q; s->n = n;
+}
+
+// Twelve LUT reads per 32 symbols trade SRAM bandwidth against ALU work.
+static void __attribute__((noinline)) codes_normal_fast(const dvbs2_8psk_cfg_t *cfg,
+                                                       const uint32_t *frame,
+                                                       dvbs2_8psk_codes_stream_t *s,
+                                                       uint32_t *data, uint32_t *block,
+                                                       uint32_t budget) {
+    const uint32_t *a = frame + (cfg->column_reverse ? 1350 : 0), *b = frame + 675,
+                   *c = frame + (cfg->column_reverse ? 0 : 1350);
+    uint32_t word = *data >> 5;
+    while (budget && word < 675) {
+        uint32_t end = *block < cfg->pilot_blocks ? (*block + 1u) * 45u : 675;
+        if (end - word > budget) end = word + budget;
+        const uint32_t count = end - word;
+        budget -= count;
+        codes_run_t run;
+        memcpy(&run, (const uint32_t *)cfg->codes_lut + 224, sizeof run);
+        run(a + word, b + word, c + word, cfg->gold + word, cfg->codes_lut, s, count);
+        word = end;
+        if (*block < cfg->pilot_blocks && word == (*block + 1u) * 45u) {
+            codes_pilot_fast(cfg, s, (*block)++);
+        }
+    }
+    *data = word << 5;
+}
+
 void dvbs2_8psk_codes_begin(dvbs2_8psk_codes_state_t *state,
                           const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
                           dvbs2_8psk_codes_stream_t *stream) {
     *state = (dvbs2_8psk_codes_state_t){.cfg = cfg, .frame = frame, .stream = stream};
+}
+
+bool dvbs2_8psk_codes_begin_fast(dvbs2_8psk_codes_state_t *state,
+                               const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
+                               dvbs2_8psk_codes_stream_t *stream) {
+    if (!cfg || !cfg->codes_lut) return false;
+    dvbs2_8psk_codes_begin(state, cfg, frame, stream);
+    state->fast = true;
+    return true;
 }
 
 bool __attribute__((noinline)) dvbs2_8psk_codes_step(dvbs2_8psk_codes_state_t *state, uint32_t max_words) {
@@ -394,10 +526,15 @@ bool __attribute__((noinline)) dvbs2_8psk_codes_step(dvbs2_8psk_codes_state_t *s
     if (state->data == cfg->data_symbols) return true;
     if (!max_words) return false;
     dvbs2_8psk_codes_stream_t s = *state->stream;
-    if (!state->header_done) { codes_header(cfg, &s); state->header_done = true; }
+    if (!state->header_done) {
+        if (state->fast) codes_header_fast(cfg, &s);
+        else codes_header(cfg, &s);
+        state->header_done = true;
+    }
     uint32_t data = state->data, block = state->pilot;
     if (!cfg->is_short) {
-        codes_normal(cfg, state->frame, &s, &data, &block, max_words);
+        if (state->fast) codes_normal_fast(cfg, state->frame, &s, &data, &block, max_words);
+        else codes_normal(cfg, state->frame, &s, &data, &block, max_words);
         state->data = data; state->pilot = block; *state->stream = s;
         return data == cfg->data_symbols;
     }
@@ -415,7 +552,8 @@ bool __attribute__((noinline)) dvbs2_8psk_codes_step(dvbs2_8psk_codes_state_t *s
                        column32(state->frame, col2 + data), gold32(cfg->gold, data), count);
         data += count;
         if (block < cfg->pilot_blocks && data == (block + 1u) * 1440u) {
-            codes_pilot(cfg, &s, block++);
+            if (state->fast) codes_pilot_fast(cfg, &s, block++);
+            else codes_pilot(cfg, &s, block++);
         }
     }
     state->data = data; state->pilot = block; *state->stream = s;
