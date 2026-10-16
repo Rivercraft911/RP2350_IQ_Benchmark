@@ -73,7 +73,10 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/vcm_trial.py --self-test
 	python3 host/test_iqquadptr.py
 	python3 host/test_iq4hist.py
+	python3 host/test_iq4hist8.py
 	python3 host/test_iq4ptr.py
+	python3 host/test_iq4ptr8.py
+	python3 host/test_iq4writer8.py
 	python3 host/test_iq4hist_trial.py
 	python3 host/test_quadptr_trial.py
 	python3 host/test_quadlive_trial.py

@@ -21,14 +21,14 @@ import numpy as np
 
 import iqbench as iq
 from dual_trial import parse_capture
-from pulse_profiles import FOUR_LEVELS_Q30, L7_COEFFICIENTS, L7_PROFILE, iq4hist_rows
+from pulse_profiles import FOUR_LEVELS_Q30, L7_COEFFICIENTS, L7_PROFILE, iq4hist_rows, iq4hist8_rows
 
 SEED, INPUT_WORDS, CAP_WORDS = 0x1234abcd, 4096, 4096
 CLOCK_HZ, POLL_US, MAX_POLL_US = 128000000, 128, 256
 
 
-@lru_cache(maxsize=1)
-def reference_source():
+@lru_cache(maxsize=2)
+def reference_source(bits=14):
     """Geometric constellation -> planar packed source and cyclic scalar FIR.
 
     The label mapping is derived from the complex angles rather than the firmware's
@@ -47,7 +47,11 @@ def reference_source():
         values = levels[codes]
         prefix = np.concatenate([values[-6:], values])
         histories = np.lib.stride_tricks.sliding_window_view(prefix, 7)[:, ::-1]
-        samples.append(((histories @ coefficients + (1 << 37)) >> 38).ravel())
+        sums = histories @ coefficients
+        if bits == 8:
+            samples.append((((sums + (3399 << 31)) // (3399 << 32)) * 64).ravel())
+        else:
+            samples.append(((sums + (1 << 37)) >> 38).ravel())
     source = np.concatenate(packed).astype('<u4')
     bus = np.empty(len(samples[0]) * 2, dtype='<u2')
     bus[0::2] = (samples[0] & 0x3fff) | 0x4000
@@ -55,9 +59,10 @@ def reference_source():
     return source, bus
 
 
-@lru_cache(maxsize=1)
-def table_crc():
-    return zlib.crc32(iq4hist_rows().astype('<u4').tobytes())
+@lru_cache(maxsize=2)
+def table_crc(bits=14):
+    rows = iq4hist8_rows() if bits == 8 else iq4hist_rows()
+    return zlib.crc32(rows.astype('<u4').tobytes())
 
 
 def firmware_identity(expected: str):
@@ -65,7 +70,7 @@ def firmware_identity(expected: str):
     return expected[:10].lower() if re.fullmatch(r'[0-9a-fA-F]{40}', expected) else expected
 
 
-def validate_capture(result: dict, lines: list[str], invert: int) -> dict:
+def validate_capture(result: dict, lines: list[str], invert: int, bits: int = 14) -> dict:
     """Check ordered transport, every bus sample, and every DDR clock phase."""
     try:
         words = parse_capture(lines)
@@ -73,7 +78,7 @@ def validate_capture(result: dict, lines: list[str], invert: int) -> dict:
             raise ValueError('incomplete4096-word GPIO capture')
         if zlib.crc32(words.tobytes()) != result.get('cap_crc'):
             raise ValueError('capture CRC mismatch (serial transfer)')
-        _, reference = reference_source()
+        _, reference = reference_source(bits)
         bus = words & 0xffff
         candidates = np.flatnonzero(reference == bus[0])
         for j in range(1, 16):
@@ -100,17 +105,18 @@ def validate_capture(result: dict, lines: list[str], invert: int) -> dict:
 
 
 def validate_run(result: dict, lines: list[str], cpw: int, ms: int, invert: int,
-                 clock_hz: int = CLOCK_HZ, expected_git: str | None = None) -> dict:
+                 clock_hz: int = CLOCK_HZ, expected_git: str | None = None,
+                 bits: int = 14, priority: int = 13) -> dict:
     """Fail closed on waveform/clock, immutable input, run identity and faults."""
     r, faults = result, []
-    capture = validate_capture(r, lines, invert)
+    capture = validate_capture(r, lines, invert, bits)
     try:
         expected = dict(cmd='bench4live', clk_hz=clock_hz, source='cyclic_8psk',
                         cpw=cpw, divider256=256*cpw, ms=ms, invert=invert,
                         sps=4, L=7, row_profile=L7_PROFILE, row_symbols=1, row_words=2,
                         writers=2, seed=SEED, in_words=INPUT_WORDS, input_words=2*INPUT_WORDS,
                         ring_base=0x20000000, table_base=0x20000000,
-                        ring_bytes=131072, table_bytes=131072, table_crc=table_crc(), input_base=0x20020000,
+                        ring_bytes=131072, table_bytes=131072, table_crc=table_crc(bits), input_base=0x20020000,
                         errors=0, pointer_errors=0, output_errors=0, txstalls_i=0, txstalls_q=0,
                         pointer_txstall_mask=0, restored=True, selectors_restored=True,
                         core1_idle=True, sample_math_busy=0.0, descriptor_gen_busy=0.0,
@@ -118,12 +124,15 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, invert: int,
                         poll_interval_us=POLL_US, max_poll_interval_us=MAX_POLL_US,
                         cap_format='pins32', cap_words=CAP_WORDS, capture_count=CAP_WORDS,
                         cap_stride=17, cap_divider256=256*cpw, cap_fifo_only=False)
+        if bits == 8:
+            expected.update(cmd='bench4live8', row_words=1, table_bytes=65536,
+                            sample_bits=8, low_bits=0, bus_priority=priority)
         if expected_git is not None:
             expected['git'] = firmware_identity(expected_git)
         faults += [key for key, value in expected.items() if r.get(key) != value]
         if r.get('error'):
             faults.append(str(r['error']))
-        source, _ = reference_source()
+        source, _ = reference_source(bits)
         source_crc = zlib.crc32(source.tobytes())
         if r.get('input_crc') != source_crc or r.get('input_after_crc') != source_crc:
             faults.append('immutable cyclic8PSK source CRC')
@@ -164,9 +173,9 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, invert: int,
                 classification='failed' if faults else 'clock_inversion_detected' if invert else 'digital_live_clean')
 
 
-def validate_clock(result: dict, expected_git: str | None = None):
-    if result.get('error') or result.get('cmd') != 'info' or result.get('clk_hz') != CLOCK_HZ:
-        raise ValueError(f'clock128000 failed: {result}')
+def validate_clock(result: dict, expected_git: str | None = None, clock_hz: int = CLOCK_HZ):
+    if result.get('error') or result.get('cmd') != 'info' or result.get('clk_hz') != clock_hz:
+        raise ValueError(f'clock{clock_hz//1000} failed: {result}')
     if expected_git is not None and result.get('git') != firmware_identity(expected_git):
         raise ValueError('firmware identity differs from --expected-git')
 
@@ -174,7 +183,10 @@ def validate_clock(result: dict, expected_git: str | None = None):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--out', type=Path, required=True)
-    p.add_argument('--cpws', nargs='+', type=int, choices=(2, 4), default=[2])
+    p.add_argument('--cpws', nargs='+', type=int, choices=(1, 2, 4), default=[2])
+    p.add_argument('--bits', type=int, choices=(8, 14), default=14)
+    p.add_argument('--priorities', nargs='+', type=int, choices=range(16))
+    p.add_argument('--clock-khz', type=int, choices=(128000, 256000), default=128000)
     p.add_argument('--inverts', nargs='+', type=int, choices=(0, 1), default=[0, 1])
     p.add_argument('--ms', type=int, default=1000)
     p.add_argument('--reps', type=int, default=1)
@@ -185,11 +197,18 @@ def main():
     args = p.parse_args()
     if args.reps < 1 or not 100 <= args.ms <= 60000:
         p.error('--reps must be positive and --ms100..60000')
+    priorities = args.priorities if args.priorities is not None else ([13] if args.bits == 8 else [0])
+    if args.bits == 14 and (1 in args.cpws or priorities != [0] or args.clock_khz != 128000):
+        p.error('14-bit B1 uses SYS128, cpw2/4 and its original priority0')
+    if any(args.clock_khz*1000/(2*cpw) > 65000000 for cpw in args.cpws):
+        p.error('requested per-axis DAC rate exceeds65MSPS')
     args.out.mkdir(parents=True, exist_ok=False)
     build, source = args.build.resolve(), args.source.resolve()
     cache = (build/'CMakeCache.txt').read_text()
     if 'IQ4HIST_EXPERIMENT:BOOL=ON' not in cache:
         p.error('--build must contain an IQ4HIST_EXPERIMENT=ON firmware build')
+    if args.bits == 8 and 'PICO_STACK_SIZE=0x1000' not in (build/'build.ninja').read_text():
+        p.error('B4 needs the4KiB core0 stack; configure with -DCORE0_STACK_SRAM_HI=ON')
     shutil.copy2(__file__, args.out/'driver.py')
     hashes = {}
     for name in ('iqbench.uf2', 'iqbench.elf'):
@@ -205,7 +224,8 @@ def main():
                      'host/pulse_profiles.py', 'reference/iqlut.py'):
         hashes[relative] = hashlib.sha256((iq.ROOT/relative).read_bytes()).hexdigest()
     manifest = dict(started=dt.datetime.now().isoformat(), ms=args.ms, cpws=args.cpws,
-                    inverts=args.inverts, reps=args.reps, expected_firmware_git=args.expected_git,
+                    inverts=args.inverts, reps=args.reps, bits=args.bits, priorities=priorities,
+                    clock_khz=args.clock_khz, expected_firmware_git=args.expected_git,
                     setup='Digital GPIO output; coordinating engineer owns device and wiring',
                     scope='Cyclic8PSK L7/N4 hardware-pointer output; no live FEC/SPI or AFE/RF qualification',
                     head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=iq.ROOT, text=True).strip(),
@@ -215,20 +235,26 @@ def main():
     board = iq.Board(args.port)
     failed = False
     try:
-        clock_result, _ = board.cmd('clock 128000')
+        clock_result, _ = board.cmd(f'clock {args.clock_khz}')
         (args.out/'clock.json').write_text(json.dumps(clock_result, indent=2)+'\n')
-        validate_clock(clock_result, args.expected_git)
+        validate_clock(clock_result, args.expected_git, args.clock_khz*1000)
         for cpw in args.cpws:
             for invert in args.inverts:
-                for rep in range(args.reps):
-                    r, lines = board.cmd(f'bench4live {cpw} {args.ms} {invert}', timeout=args.ms/1000+20)
-                    (args.out/f'capture-{cpw}-{invert}-{rep}.txt').write_text('\n'.join(lines)+'\n')
-                    r.update(validate_run(r, lines, cpw, args.ms, invert, expected_git=args.expected_git))
-                    r['rep'] = rep
-                    with (args.out/'runs.jsonl').open('a') as stream:
-                        stream.write(json.dumps(r)+'\n')
-                    print(json.dumps(r), flush=True)
-                    failed |= bool(r['faults'])
+                for priority in priorities:
+                    for rep in range(args.reps):
+                        command = f'bench4live {cpw} {args.ms} {invert}' if args.bits == 14 else \
+                            f'bench4live8 {cpw} {args.ms} {invert} {priority}'
+                        r, lines = board.cmd(command, timeout=args.ms/1000+20)
+                        suffix = '' if args.bits == 14 else f'-prio{priority}'
+                        (args.out/f'capture-{cpw}-{invert}{suffix}-{rep}.txt').write_text('\n'.join(lines)+'\n')
+                        r.update(validate_run(r, lines, cpw, args.ms, invert,
+                                              clock_hz=args.clock_khz*1000, expected_git=args.expected_git,
+                                              bits=args.bits, priority=priority))
+                        r['rep'] = rep
+                        with (args.out/'runs.jsonl').open('a') as stream:
+                            stream.write(json.dumps(r)+'\n')
+                        print(json.dumps(r), flush=True)
+                        failed |= bool(r['faults'])
     finally:
         board.s.close()
     if failed:

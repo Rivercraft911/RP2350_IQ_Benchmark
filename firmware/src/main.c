@@ -304,6 +304,13 @@ static const char *dispatch(char *line) {
             !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
             !num(a[3], "invert", 0, 0, 1, &invert)) return err;
         bench4live(r.cpw, r.ms, invert);
+    } else if (!strcmp(cmd, "bench4live8")) {
+        int invert;
+        if (!num(a[1], "cpw", 2, 1, 4, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "invert", 0, 0, 1, &invert) ||
+            !num(a[4], "prio", 13, 0, 15, &code)) return err;
+        bench4live8(r.cpw, r.ms, invert, code);
     } else if (!strcmp(cmd, "bench4fec")) {
         int invert;
         if (!num(a[1], "cpw", 2, 2, 4, &r.cpw) ||

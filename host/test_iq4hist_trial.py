@@ -12,19 +12,19 @@ def capture_lines(values):
             for k in range(0, len(values), 16)]
 
 
-def fixture(cpw=2, invert=0):
-    source, bus = trial.reference_source()
+def fixture(cpw=2, invert=0, bits=14, clock_hz=trial.CLOCK_HZ, priority=13):
+    source, bus = trial.reference_source(bits)
     # Cross physical source wrap while the odd stride exercises both axes/phases.
     values = bus[(len(bus)-67+17*np.arange(trial.CAP_WORDS)) % len(bus)].astype('<u4')
     values |= ((((values >> 14) & 1) ^ invert) << 28)
     elapsed, cycles = 1000000, 3000000
-    reads = int(trial.CLOCK_HZ/(8*cpw*16))
-    r = dict(cmd='bench4live', git='frozen-test-image', clk_hz=trial.CLOCK_HZ,
+    reads = int(clock_hz/(8*cpw*16))
+    r = dict(cmd='bench4live', git='frozen-test-image', clk_hz=clock_hz,
              source='cyclic_8psk', cpw=cpw, divider256=256*cpw, ms=1000, invert=invert,
              sps=4, L=7, row_profile=trial.L7_PROFILE, row_symbols=1, row_words=2,
              writers=2, seed=trial.SEED, in_words=4096, input_words=8192,
              ring_base=0x20000000, table_base=0x20000000, ring_bytes=131072,
-             table_bytes=131072, table_crc=trial.table_crc(), input_base=0x20020000,
+             table_bytes=131072, table_crc=trial.table_crc(bits), input_base=0x20020000,
              previous_words=[int(source[4095]), int(source[-1])],
              input_crc=zlib.crc32(source.tobytes()), input_after_crc=zlib.crc32(source.tobytes()),
              errors=0, pointer_errors=0, output_errors=0, txstalls_i=0, txstalls_q=0,
@@ -33,16 +33,41 @@ def fixture(cpw=2, invert=0):
              idle_wait='spin', reason='complete', polls=elapsed//128,
              sample_math_busy=0.0, descriptor_gen_busy=0.0,
              poll_interval_us=128, max_poll_interval_us=256, max_poll_gap_us=129,
-             elapsed_us=elapsed, sym_rate=trial.CLOCK_HZ/(8*cpw),
-             supervision_cycles=cycles, supervision_busy=cycles/(elapsed*trial.CLOCK_HZ/1e6),
+             elapsed_us=elapsed, sym_rate=clock_hz/(8*cpw),
+             supervision_cycles=cycles, supervision_busy=cycles/(elapsed*clock_hz/1e6),
              start_input_issue_words=[8, 8], input_issue_words=[8+reads, 8+reads],
              cap_format='pins32', cap_words=4096, capture_count=4096,
              cap_crc=zlib.crc32(values.tobytes()), cap_stride=17,
              cap_divider256=256*cpw, cap_fifo_only=False)
+    if bits == 8:
+        r.update(cmd='bench4live8', sample_bits=8, low_bits=0, bus_priority=priority,
+                 table_bytes=65536, row_words=1)
     return r, values, capture_lines(values)
 
 
 class FourHistoryTrial(unittest.TestCase):
+    def test_byte_rows_rates_priorities_and_clock_ratio(self):
+        for clock_hz, cpws in ((128000000, (1, 2, 4)), (256000000, (2, 4))):
+            for cpw in cpws:
+                for priority in (0, 13):
+                    for invert in (0, 1):
+                        r, values, lines = fixture(cpw, invert, 8, clock_hz, priority)
+                        self.assertTrue(np.all((values & 63) == 0))
+                        self.assertEqual(trial.validate_run(r, lines, cpw, 1000, invert,
+                                         clock_hz=clock_hz, bits=8, priority=priority)['faults'], [])
+
+    def test_byte_rows_quantization_low_bits_and_metadata_fail_closed(self):
+        r, values, lines = fixture(cpw=1, bits=8)
+        for bit in (0, 5, 6, 13, 14, 15, 28):
+            bad = values.copy()
+            bad[-1] ^= 1 << bit
+            changed = dict(r, cap_crc=zlib.crc32(bad.tobytes()))
+            self.assertTrue(trial.validate_run(changed, capture_lines(bad), 1, 1000, 0, bits=8)['faults'])
+        for change in (dict(sample_bits=14), dict(low_bits=32), dict(row_words=2),
+                       dict(table_bytes=131072), dict(bus_priority=0), dict(table_crc=0)):
+            self.assertTrue(trial.validate_run(dict(r, **change), lines, 1, 1000, 0, bits=8)['faults'])
+        self.assertTrue(trial.validate_run(r, lines, 1, 1000, 0)['faults'])
+
     def test_both_rates_clock_phases_and_cyclic_wrap(self):
         for cpw in (2, 4):
             for invert in (0, 1):
