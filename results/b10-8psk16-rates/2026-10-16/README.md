@@ -50,3 +50,13 @@ core 0 deepest 2224 of 4096 B.
 
 One 60 s run per positive row; 5/6 runs at 92–95% of both cores, so treat it as a
 demonstrated rate, not a qualified one with margin.
+
+## Merged with main (N5, wide ingress): regressed again (`bd796ac66e`, not merged into main)
+
+On the image that adds main's N5 and wide-ingress code, N5 and `pvwide` pass, but the FEC
+transmitter is layout-sensitive again: 2/3 mask 251 ran dry after 8,740 frames and 5/6 mask 6395
+after 3,376 frames in 60 s runs (3 s runs passed), with supervision 14.3% and core-1 GCS 22.7–27.7k
+per frame (`merged-*`). Moving only GCS and the C5 scheduler to SRAM does not make the 16 Msym/s
+FEC independent of flash layout; the remaining flash-resident hot code (job stepping, mapper
+dispatch, supervision) still shares the XIP cache with USB and timer code. The 5/6 result stands
+for image `977d68856a` (tag `archive/b10-8psk16-rates`).
