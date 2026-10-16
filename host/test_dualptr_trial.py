@@ -127,6 +127,58 @@ class DualptrTrial(unittest.TestCase):
                                                         code_index, bch_kernel, 1, 1)
                         self.assertTrue(result['faults'], field)
 
+    def test_pigeon_vision_2_3_at_8msym_positive_and_negative_controls(self):
+        # Normal QPSK 2/3 (code 5) is the stored pvflight profile; cpw 2 is 8 Msym/s.
+        for source in (5, 6):
+            for fault, clock_mode, classification in (
+                    (0, 1, 'digital_live_clean'),
+                    (0, 2, 'inverted_clock_detected'),
+                    (1, 1, 'credit_starvation_detected')):
+                r, _, lines = fixture(source, 2, fault, clock_mode, code_index=5)
+                result = self.validate(r, lines, source, 2, fault, clock_mode, code_index=5)
+                self.assertEqual(result['faults'], [], (source, fault, clock_mode))
+                self.assertEqual(result['classification'], classification)
+                if not fault:
+                    self.assertEqual(result['cap_checked_bus_words'], 4096)
+                    self.assertEqual(result['cap_clock_checked'], 4096)
+            r, _, lines = fixture(source, 2, code_index=5)
+            for field, value in (('code_index', 8), ('s2_code', 'normal 5/6'), ('kbch', 53840),
+                                 ('sym_rate', 16e6), ('cpw', 1), ('divider256', 256)):
+                self.assertTrue(self.validate(dict(r, **{field: value}), lines, source, 2,
+                                              code_index=5)['faults'], field)
+            # A 5/6 capture must not pass as 2/3, and vice versa.
+            other, _, other_lines = fixture(source, 2, code_index=8)
+            self.assertTrue(self.validate(dict(other, **spi.qpsk_config(5)), other_lines, source, 2,
+                                          code_index=5)['faults'])
+
+    def test_runner_sends_pigeon_vision_profile_with_priority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            build, out = base/'build', base/'results'
+            build.mkdir()
+            for name in ('iqbench.uf2', 'iqbench.elf'):
+                (build/name).write_bytes(b'native runner fixture')
+            board = mock.Mock()
+            board.cmd.return_value = ({}, [])
+            argv = ['dualptr_trial.py', '--out', str(out), '--build', str(build),
+                    '--sources', '5', '--cpws', '2', '--ms', '60000', '--control',
+                    '--code-index', '5', '--priority', '13']
+            with mock.patch.object(sys, 'argv', argv), mock.patch.object(trial.iq, 'Board', return_value=board), \
+                    mock.patch.object(trial, 'validate_clock'), \
+                    mock.patch.object(trial, 'validate_run', return_value={'faults': []}) as positive, \
+                    mock.patch.object(trial, 'validate_control', return_value={'faults': []}), \
+                    mock.patch('builtins.print'):
+                trial.main()
+            commands = [call.args[0] for call in board.cmd.call_args_list]
+            for command in ('dualprio 13', 'dualclock 1', 'dualptr 2 60000 5 0 5',
+                            'dualstream 2 60000 2 5 4096 0 0 0 4 5'):
+                self.assertIn(command, commands)
+            self.assertEqual(positive.call_args.kwargs['priority'], 13)
+            self.assertEqual(positive.call_args.args[-3:], (5, 2, 1))
+            manifest = json.loads((out/'manifest.json').read_text())
+            self.assertEqual((manifest['code_index'], manifest['priority'], manifest['cpws']), (5, 13, [2]))
+            self.assertIn('2/3', manifest['scope'])
+
     def test_both_live_sources_both_rates_and_all4096_snapshots(self):
         for source in (5, 6):
             for cpw in (1, 2):

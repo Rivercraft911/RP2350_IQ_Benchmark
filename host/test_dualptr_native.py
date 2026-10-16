@@ -125,9 +125,11 @@ static void run(int code, enum dual_source source, bool pilots, bool freeze) {
     puts("]}");
 }
 int main(void) {
-    for (unsigned code=8;code<=10;code++) for (unsigned s=5;s<=6;s++)
+    // Normal 2/3 (5) is the PigeonVision profile; 5/6, 8/9 and 9/10 are the measured rates.
+    static const int codes[]={5,8,9,10};
+    for (unsigned c=0;c<4;c++) for (unsigned s=5;s<=6;s++)
         for (unsigned pilots=0;pilots<=1;pilots++) for (unsigned freeze=0;freeze<=pilots;freeze++)
-            run(code,s,pilots,freeze);
+            run(codes[c],s,pilots,freeze);
 }
 '''
 
@@ -149,7 +151,7 @@ def main():
                         ('dvbs2.c', 'iqgen.c', 'pvproto.c', 'iqquadptr.c', 'iqquad.c')],
                         '-o', str(exe)], check=True)
         records = [json.loads(line) for line in subprocess.check_output([str(exe)], text=True).splitlines()]
-    for code, rate in ((8, '5/6'), (9, '8/9'), (10, '9/10')):
+    for code, rate in ((5, '2/3'), (8, '5/6'), (9, '8/9'), (10, '9/10')):
         for source in (5, 6):
             for pilots in (False, True):
                 frames = [spi.ref.plframe(spi.ref.fecframe(spi.bbframe(k, gcs=source == 6, rate=rate), rate),
