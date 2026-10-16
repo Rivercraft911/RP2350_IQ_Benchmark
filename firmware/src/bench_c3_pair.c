@@ -9,6 +9,7 @@
 //   7 dvbs2_transpose32 in a loop (SCRATCH_X code fetch, the LDPC transpose leaf)
 //   layout 0: both jobs, their code rings and one shared gold/LUT/LDPC-leaf set in SRAM0-3
 //   layout 1: job B with its own rings, gold, LUT and LDPC leaf copy in SRAM4-7 (cap_buf)
+//   layout 2: as layout 0, but both jobs run the LDPC leaf copy in SRAM4-7 (code and data split)
 // Shared read-only tables (BCH, BB PRBS, LDPC addresses) stay where the linker put them.
 #include <stdio.h>
 #include <string.h>
@@ -134,9 +135,9 @@ static bool tables(lane_t *lane, const dvbs2_code_t *code, uint32_t options) {
 void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) {
     const uint32_t hz = clock_get_hz(clk_sys);
     if ((code_index != S2_N2_3 && code_index != S2_N3_4 && code_index != S2_N5_6) || pairs < 1 ||
-        pairs > MAX_PAIRS || layout < 0 || layout > 1 || who < 0 || who > 7 || (who >= 3 && layout) ||
+        pairs > MAX_PAIRS || layout < 0 || layout > 2 || who < 0 || who > 7 || (who >= 3 && layout == 1) ||
         options < 0 || options > C4_ALL) {
-        printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8, pairs1..200, layout0/1, who0..7 (3..7 layout0), options0..31\"}\n");
+        printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8, pairs1..200, layout0..2, who0..7 (3..7 layout0/2), options0..31\"}\n");
         return;
     }
     const dvbs2_code_t *code = &DVBS2_CODES[code_index];
@@ -159,9 +160,11 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
         printf("@{\"cmd\":\"c3pair\",\"error\":\"C3/C4 setup failed\"}\n");
         return;
     }
-    lane_t *lane_b = layout ? &high->b : &low->b;
-    const lane_t *tables_b = layout ? &high->b : &low->a;
-    uint32_t *ring_a = in_buf, *ring_b = layout ? high->ring : in_buf + 2 * RING;
+    lane_t *lane_b = layout == 1 ? &high->b : &low->b;
+    const lane_t *tables_b = layout == 1 ? &high->b : &low->a;
+    uint32_t *ring_a = in_buf, *ring_b = layout == 1 ? high->ring : in_buf + 2 * RING;
+    // Layout 2 keeps every table and buffer in SRAM0-3 and only fetches the LDPC leaf from SRAM4-7.
+    void *const leaf_hi = (options & C4_LDPC) ? (void *)((uintptr_t)high->b.code | 1u) : NULL;
     uint32_t stage_a[STAGES] = {0}, stage_b[STAGES] = {0}, total_a = 0, total_b = 0, max_a = 0, max_b = 0;
     remote = (remote_t){0};
     memset(sub_a, 0, sizeof sub_a);
@@ -172,6 +175,7 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     for (int p = 0; p < pairs; ++p) {
         begin(&low->a, &low->a, 0, ring_a, (uint32_t)options);
         begin(lane_b, tables_b, 1, ring_b, (uint32_t)options);
+        if (layout == 2) low->a.job.ldpc_group = lane_b->job.ldpc_group = leaf_hi;
         const uint32_t irq = save_and_disable_interrupts();
         if (who == 0) {
             uint32_t t = run_job(&low->a.job, low->pattern, stage_a, sub_a);
