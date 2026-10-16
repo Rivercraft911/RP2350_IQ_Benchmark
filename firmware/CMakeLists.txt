@@ -47,7 +47,7 @@ if(IQ4HIST_EXPERIMENT)
     target_sources(iqbench PRIVATE src/iq4hist.c src/iq4ptr.c src/bench4live.c src/bench4fec.c
         src/iq4quad.c src/bench4quad.c src/iq5hist.c src/bench5quad.c src/iq4prod.c src/iq4prod_dma.c
         src/iq4prod_source.c src/bench4prod.c src/dmaloop.c src/c3_fec.c src/bench_c3_fec.c src/bench_c3_pair.c
-        src/r2grant.c src/bench_r2grant.c src/bench_b9.c)
+        src/r2grant.c src/bench_r2grant.c src/bench_b9.c src/pvwide.c)
     target_compile_definitions(iqbench PRIVATE IQ4HIST_EXPERIMENT=1)
 endif()
 # A3 multiply-form 32APSK conversion: linked last so its SCRATCH_Y section follows

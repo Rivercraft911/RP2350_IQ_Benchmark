@@ -59,6 +59,7 @@
 //   bench <kernel> <sps> <L> [reps]               shaping kernel throughput + output CRC
 //   bench32bus mode group                        no-output bus contention diagnosis
 //   pvstress ms irq_mask_us / pvbench [reps] [kernel] / ptrbench [reps]   SPI admission / packet prep / PIO pointers
+//   pvwide ms width half fault [emulate]        [exp] PV messages on 1/4-bit source-clocked bus
 //   snifftest / ddrtest [ms] / dualbench [reps]   DMA sniffer / PIO data + HSTX clock / descriptor generation
 #include <limits.h>
 #include <stdio.h>
@@ -86,6 +87,7 @@
 #include "dmaloop.h"
 #include "c3_fec.h"
 #include "r2grant.h"
+#include "pvwide.h"
 #endif
 #include "bench_ptr.h"
 #include "dual_dma.h"
@@ -332,6 +334,14 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "mode", 1, 0, 1, &code)) return err;
         bench_quadptr(code);
 #ifdef IQ4HIST_EXPERIMENT
+    } else if (!strcmp(cmd, "pvwide")) {
+        int width, half, fault, emulate;
+        if (!num(a[1], "ms", 1000, 100, 60000, &r.ms) ||
+            !num(a[2], "width", 4, 1, 4, &width) ||
+            !num(a[3], "half", 4, 3, 16, &half) ||
+            !num(a[4], "fault", 0, 0, 2, &fault) ||
+            !num(a[5], "emulate", 1, 0, 1, &emulate)) return err;
+        bench_pvwide(r.ms, width, half, fault, emulate);
     } else if (!strcmp(cmd, "r2grant")) {
         int gap_us, fault;
         if (!num(a[1], "batches", 8, 1, 8, &reps) ||

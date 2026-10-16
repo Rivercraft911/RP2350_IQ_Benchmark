@@ -61,6 +61,8 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_pv_words_asm.py
 	python3 host/test_gcs_native.py
 	python3 host/test_pvspi_rx.py
+	python3 host/test_pvwide.py
+	python3 host/pvwide_trial.py --self-test
 	python3 host/test_startup.py
 	python3 host/test_stackcheck.py
 	python3 host/test_flight_service.py
