@@ -194,13 +194,14 @@ class C3Bench(unittest.TestCase):
 
     def test_each_c4_option_and_combinations(self):
         for code in trial.RATES:
-            for options in (1, 2, 4, 8, 15, 16, 31):
+            for options in (1, 2, 4, 8, 15, 16, 31, 32, 33, 59, 63):
                 with self.subTest(code=code, options=options):
                     result = self.run_command(code, options=options)
                     self.assertEqual(result["options"], options)
                     self.assertEqual(trial.run_faults(result, code, 100, 0, options=options), [])
-        result = self.run_command(slow=5000, options=31)
-        self.assertEqual(trial.run_faults(result, 5, 100, 5000, options=31), [])
+        for options in (31, 32, 63):
+            result = self.run_command(slow=5000, options=options)
+            self.assertEqual(trial.run_faults(result, 5, 100, 5000, options=options), [])
 
     def test_symbol_clock_ratio_and_slow_rate_control(self):
         for cpw, hz in ((2, 128000000), (2, 256000000), (4, 256000000)):
@@ -208,8 +209,8 @@ class C3Bench(unittest.TestCase):
                 result = self.run_command(cpw=cpw, hz=hz)
                 self.assertEqual(trial.run_faults(result, 5, 100, 0, cpw=cpw), [], result)
                 self.assertEqual(result["frame_cycles"], 177552 * cpw)
-                cached = self.run_command(cpw=cpw, hz=hz, options=31)
-                self.assertEqual(trial.run_faults(cached, 5, 100, 0, cpw=cpw, options=31), [])
+                cached = self.run_command(cpw=cpw, hz=hz, options=63)
+                self.assertEqual(trial.run_faults(cached, 5, 100, 0, cpw=cpw, options=63), [])
                 for field in ("frames_target", "published_frames", "consumed_frames", "code_crc"):
                     self.assertEqual(cached[field], result[field])
 

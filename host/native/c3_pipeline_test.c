@@ -51,6 +51,8 @@ static int complete(c3_job_t *job) {
     unsigned calls = 0;
     while (job->stage != C3_DONE) {
         if (!c3_job_step(job, pattern) || ++calls > 4096) return 0;
+        if (job->stage == C3_LDPC && job->ldpc.mode !=
+            (job->options & C5_LDPC ? 2u : !!(job->options & C4_LDPC))) return 0;
     }
     const uint32_t n = job->stream.n, fill = job->stream.fill;
     return c3_job_step(job, pattern) && job->stage == C3_DONE &&
@@ -59,7 +61,7 @@ static int complete(c3_job_t *job) {
 
 int main(int argc, char **argv) {
     const unsigned options = argc > 1 ? (unsigned)atoi(argv[1]) : 0;
-    if (options > C4_ALL || !dvbs2_ldpc_prepare(NULL, 0)) return 10;
+    if (options > C5_ALL || !dvbs2_ldpc_prepare(NULL, 0)) return 10;
     const unsigned codes[] = {S2_N2_3, S2_N5_6, S2_N3_4};
     for (unsigned k = 0; k < sizeof pattern; k++) pattern[k] = (uint8_t)(29u * k + 7u);
     for (unsigned ci = 0; ci < sizeof codes / sizeof codes[0]; ci++) {

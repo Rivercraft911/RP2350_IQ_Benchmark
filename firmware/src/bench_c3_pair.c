@@ -27,7 +27,7 @@ enum { RING = 2048, STAGES = 4, SUB = 6, MAX_PAIRS = 200 };
 typedef struct {
     c3_job_t job;
     dvbs2_8psk_cfg_t cfg;
-    uint32_t gold[1384], lut[DVBS2_8PSK_CODES_LUT_WORDS], code[1792];
+    uint32_t gold[1384], lut[DVBS2_8PSK_CODES_LUT_WORDS], code[2048];
 } lane_t;
 
 typedef struct {
@@ -109,7 +109,9 @@ static void hammer_copy(uint32_t *buf, uint32_t words) {
 void dvbs2_transpose32(uint32_t *a); // dvbs2_asm.S
 static void hammer_transpose(void) {
     // dvbs2_transpose32 is linked in SCRATCH_X: both LDPC workers fetch it from that one bank.
-    uint32_t *tile = cap_buf + 8192;
+    // Layout0/2 never runs the high job, so its frame storage is spare. The old
+    // +8192 tile overlaps the larger C5 instruction bundle in high->b.code.
+    uint32_t *tile = cap_buf + 4096;
     while (!remote.stop) dvbs2_transpose32(tile);
 }
 static void hammer_task(uint32_t kind) {
@@ -123,21 +125,22 @@ static void hammer_task(uint32_t kind) {
 static void begin(lane_t *lane, const lane_t *tables, uint32_t index, uint32_t *ring, uint32_t options) {
     c3_job_begin_options(&lane->job, &tables->cfg, index, ring, ring + RING, options);
     lane->job.stream.mask = RING - 1u;
-    lane->job.ldpc_group = (options & C4_LDPC) ? (void *)((uintptr_t)tables->code | 1u) : NULL;
+    lane->job.ldpc_group = (options & (C4_LDPC | C5_LDPC)) ? (void *)((uintptr_t)tables->code | 1u) : NULL;
 }
 
 static bool tables(lane_t *lane, const dvbs2_code_t *code, uint32_t options) {
     return dvbs2_8psk_init(&lane->cfg, code, true, 0, lane->gold, 1384) &&
         (!(options & C4_MAP) || dvbs2_8psk_codes_lut_init(&lane->cfg, lane->lut, DVBS2_8PSK_CODES_LUT_WORDS)) &&
-        (!(options & C4_LDPC) || dvbs2_ldpc_copy(lane->code, sizeof lane->code));
+        (!(options & (C4_LDPC | C5_LDPC)) || dvbs2_ldpc_copy_mode(lane->code,
+            sizeof lane->code, options & C5_LDPC ? 2 : 1));
 }
 
 void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) {
     const uint32_t hz = clock_get_hz(clk_sys);
     if ((code_index != S2_N2_3 && code_index != S2_N3_4 && code_index != S2_N5_6) || pairs < 1 ||
         pairs > MAX_PAIRS || layout < 0 || layout > 2 || who < 0 || who > 7 || (who >= 3 && layout == 1) ||
-        options < 0 || options > C4_ALL) {
-        printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8, pairs1..200, layout0..2, who0..7 (3..7 layout0/2), options0..31\"}\n");
+        options < 0 || options > C5_ALL) {
+        printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8, pairs1..200, layout0..2, who0..7 (3..7 layout0/2), options0..63\"}\n");
         return;
     }
     const dvbs2_code_t *code = &DVBS2_CODES[code_index];
@@ -153,7 +156,8 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     pv_init(65536);
     // Every option-1 job needs a prepared default; each lane also gets its own leaf copy.
     const bool ok = tables(&low->a, code, (uint32_t)options) && tables(&high->b, code, (uint32_t)options) &&
-        (!(options & C4_LDPC) || dvbs2_ldpc_prepare(low->a.code, sizeof low->a.code));
+        (!(options & (C4_LDPC | C5_LDPC)) || dvbs2_ldpc_prepare_mode(low->a.code,
+            sizeof low->a.code, options & C5_LDPC ? 2 : 1));
     if (!ok) {
         dvbs2_bch_set_kernel(saved_bch);
         dvbs2_frontend_set_bank(saved_bank);
@@ -164,7 +168,7 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     const lane_t *tables_b = layout == 1 ? &high->b : &low->a;
     uint32_t *ring_a = in_buf, *ring_b = layout == 1 ? high->ring : in_buf + 2 * RING;
     // Layout 2 keeps every table and buffer in SRAM0-3 and only fetches the LDPC leaf from SRAM4-7.
-    void *const leaf_hi = (options & C4_LDPC) ? (void *)((uintptr_t)high->b.code | 1u) : NULL;
+    void *const leaf_hi = (options & (C4_LDPC | C5_LDPC)) ? (void *)((uintptr_t)high->b.code | 1u) : NULL;
     uint32_t stage_a[STAGES] = {0}, stage_b[STAGES] = {0}, total_a = 0, total_b = 0, max_a = 0, max_b = 0;
     remote = (remote_t){0};
     memset(sub_a, 0, sizeof sub_a);

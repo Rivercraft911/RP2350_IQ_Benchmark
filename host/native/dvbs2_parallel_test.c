@@ -10,7 +10,7 @@ enum { GUARD = 0x5A2C91B3, PATTERNS = 4 };
 typedef struct {
     uint32_t before, frame[DVBS2_FE_WORDS], after;
     uint32_t bb[DVBS2_FE_WORDS], expected[DVBS2_FE_WORDS];
-    uint32_t *allocation, *workspace, words, chunk, units, mode, options;
+    uint32_t *allocation, *workspace, words, chunk, units, mode, options, info_bits;
     int ok;
 } job_t;
 
@@ -19,36 +19,86 @@ static uint32_t random_word(uint32_t *seed) {
     return *seed;
 }
 
-static void *encode(void *arg) {
-    job_t *job = arg;
+static int begin(job_t *job, dvbs2_ldpc_state_t *ldpc) {
     dvbs2_frontend_t front;
-    dvbs2_ldpc_state_t ldpc;
-    job->ok = dvbs2_frontend_begin_reentrant_options(
-        job->bb, job->frame, &front, job->options) && !front.profile;
-    if (!job->ok) return NULL;
-    dvbs2_frontend_t front_saved = front;
-    job->ok &= !dvbs2_frontend_step(&front, 0) && !memcmp(&front, &front_saved, sizeof front);
-    while (!dvbs2_frontend_step(&front, job->chunk)) {}
+    job->before = job->after = GUARD;
+    memset(job->frame, 0xA5, sizeof job->frame);
+    memset(job->workspace, 0xA5, job->words * sizeof(uint32_t));
+    job->ok = 1;
+    if (job->info_bits) {
+        // Short BCH has degree168 and uses the serial-checked prepared info.
+        // The concurrent frontend supports only normal degree128/160/192.
+        const uint32_t words = (job->info_bits + 31u) / 32u;
+        memcpy(job->frame, job->expected, words * sizeof(uint32_t));
+        if (job->info_bits & 31u)
+            job->frame[words - 1] &= ~(~0u >> (job->info_bits & 31u));
+        memset(job->frame + words, 0, (DVBS2_FE_WORDS - words) * sizeof(uint32_t));
+    } else {
+        job->ok = dvbs2_frontend_begin_reentrant_options(
+            job->bb, job->frame, &front, job->options) && !front.profile;
+        if (!job->ok) return 0;
+        dvbs2_frontend_t front_saved = front;
+        job->ok &= !dvbs2_frontend_step(&front, 0) && !memcmp(&front, &front_saved, sizeof front);
+        while (!dvbs2_frontend_step(&front, job->chunk)) {}
+    }
     job->ok &= dvbs2_ldpc_begin_reentrant_mode(job->frame, job->workspace, job->words,
-                                              &ldpc, job->mode);
-    if (!job->ok) return NULL;
-    dvbs2_ldpc_state_t untouched = ldpc;
-    job->ok &= !dvbs2_ldpc_step(&ldpc, 0) && !memcmp(&ldpc, &untouched, sizeof ldpc);
-    while (!dvbs2_ldpc_step(&ldpc, job->units)) {}
-    untouched = ldpc;
-    job->ok &= dvbs2_ldpc_step(&ldpc, 0) && dvbs2_ldpc_step(&ldpc, 100);
-    job->ok &= !memcmp(&ldpc, &untouched, sizeof ldpc);
+                                              ldpc, job->mode);
+    if (!job->ok) return 0;
+    dvbs2_ldpc_state_t untouched = *ldpc;
+    job->ok &= ldpc->mode == job->mode && !dvbs2_ldpc_step(ldpc, 0) &&
+        !memcmp(ldpc, &untouched, sizeof *ldpc);
+    return job->ok;
+}
+
+static void finish(job_t *job, dvbs2_ldpc_state_t *ldpc) {
+    const dvbs2_ldpc_state_t untouched = *ldpc;
+    job->ok &= dvbs2_ldpc_step(ldpc, 0) && dvbs2_ldpc_step(ldpc, UINT32_MAX);
+    job->ok &= !memcmp(ldpc, &untouched, sizeof *ldpc);
     job->ok &= !memcmp(job->frame, job->expected, sizeof job->frame);
     job->ok &= job->before == GUARD && job->after == GUARD;
     job->ok &= job->allocation[0] == GUARD && job->workspace[job->words] == GUARD;
+}
+
+static void *encode(void *arg) {
+    job_t *job = arg;
+    dvbs2_ldpc_state_t ldpc;
+    if (begin(job, &ldpc)) {
+        while (!dvbs2_ldpc_step(&ldpc, job->units)) {}
+        finish(job, &ldpc);
+    }
     return NULL;
 }
 
+static int interleaved(job_t jobs[2]) {
+    dvbs2_ldpc_state_t states[2];
+    const uint32_t schedule[] = {0, 1, 3, 0, 17, 128};
+    if (!begin(&jobs[0], &states[0]) || !begin(&jobs[1], &states[1])) return 0;
+    for (unsigned round = 0; !states[0].done || !states[1].done; ++round) {
+        if (round > 4096) return 0;
+        // Reverse the worker order on every round, crossing clear/group/prefix/
+        // pack boundaries with zero, tiny and multi-stage work grants.
+        for (unsigned at = 0; at < 2; ++at) {
+            const unsigned worker = at ^ (round & 1u);
+            dvbs2_ldpc_state_t *state = &states[worker];
+            const uint32_t grant = schedule[(round + worker) % 6u];
+            const dvbs2_ldpc_state_t previous = *state;
+            const int done = dvbs2_ldpc_step(state, grant);
+            if (!grant && !previous.done &&
+                (done || memcmp(state, &previous, sizeof *state))) return 0;
+        }
+    }
+    for (unsigned worker = 0; worker < 2; ++worker) finish(&jobs[worker], &states[worker]);
+    return jobs[0].ok && jobs[1].ok;
+}
+
 int main(void) {
-    const unsigned codes[] = {S2_N2_3, S2_N3_4, S2_N4_5, S2_N5_6, S2_N8_9, S2_N9_10};
-    const uint32_t chunks[] = {1, 7, 128, 511}, units[] = {1, 3, 17, 128};
+    const unsigned codes[] = {S2_N2_3, S2_N3_4, S2_N4_5, S2_N5_6, S2_N8_9, S2_N9_10,
+        S2_S1_4, S2_S1_3, S2_S2_5, S2_S1_2, S2_S3_5, S2_S2_3, S2_S3_4, S2_S4_5, S2_S5_6, S2_S8_9};
+    const uint32_t chunks[] = {1, 7, 128, 511}, units[] = {1, 3, 17, 128, UINT32_MAX};
     job_t jobs[2];
-    if (dvbs2_ldpc_code_bytes() || !dvbs2_ldpc_prepare(NULL, 0)) return 10;
+    if (dvbs2_ldpc_code_bytes() || !dvbs2_ldpc_prepare(NULL, 0) ||
+        dvbs2_ldpc_code_bytes_mode(2) || !dvbs2_ldpc_prepare_mode(NULL, 0, 2) ||
+        dvbs2_ldpc_copy_mode(NULL, 0, 3) || dvbs2_ldpc_prepare_mode(NULL, 0, 3)) return 10;
     for (unsigned ci = 0; ci < sizeof codes / sizeof codes[0]; ci++) {
         const dvbs2_code_t *code = &DVBS2_CODES[codes[ci]];
         dvbs2_init(code, true);
@@ -63,6 +113,7 @@ int main(void) {
                 for (unsigned k = 0; k < DVBS2_FE_WORDS; k++)
                     job->bb[k] = p == 0 ? 0 : p == 1 ? ~0u : p == 2 ? 0xAAAAAAAAu : random_word(&seed);
                 job->words = words;
+                job->info_bits = code->is_short ? code->kldpc : 0;
                 job->allocation = malloc((words + 2u) * sizeof(uint32_t));
                 if (!job->allocation) return 3;
                 job->workspace = job->allocation + 1;
@@ -75,7 +126,7 @@ int main(void) {
                 memcpy(scrambled, job->bb, sizeof scrambled);
                 dvbs2_bbscramble(scrambled);
                 dvbs2_bch_serial(scrambled, parity);
-                const unsigned degree = code->t * 16u;
+                const unsigned degree = code->t * (code->is_short ? 14u : 16u);
                 for (unsigned bit = 0; bit < degree; bit++) {
                     const unsigned at = code->kbch + bit;
                     if (((job->expected[at / 32] >> (31 - at % 32)) & 1u) !=
@@ -92,16 +143,14 @@ int main(void) {
             int ok = 1;
             for (unsigned kernel = S2_BCH_WORDS_C; kernel <= S2_BCH_T8_ARM; kernel++) {
                 dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)kernel);
-                for (unsigned slice = 0; slice < sizeof chunks / sizeof chunks[0]; slice++) {
-                    for (unsigned mode = 0; mode < 2; ++mode) {
+                for (unsigned slice = 0; slice < sizeof units / sizeof units[0]; slice++) {
+                    for (unsigned mode = 0; mode < 3; ++mode) {
                         pthread_t threads[2];
                         for (unsigned j = 0; j < 2; j++) {
                             jobs[j].chunk = chunks[(slice + j) % 4];
-                            jobs[j].units = units[(slice + j) % 4];
-                            jobs[j].mode = mode ^ j;
+                            jobs[j].units = units[(slice + j) % 5];
+                            jobs[j].mode = (mode + j) % 3;
                             jobs[j].options = slice & 1 ? S2_FE_FAST_BCH : 0;
-                            jobs[j].before = jobs[j].after = GUARD;
-                            memset(jobs[j].frame, 0xA5, sizeof jobs[j].frame);
                             if (pthread_create(&threads[j], NULL, encode, &jobs[j])) return 6;
                         }
                         for (unsigned j = 0; j < 2; j++) {
@@ -110,12 +159,20 @@ int main(void) {
                         }
                     }
                 }
+                for (unsigned mode = 0; mode < 3; ++mode) {
+                    for (unsigned j = 0; j < 2; ++j) {
+                        jobs[j].mode = (mode + j) % 3;
+                        jobs[j].chunk = chunks[j];
+                        jobs[j].options = mode & 1 ? S2_FE_FAST_BCH : 0;
+                    }
+                    ok &= interleaved(jobs);
+                }
             }
             if (!ok) { fprintf(stderr, "parallel mismatch %s pattern%u\n", code->name, p); return 1; }
             for (unsigned j = 0; j < 2; j++) {
                 printf("{\"code\":\"%s\",\"ci\":%u,\"pattern\":%u,\"worker\":%u,\"words\":[",
                        code->name, codes[ci], p, j);
-                for (unsigned k = 0; k < code->nldpc / 32u; k++)
+                for (unsigned k = 0; k < (code->nldpc + 31u) / 32u; k++)
                     printf("%s%u", k ? "," : "", jobs[j].frame[k]);
                 puts("]}");
                 free(jobs[j].allocation);
@@ -132,7 +189,7 @@ int main(void) {
     dvbs2_init(&DVBS2_CODES[S2_N2_3], false);
     if (dvbs2_ldpc_begin_reentrant(jobs[0].frame, jobs[0].bb, 60 * 12 - 1, &state) ||
         memcmp(&state, &saved, sizeof state)) return 9;
-    if (dvbs2_ldpc_begin_reentrant_mode(jobs[0].frame, jobs[0].bb, 60 * 12, &state, 2) ||
+    if (dvbs2_ldpc_begin_reentrant_mode(jobs[0].frame, jobs[0].bb, 60 * 12, &state, 3) ||
         memcmp(&state, &saved, sizeof state)) return 11;
     dvbs2_bch_set_kernel(S2_BCH_T8_ARM);
     dvbs2_frontend_t front, front_saved;
