@@ -480,6 +480,125 @@ static void __attribute__((noinline)) HOT(ldpc_matrix)(const uint32_t *info) {
     PROF(2);
 }
 
+// Caller-owned matrix and continuation state let two cores encode separate frames.
+// These experiment leaves stay in flash: existing lower SRAM instruction placement
+// is nearly full. Tables are shared read-only after dvbs2_init; transpose32 is reentrant.
+uint32_t dvbs2_ldpc_workspace_words(void) { return C->q <= 64 ? C->q * 12u : 0; }
+
+bool dvbs2_ldpc_begin_reentrant(uint32_t *frame, uint32_t *workspace,
+                               uint32_t workspace_words, dvbs2_ldpc_state_t *state) {
+    const uint32_t needed = dvbs2_ldpc_workspace_words();
+    if (!needed || !frame || !workspace || !state || workspace_words < needed) return false;
+    *state = (dvbs2_ldpc_state_t){.frame = frame, .rows = (uint32_t (*)[12])workspace};
+    return true;
+}
+
+static void ldpc_group_into(const uint32_t *info, uint32_t (*rows)[12], uint32_t g) {
+    uint32_t u[13], u2[25];
+    const uint32_t *in = info + (g * 360 >> 5), s0 = g * 360 & 31;
+    for (unsigned k = 0; k < 12; k++)
+        u[k] = s0 ? in[k] << s0 | in[k + 1] >> (32 - s0) : in[k];
+    u[11] &= 0xFF000000u;
+    u[12] = 0;
+    for (unsigned k = 0; k < 11; k++) u2[k] = u[k];
+    u2[11] = u[11] | u[0] >> 8;
+    for (unsigned k = 0; k < 11; k++) u2[12 + k] = u[k] << 24 | u[k + 1] >> 8;
+    u2[23] = u2[24] = 0;
+    for (uint32_t a = grp[g]; a < grp[g + 1]; a++)
+        xor_rot(rows[a_row[a]], u2 + (a_off[a] >> 5), a_off[a] & 31);
+}
+
+static void ldpc_prefix_into(dvbs2_ldpc_state_t *state) {
+    uint32_t carry = 0;
+    for (unsigned k = 0; k < 12; k++) {
+        uint32_t x = state->rows[C->q - 1][k] & (k == 11 ? 0xFF000000u : ~0u);
+        x ^= x >> 1; x ^= x >> 2; x ^= x >> 4; x ^= x >> 8; x ^= x >> 16;
+        if (carry) x = ~x;
+        state->prefix[k] = x;
+        carry = x & 1;
+    }
+    for (int k = 11; k >= 0; k--)
+        state->prefix[k] = (state->prefix[k] >> 1) | (k ? state->prefix[k - 1] << 31 : 0);
+}
+
+static void ldpc_pack_step(dvbs2_ldpc_state_t *state) {
+    const uint32_t q = C->q, rem = q > 32 ? q - 32 : q, k = state->cursor;
+    uint32_t tile[2][32];
+    for (unsigned row = 0; row < 32; row++)
+        tile[0][row] = row < q ? state->rows[row][k] : 0;
+    transpose32(tile[0]);
+    if (q > 32) {
+        for (unsigned row = 0; row < 32; row++)
+            tile[1][row] = 32 + row < q ? state->rows[32 + row][k] : 0;
+        transpose32(tile[1]);
+    }
+    uint32_t *dst = state->frame + C->kldpc / 32u;
+    uint32_t acc = state->acc, fill = state->fill, written = state->written;
+    const unsigned columns = k == 11 ? 8 : 32;
+#define APPEND(v) do { acc |= (v) >> fill; fill += rem;                                       \
+        if (fill >= 32) { dst[written++] = acc; fill -= 32;                                 \
+            acc = ((v) << 1) << (rem - 1u - fill); } } while (0)
+    for (unsigned col = 0; col < columns; col++) {
+        if (q > 32) {
+            const uint32_t v = tile[0][col];
+            dst[written++] = acc | v >> fill;
+            acc = (v << 1) << (31u - fill);
+            APPEND(tile[1][col]);
+        } else APPEND(tile[0][col]);
+    }
+#undef APPEND
+    state->acc = acc; state->fill = fill; state->written = written;
+}
+
+bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
+    if (state->done) return true;
+    const uint32_t q = C->q;
+    while (max_units--) {
+        switch (state->stage) {
+        case 0:
+            memset(state->rows[state->cursor], 0, sizeof state->rows[0]);
+            if (++state->cursor == q) state->stage = 1, state->cursor = 0;
+            break;
+        case 1:
+            ldpc_group_into(state->frame, state->rows, state->cursor);
+            if (++state->cursor == C->n_groups) state->stage = 2, state->cursor = 1;
+            break;
+        case 2: {
+            uint32_t *row = state->rows[state->cursor], *previous = row - 12;
+            for (unsigned k = 0; k < 12; k++) row[k] ^= previous[k];
+            if (++state->cursor == q) state->stage = 3;
+            break;
+        }
+        case 3:
+            ldpc_prefix_into(state);
+            state->stage = 4, state->cursor = 0;
+            break;
+        case 4: {
+            uint32_t *row = state->rows[state->cursor];
+            for (unsigned k = 0; k < 12; k++) row[k] ^= state->prefix[k];
+            if (++state->cursor == q) {
+                state->stage = 5, state->cursor = 0;
+                state->fill = C->kldpc & 31u;
+                state->acc = state->frame[C->kldpc / 32u] & ~(~0u >> state->fill);
+            }
+            break;
+        }
+        default:
+            ldpc_pack_step(state);
+            if (++state->cursor == 12) {
+                uint32_t *dst = state->frame + C->kldpc / 32u;
+                if (state->fill) dst[state->written++] = state->acc;
+                const uint32_t end = ((C->kldpc & 31u) + M + 63u) / 32u;
+                while (state->written < end) dst[state->written++] = 0;
+                state->done = true;
+                return true;
+            }
+            break;
+        }
+    }
+    return false;
+}
+
 bool dvbs2_ldpc_set_pack(unsigned pack) {
     if (pack > 1) return false;
     ldpc_pack = pack;
@@ -704,15 +823,45 @@ void dvbs2_init(const dvbs2_code_t *c, bool pil_on) {
 // One BBFRAME to one PLFRAME appended to s. fe = [scrambled BBFRAME | BCH | LDPC parity].
 uint32_t *dvbs2_frame_buffer(void) { return fe; }
 
-bool HOT(dvbs2_frontend_begin)(const uint32_t *bb, uint32_t *frame, dvbs2_frontend_t *state) {
-    if ((bch_deg != 128 && bch_deg != 160) || bch_kernel == S2_BCH_BASELINE) return false;
-    PROF(4);
+static inline __attribute__((always_inline)) bool frontend_begin(
+    const uint32_t *bb, uint32_t *frame, dvbs2_frontend_t *state, bool profile) {
+    if ((bch_deg != 128 && bch_deg != 160 && (profile || bch_deg != 192)) ||
+        bch_kernel == S2_BCH_BASELINE) return false;
+    if (profile) PROF(4);
     const uint32_t kw = (C->kbch + 31u) / 32;
     for (uint32_t k = 0; k < kw; k++) frame[k] = bb[k] ^ bb_prbs[k];
     if (C->kbch % 32u) frame[kw - 1] &= ~(~0u >> (C->kbch % 32u));
     memset(frame + kw, 0, (DVBS2_FE_WORDS - kw) * sizeof frame[0]);
-    *state = (dvbs2_frontend_t){.frame = frame, .kernel = bch_kernel};
+    *state = (dvbs2_frontend_t){.frame = frame, .kernel = bch_kernel, .profile = profile};
     return true;
+}
+
+bool HOT(dvbs2_frontend_begin)(const uint32_t *bb, uint32_t *frame, dvbs2_frontend_t *state) {
+    return frontend_begin(bb, frame, state, true);
+}
+
+bool dvbs2_frontend_begin_reentrant(const uint32_t *bb, uint32_t *frame,
+                                  dvbs2_frontend_t *state) {
+    return frontend_begin(bb, frame, state, false);
+}
+
+static void __attribute__((noinline)) COMPACT bch192_continue_c(
+    const uint32_t *m, uint32_t *parity, uint32_t nw) {
+    uint32_t r0_ = parity[0], r1_ = parity[1], r2 = parity[2], r3 = parity[3],
+             r4 = parity[4], r5 = parity[5];
+    for (uint32_t i = 0; i < nw; i++) {
+        const uint32_t x = r0_ ^ m[i];
+        const uint32_t *a = bch_tab[3][x >> 24], *b = bch_tab[2][(x >> 16) & 0xFF],
+                       *c = bch_tab[1][(x >> 8) & 0xFF], *d = bch_tab[0][x & 0xFF];
+        r0_ = r1_ ^ a[0] ^ b[0] ^ c[0] ^ d[0];
+        r1_ = r2 ^ a[1] ^ b[1] ^ c[1] ^ d[1];
+        r2 = r3 ^ a[2] ^ b[2] ^ c[2] ^ d[2];
+        r3 = r4 ^ a[3] ^ b[3] ^ c[3] ^ d[3];
+        r4 = r5 ^ a[4] ^ b[4] ^ c[4] ^ d[4];
+        r5 = a[5] ^ b[5] ^ c[5] ^ d[5];
+    }
+    parity[0] = r0_; parity[1] = r1_; parity[2] = r2; parity[3] = r3;
+    parity[4] = r4; parity[5] = r5;
 }
 
 static void HOT(bch160_continue_c)(const uint32_t *m, uint32_t *parity, uint32_t nw) {
@@ -738,6 +887,8 @@ bool HOT(dvbs2_frontend_step)(dvbs2_frontend_t *state, uint32_t max_words) {
     const uint32_t left = nw - state->cursor;
     const uint32_t take = left < max_words ? left : max_words;
     const uint32_t *m = state->frame + state->cursor;
+    if (bch_deg == 192) bch192_continue_c(m, state->parity, take);
+    else {
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
     if (state->kernel >= S2_BCH_STREAM_ARM) {
         if (frontend_bank && bch_deg == 128 && state->kernel == S2_BCH_T8_ARM)
@@ -751,18 +902,20 @@ bool HOT(dvbs2_frontend_step)(dvbs2_frontend_t *state, uint32_t max_words) {
     else
 #endif
         bch160_continue_c(m, state->parity, take);
+    }
     state->cursor += take;
     if (state->cursor != nw) return false;
 
     for (uint32_t i = 0; i < (C->kbch % 32u) / 8; i++) {
         uint32_t *p = state->parity;
         const uint32_t *t = bch_tab[0][(p[0] >> 24) ^ ((state->frame[nw] >> (24 - 8 * i)) & 0xFF)];
-        for (unsigned k = 0; k < 4; k++) p[k] = ((p[k] << 8) | (p[k + 1] >> 24)) ^ t[k];
-        p[4] = (p[4] << 8) ^ t[4];
+        const uint32_t words = bch_deg / 32u;
+        for (unsigned k = 0; k < words - 1; k++) p[k] = ((p[k] << 8) | (p[k + 1] >> 24)) ^ t[k];
+        p[words - 1] = (p[words - 1] << 8) ^ t[words - 1];
     }
     copy_bits(state->frame, C->kbch, state->parity, bch_deg);
     state->done = true;
-    PROF(5);
+    if (state->profile) PROF(5);
     return true;
 }
 

@@ -24,6 +24,7 @@
 //   bench4quad8 / bench4quad cpw ms invert [prio] cyclic SRAM pointers, four writers (experiment build)
 //   bench4prod8 / bench4prod8live cpw ms invert [prio] [starve_ms] four PIO producers (experiment build)
 //   dmaloop chains words sink load_div load_kind prio hammer   DMA row-loop latency (experiment build)
+//   c3fec code ms [slow_us] [cpw] [gap_us]       CPU-only frame-parallel 8PSK code-ring benchmark
 //   bench16chunk reps / bench16native8 reps       16APSK shaper components
 //   bench16out cpw ms kernel                     16APSK output with capture, no FEC
 //   bench16planar cpw ms                         experimental dual-axis planar output
@@ -69,6 +70,7 @@
 #include "bench4quad.h"
 #include "bench4prod.h"
 #include "dmaloop.h"
+#include "c3_fec.h"
 #endif
 #include "bench_ptr.h"
 #include "dual_dma.h"
@@ -304,6 +306,13 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "mode", 1, 0, 1, &code)) return err;
         bench_quadptr(code);
 #ifdef IQ4HIST_EXPERIMENT
+    } else if (!strcmp(cmd, "c3fec")) {
+        int gap_us;
+        if (!num(a[1], "code", REQUIRED, 0, N_DVBS2_CODES - 1, &code) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "slow_us", 0, 0, 10000, &reps) ||
+            !num(a[4], "cpw", 1, 1, 4, &r.cpw) || !num(a[5], "gap_us", 128, 128, 4096, &gap_us)) return err;
+        bench_c3_fec(code, r.ms, reps, r.cpw, gap_us);
     } else if (!strcmp(cmd, "bench4live")) {
         int invert;
         if (!num(a[1], "cpw", 2, 2, 4, &r.cpw) ||
