@@ -7,8 +7,13 @@ static inline uint32_t offset(uint32_t a, uint32_t b, uint32_t c) {
     return (a + 17u * (b + 17u * c)) << 3;
 }
 
-#if defined(IQ_ON_DEVICE)
+#if defined(IQ_ON_DEVICE) && !defined(IQ4HIST_EXPERIMENT)
 #define PREP_PLACEMENT __attribute__((section(".scratch_y.iq32prep"), noinline))
+#elif defined(IQ_ON_DEVICE)
+// The experiment image has no SCRATCH_Y room beside B9's grant IRQ (376 B over); there the
+// conversion runs from flash and records report native_to_offsets_mla_flash. A3's device
+// results were measured on the default image, where it stays in SCRATCH_Y.
+#define PREP_PLACEMENT __attribute__((noinline))
 #else
 #define PREP_PLACEMENT __attribute__((noinline))
 #endif

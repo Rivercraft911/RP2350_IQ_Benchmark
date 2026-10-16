@@ -17,6 +17,11 @@
 #include "link.h"
 #include "pico/stdlib.h"
 #include "tx.h"
+#ifdef IQ4HIST_EXPERIMENT
+#define MLA_PREP_NAME "native_to_offsets_mla_flash"     // see iq32offsets_mla.c
+#else
+#define MLA_PREP_NAME "native_to_offsets_mla_scratch_y"
+#endif
 
 enum {
     INPUT_MASK = IN_WORDS - 1, BLOCK_SYMBOLS = 1024,
@@ -516,7 +521,7 @@ void bench_apsk_fec(int modulation, int cpw, int ms, int split, int options) {
            GIT_REV,(unsigned long)hz,ms,modulation,live.profile.modcod,
            modulation==16?270:0,modulation==32?264:0,modulation==32?464:0,
            modulation==16?"flash_cached":"scratch_y",
-           modulation==16?"none":(options & OPT_FAST_PREP)?"native_to_offsets_mla_scratch_y":"native_to_offsets_fused",
+           modulation==16?"none":(options & OPT_FAST_PREP)?MLA_PREP_NAME:"native_to_offsets_fused",
            cpw,rate,rate*(BB_BITS-80)/live.profile.frame_symbols);
     printf("\"options\":%d,\"pl_mapper\":\"%s\",\"pl_mapper_code_bytes\":%lu,",
            options,!(options & OPT_FAST_MAP)?"c_flash":(options & OPT_MAP_FLASH)?"fast_flash":"fast_sram_arena",
