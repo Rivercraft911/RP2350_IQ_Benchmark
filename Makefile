@@ -32,6 +32,11 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_c3_bench.py
 	python3 host/test_c3_fec_trial.py
 	python3 host/c3_fec_trial.py --self-test
+	python3 host/test_r2grant.py
+	python3 host/test_bench_r2grant.py
+	python3 host/r2_grant_trial.py --self-test
+	python3 host/test_r2_hazard3.py
+	python3 host/r2_hazard3_trial.py --self-test
 	python3 host/test_dvbs2_qpsk8.py
 	python3 host/test_dvbs2_apsk.py
 	python3 host/test_dvbs2_map.py

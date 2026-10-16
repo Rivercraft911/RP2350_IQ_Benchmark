@@ -1,0 +1,3 @@
+r2grant 8 1 6000 1 13 0 {"elapsed_us": 12097, "errors": 36, "txstall_mask": 8, "issued": [4096, 4096, 4096, 3584], "captured": [4096, 4096, 4096, 3584], "faults": []}
+r2grant 8 1 6000 1 13 1 {"elapsed_us": 12097, "errors": 36, "txstall_mask": 8, "issued": [4096, 4096, 4096, 3584], "captured": [4096, 4096, 4096, 3584], "faults": []}
+r2grant 8 1 6000 1 13 2 {"elapsed_us": 12097, "errors": 36, "txstall_mask": 8, "issued": [4096, 4096, 4096, 3584], "captured": [4096, 4096, 4096, 3584], "faults": []}
