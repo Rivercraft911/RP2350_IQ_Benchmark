@@ -8,8 +8,10 @@
 //   start / status / stop                         pvflight only: autonomous transmitter control
 //
 // QPSK (hardware shaping is the best measured path; CPU paths remain as controls)
-//   dualptr cpw ms source fault [code]           live SPI/FEC, PIO-generated LUT addresses (source 5/6)
-//   dualptr4 cpw ms source fault [code]          same with four router-fed writers (A2)
+//   dualptr cpw ms source fault [code] [pvkernel]   live SPI/FEC, PIO-generated LUT addresses (source 5/6);
+//        pvkernel 1/2 (TS only): fused CRC-8/word TS adapter, Arm leaf in SRAM / C leaf in flash;
+//        3: as 1, with core 0 building the BBFRAMEs in bounded steps (core 1 LDPC/map only)
+//   dualptr4 cpw ms source fault [code] [pvkernel]  same with four router-fed writers (A2)
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
 //        CPU-generated descriptors; source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC,
 //        4=split FEC, 5=SPI TS, 6=SPI GCS
@@ -30,7 +32,8 @@
 // CPU-shaped 8PSK, VCM and APSK
 //   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
 //   bench8psk [reps] / bench8quad ms reps / bench8map code pilots reps   8PSK components
-//   benchapskfec mod cpw ms [split]             APSK with live SPI and FEC; split1 = BCH on core 0
+//   benchapskfec mod cpw ms [split] [options]   APSK with live SPI and FEC; split1 = BCH on core 0;
+//                                                options 1 fast PL mapper, 2 fast 32APSK offsets, 4 mapper in flash
 //   benchapsklive cpw ms schedule mapper mod placement    runtime APSK, 1/2 cores
 //   bench16out / bench32out cpw ms kernel        16APSK / 32APSK output with capture, no FEC
 //   bench16planar cpw ms                         experimental dual-axis planar output
@@ -39,6 +42,7 @@
 // FEC and encoder
 //   dvbs2 <code> <pilots> [reps]                  encoder stage cycles + PLFRAME CRC
 //   c3fec code ms [slow_us] [cpw] [gap_us] [options]   [exp] two-core frame-parallel 8PSK FEC, no output
+//   b9 cpw ms invert prio slow_us options           [exp] complete GCS 8PSK2/3, options0/251
 //   c3pair code pairs layout who options          [exp] FEC SRAM-bank contention, per-stage cycles
 //        options=best: c3fec=251; c3pair=1275 requires layout4 (large BCH table)
 //   bchkernel <0|1|2|3> / bchbank <0|1> / ldpcpack <0|1> / mapkernel <0|1>   encoder selectors
@@ -53,7 +57,7 @@
 //   r2grant batches cpw [gap_us] [fault] [prio]  [exp] self-re-arming DMA input grants, pin-free echo
 //   bench <kernel> <sps> <L> [reps]               shaping kernel throughput + output CRC
 //   bench32bus mode group                        no-output bus contention diagnosis
-//   pvstress ms irq_mask_us / pvbench / ptrbench [reps]   SPI admission / packet prep / PIO pointers
+//   pvstress ms irq_mask_us / pvbench [reps] [kernel] / ptrbench [reps]   SPI admission / packet prep / PIO pointers
 //   snifftest / ddrtest [ms] / dualbench [reps]   DMA sniffer / PIO data + HSTX clock / descriptor generation
 #include <limits.h>
 #include <stdio.h>
@@ -76,6 +80,7 @@
 #include "bench4fec.h"
 #include "bench4quad.h"
 #include "bench4prod.h"
+#include "bench_b9.h"
 #include "dmaloop.h"
 #include "c3_fec.h"
 #include "r2grant.h"
@@ -212,6 +217,7 @@ static void cmd_info(void) {
 // stackcheck reports the deepest use and whether the scratch code still matches flash.
 extern uint32_t __scratch_x_start__[], __scratch_x_end__[], __scratch_x_source__[];
 extern uint32_t __scratch_y_start__[], __scratch_y_end__[], __scratch_y_source__[];
+extern uint32_t __scratch_y_code_end__[];
 extern uint32_t __StackBottom[], __StackTop[], __StackOneBottom[], __StackOneTop[];
 #define STACK_PAINT 0x5aa5c33cu
 
@@ -229,15 +235,15 @@ static void stack_paint(void) {
 }
 
 static void stack_report(const char *name, uint32_t *start, uint32_t *end, const uint32_t *source,
-                         uint32_t *bottom, uint32_t *top) {
+                         const uint32_t *code_end, uint32_t *bottom, uint32_t *top) {
     uint32_t *floor = paint_floor(end, bottom), *w = floor;
     while (w < top && *w == STACK_PAINT) ++w;
     int corrupted = -1;
-    for (const uint32_t *c = start; c < end; ++c)
+    for (const uint32_t *c = start; c < code_end; ++c)
         if (*c != source[c - start]) { corrupted = (int)((uintptr_t)c - (uintptr_t)start); break; }
     printf("\"%s\":{\"code_bytes\":%u,\"code_matches_flash\":%s,\"first_corrupt_code_offset\":%d,"
            "\"stack_bytes\":%u,\"stack_in_code_bank\":%s,\"deepest_use_bytes\":%u,\"paint_exhausted\":%s}",
-           name, (unsigned)((uintptr_t)end - (uintptr_t)start), corrupted < 0 ? "true" : "false", corrupted,
+           name, (unsigned)((uintptr_t)code_end - (uintptr_t)start), corrupted < 0 ? "true" : "false", corrupted,
            (unsigned)((uintptr_t)top - (uintptr_t)bottom), floor == end ? "true" : "false",
            (unsigned)((uintptr_t)top - (uintptr_t)w), w == floor ? "true" : "false");
 }
@@ -261,10 +267,10 @@ static const char *dispatch(char *line) {
         // headroom 0 means the paint was exhausted: the stack reached the code (or beyond).
         printf("@{\"cmd\":\"stackcheck\",\"git\":\"%s\",", GIT_REV);
         stack_report("core0_scratch_y", __scratch_y_start__, __scratch_y_end__, __scratch_y_source__,
-                     __StackBottom, __StackTop);
+                     __scratch_y_code_end__, __StackBottom, __StackTop);
         putchar(',');
         stack_report("core1_scratch_x", __scratch_x_start__, __scratch_x_end__, __scratch_x_source__,
-                     __StackOneBottom, __StackOneTop);
+                     __scratch_x_end__, __StackOneBottom, __StackOneTop);
         printf("}\n");
         return NULL;
     }
@@ -275,8 +281,9 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "snifftest")) {
         bench_sniffer();
     } else if (!strcmp(cmd, "pvbench")) {
-        if (!num(a[1], "reps", 8, 1, 1000, &reps)) return err;
-        bench_pv(reps);
+        int kernel;
+        if (!num(a[1], "reps", 8, 1, 1000, &reps) || !num(a[2], "kernel", 0, 0, 2, &kernel)) return err;
+        bench_pv(reps, kernel);
     } else if (!strcmp(cmd, "pvstress")) {
         int irq_mask_us;
         if (!num(a[1], "ms", 1000, 100, 60000, &r.ms) ||
@@ -337,6 +344,15 @@ static const char *dispatch(char *line) {
             !num(a[3], "layout", 0, 0, 4, &layout) || !num(a[4], "who", 2, 0, 7, &who) ||
             !c3_options(a[5], C4_ALL, C8_BEST, &options)) return err;
         bench_c3_pair(code, pairs, layout, who, options);
+    } else if (!strcmp(cmd, "b9")) {
+        int invert, options, priority;
+        if (!num(a[1], "cpw", 1, 1, 2, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "invert", 0, 0, 1, &invert) ||
+            !num(a[4], "prio", 13, 0, 15, &priority) ||
+            !num(a[5], "slow_us", 0, 0, 10000, &reps) ||
+            !c3_options(a[6], C8_BEST_BASE, C8_BEST_BASE, &options)) return err;
+        bench_b9(r.cpw, r.ms, invert, priority, reps, options);
     } else if (!strcmp(cmd, "c3fec")) {
         int gap_us, options;
         if (!num(a[1], "code", REQUIRED, 0, N_DVBS2_CODES - 1, &code) ||
@@ -420,12 +436,13 @@ static const char *dispatch(char *line) {
             !num(a[6], "placement", 0, 0, 1, &placement)) return err;
         bench_apsk_live(r.cpw, r.ms, schedule, mapper, modulation, placement);
     } else if (!strcmp(cmd, "benchapskfec")) {
-        int modulation;
+        int modulation, options;
         if (!num(a[1], "modulation", 16, 16, 32, &modulation) ||
             !num(a[2], "cpw", 12, 3, 32, &r.cpw) ||
             !num(a[3], "ms", 3000, 100, 60000, &r.ms) ||
-            !num(a[4], "split", 0, 0, 1, &code)) return err;
-        bench_apsk_fec(modulation, r.cpw, r.ms, code);
+            !num(a[4], "split", 0, 0, 1, &code) ||
+            !num(a[5], "options", 0, 0, 7, &options)) return err;
+        bench_apsk_fec(modulation, r.cpw, r.ms, code, options);
     } else if (!strcmp(cmd, "bench32bus")) {
         int mode, group;
         if (!num(a[1], "mode", 0, 0, 4, &mode) ||
@@ -469,16 +486,18 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
         bench_descriptors(reps);
     } else if (!strcmp(cmd, "dualptr") || !strcmp(cmd, "dualptr4")) {
-        int source, fault, code_index;
+        int source, fault, code_index, pv_kernel;
         if (!num(a[1], "cpw", REQUIRED, 1, 2, &r.cpw) ||
             !num(a[2], "ms", REQUIRED, 100, 60000, &r.ms) ||
             !num(a[3], "source", 6, 5, 6, &source) ||
             !num(a[4], "fault", 0, 0, 1, &fault) ||
-            !num(a[5], "code", 8, 5, 10, &code_index)) return err;
+            !num(a[5], "code", 8, 5, 10, &code_index) ||
+            !num(a[6], "pvkernel", 0, 0, 3, &pv_kernel)) return err;
         if (code_index == 6 || code_index == 7)
             return "pointer trial codes are normal2/3(5),5/6(8),8/9(9),9/10(10)";
-        if (!strcmp(cmd, "dualptr4")) bench_dual_pointer4(r.cpw, r.ms, source, fault, code_index);
-        else bench_dual_pointer(r.cpw, r.ms, source, fault, code_index);
+        if (pv_kernel && source != 5) return "pvkernel 1-3 is the TS adapter: source 5 only";
+        if (!strcmp(cmd, "dualptr4")) bench_dual_pointer4(r.cpw, r.ms, source, fault, code_index, pv_kernel);
+        else bench_dual_pointer(r.cpw, r.ms, source, fault, code_index, pv_kernel);
     } else if (!strcmp(cmd, "dualstream")) {
         int kernel, source, fault, schedule, divider256, row_symbols, code_index;
         if (!num(a[1], "cpw", REQUIRED, 1, 4, &r.cpw) ||

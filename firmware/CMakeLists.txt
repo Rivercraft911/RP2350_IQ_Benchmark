@@ -23,7 +23,7 @@ set(TX_SOURCES
     src/bench_apsk_fec.c src/dvbs2_apsk.c
     src/dvbs2.c src/dvbs2_8psk.c src/dvbs2_qpsk8.c src/dvbs2_asm.S src/dvbs2_bch_fast.S src/dvbs2_ldpc_asm.S
     src/dvbs2_ldpc_c5_rows.S src/dvbs2_ldpc_c5.S src/dvbs2_map_asm.S src/dvbs2_map8_asm.S
-    src/pvproto.c src/pvspi.c
+    src/pvproto.c src/pvproto_asm.S src/pvspi.c
     src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c
     src/bench8quad.c src/bench8live.c src/bench16.c src/bench_pvstress.c
     src/bench_quadptr.c src/bench_quadlive.c)
@@ -47,9 +47,14 @@ if(IQ4HIST_EXPERIMENT)
     target_sources(iqbench PRIVATE src/iq4hist.c src/iq4ptr.c src/bench4live.c src/bench4fec.c
         src/iq4quad.c src/bench4quad.c src/iq4prod.c src/iq4prod_dma.c
         src/iq4prod_source.c src/bench4prod.c src/dmaloop.c src/c3_fec.c src/bench_c3_fec.c src/bench_c3_pair.c
-        src/r2grant.c src/bench_r2grant.c)
+        src/r2grant.c src/bench_r2grant.c src/bench_b9.c)
     target_compile_definitions(iqbench PRIVATE IQ4HIST_EXPERIMENT=1)
 endif()
+# A3 multiply-form 32APSK conversion: linked last so its SCRATCH_Y section follows
+# every existing scratch leaf and none of them moves.
+foreach(target iqbench pvflight)
+    target_sources(${target} PRIVATE src/iq32offsets_mla.c)
+endforeach()
 # git_rev.h is rewritten on every build (only when the revision changes), so logged firmware
 # revisions are current. Records made before 2026-09-30 could carry a stale configure-time value.
 add_custom_target(git_rev ALL
@@ -109,6 +114,16 @@ if(IQ4HIST_EXPERIMENT)
     string(REPLACE "    .input_ring (NOLOAD) :"
            "    .waveform_ring (NOLOAD) : { *(.bss.ring_buf) } > RAM\n\n    .input_ring (NOLOAD) :"
            LD "${LD}")
+endif()
+# Scratch-Y's producer state is mutable. Keep it after the immutable code so
+# stackcheck can compare every instruction/literal with flash without treating
+# a completed experiment's saved results as code corruption. The total end is
+# still the stack-paint boundary; no data is painted or omitted from allocation.
+string(REPLACE "        *(.scratch_y.*)\n        . = ALIGN(4);\n        __scratch_y_end__ = .;"
+       "        *(.scratch_y.*)\n        . = ALIGN(4);\n        __scratch_y_code_end__ = .;\n        *(.scratch_y_data.*)\n        . = ALIGN(4);\n        __scratch_y_end__ = .;"
+       LD "${LD}")
+if(NOT LD MATCHES "__scratch_y_code_end__")
+    message(FATAL_ERROR "SDK scratch-Y section changed; update the stackcheck boundary patch")
 endif()
 if(CORE0_STACK_SRAM_HI)
     # The default 2 KiB core-0 stack sits directly above SCRATCH_Y code; deep print paths

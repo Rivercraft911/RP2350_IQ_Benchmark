@@ -37,6 +37,29 @@ MODCOD = {16: 21, 32: 26}
 AMPLITUDE_POLICY = 'outer_radius_one'
 STANDARD = 'https://www.etsi.org/deliver/etsi_en/302300_302399/30230701/01.04.01_60/en_30230701v010401p.pdf'
 SPLIT_SLICE_WORDS = 96  # firmware BCH_SLICE_WORDS
+# A3 options (benchapskfec 5th argument): 1 fast PL mapper copied to SRAM, 2 multiply-form
+# 32APSK native-to-offset conversion (32APSK only), 4 fast mapper run from flash (needs 1).
+OPT_FAST_MAP, OPT_FAST_PREP, OPT_MAP_FLASH = 1, 2, 4
+FAST_CODE_BYTES_MAX = 2048  # DVBS2_APSK_FAST_CODE_WORDS*4
+
+
+def options_error(modulation, options):
+    if type(options) is not int or not 0 <= options <= 7:
+        return 'options must be 0..7'
+    if options & OPT_FAST_PREP and modulation != 32:
+        return 'option 2 (offset conversion) exists only for 32APSK'
+    if options & OPT_MAP_FLASH and not options & OPT_FAST_MAP:
+        return 'option 4 (flash placement) needs option 1'
+    return None
+
+
+def expected_options(modulation, options):
+    """Record fields that identify the selected A3 paths."""
+    mapper = ('c_flash' if not options & OPT_FAST_MAP else
+              'fast_flash' if options & OPT_MAP_FLASH else 'fast_sram_arena')
+    prepare = ('none' if modulation == 16 else
+               'native_to_offsets_mla_scratch_y' if options & OPT_FAST_PREP else 'native_to_offsets_fused')
+    return dict(options=options, pl_mapper=mapper, prepare_kernel=prepare)
 
 
 @functools.lru_cache(maxsize=2)
@@ -238,7 +261,7 @@ def expected_profile(modulation, clock_khz, cpw, ms, split=0):
                 bch_kernel=2, idle_wait='timer_poll_1us', **extra, **prefill_reference(modulation))
 
 
-def configuration_faults(result, modulation, clock, cpw, ms, expected_git=None, split=0):
+def configuration_faults(result, modulation, clock, cpw, ms, expected_git=None, split=0, options=0):
     if result.get('error'):
         return [f"firmware error: {result['error']}"]
     expected = expected_profile(modulation, clock, cpw, ms, split)
@@ -246,6 +269,13 @@ def configuration_faults(result, modulation, clock, cpw, ms, expected_git=None, 
         expected['git'] = expected_git
     faults = [f'{key}={result.get(key)!r}, expected {want!r}'
               for key, want in expected.items() if result.get(key) != want]
+    # Records from firmware before A3 carry no options field and ran the original paths.
+    if options or 'options' in result:
+        faults += [f'{key}={result.get(key)!r}, expected {want!r}'
+                   for key, want in expected_options(modulation, options).items() if result.get(key) != want]
+        code = result.get('pl_mapper_code_bytes')
+        if type(code) is not int or (not 0 < code <= FAST_CODE_BYTES_MAX if options & OPT_FAST_MAP else code != 0):
+            faults.append('fast PL mapper code size missing or outside its arena reservation')
     if not isinstance(result.get('git'), str) or not result['git']:
         faults.append('missing firmware identity')
     rs = clock*1000/(4*cpw)
@@ -255,9 +285,9 @@ def configuration_faults(result, modulation, clock, cpw, ms, expected_git=None, 
     return faults
 
 
-def stream_faults(result, modulation, clock, cpw, ms, expected_git=None, split=0):
+def stream_faults(result, modulation, clock, cpw, ms, expected_git=None, split=0, options=0):
     r = result
-    faults = configuration_faults(r, modulation, clock, cpw, ms, expected_git, split)
+    faults = configuration_faults(r, modulation, clock, cpw, ms, expected_git, split, options)
     if r.get('error'):
         return faults
     for key in ('errors', 'underruns', 'own_errors', 'idle_sent', 'txstalls'):
@@ -384,9 +414,9 @@ def stream_faults(result, modulation, clock, cpw, ms, expected_git=None, split=0
     return list(dict.fromkeys(faults))
 
 
-def deadline_faults(r, modulation, clock, cpw, ms, expected_git=None):
+def deadline_faults(r, modulation, clock, cpw, ms, expected_git=None, split=0, options=0):
     """A deliberate rate control must fail through the output deadline path."""
-    faults = configuration_faults(r, modulation, clock, cpw, ms, expected_git)
+    faults = configuration_faults(r, modulation, clock, cpw, ms, expected_git, split, options)
     errors = r.get('errors')
     if type(errors) is not int or not errors & (2 | 8) or errors & ~(2 | 8):
         faults.append('missing expected output deadline fault')
@@ -407,8 +437,9 @@ def selected_cases(modulations, clocks, cpws):
                              if mod in (16, 32) and clock in (128000, 150000) and 3 <= cpw <= 32))
 
 
-def metadata_fixture(modulation, clock, cpw, ms, split=0):
-    """A coherent offline result used to test strict accounting independently of USB."""
+def metadata_fixture(modulation, clock, cpw, ms, split=0, options=None):
+    """A coherent offline result used to test strict accounting independently of USB.
+    options=None is a record from firmware before A3 (no options fields)."""
     hz, frame, spw = clock*1000, FRAME_SYMBOLS[modulation], SYMBOLS_PER_WORD[modulation]
     rs = hz/(4*cpw)
     blocks = int(rs*ms/1000)//BLOCK_SYMBOLS-1
@@ -468,6 +499,9 @@ def metadata_fixture(modulation, clock, cpw, ms, split=0):
                            gcs_bytes=byte_count, gcs_packets=packets, ts_packets=0, null_packets=0,
                            **{key: 0 for key in ('lost', 'bad_hdr', 'bad_crc', 'bad_sync', 'gcs_underflows',
                                'short_msgs', 'long_msgs', 'overflows', 'drain_timeouts', 'late_closes')})
+    if options is not None:
+        result.update(expected_options(modulation, options),
+                      pl_mapper_code_bytes=1528 if options & OPT_FAST_MAP else 0)
     result.update(validate_capture(result, lines))
     return result, lines
 
@@ -546,6 +580,35 @@ def self_test():
                     negative['pv_spi']['lost'] = 1
                     assert deadline_faults(negative, modulation, clock, cpw, ms, 'offline-self-test')
                     metadata_cases += 1
+                    # A3 selectors: the record must name exactly the requested paths.
+                    for options in (0, 1, 5) + ((2, 3, 7) if modulation == 32 else ()):
+                        assert not options_error(modulation, options)
+                        for split in (0, 1):
+                            fast, _ = metadata_fixture(modulation, clock, cpw, ms, split=split, options=options)
+                            faults = stream_faults(fast, modulation, clock, cpw, ms, 'offline-self-test', split, options)
+                            assert not faults, (options, faults)
+                            assert stream_faults(fast, modulation, clock, cpw, ms, 'offline-self-test', split,
+                                                 options ^ OPT_FAST_MAP)
+                            for mutation in ('options', 'mapper', 'prepare', 'code_zero', 'code_large', 'missing'):
+                                bad = copy.deepcopy(fast)
+                                if mutation == 'options': bad['options'] ^= OPT_FAST_MAP
+                                elif mutation == 'mapper': bad['pl_mapper'] = 'fast_flash' if bad['pl_mapper'] != 'fast_flash' else 'c_flash'
+                                elif mutation == 'prepare': bad['prepare_kernel'] += '_other'
+                                elif mutation == 'code_zero': bad['pl_mapper_code_bytes'] = 0 if options & OPT_FAST_MAP else 4
+                                elif mutation == 'code_large': bad['pl_mapper_code_bytes'] = FAST_CODE_BYTES_MAX+4
+                                else: del bad['pl_mapper_code_bytes']
+                                if mutation == 'code_large' and not options & OPT_FAST_MAP:
+                                    bad['pl_mapper_code_bytes'] = 1
+                                assert stream_faults(bad, modulation, clock, cpw, ms, 'offline-self-test', split, options), \
+                                    (options, mutation)
+                            negative = copy.deepcopy(fast)
+                            negative.update(errors=2, underruns=1, idle_sent=1, elapsed_us=1000)
+                            assert not deadline_faults(negative, modulation, clock, cpw, ms, 'offline-self-test', split, options)
+                            assert deadline_faults(negative, modulation, clock, cpw, ms, 'offline-self-test', split,
+                                                   options ^ OPT_FAST_MAP)
+                            metadata_cases += 1
+                    for options in (-1, 8, 4, 6) + ((2, 3) if modulation == 16 else ()):
+                        assert options_error(modulation, options), options
     print(json.dumps(dict(self_test='passed', capture_cases=capture_cases, metadata_profiles=metadata_cases,
                           captured_halfwords=8192, finite_search_symbols=SEARCH_SYMBOLS,
                           complete_plheader_required=True, prefill={mod: prefill_reference(mod) for mod in (16, 32)},
@@ -564,6 +627,8 @@ def main():
     p.add_argument('--split', action='store_true', help='BB scrambling + BCH on core 0 (benchapskfec split 1)')
     p.add_argument('--ldpc-pack', type=int, choices=(0, 1), help='send ldpcpack N before each case')
     p.add_argument('--bch-bank', type=int, choices=(0, 1), help='send bchbank N (frontend BCH code copy) before each case')
+    p.add_argument('--options', type=int, default=0, choices=range(8),
+                   help='A3 paths: 1 fast PL mapper (SRAM copy), 2 multiply-form 32APSK offsets, 4 mapper from flash')
     p.add_argument('--self-test', action='store_true')
     p.add_argument('--port'); p.add_argument('--expected-git')
     p.add_argument('--build', type=Path, default=iq.ROOT/'firmware/build-limits')
@@ -576,6 +641,9 @@ def main():
     cases = selected_cases(a.modulations, a.clocks, a.cpw)
     if not cases:
         p.error('no compatible modulation/clock/CPW cases selected')
+    for mod in a.modulations:
+        if options_error(mod, a.options):
+            p.error(f'{mod}APSK: {options_error(mod, a.options)}')
     a.out.mkdir(parents=True, exist_ok=False)
     source, build = a.source.resolve(), a.build.resolve()
     dependencies = [Path(__file__), iq.ROOT/'host/dual_spi.py', iq.ROOT/'host/iqbench.py',
@@ -602,7 +670,7 @@ def main():
                     cpu='Timed producer/encoder stage work; credit wait excluded from encoder map work; polling is separate',
                     normalization='ETSI-admitted outer-radius1 data and unit-radius PL header/pilots',
                     standard=STANDARD, expect_deadline_fault=a.expect_deadline_fault,
-                    split_bch=a.split, ldpc_pack=a.ldpc_pack, bch_bank=a.bch_bank,
+                    split_bch=a.split, ldpc_pack=a.ldpc_pack, bch_bank=a.bch_bank, options=a.options,
                     provenance='Runner archives sources/images; external verified flashing binds them to the board')
     (a.out/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')
     first_fec_crcs(); dual_spi.first_crcs(gcs=True, rate=RATE)
@@ -630,13 +698,16 @@ def main():
                 bank, _ = board.cmd(f'bchbank {a.bch_bank}'); record('bchbank', bank)
                 if bank.get('bank') != a.bch_bank:
                     raise RuntimeError('BCH frontend bank selection failed')
-            result, lines = board.cmd(f'benchapskfec {mod} {cpw} {a.ms} {int(a.split)}', timeout=a.ms/1000+60)
+            # The options token is sent only when set, so default commands match earlier runs.
+            command = f'benchapskfec {mod} {cpw} {a.ms} {int(a.split)}' + (f' {a.options}' if a.options else '')
+            result, lines = board.cmd(command, timeout=a.ms/1000+60)
             filename = f'capture-{mod}-{clock}-cpw{cpw}.txt'
             (a.out/filename).write_text('\n'.join(lines)+'\n')
             if not result.get('error') and result.get('cap_words'):
                 result.update(validate_capture(result, lines))
-            faults = (deadline_faults(result, mod, clock, cpw, a.ms, a.expected_git) if a.expect_deadline_fault else
-                      stream_faults(result, mod, clock, cpw, a.ms, a.expected_git, int(a.split)))
+            faults = (deadline_faults(result, mod, clock, cpw, a.ms, a.expected_git, int(a.split), a.options)
+                      if a.expect_deadline_fault else
+                      stream_faults(result, mod, clock, cpw, a.ms, a.expected_git, int(a.split), a.options))
             if a.ldpc_pack is not None and result.get('ldpc_pack') != a.ldpc_pack and not result.get('error'):
                 faults.append('record LDPC packer differs from selection')
             if a.bch_bank is not None and result.get('bch_bank') != a.bch_bank and not result.get('error'):
