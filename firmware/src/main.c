@@ -181,31 +181,40 @@ static void cmd_info(void) {
 }
 
 // Run one command line. Returns NULL, or an error message.
-// Each core's 2 KiB stack sits directly above SRAM code in its 4 KiB scratch bank, so an
-// overflow silently overwrites that code. Paint the free space at boot (before core 1
-// starts); stackcheck reports the deepest use and whether the code still matches flash.
+// The SDK places each core's 2 KiB stack directly above SRAM code in its 4 KiB scratch bank,
+// so an overflow silently overwrites that code (CORE0_STACK_SRAM_HI moves core 0's stack).
+// Paint each stack, plus any gap down to adjacent code, at boot before core 1 starts;
+// stackcheck reports the deepest use and whether the scratch code still matches flash.
 extern uint32_t __scratch_x_start__[], __scratch_x_end__[], __scratch_x_source__[];
 extern uint32_t __scratch_y_start__[], __scratch_y_end__[], __scratch_y_source__[];
 extern uint32_t __StackBottom[], __StackTop[], __StackOneBottom[], __StackOneTop[];
 #define STACK_PAINT 0x5aa5c33cu
 
+static uint32_t *paint_floor(uint32_t *code_end, uint32_t *bottom) {
+    return code_end <= bottom && (uintptr_t)bottom - (uintptr_t)code_end < 4096u ? code_end : bottom;
+}
+
 static void stack_paint(void) {
     uint32_t sp;
     __asm volatile("mov %0, sp" : "=r"(sp));
-    for (uint32_t *w = __scratch_y_end__; w < (uint32_t *)(sp - 256u); ++w) *w = STACK_PAINT;
-    for (uint32_t *w = __scratch_x_end__; w < __StackOneTop; ++w) *w = STACK_PAINT;
+    for (uint32_t *w = paint_floor(__scratch_y_end__, __StackBottom); w < (uint32_t *)(sp - 256u); ++w)
+        *w = STACK_PAINT;
+    for (uint32_t *w = paint_floor(__scratch_x_end__, __StackOneBottom); w < __StackOneTop; ++w)
+        *w = STACK_PAINT;
 }
 
-static void stack_report(const char *name, const uint32_t *start, const uint32_t *end,
-                         const uint32_t *source, const uint32_t *bottom, const uint32_t *top) {
-    const uint32_t *w = end;
+static void stack_report(const char *name, uint32_t *start, uint32_t *end, const uint32_t *source,
+                         uint32_t *bottom, uint32_t *top) {
+    uint32_t *floor = paint_floor(end, bottom), *w = floor;
     while (w < top && *w == STACK_PAINT) ++w;
-    const bool code_ok = !memcmp(start, source, (size_t)((uintptr_t)end - (uintptr_t)start));
-    printf("\"%s\":{\"code_bytes\":%u,\"code_matches_flash\":%s,\"stack_bytes\":%u,"
-           "\"deepest_use_bytes\":%u,\"headroom_above_code_bytes\":%d,\"overflow_bytes\":%d}",
-           name, (unsigned)((uintptr_t)end - (uintptr_t)start), code_ok ? "true" : "false",
-           (unsigned)((uintptr_t)top - (uintptr_t)bottom), (unsigned)((uintptr_t)top - (uintptr_t)w),
-           (int)((uintptr_t)w - (uintptr_t)end), (int)((uintptr_t)bottom - (uintptr_t)w));
+    int corrupted = -1;
+    for (const uint32_t *c = start; c < end; ++c)
+        if (*c != source[c - start]) { corrupted = (int)((uintptr_t)c - (uintptr_t)start); break; }
+    printf("\"%s\":{\"code_bytes\":%u,\"code_matches_flash\":%s,\"first_corrupt_code_offset\":%d,"
+           "\"stack_bytes\":%u,\"stack_in_code_bank\":%s,\"deepest_use_bytes\":%u,\"paint_exhausted\":%s}",
+           name, (unsigned)((uintptr_t)end - (uintptr_t)start), corrupted < 0 ? "true" : "false", corrupted,
+           (unsigned)((uintptr_t)top - (uintptr_t)bottom), floor == end ? "true" : "false",
+           (unsigned)((uintptr_t)top - (uintptr_t)w), w == floor ? "true" : "false");
 }
 
 static const char *dispatch(char *line) {

@@ -61,6 +61,10 @@ foreach(target iqbench pvflight)
     # Lab waveforms share the fixed buffers and never allocate. Keep both2KiB
     # stacks; reserve1KiB minimum heap while retaining the SRAM bank boundary.
     target_compile_definitions(${target} PRIVATE PICO_HEAP_SIZE=1024)
+    if(CORE0_STACK_SRAM_HI)
+        # Core 1 keeps its 2 KiB SCRATCH_X stack (the SDK would otherwise inherit PICO_STACK_SIZE).
+        target_compile_definitions(${target} PRIVATE PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)
+    endif()
     target_compile_options(${target} PRIVATE -O3 -Wall -Wextra -Wno-unused-parameter -Werror=array-bounds)
     target_link_libraries(${target} pico_stdlib pico_multicore hardware_pio hardware_dma
                           hardware_clocks)
@@ -99,6 +103,18 @@ if(IQ4HIST_EXPERIMENT)
     string(REPLACE "    .input_ring (NOLOAD) :"
            "    .waveform_ring (NOLOAD) : { *(.bss.ring_buf) } > RAM\n\n    .input_ring (NOLOAD) :"
            LD "${LD}")
+endif()
+option(CORE0_STACK_SRAM_HI "core 0 stack (4 KiB) at the top of SRAM4-7 instead of above SCRATCH_Y code" OFF)
+if(CORE0_STACK_SRAM_HI)
+    # The default 2 KiB core-0 stack sits directly above SCRATCH_Y code; deep print paths
+    # overflow it into that code (results/round2/2026-10-15/stack-1). Move it to RAM_HI.
+    string(REPLACE "        KEEP(*(.stack*))\n    } > SCRATCH_Y" "        KEEP(*(.stack*))\n    } > RAM_HI" LD "${LD}")
+    string(REPLACE "__StackTop = ORIGIN(SCRATCH_Y) + LENGTH(SCRATCH_Y);"
+           "__StackTop = ORIGIN(RAM_HI) + LENGTH(RAM_HI);\n    ASSERT(__StackTop - SIZEOF(.stack_dummy) >= ADDR(.stack_dummy), \"core 0 stack overlaps .sram_hi\")"
+           LD "${LD}")
+    if(NOT LD MATCHES "> RAM_HI\n\n    .flash_end")
+        message(FATAL_ERROR "SDK stack section changed; update the CORE0_STACK_SRAM_HI patch")
+    endif()
 endif()
 if(NOT LD MATCHES "RAM_HI" OR NOT LD MATCHES "sram_hi" OR NOT LD MATCHES "input_ring")
     message(FATAL_ERROR "SDK linker script changed; update the RAM_HI patch")
