@@ -14,6 +14,7 @@ typedef struct {
     uint32_t data_symbols, body_symbols, frame_symbols, gold_code, pilot_blocks;
     uint8_t modcod, pilots, is_short, column_reverse;
     iq8_input_t header[6]; // 90 symbols: five complete groups and ten symbols
+    const uint16_t *codes_lut; // optional dilation/header/pilot tables, shared read-only
 } dvbs2_8psk_cfg_t;
 
 // Same ring convention as symstream_t, but each full group contains 16 symbols
@@ -33,6 +34,12 @@ uint32_t dvbs2_8psk_arena_words(const dvbs2_code_t *code, bool pilots);
 // remain unchanged during a frame. False leaves config and arena unchanged.
 bool dvbs2_8psk_init(dvbs2_8psk_cfg_t *cfg, const dvbs2_code_t *code, bool pilots,
                    uint32_t gold_code, uint32_t *arena, uint32_t arena_words);
+// Optional packed-code tables: 512-byte dilation, 48-byte header, up to 336
+// bytes of pilots, 16 bytes of metadata and 1024 bytes reserved for the
+// position-independent M33 data leaf. Caller retains all 1936 bytes for
+// concurrent frames; no static SRAM is added.
+enum { DVBS2_8PSK_CODES_LUT_WORDS = 484 };
+bool dvbs2_8psk_codes_lut_init(dvbs2_8psk_cfg_t *cfg, uint32_t *arena, uint32_t words);
 
 // frame is the existing MSB-first complete FE bit vector after LDPC append.
 // It must have a zero/readable guard word after ceil(nldpc/32), as existing FE
@@ -64,7 +71,7 @@ typedef struct {
     const uint32_t *frame;
     dvbs2_8psk_codes_stream_t *stream;
     uint32_t data, pilot;
-    bool header_done;
+    bool header_done, fast;
 } dvbs2_8psk_codes_state_t;
 
 // begin does no mapping. Each nonzero step maps at most max_words chunks of
@@ -74,6 +81,10 @@ typedef struct {
 void dvbs2_8psk_codes_begin(dvbs2_8psk_codes_state_t *state,
                           const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
                           dvbs2_8psk_codes_stream_t *stream);
+// False returns without touching state when the optional table is unavailable.
+bool dvbs2_8psk_codes_begin_fast(dvbs2_8psk_codes_state_t *state,
+                               const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
+                               dvbs2_8psk_codes_stream_t *stream);
 bool dvbs2_8psk_codes_step(dvbs2_8psk_codes_state_t *state, uint32_t max_words);
 void dvbs2_8psk_codes_frame(const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
                            dvbs2_8psk_codes_stream_t *stream);

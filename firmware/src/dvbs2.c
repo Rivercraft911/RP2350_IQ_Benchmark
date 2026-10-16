@@ -35,7 +35,8 @@ uint32_t dvbs2_prof[8];
 static const dvbs2_code_t *C;
 static bool pilots;
 static uint32_t M, bch_deg;          // parity bits: LDPC, BCH
-static uint32_t bch_tab[4][256][8] HI, bch_g[BCH_W];      // T_k[b] = b(x) x^(deg+8k) mod g; 8-word rows
+static uint32_t bch_tab[4][256][8] HI;                  // T_k[b] = b(x) x^(deg+8k) mod g; 8-word rows
+static uint32_t bch_g[BCH_W] HI;                        // cold setup/serial generator, lower SRAM full
 static uint32_t bb_prbs[MAX_BITS_W] HI;
 static uint16_t a_row[MAX_ADDR] HI, a_off[MAX_ADDR] HI;     // x mod q, 360 - x div q
 static uint16_t grp[162 + 1];                         // group offsets, copied out of flash
@@ -204,6 +205,7 @@ void dvbs2_bch160_continue(const uint32_t *m, uint32_t *parity, const void *tab,
 void dvbs2_bch160_continue_y(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
 void dvbs2_bch128_continue(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
 void dvbs2_bch128_continue_y(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
+void dvbs2_bch192_continue_y(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
 #else
 static void bch128_continue_c(const uint32_t *m, uint32_t *parity, uint32_t nw) {
     uint32_t r0_ = parity[0], r1_ = parity[1], r2 = parity[2], r3 = parity[3];
@@ -285,6 +287,8 @@ void HOT(dvbs2_bch)(const uint32_t *m, uint32_t *parity) {
 void HOT(dvbs2_bbscramble)(uint32_t *bb) {
     for (uint32_t k = 0; k < (C->kbch + 31u) / 32; k++) bb[k] ^= bb_prbs[k];
 }
+
+const uint32_t *dvbs2_bb_scrambler(void) { return bb_prbs; }
 
 // ------------------------------------------------------------------ LDPC (5.3.2)
 
@@ -481,16 +485,60 @@ static void __attribute__((noinline)) HOT(ldpc_matrix)(const uint32_t *info) {
 }
 
 // Caller-owned matrix and continuation state let two cores encode separate frames.
-// These experiment leaves stay in flash: existing lower SRAM instruction placement
-// is nearly full. Tables are shared read-only after dvbs2_init; transpose32 is reentrant.
+// The baseline leaves stay in flash; mode1 copies only its position-independent
+// group kernel into caller-owned SRAM. Tables and transpose32 remain reentrant.
 uint32_t dvbs2_ldpc_workspace_words(void) { return C->q <= 64 ? C->q * 12u : 0; }
+
+typedef void (*ldpc_group_fn)(uint32_t *, const uint32_t *, uint32_t, const uint16_t *,
+                             const uint16_t *, uint32_t);
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+extern const uint8_t dvbs2_ldpc_group_pic[], dvbs2_ldpc_group_pic_end[];
+static ldpc_group_fn ldpc_group_prepared;
+uint32_t dvbs2_ldpc_code_bytes(void) {
+    return (uint32_t)((uintptr_t)dvbs2_ldpc_group_pic_end -
+        ((uintptr_t)dvbs2_ldpc_group_pic & ~(uintptr_t)1));
+}
+bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) {
+    const uint32_t needed = dvbs2_ldpc_code_bytes();
+    if (!code || ((uintptr_t)code & 3u) || bytes < needed) return false;
+    memcpy(code, (const void *)((uintptr_t)dvbs2_ldpc_group_pic & ~(uintptr_t)1), needed);
+    __asm volatile("dsb\n isb" ::: "memory");
+    ldpc_group_prepared = (ldpc_group_fn)((uintptr_t)code | 1u);
+    return true;
+}
+#else
+static void ldpc_group_direct(uint32_t *matrix, const uint32_t *in, uint32_t shift,
+                              const uint16_t *row, const uint16_t *offset, uint32_t count) {
+    uint32_t u2[25];
+    for (unsigned k = 0; k < 12; ++k)
+        u2[k] = shift ? in[k] << shift | in[k + 1] >> (32u - shift) : in[k];
+    u2[11] &= 0xFF000000u;
+    for (unsigned k = 0; k < 11; ++k)
+        u2[12 + k] = u2[k] << 24 | u2[k + 1] >> 8;
+    u2[11] |= u2[0] >> 8;
+    u2[23] = u2[24] = 0;
+    for (uint32_t a = 0; a < count; ++a)
+        xor_rot(matrix + row[a] * 12u, u2 + (offset[a] >> 5), offset[a] & 31u);
+}
+static ldpc_group_fn ldpc_group_prepared = ldpc_group_direct;
+uint32_t dvbs2_ldpc_code_bytes(void) { return 0; }
+bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) { (void)code; (void)bytes; return true; }
+#endif
+
+bool dvbs2_ldpc_begin_reentrant_mode(uint32_t *frame, uint32_t *workspace,
+                                    uint32_t workspace_words, dvbs2_ldpc_state_t *state,
+                                    unsigned mode) {
+    const uint32_t needed = dvbs2_ldpc_workspace_words();
+    if (!needed || !frame || !workspace || !state || workspace_words < needed ||
+        mode > 1 || (mode && !ldpc_group_prepared)) return false;
+    *state = (dvbs2_ldpc_state_t){.frame = frame, .rows = (uint32_t (*)[12])workspace,
+        .group = mode ? ldpc_group_prepared : NULL, .mode = mode};
+    return true;
+}
 
 bool dvbs2_ldpc_begin_reentrant(uint32_t *frame, uint32_t *workspace,
                                uint32_t workspace_words, dvbs2_ldpc_state_t *state) {
-    const uint32_t needed = dvbs2_ldpc_workspace_words();
-    if (!needed || !frame || !workspace || !state || workspace_words < needed) return false;
-    *state = (dvbs2_ldpc_state_t){.frame = frame, .rows = (uint32_t (*)[12])workspace};
-    return true;
+    return dvbs2_ldpc_begin_reentrant_mode(frame, workspace, workspace_words, state, 0);
 }
 
 static void ldpc_group_into(const uint32_t *info, uint32_t (*rows)[12], uint32_t g) {
@@ -535,6 +583,42 @@ static void ldpc_pack_step(dvbs2_ldpc_state_t *state) {
     uint32_t *dst = state->frame + C->kldpc / 32u;
     uint32_t acc = state->acc, fill = state->fill, written = state->written;
     const unsigned columns = k == 11 ? 8 : 32;
+    if (state->mode && q == 60 && !(C->kldpc & 31u)) {
+        for (unsigned col = 0; col < columns; col += 8) {
+            dst[written++] = tile[0][col];
+            uint32_t carry = tile[1][col];
+            _Pragma("GCC unroll 7")
+            for (unsigned j = 1; j < 8; ++j) {
+                const unsigned shift = 4u * j;
+                dst[written++] = carry | (tile[0][col + j] >> (32u - shift));
+                dst[written++] = (tile[0][col + j] << shift) |
+                    (tile[1][col + j] >> (32u - shift));
+                carry = tile[1][col + j] << shift;
+            }
+        }
+        state->written = written;
+        return;
+    }
+    if (state->mode && q == 30 && (C->kldpc & 31u) == 16) {
+        for (unsigned col = 0; col < columns; col += 16) {
+            _Pragma("GCC unroll 8")
+            for (unsigned j = 0; j < 8; ++j) {
+                const uint32_t v = tile[0][col + j];
+                dst[written++] = acc | (v >> (16u - 2u * j));
+                acc = v << (16u + 2u * j);
+            }
+            if (columns == 8) { fill = 0; acc = 0; break; }
+            acc = tile[0][col + 8];
+            _Pragma("GCC unroll 7")
+            for (unsigned j = 9; j < 16; ++j) {
+                const uint32_t v = tile[0][col + j];
+                dst[written++] = acc | (v >> (48u - 2u * j));
+                acc = v << (2u * j - 16u);
+            }
+        }
+        state->acc = acc; state->fill = fill; state->written = written;
+        return;
+    }
 #define APPEND(v) do { acc |= (v) >> fill; fill += rem;                                       \
         if (fill >= 32) { dst[written++] = acc; fill -= 32;                                 \
             acc = ((v) << 1) << (rem - 1u - fill); } } while (0)
@@ -560,7 +644,11 @@ bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
             if (++state->cursor == q) state->stage = 1, state->cursor = 0;
             break;
         case 1:
-            ldpc_group_into(state->frame, state->rows, state->cursor);
+            if (state->group) {
+                const uint32_t first = grp[state->cursor], bit = state->cursor * 360u;
+                state->group(state->rows[0], state->frame + bit / 32u, bit & 31u,
+                    a_row + first, a_off + first, grp[state->cursor + 1] - first);
+            } else ldpc_group_into(state->frame, state->rows, state->cursor);
             if (++state->cursor == C->n_groups) state->stage = 2, state->cursor = 1;
             break;
         case 2: {
@@ -824,25 +912,38 @@ void dvbs2_init(const dvbs2_code_t *c, bool pil_on) {
 uint32_t *dvbs2_frame_buffer(void) { return fe; }
 
 static inline __attribute__((always_inline)) bool frontend_begin(
-    const uint32_t *bb, uint32_t *frame, dvbs2_frontend_t *state, bool profile) {
+    const uint32_t *bb, uint32_t *frame, dvbs2_frontend_t *state,
+    bool profile, unsigned options, bool prepared) {
     if ((bch_deg != 128 && bch_deg != 160 && (profile || bch_deg != 192)) ||
-        bch_kernel == S2_BCH_BASELINE) return false;
+        bch_kernel == S2_BCH_BASELINE || (options & ~S2_FE_FAST_BCH)) return false;
     if (profile) PROF(4);
-    const uint32_t kw = (C->kbch + 31u) / 32;
-    for (uint32_t k = 0; k < kw; k++) frame[k] = bb[k] ^ bb_prbs[k];
-    if (C->kbch % 32u) frame[kw - 1] &= ~(~0u >> (C->kbch % 32u));
-    memset(frame + kw, 0, (DVBS2_FE_WORDS - kw) * sizeof frame[0]);
-    *state = (dvbs2_frontend_t){.frame = frame, .kernel = bch_kernel, .profile = profile};
+    if (!prepared) {
+        const uint32_t kw = (C->kbch + 31u) / 32;
+        for (uint32_t k = 0; k < kw; k++) frame[k] = bb[k] ^ bb_prbs[k];
+        if (C->kbch % 32u) frame[kw - 1] &= ~(~0u >> (C->kbch % 32u));
+        memset(frame + kw, 0, (DVBS2_FE_WORDS - kw) * sizeof frame[0]);
+    }
+    *state = (dvbs2_frontend_t){.frame = frame, .kernel = bch_kernel, .profile = profile,
+        .options = (uint8_t)options};
     return true;
 }
 
 bool HOT(dvbs2_frontend_begin)(const uint32_t *bb, uint32_t *frame, dvbs2_frontend_t *state) {
-    return frontend_begin(bb, frame, state, true);
+    return frontend_begin(bb, frame, state, true, 0, false);
 }
 
 bool dvbs2_frontend_begin_reentrant(const uint32_t *bb, uint32_t *frame,
                                   dvbs2_frontend_t *state) {
-    return frontend_begin(bb, frame, state, false);
+    return frontend_begin(bb, frame, state, false, 0, false);
+}
+
+bool dvbs2_frontend_begin_reentrant_options(const uint32_t *bb, uint32_t *frame,
+                                          dvbs2_frontend_t *state, unsigned options) {
+    return frontend_begin(bb, frame, state, false, options, false);
+}
+
+bool dvbs2_frontend_begin_prepared(uint32_t *frame, dvbs2_frontend_t *state, unsigned options) {
+    return frontend_begin(NULL, frame, state, false, options, true);
 }
 
 static void __attribute__((noinline)) COMPACT bch192_continue_c(
@@ -880,6 +981,16 @@ static void HOT(bch160_continue_c)(const uint32_t *m, uint32_t *parity, uint32_t
     parity[5] = 0;
 }
 
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+// Optional dispatch remains in flash so pvflight keeps its existing lower-SRAM kernels.
+static void __attribute__((noinline)) COMPACT frontend_bch_fast(
+    const uint32_t *m, uint32_t *parity, uint32_t nw) {
+    if (bch_deg == 192) dvbs2_bch192_continue_y(m, parity, bch_tab, nw);
+    else if (bch_deg == 128) dvbs2_bch128_continue_y(m, parity, bch_tab, nw);
+    else dvbs2_bch160_continue_y(m, parity, bch_tab, nw);
+}
+#endif
+
 bool HOT(dvbs2_frontend_step)(dvbs2_frontend_t *state, uint32_t max_words) {
     if (state->done) return true;
     if (!max_words) return false;
@@ -887,6 +998,10 @@ bool HOT(dvbs2_frontend_step)(dvbs2_frontend_t *state, uint32_t max_words) {
     const uint32_t left = nw - state->cursor;
     const uint32_t take = left < max_words ? left : max_words;
     const uint32_t *m = state->frame + state->cursor;
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    if (state->options & S2_FE_FAST_BCH) frontend_bch_fast(m, state->parity, take);
+    else
+#endif
     if (bch_deg == 192) bch192_continue_c(m, state->parity, take);
     else {
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)

@@ -18,7 +18,8 @@ typedef struct {
     c3_job_t job;
     volatile uint32_t status, job_error;
     uint32_t frames, max_frame_cycles, max_slice_cycles, frame_work, max_frame_us;
-    uint64_t stage_cycles[STAGES], busy_cycles, frame_start_us, ready_us;
+    uint32_t stage_max_cycles[STAGES];
+    uint64_t stage_cycles[STAGES], busy_cycles, frame_start_us, ready_us, due_us;
     uint32_t delay_left;
 } worker_t;
 
@@ -26,13 +27,14 @@ typedef struct {
     worker_t core[2];
     dvbs2_8psk_cfg_t cfg;
     uint32_t gold[1384];
+    uint32_t map_lut[DVBS2_8PSK_CODES_LUT_WORDS], ldpc_code[1792];
     uint8_t pattern[512];
     volatile uint32_t stop, errors;
     uint32_t target;
     volatile uint32_t published, groups;
-    uint32_t consumed, carry[2], slow_us, hz, cpw;
+    uint32_t consumed, carry[2], slow_us, hz, cpw, options;
     uint32_t late_frames, max_lateness_us, max_service_gap_us;
-    uint64_t epoch, supervise_cycles;
+    uint64_t epoch, supervise_cycles, retire_due;
 } context_t;
 
 // Only the unused64KiB tail of the OUT8 table reservation is borrowed. No new
@@ -49,10 +51,11 @@ static uint64_t deadline(uint32_t frame) {
 
 static void release(unsigned core, uint32_t index) {
     worker_t *w = &live.core[core];
-    c3_job_begin(&w->job, &live.cfg, index, in_buf, in_buf + C3_RING_GROUPS);
+    c3_job_begin_options(&w->job, &live.cfg, index, in_buf, in_buf + C3_RING_GROUPS, live.options);
     w->frame_work = 0;
     w->delay_left = live.slow_us;
     w->frame_start_us = time_us_64();
+    if (live.options & C4_DEADLINES) w->due_us = deadline(index);
     __dmb();
     w->status = RUN;
     __sev();
@@ -72,6 +75,7 @@ static void work(unsigned core) {
     }
     const uint32_t spent = cycles() - begin;
     w->stage_cycles[stage] += spent;
+    if (spent > w->stage_max_cycles[stage]) w->stage_max_cycles[stage] = spent;
     w->busy_cycles += spent;
     w->frame_work += spent;
     if (spent > w->max_slice_cycles) w->max_slice_cycles = spent;
@@ -116,7 +120,8 @@ static void publish(void) {
         __dmb();
         if (w->job.index != live.published) break;
         const uint32_t groups = c3_job_publish(&w->job, live.carry);
-        const uint64_t now = time_us_64(), due = deadline(live.published);
+        const uint64_t now = time_us_64();
+        const uint64_t due = live.options & C4_DEADLINES ? w->due_us : deadline(live.published);
         const uint32_t late = now > due ? (uint32_t)(now - due) : 0;
         if (late > live.max_lateness_us) live.max_lateness_us = late;
         if (late && !(live.errors & ERR_DEADLINE)) {
@@ -132,10 +137,15 @@ static void publish(void) {
 }
 
 void bench_c3_fec(int code_index, int ms, int slow_us, int cpw, int gap_us) {
+    bench_c3_fec_options(code_index, ms, slow_us, cpw, gap_us, 0);
+}
+
+void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_us, int options) {
     const uint32_t hz = clock_get_hz(clk_sys);
     max_service_us = (uint32_t)gap_us;
     if ((code_index != S2_N2_3 && code_index != S2_N3_4 && code_index != S2_N5_6) ||
         ms < 100 || ms > 60000 || slow_us < 0 || slow_us > 10000 ||
+        options < 0 || options > C4_ALL || gap_us < 128 || gap_us > 4096 ||
         (cpw != 1 && cpw != 2 && cpw != 4) || (hz != 128000000u && hz != 256000000u)) {
         printf("@{\"cmd\":\"c3fec\",\"error\":\"needs normal2/3(5),3/4(6),5/6(8),100..60000ms,slow0..10000us,cpw1/2/4,SYS128/256\"}\n");
         return;
@@ -146,21 +156,25 @@ void bench_c3_fec(int code_index, int ms, int slow_us, int cpw, int gap_us) {
     memset(in_buf, 0, sizeof in_buf);
     live.hz = hz;
     live.cpw = (uint32_t)cpw;
+    live.options = (uint32_t)options;
     live.slow_us = (uint32_t)slow_us;
     live.target = (uint32_t)((uint64_t)ms * hz / ((uint64_t)C3_FRAME_CYCLES * cpw * 1000u));
     for (unsigned j = 0; j < sizeof live.pattern; ++j) live.pattern[j] = (uint8_t)(29u * j + 7u);
     dvbs2_bch_set_kernel(S2_BCH_STREAM_ARM);
-    dvbs2_frontend_set_bank(0); // both cores must avoid sharing the core0-only scratchY leaf
+    dvbs2_frontend_set_bank(0); // C3 control stays in bank0; option4 selects read-only scratchY per job
     dvbs2_init(&DVBS2_CODES[code_index], true);
     pv_init(65536);
-    if (!dvbs2_8psk_init(&live.cfg, &DVBS2_CODES[code_index], true, 0, live.gold, 1384)) {
+    if (!dvbs2_8psk_init(&live.cfg, &DVBS2_CODES[code_index], true, 0, live.gold, 1384) ||
+        ((options & C4_MAP) && !dvbs2_8psk_codes_lut_init(&live.cfg, live.map_lut, DVBS2_8PSK_CODES_LUT_WORDS)) ||
+        ((options & C4_LDPC) && !dvbs2_ldpc_prepare(live.ldpc_code, sizeof live.ldpc_code))) {
         dvbs2_bch_set_kernel(saved_bch);
         dvbs2_frontend_set_bank(saved_bank);
-        printf("@{\"cmd\":\"c3fec\",\"error\":\"mapper setup failed\"}\n");
+        printf("@{\"cmd\":\"c3fec\",\"error\":\"C3/C4 setup failed\"}\n");
         return;
     }
     enable_cyccnt();
     live.epoch = time_us_64();
+    if (live.options & C4_DEADLINES) live.retire_due = deadline(0);
     release(0, 0);
     release(1, 1);
     tx_worker_start(core1, 0);
@@ -186,12 +200,14 @@ void bench_c3_fec(int code_index, int ms, int slow_us, int cpw, int gap_us) {
         // Each parity slot is released only after its preceding frame retires.
         // At most44388 unconsumed symbols own the65536-symbol ring, including
         // complete output written ahead of its in-order publication counter.
-        if (!live.errors && live.consumed < live.target && now >= deadline(live.consumed)) {
+        if (!live.errors && live.consumed < live.target &&
+            now >= (live.options & C4_DEADLINES ? live.retire_due : deadline(live.consumed))) {
             if (live.published <= live.consumed) {
                 ++live.late_frames;
                 live.errors |= ERR_DEADLINE;
             } else {
                 const uint32_t index = live.consumed++ + 2u;
+                if (live.options & C4_DEADLINES) live.retire_due = deadline(live.consumed);
                 if (index < live.target) release(index & 1u, index);
             }
         }
@@ -212,13 +228,13 @@ void bench_c3_fec(int code_index, int ms, int slow_us, int cpw, int gap_us) {
     const uint32_t crc_q = pv_crc32(0, in_buf + C3_RING_GROUPS, C3_RING_GROUPS * sizeof(uint32_t));
     const double budget = (double)elapsed * hz / 1000000.0;
     printf("@{\"cmd\":\"c3fec\",\"git\":\"%s\",\"code_index\":%d,\"s2_code\":\"%s\","
-           "\"clk_hz\":%lu,\"cpw\":%d,\"ms\":%d,\"slow_us\":%d,\"pilots\":true,\"gold\":0,\"source\":\"memory_gcs\",\"source_period_bytes\":256,"
+           "\"clk_hz\":%lu,\"cpw\":%d,\"ms\":%d,\"slow_us\":%d,\"options\":%d,\"pilots\":true,\"gold\":0,\"source\":\"memory_gcs\",\"source_period_bytes\":256,"
            "\"frame_symbols\":%u,\"frame_cycles\":%u,\"ring_groups\":%u,\"frames_target\":%lu,"
            "\"published_frames\":%lu,\"consumed_frames\":%lu,\"published_groups\":%lu,\"pending_fill\":%lu,"
            "\"code_crc\":[%lu,%lu],\"errors\":%lu,\"late_frames\":%lu,\"max_lateness_us\":%lu,"
            "\"service_gap_limit_us\":%lu,\"max_service_gap_us\":%lu,\"elapsed_us\":%llu,\"supervise_cycles\":%llu,"
            "\"supervise_busy\":%.6f,\"context_bytes\":%u,\"core\":[",
-           GIT_REV, code_index, DVBS2_CODES[code_index].name, (unsigned long)hz, cpw, ms, slow_us,
+           GIT_REV, code_index, DVBS2_CODES[code_index].name, (unsigned long)hz, cpw, ms, slow_us, options,
            C3_FRAME_SYMBOLS, C3_FRAME_CYCLES * cpw, C3_RING_GROUPS, (unsigned long)live.target,
            (unsigned long)live.published, (unsigned long)live.consumed, (unsigned long)live.groups,
            (unsigned long)(live.published * C3_FRAME_SYMBOLS & 15u), (unsigned long)crc_i, (unsigned long)crc_q,
@@ -230,13 +246,17 @@ void bench_c3_fec(int code_index, int ms, int slow_us, int cpw, int gap_us) {
         const uint64_t busy = w->busy_cycles + (c ? 0 : live.supervise_cycles);
         printf("%s{\"frames\":%lu,\"busy_cycles\":%llu,\"busy\":%.6f,\"max_frame_cycles\":%lu,"
                "\"max_frame_us\":%lu,\"max_slice_cycles\":%lu,\"stage_cycles\":{"
-               "\"gcs\":%llu,\"bch\":%llu,\"ldpc\":%llu,\"map\":%llu,\"delay\":%llu}}",
+               "\"gcs\":%llu,\"bch\":%llu,\"ldpc\":%llu,\"map\":%llu,\"delay\":%llu},"
+               "\"stage_max_cycles\":{\"gcs\":%lu,\"bch\":%lu,\"ldpc\":%lu,\"map\":%lu,\"delay\":%lu}}",
                c ? "," : "", (unsigned long)w->frames, (unsigned long long)busy,
                busy / budget, (unsigned long)w->max_frame_cycles,
                (unsigned long)w->max_frame_us, (unsigned long)w->max_slice_cycles,
                (unsigned long long)w->stage_cycles[0], (unsigned long long)w->stage_cycles[1],
                (unsigned long long)w->stage_cycles[2], (unsigned long long)w->stage_cycles[3],
-               (unsigned long long)w->stage_cycles[4]);
+               (unsigned long long)w->stage_cycles[4],
+               (unsigned long)w->stage_max_cycles[0], (unsigned long)w->stage_max_cycles[1],
+               (unsigned long)w->stage_max_cycles[2], (unsigned long)w->stage_max_cycles[3],
+               (unsigned long)w->stage_max_cycles[4]);
     }
     printf("]}\n");
     dvbs2_bch_set_kernel(saved_bch);

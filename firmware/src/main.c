@@ -24,7 +24,7 @@
 //   bench4quad8 / bench4quad cpw ms invert [prio] cyclic SRAM pointers, four writers (experiment build)
 //   bench4prod8 / bench4prod8live cpw ms invert [prio] [starve_ms] four PIO producers (experiment build)
 //   dmaloop chains words sink load_div load_kind prio hammer   DMA row-loop latency (experiment build)
-//   c3fec code ms [slow_us] [cpw] [gap_us]       CPU-only frame-parallel 8PSK code-ring benchmark
+//   c3fec code ms [slow_us] [cpw] [gap_us] [options]  CPU-only frame-parallel 8PSK
 //   r2grant batches cpw [gap_us] [fault] [prio] finite DMA-only input grants, pin-free echo
 //   bench16chunk reps / bench16native8 reps       16APSK shaper components
 //   bench16out cpw ms kernel                     16APSK output with capture, no FEC
@@ -317,12 +317,13 @@ static const char *dispatch(char *line) {
             !num(a[5], "prio", 13, 0, 15, &code)) return err;
         bench_r2grant(reps, r.cpw, gap_us, fault, code);
     } else if (!strcmp(cmd, "c3fec")) {
-        int gap_us;
+        int gap_us, options;
         if (!num(a[1], "code", REQUIRED, 0, N_DVBS2_CODES - 1, &code) ||
             !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
             !num(a[3], "slow_us", 0, 0, 10000, &reps) ||
-            !num(a[4], "cpw", 1, 1, 4, &r.cpw) || !num(a[5], "gap_us", 128, 128, 4096, &gap_us)) return err;
-        bench_c3_fec(code, r.ms, reps, r.cpw, gap_us);
+            !num(a[4], "cpw", 1, 1, 4, &r.cpw) || !num(a[5], "gap_us", 128, 128, 4096, &gap_us) ||
+            !num(a[6], "options", 0, 0, C4_ALL, &options)) return err;
+        bench_c3_fec_options(code, r.ms, reps, r.cpw, gap_us, options);
     } else if (!strcmp(cmd, "bench4live")) {
         int invert;
         if (!num(a[1], "cpw", 2, 2, 4, &r.cpw) ||

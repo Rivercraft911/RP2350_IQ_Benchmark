@@ -178,6 +178,68 @@ dvbs2_bch128_continue_y:
     .purgem BCH128_CONTINUE
     .purgem BCH128_XOR
 
+// Degree192: six live remainder words leave one fewer register for row pointers.
+// Borrow r2 for the fourth row and reload the constant table base from one stack slot.
+// All table loads are separated from their XOR; no remainder is spilled in the loop.
+// Opt-in C4 leaf only, sharing the initialized 32768-byte table with both workers.
+    .macro BCH192_XOR dst, old, off
+    ldr     lr, [r10, #\off]
+    ldr     r1, [r11, #\off]
+    eor     \dst, \old, lr
+    ldr     lr, [r12, #\off]
+    eor     \dst, \dst, r1
+    ldr     r1, [r2, #\off]
+    eor     \dst, \dst, lr
+    eor     \dst, \dst, r1
+    .endm
+
+    .section .scratch_y.dvbs2_bch192_continue_y, "ax", %progbits
+    .align 2
+    .global dvbs2_bch192_continue_y
+    .type dvbs2_bch192_continue_y, %function
+    .thumb_func
+dvbs2_bch192_continue_y:
+    push    {r4-r11, lr}
+    push    {r1-r3}
+    ldmia   r1, {r4-r9}
+    cmp     r3, #0
+    beq     .Lbch192_store
+.Lbch192_word:
+    ldr     lr, [r0], #4
+    ldr     r2, [sp, #4]
+    eor     r4, r4, lr
+    ubfx    r10, r4, #24, #8
+    add     r10, r2, r10, lsl #5
+    add     r10, r10, #24576
+    ubfx    r11, r4, #16, #8
+    add     r11, r2, r11, lsl #5
+    add     r11, r11, #16384
+    ubfx    r12, r4, #8, #8
+    add     r12, r2, r12, lsl #5
+    add     r12, r12, #8192
+    uxtb    r1, r4
+    add     r2, r2, r1, lsl #5
+    BCH192_XOR r4, r5, 0
+    BCH192_XOR r5, r6, 4
+    BCH192_XOR r6, r7, 8
+    BCH192_XOR r7, r8, 12
+    BCH192_XOR r8, r9, 16
+    ldr     r9, [r10, #20]
+    ldr     lr, [r11, #20]
+    ldr     r1, [r12, #20]
+    eor     r9, r9, lr
+    ldr     lr, [r2, #20]
+    eor     r9, r9, r1
+    eor     r9, r9, lr
+    subs    r3, r3, #1
+    bne     .Lbch192_word
+.Lbch192_store:
+    pop     {r0-r2}
+    stmia   r0, {r4-r9}
+    pop     {r4-r11, pc}
+    .size dvbs2_bch192_continue_y, .-dvbs2_bch192_continue_y
+    .purgem BCH192_XOR
+
 // In-place 32x32 MSB-first transpose. Fuse stages 16/8 in four-register tiles
 // and stages 4/2/1 in eight-register tiles, loading/storing each matrix word twice.
     .section .scratch_x.dvbs2_transpose32, "ax", %progbits

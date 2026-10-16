@@ -1,6 +1,7 @@
 // Exercise the actual C3 portable job graph, including out-of-order completion.
 // Physical rings and partial carries are emitted for the independent Python model.
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "c3_fec.h"
 #include "dvbs2_codes.h"
@@ -9,7 +10,7 @@
 enum { GUARD = 0xA1C35B79, FRAMES = 16 };
 static struct { uint32_t before; c3_job_t job; uint32_t after; } jobs[2];
 static struct { uint32_t before, words[C3_RING_GROUPS], after; } rings[2];
-static uint32_t gold[5536 / 4], source_cursor;
+static uint32_t gold[5536 / 4], map_lut[DVBS2_8PSK_CODES_LUT_WORDS], source_cursor;
 static uint8_t pattern[512], packet[188];
 
 static uint8_t *source_packet(void) {
@@ -56,7 +57,9 @@ static int complete(c3_job_t *job) {
         job->stream.n == n && job->stream.fill == fill;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    const unsigned options = argc > 1 ? (unsigned)atoi(argv[1]) : 0;
+    if (options > C4_ALL || !dvbs2_ldpc_prepare(NULL, 0)) return 10;
     const unsigned codes[] = {S2_N2_3, S2_N5_6, S2_N3_4};
     for (unsigned k = 0; k < sizeof pattern; k++) pattern[k] = (uint8_t)(29u * k + 7u);
     for (unsigned ci = 0; ci < sizeof codes / sizeof codes[0]; ci++) {
@@ -67,14 +70,15 @@ int main(void) {
         dvbs2_init(code, true);
         dvbs2_8psk_cfg_t cfg;
         if (!dvbs2_8psk_init(&cfg, code, true, 0, gold, sizeof gold / sizeof gold[0]) ||
-            cfg.frame_symbols != C3_FRAME_SYMBOLS) return 2;
+            cfg.frame_symbols != C3_FRAME_SYMBOLS ||
+            !dvbs2_8psk_codes_lut_init(&cfg, map_lut, DVBS2_8PSK_CODES_LUT_WORDS)) return 2;
         memset(rings, 0, sizeof rings);
         uint32_t carry[2] = {0};
         for (unsigned axis = 0; axis < 2; axis++) rings[axis].before = rings[axis].after = GUARD;
         for (unsigned f = 0; f < FRAMES; f += 2) {
             for (unsigned worker = 0; worker < 2; worker++) {
                 jobs[worker].before = jobs[worker].after = GUARD;
-                c3_job_begin(&jobs[worker].job, &cfg, f + worker, rings[0].words, rings[1].words);
+                c3_job_begin_options(&jobs[worker].job, &cfg, f + worker, rings[0].words, rings[1].words, options);
             }
             // Odd frame finishes all stages before the preceding even frame. Its
             // shared first word must remain deferred until the ordered publisher.
