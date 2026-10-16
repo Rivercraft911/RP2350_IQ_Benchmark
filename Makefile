@@ -28,6 +28,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_dvbs2_8psk.py
 	python3 host/test_dvbs2_8psk_codes.py
 	python3 host/test_c4_mapper_pic.py
+	python3 host/test_c6_map8_asm.py
 	python3 host/test_dvbs2_parallel.py
 	python3 host/test_c3_pipeline.py
 	python3 host/test_c3_bench.py

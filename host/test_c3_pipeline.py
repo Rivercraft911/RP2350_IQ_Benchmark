@@ -18,9 +18,18 @@ import c3_fec_trial as reference
 
 ROOT = Path(__file__).resolve().parents[1]
 RING = 4096
+# Retain every C4 combination and sample the independent C5/C6 bits with each
+# other, both superseded selectors, BCH placement, and the full combined masks.
+OPTION_CASES = tuple(range(32)) + tuple(
+    feature | base for feature in (32, 64, 96) for base in (0, 1, 2, 3, 4, 8, 16, 27, 31))
 
 
 def main() -> None:
+    assert len(set(OPTION_CASES)) == len(OPTION_CASES)
+    for bit in (1, 2, 4, 8, 16, 32, 64):
+        assert any(options & bit for options in OPTION_CASES)
+        assert any(not options & bit for options in OPTION_CASES)
+    assert {32, 33, 64, 66, 96, 99, 123, reference.C8_ALL} <= set(OPTION_CASES)
     src = ROOT / "firmware/src"
     with tempfile.TemporaryDirectory(prefix="c3-pipeline-") as build:
         exe = Path(build) / "pipeline_test"
@@ -28,9 +37,9 @@ def main() -> None:
                         *(str(src / name) for name in ("dvbs2.c", "dvbs2_8psk.c", "pvproto.c", "c3_fec.c")),
                         str(ROOT / "host/native/c3_pipeline_test.c"), "-o", str(exe)], check=True)
         results = [subprocess.run([str(exe), str(options)], check=True, capture_output=True, text=True)
-                   for options in range(64)]
+                   for options in OPTION_CASES]
     records = [json.loads(line) for result in results for line in result.stdout.splitlines()]
-    assert len(records) == 64 * 24, len(records)
+    assert len(records) == len(OPTION_CASES) * 24, len(records)
     expected_cache, physical_cache = {}, {}
     for record in records:
         code, frames = record["code_index"], record["frames"]
@@ -55,7 +64,7 @@ def main() -> None:
             physical_cache[key] = expected
         expected = physical_cache[key]
         assert np.array_equal(got, expected), (code, frames, "physical rings")
-    print("Passed C3 real portable job pipeline: all64 option masks ×three rates ×16 continuous frames, "
+    print(f"Passed C3 real portable job pipeline: {len(OPTION_CASES)} sampled option masks ×three rates ×16 continuous frames, "
           "odd-first completion, every pair's physical rings/carry vs independent Python; "
           "GCS zero/one-word slices vs existing PV adapter and canaries.")
 

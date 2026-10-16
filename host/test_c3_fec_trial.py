@@ -207,8 +207,8 @@ class C3Protocol(unittest.TestCase):
         bad["core"][1]["max_slice_cycles"] = 16385
         self.assertTrue(any("slice" in fault for fault in trial.run_faults(bad, 5, 100, 0)))
 
-    def test_c5_option_masks_parse_and_are_verified_without_serial(self):
-        for options in (32, 33, 59, 63):
+    def test_c8_option_masks_parse_and_are_verified_without_serial(self):
+        for options in (32, 33, 59, 63, 64, 66, 91, 95, 96, 123, trial.C8_ALL):
             with self.subTest(options=options):
                 good = fixture()
                 good["options"] = options
@@ -220,7 +220,7 @@ class C3Protocol(unittest.TestCase):
                             trial.main()
                         check.assert_called_once_with()
         with mock.patch.object(trial, "self_test") as check:
-            with mock.patch.object(sys, "argv", ["c3_fec_trial.py", "--self-test", "--options", "64"]):
+            with mock.patch.object(sys, "argv", ["c3_fec_trial.py", "--self-test", "--options", str(trial.C8_ALL + 1)]):
                 with contextlib.redirect_stderr(io.StringIO()):
                     with self.assertRaises(SystemExit) as result:
                         trial.main()

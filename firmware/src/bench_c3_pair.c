@@ -10,6 +10,7 @@
 //   layout 0: both jobs, their code rings and one shared gold/LUT/LDPC-leaf set in SRAM0-3
 //   layout 1: job B with its own rings, gold, LUT and LDPC leaf copy in SRAM4-7 (cap_buf)
 //   layout 2: as layout 0, but both jobs run the LDPC leaf copy in SRAM4-7 (code and data split)
+//   layout 3: as layout 0, but both jobs run the C6 mapper leaf in SRAM4-7 (requires bit64)
 // Shared read-only tables (BCH, BB PRBS, LDPC addresses) stay where the linker put them.
 #include <stdio.h>
 #include <string.h>
@@ -27,7 +28,7 @@ enum { RING = 2048, STAGES = 4, SUB = 6, MAX_PAIRS = 200 };
 typedef struct {
     c3_job_t job;
     dvbs2_8psk_cfg_t cfg;
-    uint32_t gold[1384], lut[DVBS2_8PSK_CODES_LUT_WORDS], code[2048];
+    uint32_t gold[1384], lut[DVBS2_8PSK_CODES_C6_WORDS], code[2048];
 } lane_t;
 
 typedef struct {
@@ -109,7 +110,7 @@ static void hammer_copy(uint32_t *buf, uint32_t words) {
 void dvbs2_transpose32(uint32_t *a); // dvbs2_asm.S
 static void hammer_transpose(void) {
     // dvbs2_transpose32 is linked in SCRATCH_X: both LDPC workers fetch it from that one bank.
-    // Layout0/2 never runs the high job, so its frame storage is spare. The old
+    // Layout0/2/3 never runs the high job, so its frame storage is spare. The old
     // +8192 tile overlaps the larger C5 instruction bundle in high->b.code.
     uint32_t *tile = cap_buf + 4096;
     while (!remote.stop) dvbs2_transpose32(tile);
@@ -130,7 +131,8 @@ static void begin(lane_t *lane, const lane_t *tables, uint32_t index, uint32_t *
 
 static bool tables(lane_t *lane, const dvbs2_code_t *code, uint32_t options) {
     return dvbs2_8psk_init(&lane->cfg, code, true, 0, lane->gold, 1384) &&
-        (!(options & C4_MAP) || dvbs2_8psk_codes_lut_init(&lane->cfg, lane->lut, DVBS2_8PSK_CODES_LUT_WORDS)) &&
+        (!(options & (C4_MAP | C6_MAP)) ||
+         dvbs2_8psk_codes_c6_init(&lane->cfg, lane->lut, DVBS2_8PSK_CODES_C6_WORDS)) &&
         (!(options & (C4_LDPC | C5_LDPC)) || dvbs2_ldpc_copy_mode(lane->code,
             sizeof lane->code, options & C5_LDPC ? 2 : 1));
 }
@@ -138,9 +140,10 @@ static bool tables(lane_t *lane, const dvbs2_code_t *code, uint32_t options) {
 void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) {
     const uint32_t hz = clock_get_hz(clk_sys);
     if ((code_index != S2_N2_3 && code_index != S2_N3_4 && code_index != S2_N5_6) || pairs < 1 ||
-        pairs > MAX_PAIRS || layout < 0 || layout > 2 || who < 0 || who > 7 || (who >= 3 && layout == 1) ||
-        options < 0 || options > C5_ALL) {
-        printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8, pairs1..200, layout0..2, who0..7 (3..7 layout0/2), options0..63\"}\n");
+        pairs > MAX_PAIRS || layout < 0 || layout > 3 || who < 0 || who > 7 || (who >= 3 && layout == 1) ||
+        (layout == 3 && !(options & C6_MAP)) ||
+        options < 0 || options > C8_ALL) {
+        printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8, pairs1..200, layout0..3 (3 needs bit64), who0..7 (3..7 excludes layout1), options0..%d\"}\n", C8_ALL);
         return;
     }
     const dvbs2_code_t *code = &DVBS2_CODES[code_index];
@@ -154,7 +157,7 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     dvbs2_frontend_set_bank(0);
     dvbs2_init(code, true);
     pv_init(65536);
-    // Every option-1 job needs a prepared default; each lane also gets its own leaf copy.
+    // Every SRAM LDPC job needs a prepared default; each lane also gets its own leaf copy.
     const bool ok = tables(&low->a, code, (uint32_t)options) && tables(&high->b, code, (uint32_t)options) &&
         (!(options & (C4_LDPC | C5_LDPC)) || dvbs2_ldpc_prepare_mode(low->a.code,
             sizeof low->a.code, options & C5_LDPC ? 2 : 1));
@@ -163,6 +166,11 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
         dvbs2_frontend_set_bank(saved_bank);
         printf("@{\"cmd\":\"c3pair\",\"error\":\"C3/C4 setup failed\"}\n");
         return;
+    }
+    if (layout == 3) {
+        // Change only the C6 instruction pointer. Gold, dilation/constants,
+        // job data, LDPC code and rings retain layout0 addresses.
+        memcpy(low->a.lut + 226, high->b.lut + 226, sizeof(uintptr_t));
     }
     lane_t *lane_b = layout == 1 ? &high->b : &low->b;
     const lane_t *tables_b = layout == 1 ? &high->b : &low->a;
@@ -224,13 +232,22 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     }
     const uint32_t crc_a = pv_crc32(0, ring_a, 2 * RING * sizeof(uint32_t));
     const uint32_t crc_b = pv_crc32(0, ring_b, 2 * RING * sizeof(uint32_t));
+    uintptr_t map_a = 0, map_b = 0;
+    if (options & (C4_MAP | C6_MAP)) {
+        const unsigned slot = options & C6_MAP ? 226 : 224;
+        memcpy(&map_a, low->a.lut + slot, sizeof map_a);
+        memcpy(&map_b, tables_b->lut + slot, sizeof map_b);
+    }
     const unsigned runs_a = who == 1 ? 2u * (unsigned)pairs : (unsigned)pairs, runs_b = (unsigned)pairs;
     printf("@{\"cmd\":\"c3pair\",\"git\":\"%s\",\"clk_hz\":%lu,\"code_index\":%d,\"s2_code\":\"%s\",\"pairs\":%d,"
            "\"layout\":%d,\"who\":%d,\"hammer\":%d,\"options\":%d,\"ring_a\":%lu,\"ring_b\":%lu,\"job_b\":%lu,\"leaf_b\":%lu,"
+           "\"map_lut_a\":%lu,\"map_lut_b\":%lu,\"map_leaf_a\":%lu,\"map_leaf_b\":%lu,"
            "\"crc_a\":%lu,\"crc_b\":%lu,\"jobs\":[",
            GIT_REV, (unsigned long)hz, code_index, code->name, pairs, layout, hammer ? hammer : who, hammer, options,
            (unsigned long)(uintptr_t)ring_a, (unsigned long)(uintptr_t)ring_b,
            (unsigned long)(uintptr_t)&lane_b->job, (unsigned long)(uintptr_t)tables_b->code,
+           (unsigned long)(uintptr_t)low->a.lut, (unsigned long)(uintptr_t)tables_b->lut,
+           (unsigned long)map_a, (unsigned long)map_b,
            (unsigned long)crc_a, (unsigned long)crc_b);
     for (unsigned j = 0; j < (who == 1 ? 1u : 2u); ++j) {
         const uint32_t *st = j ? stage_b : stage_a, *sb = j ? remote.sub : sub_a;

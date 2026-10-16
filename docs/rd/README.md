@@ -39,3 +39,10 @@ Merged on `rd/round3`. Every device run is at the rated 128 MHz system clock.
 | `rd/r2-hw-offload` | Survey of every RP2350 block against every non-shaping stage; DMA-only grant reloads; Hazard3 `zip` mapper prototype | no block offloads BCH/LDPC; self-re-arming grants 24/24 exact on the Pico; Hazard3 estimate 27k cycles/frame, not built (no RISC-V toolchain) ([results](../../results/r2-hw-offload/2026-10-15/README.md)) | [report](r2-hw-offload.md), merged |
 | `rd/c4-fec-speed` | Selectable FEC speedups: SRAM LDPC kernels, table mapper, streamed BCH, fused GCS scrambling, cached deadlines | all on: 2/3 364k cycles/frame (−11–14%), 8 Msym/s at 54–63% per core; 16 Msym/s still 3–12% over and misses its first frame ([results](../../results/c4-fec-speed/2026-10-15/README.md)) | [report](c4-fec-speed.md), merged |
 | `rd/ldpc-banks` | `c3pair`: per-stage FEC cycles, one core vs both, shared vs split SRAM banks, core-1 hammers | SCRATCH_Y BCH code is the big two-core conflict (BCH 84k -> 152k); with it in striped SRAM both cores cost +8–15%; moving buffers or code to SRAM4-7 saves only 3–8k; single-core 2/3 is 356k vs the 355k 16 Msym/s budget ([results](../../results/ldpc-banks/2026-10-15/README.md)) | merged |
+
+# Mapper follow-up (2026-10-16)
+
+| Branch | Work | Result | Here |
+|---|---|---|---|
+| `rd/c6-map8` | Packed 8PSK mapper: immediate shifts, contiguous stores, larger slices and code-placement diagnostic; bit 64 in C8 (32 on its original branch) | Native/Python and assembly semantics pass; measured 67.7k map cycles alone, 72.7k together at 2/3 ([results](../../results/c6-map8/2026-10-16/README.md)) | [report](c6-map8.md), opt-in |
+| `rd/c8-fec-combined` | C5+C6 conflict resolution with independent bits 32/64; C7 next-merge allocation review | Both builds and full `make check` pass; combined device timing pending | [report](c8-fec-combined.md), C7 merge pending |

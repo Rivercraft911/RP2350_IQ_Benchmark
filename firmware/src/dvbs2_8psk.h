@@ -40,6 +40,10 @@ bool dvbs2_8psk_init(dvbs2_8psk_cfg_t *cfg, const dvbs2_code_t *code, bool pilot
 // concurrent frames; no static SRAM is added.
 enum { DVBS2_8PSK_CODES_LUT_WORDS = 484 };
 bool dvbs2_8psk_codes_lut_init(dvbs2_8psk_cfg_t *cfg, uint32_t *arena, uint32_t words);
+// C6 reuses C4's tables and appends a private PIC instruction reservation.
+// The first 484 words keep their C4 layout, including its unmodified leaf.
+enum { DVBS2_8PSK_CODES_C6_WORDS = DVBS2_8PSK_CODES_LUT_WORDS + 768 };
+bool dvbs2_8psk_codes_c6_init(dvbs2_8psk_cfg_t *cfg, uint32_t *arena, uint32_t words);
 
 // frame is the existing MSB-first complete FE bit vector after LDPC append.
 // It must have a zero/readable guard word after ceil(nldpc/32), as existing FE
@@ -71,7 +75,7 @@ typedef struct {
     const uint32_t *frame;
     dvbs2_8psk_codes_stream_t *stream;
     uint32_t data, pilot;
-    bool header_done, fast;
+    bool header_done, fast, c6;
 } dvbs2_8psk_codes_state_t;
 
 // begin does no mapping. Each nonzero step maps at most max_words chunks of
@@ -85,6 +89,10 @@ void dvbs2_8psk_codes_begin(dvbs2_8psk_codes_state_t *state,
 bool dvbs2_8psk_codes_begin_fast(dvbs2_8psk_codes_state_t *state,
                                const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
                                dvbs2_8psk_codes_stream_t *stream);
+// C6 is selected separately from C4; no change to either old begin function.
+bool dvbs2_8psk_codes_begin_c6(dvbs2_8psk_codes_state_t *state,
+                             const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
+                             dvbs2_8psk_codes_stream_t *stream);
 bool dvbs2_8psk_codes_step(dvbs2_8psk_codes_state_t *state, uint32_t max_words);
 void dvbs2_8psk_codes_frame(const dvbs2_8psk_cfg_t *cfg, const uint32_t *frame,
                            dvbs2_8psk_codes_stream_t *stream);

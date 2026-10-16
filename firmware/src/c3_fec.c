@@ -109,14 +109,16 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
             break;
         case C3_LDPC:
             if (dvbs2_ldpc_step(&job->ldpc, 1)) {
-                if (job->options & C4_MAP) {
+                if (job->options & C6_MAP) {
+                    if (!dvbs2_8psk_codes_begin_c6(&job->map, job->cfg, job->frame, &job->stream)) return false;
+                } else if (job->options & C4_MAP) {
                     if (!dvbs2_8psk_codes_begin_fast(&job->map, job->cfg, job->frame, &job->stream)) return false;
                 } else dvbs2_8psk_codes_begin(&job->map, job->cfg, job->frame, &job->stream);
                 job->stage = C3_MAP;
             }
             break;
         case C3_MAP:
-            if (dvbs2_8psk_codes_step(&job->map, 8)) job->stage = C3_DONE;
+            if (dvbs2_8psk_codes_step(&job->map, job->options & C6_MAP ? 32 : 8)) job->stage = C3_DONE;
             break;
         default: break;
     }

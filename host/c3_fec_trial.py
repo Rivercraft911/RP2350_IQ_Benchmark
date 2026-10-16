@@ -35,6 +35,7 @@ SYMBOL_CYCLES = 8
 SOURCE_BYTES = 256
 SOURCE = bytes((29 * j + 7) & 255 for j in range(SOURCE_BYTES))
 STAGES = ("gcs", "bch", "ldpc", "map", "delay")
+C8_ALL = 127  # Keep in sync with the firmware c3_fec.h mask.
 
 
 def gcs_bbframe(index: int, code_index: int) -> np.ndarray:
@@ -253,9 +254,9 @@ def main():
     parser.add_argument("--cpw", type=int, choices=(1, 2, 4), default=1,
                         help="symbol interval in units of eight SYS cycles (1 is 16 Msym/s at SYS128)")
     parser.add_argument("--slow-us", nargs="+", type=int, default=[0])
-    parser.add_argument("--options", nargs="+", type=int, choices=range(64), default=[0],
+    parser.add_argument("--options", nargs="+", type=int, choices=range(C8_ALL + 1), default=[0],
                         help="FEC mask: C4 LDPC=1, mapper=2, BCH=4, fused GCS/BB=8, cached deadlines=16, "
-                             "C5 LDPC=32 (overrides bit 1); 0 retains C3")
+                             "C5 LDPC=32 (overrides bit 1), C6 mapper=64 (overrides bit 2); 0 retains C3")
     parser.add_argument("--gap-us", type=int, default=128,
                         help="128 for qualification; larger values are CPU-fit diagnostics only")
     parser.add_argument("--out", type=Path)

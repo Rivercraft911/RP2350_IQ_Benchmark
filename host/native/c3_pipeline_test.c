@@ -10,7 +10,7 @@
 enum { GUARD = 0xA1C35B79, FRAMES = 16 };
 static struct { uint32_t before; c3_job_t job; uint32_t after; } jobs[2];
 static struct { uint32_t before, words[C3_RING_GROUPS], after; } rings[2];
-static uint32_t gold[5536 / 4], map_lut[DVBS2_8PSK_CODES_LUT_WORDS], source_cursor;
+static uint32_t gold[5536 / 4], map_lut[DVBS2_8PSK_CODES_C6_WORDS], source_cursor;
 static uint8_t pattern[512], packet[188];
 
 static uint8_t *source_packet(void) {
@@ -53,6 +53,9 @@ static int complete(c3_job_t *job) {
         if (!c3_job_step(job, pattern) || ++calls > 4096) return 0;
         if (job->stage == C3_LDPC && job->ldpc.mode !=
             (job->options & C5_LDPC ? 2u : !!(job->options & C4_LDPC))) return 0;
+        if (job->stage == C3_MAP &&
+            (job->map.c6 != !!(job->options & C6_MAP) ||
+             job->map.fast != !!(job->options & (C4_MAP | C6_MAP)))) return 0;
     }
     const uint32_t n = job->stream.n, fill = job->stream.fill;
     return c3_job_step(job, pattern) && job->stage == C3_DONE &&
@@ -61,7 +64,7 @@ static int complete(c3_job_t *job) {
 
 int main(int argc, char **argv) {
     const unsigned options = argc > 1 ? (unsigned)atoi(argv[1]) : 0;
-    if (options > C5_ALL || !dvbs2_ldpc_prepare(NULL, 0)) return 10;
+    if (options > C8_ALL || !dvbs2_ldpc_prepare(NULL, 0)) return 10;
     const unsigned codes[] = {S2_N2_3, S2_N5_6, S2_N3_4};
     for (unsigned k = 0; k < sizeof pattern; k++) pattern[k] = (uint8_t)(29u * k + 7u);
     for (unsigned ci = 0; ci < sizeof codes / sizeof codes[0]; ci++) {
@@ -73,7 +76,7 @@ int main(int argc, char **argv) {
         dvbs2_8psk_cfg_t cfg;
         if (!dvbs2_8psk_init(&cfg, code, true, 0, gold, sizeof gold / sizeof gold[0]) ||
             cfg.frame_symbols != C3_FRAME_SYMBOLS ||
-            !dvbs2_8psk_codes_lut_init(&cfg, map_lut, DVBS2_8PSK_CODES_LUT_WORDS)) return 2;
+            !dvbs2_8psk_codes_c6_init(&cfg, map_lut, DVBS2_8PSK_CODES_C6_WORDS)) return 2;
         memset(rings, 0, sizeof rings);
         uint32_t carry[2] = {0};
         for (unsigned axis = 0; axis < 2; axis++) rings[axis].before = rings[axis].after = GUARD;
