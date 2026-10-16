@@ -73,19 +73,20 @@ static uint8_t *pvspi_next_packet(void) {
 }
 '''
     leaves = "\n\n".join(function(source, name) for name in (
-        "transport_failed", "build_bbframe", "charge", "encode_frame",
+        "transport_failed", "build_bbframe", "map_frame", "charge", "encode_frame",
         "split_encode_step", "split_prime", "bch_service"))
     tail = r'''
-static uint32_t gold[2048], slot1[DVBS2_FE_WORDS + 8];
+static uint32_t gold[2048], slot1[DVBS2_FE_WORDS + 8], fast_arena[DVBS2_APSK_FAST_WORDS];
 enum { OUT_MAX = 12 * 16686 / 2 + 64, FRAMES = 9 };
 static uint32_t serial_out[OUT_MAX], split_out[OUT_MAX];
-uint32_t result_n[2], result_fill[2], result_acc_i[2], result_acc_q[2];
+uint32_t result_n[2], result_fill[2], result_acc_i[2], result_acc_q[2], result_out_crc;
 uint32_t result_bb_crc[2][4], result_fe_crc[2][4], result_slices, result_core0_frames;
 
-static int setup(int modulation, int split, uint32_t *out) {
+static int setup(int modulation, int split, uint32_t *out, unsigned options) {
     memset(&live, 0, sizeof live);
     live.modulation = modulation;
     live.split = split;
+    live.options = options;
     live.stream = (dvbs2_apsk_stream_t){.out = out, .mask = ~0u};
     packet_index = 0;
     memset(&pvspi, 0, sizeof pvspi);
@@ -93,6 +94,8 @@ static int setup(int modulation, int split, uint32_t *out) {
     dvbs2_bch_set_kernel(S2_BCH_STREAM_ARM);
     dvbs2_init(&DVBS2_CODES[S2_N5_6], true);
     if (!dvbs2_apsk_init(&live.profile, &DVBS2_CODES[S2_N5_6], modulation, true, 0, gold, 2048)) return 1;
+    if ((options & OPT_FAST_MAP) &&
+        !dvbs2_apsk_fast_init(&live.fast, &live.profile, fast_arena, DVBS2_APSK_FAST_WORDS, 0)) return 1;
     live.fe_slots[0] = dvbs2_frame_buffer();
     live.fe_slots[1] = slot1;
     for (unsigned k = DVBS2_FE_WORDS; k < DVBS2_FE_WORDS + 8; k++) slot1[k] = 0x6b6b6b6bu;
@@ -102,10 +105,11 @@ static int setup(int modulation, int split, uint32_t *out) {
 // Same serial frame 0 as the bench prefill, then either serial frames or the split
 // schedule. A seeded LCG chooses which core steps; core 1 only steps when it would
 // not spin (its device wait loop has no other thread to release it here).
-int trial(int modulation, unsigned pack, uint32_t seed, unsigned bias) {
+// options selects the bench's PL mapper (0 original, 1 A3 fast leaves).
+int trial(int modulation, unsigned pack, uint32_t seed, unsigned bias, unsigned options) {
     dvbs2_ldpc_set_pack(pack);
     for (int split = 0; split < 2; split++) {
-        if (setup(modulation, split, split ? split_out : serial_out)) return 1;
+        if (setup(modulation, split, split ? split_out : serial_out, options)) return 1;
         if (!encode_frame()) return 2;
         if (split) {
             if (!split_prime()) return 3;
@@ -135,6 +139,7 @@ int trial(int modulation, unsigned pack, uint32_t seed, unsigned bias) {
     const uint32_t n = result_n[0];
     if (result_n[1] < n) return 9;
     if (memcmp(serial_out, split_out, n * sizeof serial_out[0])) return 10;
+    result_out_crc = pv_crc32(0, serial_out, n * sizeof serial_out[0]);
     return 0;
 }
 '''
@@ -151,22 +156,30 @@ def main() -> None:
                         str(SRC / "dvbs2.c"), str(SRC / "dvbs2_apsk.c"), str(SRC / "iqgen.c"),
                         str(SRC / "pvproto.c"), "-o", str(library)], check=True)
         lib = ct.CDLL(str(library))
-        lib.trial.argtypes = [ct.c_int, ct.c_uint, ct.c_uint32, ct.c_uint]
+        lib.trial.argtypes = [ct.c_int, ct.c_uint, ct.c_uint32, ct.c_uint, ct.c_uint]
         lib.trial.restype = ct.c_int
         get = lambda name: ct.c_uint32.in_dll(lib, name).value
         array = lambda name, n: list((ct.c_uint32 * n).in_dll(lib, name))
         for modulation in (16, 32):
             for pack in (0, 1):
                 for seed, bias in ((1, 128), (0x9E3779B9, 32), (0x2545F491, 224), (7, 255)):
-                    code = lib.trial(modulation, pack, seed, bias)
-                    assert code == 0, (modulation, pack, seed, bias, code)
-                    crcs = array("result_bb_crc", 8), array("result_fe_crc", 8)
-                    assert crcs[0][:4] == crcs[0][4:] and crcs[1][:4] == crcs[1][4:], "BB/FE CRCs differ"
-                    assert get("result_core0_frames") >= FRAMES - 3  # frame 0 serial, frames 1-2 primed
-                    print(json.dumps(dict(modulation=modulation, ldpc_pack=pack, seed=seed, core1_bias=bias,
-                                          frames=FRAMES, compared_words=array("result_n", 2)[0],
-                                          core0_slices=get("result_slices"),
-                                          core0_frames=get("result_core0_frames"))), flush=True)
+                    reference = None
+                    # options 1: the A3 fast mapper inside the actual bench leaves must
+                    # reproduce the original serial stream word for word.
+                    for options in (0, 1):
+                        code = lib.trial(modulation, pack, seed, bias, options)
+                        assert code == 0, (modulation, pack, seed, bias, options, code)
+                        crcs = array("result_bb_crc", 8), array("result_fe_crc", 8)
+                        assert crcs[0][:4] == crcs[0][4:] and crcs[1][:4] == crcs[1][4:], "BB/FE CRCs differ"
+                        assert get("result_core0_frames") >= FRAMES - 3  # frame 0 serial, frames 1-2 primed
+                        stream = (array("result_n", 2)[0], array("result_fill", 2)[0], get("result_out_crc"))
+                        if reference is None:
+                            reference = stream
+                        assert stream == reference, ("fast mapper stream differs", modulation, pack, seed, options)
+                        print(json.dumps(dict(modulation=modulation, ldpc_pack=pack, seed=seed, core1_bias=bias,
+                                              options=options, frames=FRAMES, compared_words=stream[0],
+                                              stream_crc=stream[2], core0_slices=get("result_slices"),
+                                              core0_frames=get("result_core0_frames"))), flush=True)
 
 
 if __name__ == "__main__":

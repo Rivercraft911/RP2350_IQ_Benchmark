@@ -1,0 +1,43 @@
+{
+  "passed": false,
+  "failures": [
+    {
+      "modulation": 32,
+      "clock_khz": 128000,
+      "cpw": 8,
+      "faults": [
+        "errors",
+        "underruns",
+        "idle_sent",
+        "duration or output block count invalid",
+        "capture cursor differs from generated block boundary",
+        "capture cursor differs from planned frame boundary",
+        "prepare_cycles average/worst accounting mismatch",
+        "shape_cycles average/worst accounting mismatch",
+        "PV-SPI did not consume runtime traffic",
+        "GCS BBFRAME CRCs differ from independent reference",
+        "FEC frames differ from independent scalar BCH/LDPC",
+        "complete finite capture mismatch"
+      ]
+    },
+    {
+      "modulation": 32,
+      "clock_khz": 128000,
+      "cpw": 7,
+      "faults": [
+        "errors",
+        "underruns",
+        "idle_sent",
+        "duration or output block count invalid",
+        "encoder completed/attempted frame accounting mismatch",
+        "capture cursor differs from generated block boundary",
+        "capture cursor differs from planned frame boundary",
+        "PV-SPI did not consume runtime traffic",
+        "GCS BBFRAME CRCs differ from independent reference",
+        "FEC frames differ from independent scalar BCH/LDPC",
+        "complete finite capture mismatch"
+      ]
+    }
+  ],
+  "fatal": null
+}

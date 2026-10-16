@@ -48,3 +48,48 @@ void pv_bbframe(uint8_t *out, uint32_t kbch, uint8_t matype1, pv_packet_fn next)
 // The returned packet must remain valid until the next callback. Kbch is byte-aligned.
 // A missing container fails the frame, clears its output, and requires a stream restart.
 bool pv_gcs_bbframe(uint8_t *out, uint32_t kbch, uint8_t matype1, uint8_t sync, pv_packet_fn next);
+
+// Opt-in TS adapter with fused CRC-8 and word output (dualptr/pvbench kernel 1 or 2).
+// pv_bbframe_words writes exactly the words that pv_bbframe followed by zeroing bytes
+// Kbch/8.. of the last word and swapping every word to MSB-first order produces: the
+// encoder's input format, with no separate swap pass. Each word-aligned source word is
+// read once; its CRC-8 uses four 256-byte tables (slicing by four) and its bytes are
+// funnelled into the output phase. The tables, state and word leaf are caller-owned
+// (no static storage). Within one stream use pv_bbframe or pv_bbframe_words for every
+// frame, never both: their mid-packet CRC state differs. pv_init resets the shared
+// packet cursor and previous CRC-8 for both.
+typedef struct {
+    uint32_t acc;              // pending output bytes, most significant first, low bits zero
+    uint32_t crc;              // CRC-8 state over the current packet (byte 0 seeded, see .c)
+    uint32_t phase;            // bytes pending in acc, 0..3
+    const uint8_t *tables;     // T0..T3, 256 bytes each: Tk[x] = CRC-8 of x then k zero bytes
+} pv_words_state_t;
+// Copy n >= 1 word-aligned source words (stream order = increasing address) into n
+// output words at state->phase and fold all 4n bytes into state->crc.
+typedef void (*pv_words_fn)(const uint32_t *src, uint32_t *dst, uint32_t n,
+                            pv_words_state_t *state);
+typedef struct {
+    pv_words_state_t state;
+    pv_words_fn words;
+    uint32_t *out, left;       // frame in progress: next output word, data bytes still to emit
+    bool active;
+    uint8_t tables[1024];
+} pv_words_t;
+void pv_words_c(const uint32_t *src, uint32_t *dst, uint32_t n, pv_words_state_t *state);
+// Bytes of the position-independent Arm leaf (0 on other targets).
+uint32_t pv_words_code_bytes(void);
+// Build the tables and select the leaf. code == NULL selects the portable pv_words_c
+// (flash on the device); otherwise, on Arm only, the leaf is copied into code (word
+// aligned, at least pv_words_code_bytes()) and run from there. Returns false on bad
+// arguments without changing ctx. Keep ctx and code fixed while a stream uses them.
+bool pv_words_prepare(pv_words_t *ctx, void *code, uint32_t code_bytes);
+// out: (Kbch/8 + 3) / 4 words. Same pv_stats updates and missing-packet nulls as pv_bbframe.
+void pv_bbframe_words(uint32_t *out, uint32_t kbch, uint8_t matype1, pv_packet_fn next,
+                      pv_words_t *ctx);
+// The same frame in bounded steps, for a caller with a polling deadline: begin writes the
+// header and fixes SYNCD; each step emits at most max_chunks packet chunks (one next() call
+// and at most 188 bytes each) and returns true once the frame, including its tail word, is
+// complete (later calls return true without effect). max_chunks 0 makes no progress.
+// Do not start another frame on the same stream until the current one is complete.
+void pv_bbframe_words_begin(pv_words_t *ctx, uint32_t *out, uint32_t kbch, uint8_t matype1);
+bool pv_bbframe_words_step(pv_words_t *ctx, pv_packet_fn next, uint32_t max_chunks);

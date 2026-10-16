@@ -161,6 +161,148 @@ void HOT(pv_bbframe)(uint8_t *out, uint32_t kbch, uint8_t matype1, pv_packet_fn 
     pv_stats.bbframes++;
 }
 
+// ------------------------------------------------------------------ opt-in word-output TS adapter
+// Placement: everything below runs from flash except the word leaf, which the caller may copy
+// into SRAM. Lower SRAM has a few bytes free in pvflight, so nothing here is HOT or static.
+
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+_Static_assert(offsetof(pv_words_state_t, acc) == 0 && offsetof(pv_words_state_t, crc) == 4 &&
+               offsetof(pv_words_state_t, phase) == 8 && offsetof(pv_words_state_t, tables) == 12,
+               "pvproto_asm.S reads the state at fixed offsets");
+extern const uint8_t pv_words_pic[], pv_words_pic_end[];
+uint32_t pv_words_code_bytes(void) {
+    return (uint32_t)((uintptr_t)pv_words_pic_end - ((uintptr_t)pv_words_pic & ~(uintptr_t)1));
+}
+#else
+uint32_t pv_words_code_bytes(void) { return 0; }
+#endif
+
+// Slicing by four: from state c, bytes b0..b3 give T3[c ^ b0] ^ T2[b1] ^ T1[b2] ^ T0[b3],
+// because the byte step c -> T0[c ^ b] is linear over GF(2) and Tk = T0 applied k + 1 times.
+void pv_words_c(const uint32_t *src, uint32_t *dst, uint32_t n, pv_words_state_t *state) {
+    const uint8_t *t0 = state->tables, *t1 = t0 + 256, *t2 = t0 + 512, *t3 = t0 + 768;
+    const unsigned shift = 8u * state->phase;
+    uint32_t acc = state->acc, crc = state->crc;
+    for (uint32_t i = 0; i < n; i++) {
+        const uint8_t *b = (const uint8_t *)(src + i);
+        crc = t3[crc ^ b[0]] ^ t2[b[1]] ^ t1[b[2]] ^ t0[b[3]];
+        const uint32_t word = (uint32_t)b[0] << 24 | (uint32_t)b[1] << 16 | (uint32_t)b[2] << 8 | b[3];
+        if (shift) {
+            dst[i] = acc | word >> shift;
+            acc = word << (32u - shift);
+        } else dst[i] = word;
+    }
+    state->acc = acc;
+    state->crc = crc;
+}
+
+bool pv_words_prepare(pv_words_t *ctx, void *code, uint32_t code_bytes) {
+    if (!ctx || ((uintptr_t)ctx & 3u)) return false;
+    pv_words_fn words = pv_words_c;
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    if (code) {
+        const uint32_t needed = pv_words_code_bytes();
+        if (((uintptr_t)code & 3u) || code_bytes < needed) return false;
+        memcpy(code, (const void *)((uintptr_t)pv_words_pic & ~(uintptr_t)1), needed);
+        __asm volatile("dsb\n isb" ::: "memory");
+        words = (pv_words_fn)((uintptr_t)code | 1u);
+    }
+#else
+    (void)code; (void)code_bytes;
+#endif
+    for (uint32_t x = 0; x < 256; x++) {               // bitwise, independent of pv_init
+        uint8_t d = (uint8_t)x;
+        for (int k = 0; k < 8; k++) d = (uint8_t)(d & 0x80 ? (d << 1) ^ 0xD5 : d << 1);
+        ctx->tables[x] = d;
+    }
+    for (uint32_t k = 1; k < 4; k++)
+        for (uint32_t x = 0; x < 256; x++) ctx->tables[256 * k + x] = ctx->tables[ctx->tables[256 * (k - 1) + x]];
+    ctx->state = (pv_words_state_t){.tables = ctx->tables};
+    ctx->words = words;
+    ctx->out = NULL;
+    ctx->left = 0;
+    ctx->active = false;
+    return true;
+}
+
+static inline void words_put(pv_words_state_t *s, uint32_t **out, uint32_t byte) {
+    s->acc |= byte << (24u - 8u * s->phase);
+    if (++s->phase == 4) {
+        *(*out)++ = s->acc;
+        s->acc = 0;
+        s->phase = 0;
+    }
+}
+
+// The sync byte of each packet is replaced by the previous packet's CRC-8 (5.1.4), in place
+// as pv_bbframe does. Seeding the CRC state with that same value makes the update over byte 0
+// return zero (T0[x ^ x] = 0), so every byte of the packet, aligned or not, takes one uniform
+// update and the state at the packet end is the CRC-8 of bytes 1..187.
+void pv_bbframe_words_begin(pv_words_t *ctx, uint32_t *out, uint32_t kbch, uint8_t matype1) {
+    pv_words_state_t *s = &ctx->state;
+    const uint32_t dfl = kbch - 80, syncd = cur_off == PV_TS ? 0 : (PV_TS - cur_off) * 8u;
+    uint8_t h[10];
+    bbheader(h, dfl, matype1, 1504, 0x47, syncd);
+    s->acc = 0;
+    s->phase = 0;
+    for (unsigned i = 0; i < sizeof h; i++) words_put(s, &out, h[i]);
+    ctx->out = out;
+    ctx->left = dfl / 8;
+    ctx->active = true;
+}
+
+bool pv_bbframe_words_step(pv_words_t *ctx, pv_packet_fn next, uint32_t max_chunks) {
+    if (!ctx->active) return true;
+    pv_words_state_t *s = &ctx->state;
+    const uint8_t *t0 = s->tables;
+    uint32_t *out = ctx->out, left = ctx->left;
+    for (; left && max_chunks; max_chunks--) {
+        if (cur_off == PV_TS) {
+            uint8_t *p = next();
+            if (p) pv_stats.ts_packets++;
+            else {
+                p = null_pkt;
+                pv_stats.null_packets++;
+            }
+            p[0] = prev_crc8;
+            s->crc = prev_crc8;
+            cur = p, cur_off = 0;
+        }
+        uint32_t n = PV_TS - cur_off;
+        if (n > left) n = left;
+        left -= n;
+        const uint8_t *src = cur + cur_off;
+        cur_off += n;
+        for (; n && ((uintptr_t)src & 3u); n--, src++) {
+            s->crc = t0[s->crc ^ *src];
+            words_put(s, &out, *src);
+        }
+        if (n >= 4) {
+            const uint32_t words = n / 4;
+            ctx->words((const uint32_t *)(const void *)src, out, words, s);
+            out += words, src += 4 * words, n -= 4 * words;
+        }
+        for (; n; n--, src++) {
+            s->crc = t0[s->crc ^ *src];
+            words_put(s, &out, *src);
+        }
+        if (cur_off == PV_TS) prev_crc8 = (uint8_t)s->crc;
+    }
+    ctx->out = out;
+    ctx->left = left;
+    if (left) return false;
+    if (s->phase) *out = s->acc;                    // the zeroed tail of the swapped last word
+    ctx->active = false;
+    pv_stats.bbframes++;
+    return true;
+}
+
+void pv_bbframe_words(uint32_t *out, uint32_t kbch, uint8_t matype1, pv_packet_fn next,
+                      pv_words_t *ctx) {
+    pv_bbframe_words_begin(ctx, out, kbch, matype1);
+    (void)pv_bbframe_words_step(ctx, next, UINT32_MAX);
+}
+
 bool HOT(pv_gcs_bbframe)(uint8_t *out, uint32_t kbch, uint8_t matype1, uint8_t sync,
                         pv_packet_fn next) {
     const uint32_t dfl = kbch - 80;

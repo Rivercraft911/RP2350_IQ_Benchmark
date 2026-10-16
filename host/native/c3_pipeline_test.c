@@ -10,8 +10,17 @@
 enum { GUARD = 0xA1C35B79, FRAMES = 16 };
 static struct { uint32_t before; c3_job_t job; uint32_t after; } jobs[2];
 static struct { uint32_t before, words[C3_RING_GROUPS], after; } rings[2];
-static uint32_t gold[5536 / 4], map_lut[DVBS2_8PSK_CODES_LUT_WORDS], source_cursor;
+static uint32_t gold[5536 / 4], map_lut[DVBS2_8PSK_CODES_C6_WORDS], source_cursor;
+static struct { uint32_t before, words[30720], after; } table3;
 static uint8_t pattern[512], packet[188];
+static unsigned transpose_calls;
+
+static void private_transpose(uint32_t *matrix) {
+    ++transpose_calls;
+    dvbs2_transpose_fn transpose = dvbs2_transpose_copy(NULL, 0);
+    if (!transpose) abort();
+    transpose(matrix);
+}
 
 static uint8_t *source_packet(void) {
     for (unsigned k = 0; k < sizeof packet; k++) packet[k] = (uint8_t)(29u * source_cursor++ + 7u);
@@ -51,6 +60,15 @@ static int complete(c3_job_t *job) {
     unsigned calls = 0;
     while (job->stage != C3_DONE) {
         if (!c3_job_step(job, pattern) || ++calls > 4096) return 0;
+        if (job->stage == C3_BCH &&
+            (job->front.leaf != (job->bch_leaf ? job->bch_leaf :
+                (job->options & C7_BCH_LDM ? dvbs2_bch_copy(NULL, 0, 1) : NULL)) ||
+             job->front.table != job->bch_table)) return 0;
+        if (job->stage == C3_LDPC && job->ldpc.mode !=
+            (job->options & C5_LDPC ? 2u : !!(job->options & C4_LDPC))) return 0;
+        if (job->stage == C3_MAP &&
+            (job->map.c6 != !!(job->options & C6_MAP) ||
+             job->map.fast != !!(job->options & (C4_MAP | C6_MAP)))) return 0;
     }
     const uint32_t n = job->stream.n, fill = job->stream.fill;
     return c3_job_step(job, pattern) && job->stage == C3_DONE &&
@@ -59,7 +77,8 @@ static int complete(c3_job_t *job) {
 
 int main(int argc, char **argv) {
     const unsigned options = argc > 1 ? (unsigned)atoi(argv[1]) : 0;
-    if (options > C4_ALL || !dvbs2_ldpc_prepare(NULL, 0)) return 10;
+    if (options > C8_ALL || ((options & C7_TABLE3) && (options & C7_BCH_LDM)) ||
+        !dvbs2_ldpc_prepare(NULL, 0)) return 10;
     const unsigned codes[] = {S2_N2_3, S2_N5_6, S2_N3_4};
     for (unsigned k = 0; k < sizeof pattern; k++) pattern[k] = (uint8_t)(29u * k + 7u);
     for (unsigned ci = 0; ci < sizeof codes / sizeof codes[0]; ci++) {
@@ -68,10 +87,17 @@ int main(int argc, char **argv) {
         dvbs2_bch_set_kernel(S2_BCH_WORDS_C);
         dvbs2_ldpc_set_pack(1);
         dvbs2_init(code, true);
+        table3.before = table3.after = GUARD;
+        const uint32_t table_bytes = options & C7_TABLE3 ? dvbs2_bch_table3_bytes() : 0;
+        if (table_bytes && !dvbs2_bch_table3_init(table3.words, sizeof table3.words)) return 11;
+        const uint32_t table_crc = pv_crc32(0, table3.words, table_bytes);
+        dvbs2_bch_leaf_t bch_leaf = options & (C7_BCH_PLACE | C7_TABLE3) ?
+            dvbs2_bch_copy(NULL, 0, options & C7_TABLE3 ? 2 : !!(options & C7_BCH_LDM)) : NULL;
+        if ((options & (C7_BCH_PLACE | C7_TABLE3)) && !bch_leaf) return 12;
         dvbs2_8psk_cfg_t cfg;
         if (!dvbs2_8psk_init(&cfg, code, true, 0, gold, sizeof gold / sizeof gold[0]) ||
             cfg.frame_symbols != C3_FRAME_SYMBOLS ||
-            !dvbs2_8psk_codes_lut_init(&cfg, map_lut, DVBS2_8PSK_CODES_LUT_WORDS)) return 2;
+            !dvbs2_8psk_codes_c6_init(&cfg, map_lut, DVBS2_8PSK_CODES_C6_WORDS)) return 2;
         memset(rings, 0, sizeof rings);
         uint32_t carry[2] = {0};
         for (unsigned axis = 0; axis < 2; axis++) rings[axis].before = rings[axis].after = GUARD;
@@ -79,7 +105,11 @@ int main(int argc, char **argv) {
             for (unsigned worker = 0; worker < 2; worker++) {
                 jobs[worker].before = jobs[worker].after = GUARD;
                 c3_job_begin_options(&jobs[worker].job, &cfg, f + worker, rings[0].words, rings[1].words, options);
+                jobs[worker].job.bch_leaf = bch_leaf;
+                jobs[worker].job.bch_table = table_bytes ? table3.words : NULL;
+                jobs[worker].job.transpose = options & C7_TRANSPOSE ? private_transpose : NULL;
             }
+            const unsigned prior_transposes = transpose_calls;
             // Odd frame finishes all stages before the preceding even frame. Its
             // shared first word must remain deferred until the ordered publisher.
             const uint32_t boundary = ((f + 1u) * C3_FRAME_SYMBOLS / 16u) & (C3_RING_GROUPS - 1u);
@@ -97,6 +127,9 @@ int main(int argc, char **argv) {
                 if (jobs[worker].before != GUARD || jobs[worker].after != GUARD) return 7;
             for (unsigned axis = 0; axis < 2; axis++)
                 if (rings[axis].before != GUARD || rings[axis].after != GUARD) return 8;
+            if ((!!(options & C7_TRANSPOSE) != (transpose_calls > prior_transposes)) ||
+                table3.before != GUARD || table3.after != GUARD ||
+                pv_crc32(0, table3.words, table_bytes) != table_crc) return 13;
             printf("{\"code_index\":%u,\"frames\":%u,\"published_groups\":%u,"
                    "\"pending_fill\":%u,\"pending_codes\":[%u,%u],\"rings\":[",
                    codes[ci], f + 2u, groups, odd->fill, carry[0], carry[1]);

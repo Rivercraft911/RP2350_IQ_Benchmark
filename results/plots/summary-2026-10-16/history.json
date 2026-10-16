@@ -50,6 +50,10 @@
     [
       "pipelined",
       10.8
+    ],
+    [
+      "PIO +\nDMA",
+      0.0
     ]
   ],
   "fec_kcycles": [
