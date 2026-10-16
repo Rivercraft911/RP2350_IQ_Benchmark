@@ -1,5 +1,10 @@
 # C8: combined C5/C6/C7 FEC
 
+**Device result (coordinator, 2026-10-16):** normal 2/3 passes the 16 Msym/s `c3fec` cadence for
+60 s with masks 123 and 251; 5/6 and 3/4 miss their first frame by 194–512 µs. The 128-µs
+service gate now starts after worker launch (`eb0b4af`); the earlier failures were the setup
+interval. See [results](../../results/c8-fec-combined/2026-10-16/README.md).
+
 The C7 merge after `0a55e75` is resolved in the working files. C5 LDPC, C6 mapping,
 and C7 BCH/transpose experiments have independent selectors in one image. C7's
 three-table diagnostic is layout **4**; C6 retains layout **3**. Layout 4 now keeps
