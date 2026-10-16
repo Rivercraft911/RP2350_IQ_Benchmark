@@ -63,16 +63,21 @@ static uint8_t *pvspi_next_packet(void) {
 '''
 
 CHECK = r'''
-static void run(int code, enum dual_source source, bool pilots, bool freeze) {
+static void run(int code, enum dual_source source, bool pilots, bool freeze, bool words) {
     pv_init(16); message_no=packet_no=0; pvspi.head=pvspi.errors=0;
     trial_pilots=pilots;
     assert(dvbs2_bch_set_kernel(S2_BCH_STREAM_ARM));
     assert(dvbs2_map_set_kernel(1) && dvbs2_ldpc_set_pack(1));
     memset(input,0xa5,sizeof input);
+    memset(cap_buf,0xc3,sizeof cap_buf);
     const char *name;
     unsigned bb_bits;
     assert(trial_code(code,&name,&bb_bits));
+    // dualptr pvkernel 1/2: the fused TS adapter, its context at the head of cap_buf.
+    encoder.ts_words=words;
+    if (words) assert(pv_words_prepare((pv_words_t *)cap_buf,NULL,0));
     assert(prefill_encoder(source,input,0,code,bb_bits));
+    assert(encoder.ts_words==words);
     const unsigned frame_symbols=dvbs2_plframe_symbols();
     assert(encoder.prefill==2 && encoder.total==2*frame_symbols/16 && encoder.stream.fill==4);
     encoder.consumed=0;
@@ -120,7 +125,10 @@ static void run(int code, enum dual_source source, bool pilots, bool freeze) {
     assert(!encoder.input_failed && !pvspi.errors && !pv_stats.lost && !pv_stats.null_packets);
     if (freeze) assert(frozen && copied==granted && copied>=8192);
     else assert(copied==FRAMES*frame_symbols/16);
-    printf("{\"code\":%d,\"source\":%d,\"pilots\":%d,\"freeze\":%d,\"copied\":%u,\"granted\":%llu,\"words\":[",code,source,pilots,freeze,copied,(unsigned long long)granted);
+    printf("{\"code\":%d,\"source\":%d,\"pilots\":%d,\"freeze\":%d,\"ts_words\":%d,\"bb_crc\":[%u,%u,%u,%u],"
+           "\"copied\":%u,\"granted\":%llu,\"words\":[",code,source,pilots,freeze,words,
+           encoder.bb_crc[0],encoder.bb_crc[1],encoder.bb_crc[2],encoder.bb_crc[3],copied,(unsigned long long)granted);
+    encoder.ts_words=false;
     for (unsigned k=0;k<copied;k++) printf("%s%u",k?",":"",captured[k]);
     puts("]}");
 }
@@ -129,7 +137,8 @@ int main(void) {
     static const int codes[]={5,8,9,10};
     for (unsigned c=0;c<4;c++) for (unsigned s=5;s<=6;s++)
         for (unsigned pilots=0;pilots<=1;pilots++) for (unsigned freeze=0;freeze<=pilots;freeze++)
-            run(codes[c],s,pilots,freeze);
+            for (unsigned words=0;words<=(s==5);words++)
+                run(codes[c],s,pilots,freeze,words);
 }
 '''
 
@@ -151,18 +160,23 @@ def main():
                         ('dvbs2.c', 'iqgen.c', 'pvproto.c', 'iqquadptr.c', 'iqquad.c')],
                         '-o', str(exe)], check=True)
         records = [json.loads(line) for line in subprocess.check_output([str(exe)], text=True).splitlines()]
+    assert len(records) == 4*2*3 + 4*3, len(records)   # TS rows also run the fused adapter
     for code, rate in ((5, '2/3'), (8, '5/6'), (9, '8/9'), (10, '9/10')):
         for source in (5, 6):
+            first = spi.first_crcs(gcs=source == 6, rate=rate)
             for pilots in (False, True):
                 frames = [spi.ref.plframe(spi.ref.fecframe(spi.bbframe(k, gcs=source == 6, rate=rate), rate),
                                          rate, pilots=pilots) for k in range(16)]
                 want = spi.ref.pack_words(*(np.concatenate([f[axis] for f in frames]) for axis in (0, 1)))
                 for record in [r for r in records if (r['code'], r['source'], r['pilots']) == (code, source, pilots)]:
                     got = np.asarray(record['words'], dtype=np.uint32)
-                    assert np.array_equal(got, want[:len(got)]), (code, source, pilots, record['freeze'], 'stream differs')
-                    print(f"dualptr native code{code} source{source} pilots{int(pilots)} freeze{record['freeze']}: "
-                          f"{len(got)} exact words; actual prefill/BB/frontend leaves, split backend, "
-                          "axis skew, ring wrap, finite credits")
+                    label = (code, source, pilots, record['freeze'], record['ts_words'])
+                    assert np.array_equal(got, want[:len(got)]), (*label, 'stream differs')
+                    assert record['bb_crc'] == first, (*label, 'BBFRAME provenance CRCs differ')
+                    adapter = 'fused TS adapter' if record['ts_words'] else 'existing adapter'
+                    print(f"dualptr native code{code} source{source} pilots{int(pilots)} freeze{record['freeze']} "
+                          f"{adapter}: {len(got)} exact words, first four BBFRAME CRCs; actual prefill/BB/frontend "
+                          "leaves, split backend, axis skew, ring wrap, finite credits")
 
 
 if __name__ == '__main__':

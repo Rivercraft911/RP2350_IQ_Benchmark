@@ -8,7 +8,7 @@
 void bench_kernel(const iq_kernel_info_t *k, int reps, bool tables_ok);
 void bench_dvbs2(int code, bool pilots, int reps);
 void bench_sniffer(void);
-void bench_pv(int reps);
+void bench_pv(int reps, int kernel);   // kernel 1/2: also time pv_bbframe_words (SRAM/flash leaf)
 void bench_pvstress(int ms, int irq_mask_us);
 void bench_8psk(int reps);
 void bench_8quad(int ms, int reps);
@@ -19,7 +19,8 @@ void bench_32native8(int reps);
 void bench_hstx_ddr(int ms);
 void bench_descriptors(int reps);
 bool bench_dual_set_quad_profile(unsigned profile);
-void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index);
-void bench_dual_pointer4(int cpw, int ms, int source, int fault, int code_index);
+// pv_kernel 0: existing TS adapter; 1/2: pv_bbframe_words with the SRAM Arm / flash C leaf.
+void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index, int pv_kernel);
+void bench_dual_pointer4(int cpw, int ms, int source, int fault, int code_index, int pv_kernel);
 void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, int fault,
                        int schedule, int divider256, int row_symbols, int code_index);

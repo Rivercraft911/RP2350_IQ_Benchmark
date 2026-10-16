@@ -32,12 +32,23 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, source: int,
                  fault: int = 0, clock_mode: int = 1, clock_hz: int | None = None,
                  expected_git: str | None = None, code_index: int = 8,
                  bch_kernel: int = 2, bch_bank: int = 1, priority: int = 0,
-                 writers: int = 2) -> dict:
+                 writers: int = 2, pv_kernel: int = 0) -> dict:
     """Fail closed on configuration, ownership, SPI provenance and every snapshot."""
     r, faults, capture = result, [], {}
     try:
         if r.get('error') or r.get('cap_error'):
             faults.append(str(r.get('error') or r['cap_error']))
+        # Older images omit the TS adapter fields; that is only acceptable for the default.
+        if r.get('pv_kernel', 0) != pv_kernel or pv_kernel not in (0, 1, 2) or (pv_kernel and source != 5):
+            faults.append('pv_kernel')
+        leaf = int(r.get('pv_leaf_base', 0))
+        if pv_kernel == 1:
+            table, origin = int(r.get('table_base', 0)), int(r.get('input_base', 0))
+            if (leaf & 3 or not 0x20000000 <= leaf < 0x20080000 or table <= leaf < table + 65536 or
+                    origin <= leaf < origin + 32768):
+                faults.append('TS word leaf placement')
+        elif leaf:
+            faults.append('TS word leaf placement')
         expected = dict(cmd='dualptr4' if writers == 4 else 'dualptr', source=source,
                         cpw=cpw, divider256=256*cpw,
                         ms=ms, fault=fault, sps=4, L=8, row_symbols=4, writers=writers,
@@ -198,6 +209,8 @@ def main():
     p.add_argument('--code-index', type=int, choices=POINTER_CODES, default=8)
     p.add_argument('--bch-kernel', type=int, choices=(2, 3), default=2)
     p.add_argument('--bch-bank', type=int, choices=(0, 1), default=1)
+    p.add_argument('--pv-kernel', type=int, choices=(0, 1, 2), default=0,
+                   help='TS adapter: 0 existing, 1 fused CRC-8/word leaf in SRAM, 2 same in C from flash (source 5 only)')
     p.add_argument('--ms', type=int, default=3000)
     p.add_argument('--reps', type=int, default=1)
     p.add_argument('--port')
@@ -209,6 +222,8 @@ def main():
         p.error('positive repetitions/clocks and 100 <= --ms <= 60000 required')
     if 1 in args.faults and 1 not in args.clock_modes:
         p.error('grant-freeze requires --clock-modes 1')
+    if args.pv_kernel and args.sources != [5]:
+        p.error('--pv-kernel 1/2 selects the TS adapter: use --sources 5')
     args.out.mkdir(parents=True, exist_ok=False)
     build, source = args.build.resolve(), args.source.resolve()
     shutil.copy2(__file__, args.out/'driver.py')
@@ -229,7 +244,7 @@ def main():
                     clock_modes=args.clock_modes, writers=args.writers, priority=args.priority,
                     control=args.control, reps=args.reps,
                     code_index=args.code_index, bch_kernel=args.bch_kernel, ldpc_pack=1,
-                    bch_bank=args.bch_bank,
+                    bch_bank=args.bch_bank, pv_kernel=args.pv_kernel,
                     ms=args.ms, expected_firmware_git=args.expected_git,
                     setup='USB only; external GPIOs unwired; on-chip PV-SPI source; digital output active',
                     scope=f'Live QPSK {QPSK_RATES[args.code_index]} L8/N4 pointer/output pipeline; '
@@ -287,13 +302,16 @@ def main():
                                 if clock_mode == 2 and fault:
                                     continue
                                 pointer_cmd = 'dualptr4' if args.writers == 4 else 'dualptr'
+                                adapter = f' {args.pv_kernel}' if args.pv_kernel else ''   # default line unchanged
                                 label = (f'{pointer_cmd}-{clock}-{cpw}-{source_id}-code{args.code_index}'
+                                         f'{"-pvk" + str(args.pv_kernel) if args.pv_kernel else ""}'
                                          f'-clock{clock_mode}-fault{fault}-{rep}')
-                                run(label, f'{pointer_cmd} {cpw} {args.ms} {source_id} {fault} {args.code_index}',
+                                run(label, f'{pointer_cmd} {cpw} {args.ms} {source_id} {fault} {args.code_index}{adapter}',
                                     lambda r, lines: validate_run(r, lines, cpw, args.ms, source_id,
                                                                   fault, clock_mode, clock*1000, args.expected_git,
                                                                   args.code_index, args.bch_kernel, args.bch_bank,
-                                                                  priority=args.priority, writers=args.writers))
+                                                                  priority=args.priority, writers=args.writers,
+                                                                  pv_kernel=args.pv_kernel))
     finally:
         try:
             command('dualclock 0')

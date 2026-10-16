@@ -151,18 +151,22 @@ static struct {
     uint32_t *bb_slots[FRAME_SLOTS];
     bool spi, gcs;
     volatile bool input_failed;
+    bool ts_words;                      // TS via pv_bbframe_words, context at cap_buf (dualptr only)
     dvbs2_frontend_t front;
     symstream_t stream;
 } encoder;
 
 static bool build_spi_frame(uint32_t *bb) {
     const uint32_t start = cycles();
+    // Opt-in TS path: pv_bbframe_words already writes swapped words with a zeroed tail.
+    const bool words = encoder.ts_words && !encoder.gcs;
     if (encoder.gcs) {
         if (!pv_gcs_bbframe((uint8_t *)bb, encoder.bb_bits, GCS_MATYPE1, GCS_SYNC, pvspi_next_packet)) {
             encoder.input_failed = true;
             return false;
         }
-    } else pv_bbframe((uint8_t *)bb, encoder.bb_bits, TS_MATYPE1, pvspi_next_packet);
+    } else if (words) pv_bbframe_words(bb, encoder.bb_bits, TS_MATYPE1, pvspi_next_packet, (pv_words_t *)cap_buf);
+    else pv_bbframe((uint8_t *)bb, encoder.bb_bits, TS_MATYPE1, pvspi_next_packet);
     if (pvspi.errors || pv_stats.lost || pv_stats.bad_hdr || pv_stats.bad_crc ||
         pv_stats.bad_sync || pv_stats.gcs_underflows) {
         encoder.input_failed = true;
@@ -170,13 +174,24 @@ static bool build_spi_frame(uint32_t *bb) {
     }
     // The encoder consumes MSB-first words. A partial final word must have zero low bits
     // after the byte swap; e.g. normal 5/6 has two valid bytes in that last word.
-    for (unsigned byte = encoder.bb_bytes; byte < 4 * encoder.bb_words; byte++)
-        ((uint8_t *)bb)[byte] = 0;
-    if (encoder.bb_frames < 4)
-        encoder.bb_crc[encoder.bb_frames] = pv_crc32(0, bb, encoder.bb_bytes);
+    if (!words)
+        for (unsigned byte = encoder.bb_bytes; byte < 4 * encoder.bb_words; byte++)
+            ((uint8_t *)bb)[byte] = 0;
+    if (encoder.bb_frames < 4) {
+        // Provenance CRC over transmission-order bytes; only prefill frames reach here.
+        uint32_t crc = 0;
+        if (words)
+            for (unsigned word = 0; word < encoder.bb_words; word++) {
+                const uint32_t bytes = __builtin_bswap32(bb[word]);
+                crc = pv_crc32(crc, &bytes, 4 * word + 4 <= encoder.bb_bytes ? 4 : encoder.bb_bytes - 4 * word);
+            }
+        else crc = pv_crc32(0, bb, encoder.bb_bytes);
+        encoder.bb_crc[encoder.bb_frames] = crc;
+    }
     encoder.bb_frames++;
-    for (unsigned word = 0; word < encoder.bb_words; word++)
-        bb[word] = __builtin_bswap32(bb[word]);
+    if (!words)
+        for (unsigned word = 0; word < encoder.bb_words; word++)
+            bb[word] = __builtin_bswap32(bb[word]);
     const uint32_t elapsed = cycles() - start;
     encoder.bb_cyc += elapsed;
     if (elapsed > encoder.bb_max_cyc) encoder.bb_max_cyc = elapsed;
@@ -273,10 +288,11 @@ static void restore_trial_buffers(bool spi, bool paired) {
 static bool prefill_encoder(enum dual_source source, uint32_t *input, unsigned target_words,
                             int code_index, unsigned bb_bits) {
     const bool spi = spi_source(source), split = source >= SOURCE_DVBS2_SPLIT;
+    const bool ts_words = encoder.ts_words;      // chosen by the caller before prefill
     tx_code(code_index, true);
     encoder = (typeof(encoder)){.stream = {.out = input, .mask = IN_WORDS - 1},
         .frame_words = (dvbs2_plframe_symbols() + 31u) / SYMBOLS_PER_WORD,
-        .gcs = source == SOURCE_PV_GCS,
+        .gcs = source == SOURCE_PV_GCS, .ts_words = ts_words,
         .bb_bits = bb_bits, .bb_bytes = bb_bits / 8, .bb_words = (bb_bits + 31) / 32};
     while (split ? encoder.frames < FRAME_SLOTS : encoder.stream.n < target_words) {
         if (split) {
@@ -416,6 +432,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
         return;
     }
     encoder.input_failed = false;
+    encoder.ts_words = false;                    // the word-output TS adapter is dualptr-only
     if (spi && !spi_resources_available()) {
         printf("@{\"error\":\"PV-SPI trial needs free PIO1/PIO2 and twelve DMA channels\"}\n");
         return;
@@ -706,10 +723,16 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
     restore_trial_buffers(spi, paired);
 }
 
+// The pv_words_t context lives in cap_buf's input portion, which this path never reads.
+_Static_assert(sizeof(pv_words_t) <= IN_WORDS * sizeof(uint32_t), "TS word context fits before capture");
+
 // Live SPI/FEC with hardware-only shaping. Core0 performs bounded BB+BCH slices,
 // core1 retains ordered LDPC/map. Four writers retain one RX consumer per axis.
+// pv_kernel (TS only): 0 pv_bbframe + swap pass (default), 1 pv_bbframe_words with its
+// Arm leaf copied into the unused part of the pointer-table arena, 2 the same with the
+// portable C leaf from flash (an A/B control for placement and for the Arm leaf itself).
 static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, int code_index,
-                                       unsigned writers) {
+                                       unsigned writers, int pv_kernel) {
     const char *command = writers == 4 ? "dualptr4" : "dualptr";
     const PIO pointer_pio = writers == 4 ? pio0 : pio2;
     bool resources = spi_resources_available();
@@ -729,8 +752,9 @@ static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, i
         !spi_source(source) || (fault != 0 && fault != 1) ||
         (dvbs2_bch_get_kernel() != S2_BCH_STREAM_ARM && dvbs2_bch_get_kernel() != S2_BCH_T8_ARM) || dvbs2_map_get_kernel() != 1 ||
         dvbs2_ldpc_get_pack() != 1 || !resources ||
-        iqquadptr_rx_fifo(0) || iqquadptr_rx_fifo(1)) {
-        printf("@{\"cmd\":\"%s\",\"error\":\"needs cpw1/2,100..60000ms,source5/6,fault0/1,code5/8/9/10,bchkernel2/3,mapkernel1,ldpcpack1 and idle resources\"}\n", command);
+        iqquadptr_rx_fifo(0) || iqquadptr_rx_fifo(1) ||
+        pv_kernel < 0 || pv_kernel > 2 || (pv_kernel && source != SOURCE_PV_SPI)) {
+        printf("@{\"cmd\":\"%s\",\"error\":\"needs cpw1/2,100..60000ms,source5/6,fault0/1,code5/8/9/10,bchkernel2/3,mapkernel1,ldpcpack1,pvkernel0..2 (1/2 TS only) and idle resources\"}\n", command);
         return;
     }
     const unsigned saved_writers = dual_dma_get_writers(), saved_rows = dual_dma_get_row_words();
@@ -747,6 +771,7 @@ static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, i
     uint32_t errors = 0, table_crc = 0, elapsed = 0, max_gap = 0, count = 0;
     uint32_t bch_frames = 0, bch_slices = 0, max_bch_slice = 0, polls = 0;
     uint32_t bb_prefill = 0, spi_head_start = 0, pointer_sm_mask = 0, other_pio_flags = 0;
+    uintptr_t pv_leaf = 0;
     uint64_t control_cyc = 0, bch_cyc = 0, cap_symbol_cursor = 0, frozen_granted = 0;
     uint64_t min_runway = UINT64_MAX;
     bool spi_started = false, pointer_attempted = false, output_attempted = false, worker_started = false;
@@ -765,6 +790,19 @@ static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, i
     if (!iqquadptr_build_table_profile((uint32_t *)base, (arena_end - base) / 4, pulse) ||
         (table_crc = crc32_update(0, (const void *)base, 4 * IQQUAD_L8_WORDS)) != profile->table_crc) {
         errors |= ERR_CONFIG; reason = "pointer table CRC mismatch"; goto cleanup;
+    }
+    encoder.ts_words = false;
+    if (pv_kernel) {
+        // Kernel 1 runs the leaf from striped SRAM0-3, where core 1's other hot code lives,
+        // using whichever side of the 64 KiB table the arena leaves free.
+        const uintptr_t table_end = base + 4 * IQQUAD_L8_WORDS, need = pv_words_code_bytes();
+        if (pv_kernel == 1)
+            pv_leaf = arena_end - table_end >= need ? table_end : base - arena >= need ? arena : 0;
+        if ((pv_kernel == 1 && !pv_leaf) ||
+            !pv_words_prepare((pv_words_t *)cap_buf, (void *)pv_leaf, (uint32_t)need)) {
+            errors |= ERR_CONFIG; reason = "TS word leaf arena"; goto cleanup;
+        }
+        encoder.ts_words = true;
     }
     spi_started = true;
     if (!prefill_spi() || !prefill_encoder(source, in_buf, 0, code_index, bb_bits)) {
@@ -858,6 +896,7 @@ cleanup:
         iqquadptr_stop(); p = iqquadptr_progress();
     }
     if (worker_started) tx_worker_wait();
+    encoder.ts_words = false;
     if (output_attempted) {
         output = dual_dma_faults(); errors |= output.errors | dual_dma_capture_errors();
         count = captured ? dual_dma_capture_count() : 0;
@@ -882,7 +921,7 @@ cleanup:
            "\"pointer_pio\":%u,\"pointer_routing\":\"%s\","
            "\"schedule\":0,\"bus_priority_mask\":%u,\"code_index\":%d,\"s2_code\":\"%s\",\"kbch\":%u,"
            "\"bch_kernel\":%d,\"map_kernel\":1,\"ldpc_pack\":1,\"bch_bank\":%u,\"frame_parallel\":false,"
-           "\"descriptor_gen_busy\":0.0,\"sample_math_busy\":0.0,\"table_base\":%lu,\"table_bytes\":65536,\"table_crc\":%lu,"
+           "\"pv_kernel\":%d,\"pv_leaf_base\":%lu,\"descriptor_gen_busy\":0.0,\"sample_math_busy\":0.0,\"table_base\":%lu,\"table_bytes\":65536,\"table_crc\":%lu,"
            "\"input_base\":%lu,\"in_words\":8192,\"errors\":%lu,\"pointer_errors\":%lu,\"output_errors\":%lu,\"reason\":\"%s\","
            "\"txstalls_i\":%lu,\"txstalls_q\":%lu,\"pointer_sm_mask\":%lu,\"pointer_txstall_mask\":%lu,"
            "\"pointer_rxstall_mask\":%lu,\"null_trigger_mask\":%lu,\"pointer_other_pio_flags\":%lu,"
@@ -899,7 +938,7 @@ cleanup:
            (double)clock_hz / (8 * cpw), writers, pio_get_index(pointer_pio),
            writers == 4 ? "alternating_dma" : "paired_dma", dual_dma_get_bus_priority(),
            code_index, code_name, bb_bits, (int)dvbs2_bch_get_kernel(),
-           dvbs2_frontend_get_bank(), (unsigned long)base, (unsigned long)table_crc,
+           dvbs2_frontend_get_bank(), pv_kernel, (unsigned long)pv_leaf, (unsigned long)base, (unsigned long)table_crc,
            (unsigned long)(uintptr_t)in_buf, (unsigned long)errors, (unsigned long)p.errors, (unsigned long)output.errors, reason,
            (unsigned long)output.txstalls_i, (unsigned long)output.txstalls_q, (unsigned long)pointer_sm_mask,
            (unsigned long)p.txstall_mask, (unsigned long)p.rxstall_mask, (unsigned long)p.null_trigger_mask,
@@ -922,10 +961,10 @@ cleanup:
     capture_print(capture, count);
 }
 
-void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index) {
-    bench_dual_pointer_writers(cpw, ms, source, fault, code_index, 2);
+void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index, int pv_kernel) {
+    bench_dual_pointer_writers(cpw, ms, source, fault, code_index, 2, pv_kernel);
 }
 
-void bench_dual_pointer4(int cpw, int ms, int source, int fault, int code_index) {
-    bench_dual_pointer_writers(cpw, ms, source, fault, code_index, 4);
+void bench_dual_pointer4(int cpw, int ms, int source, int fault, int code_index, int pv_kernel) {
+    bench_dual_pointer_writers(cpw, ms, source, fault, code_index, 4, pv_kernel);
 }

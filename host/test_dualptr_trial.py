@@ -179,6 +179,66 @@ class DualptrTrial(unittest.TestCase):
             self.assertEqual((manifest['code_index'], manifest['priority'], manifest['cpws']), (5, 13, [2]))
             self.assertIn('2/3', manifest['scope'])
 
+    def test_fused_ts_adapter_needs_its_reported_kernel_and_leaf_placement(self):
+        for code_index in (5, 10):
+            for pv_kernel, leaf in ((1, 0x20050000), (2, 0)):
+                r, _, lines = fixture(5, code_index=code_index)
+                r.update(pv_kernel=pv_kernel, pv_leaf_base=leaf)
+                result = trial.validate_run(r, lines, 1, 3000, 5, 0, 1, 128000000, 'frozen-test-image',
+                                            code_index, 2, 1, pv_kernel=pv_kernel)
+                self.assertEqual(result['faults'], [], (code_index, pv_kernel))
+                self.assertEqual(result['classification'], 'digital_live_clean')
+                for change in (dict(pv_kernel=0), dict(pv_kernel=3 - pv_kernel),
+                               dict(pv_leaf_base=0x20040000 if pv_kernel == 1 else 0x20050000),
+                               dict(pv_leaf_base=leaf + 2 if pv_kernel == 1 else 4),
+                               dict(pv_leaf_base=0x20008000 if pv_kernel == 1 else 0x20010000)):
+                    changed = dict(r, **change)
+                    self.assertTrue(trial.validate_run(changed, lines, 1, 3000, 5, 0, 1, 128000000,
+                                                       'frozen-test-image', code_index, 2, 1,
+                                                       pv_kernel=pv_kernel)['faults'], change)
+                missing = dict(r); del missing['pv_kernel']
+                self.assertTrue(trial.validate_run(missing, lines, 1, 3000, 5, 0, 1, 128000000,
+                                                   'frozen-test-image', code_index, 2, 1,
+                                                   pv_kernel=pv_kernel)['faults'])
+        # The default needs no new fields (older images), but a reported adapter must match.
+        r, _, lines = fixture(5)
+        self.assertEqual(self.validate(r, lines, 5)['faults'], [])
+        self.assertTrue(self.validate(dict(r, pv_kernel=1, pv_leaf_base=0x20050000), lines, 5)['faults'])
+        # GCS has no TS adapter.
+        r, _, lines = fixture(6)
+        self.assertTrue(trial.validate_run(dict(r, pv_kernel=1, pv_leaf_base=0x20050000), lines, 1, 3000, 6,
+                                           0, 1, 128000000, 'frozen-test-image', 8, 2, 1,
+                                           pv_kernel=1)['faults'])
+
+    def test_runner_appends_ts_adapter_only_when_selected(self):
+        for pv_kernel, sources in ((1, ['5']), (2, ['5']), (1, ['5', '6'])):
+            with tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                build, out = base/'build', base/'results'
+                build.mkdir()
+                for name in ('iqbench.uf2', 'iqbench.elf'):
+                    (build/name).write_bytes(b'native runner fixture')
+                board = mock.Mock()
+                board.cmd.return_value = ({}, [])
+                argv = ['dualptr_trial.py', '--out', str(out), '--build', str(build), '--sources', *sources,
+                        '--cpws', '1', '--ms', '60000', '--code-index', '10', '--bch-kernel', '3',
+                        '--priority', '13', '--pv-kernel', str(pv_kernel)]
+                with mock.patch.object(sys, 'argv', argv), mock.patch.object(trial.iq, 'Board', return_value=board), \
+                        mock.patch.object(trial, 'validate_clock'), \
+                        mock.patch.object(trial, 'validate_run', return_value={'faults': []}) as positive, \
+                        mock.patch('builtins.print'), mock.patch('sys.stderr'):
+                    if len(sources) > 1:
+                        with self.assertRaises(SystemExit):
+                            trial.main()
+                        board.cmd.assert_not_called()
+                        continue
+                    trial.main()
+                commands = [call.args[0] for call in board.cmd.call_args_list]
+                self.assertIn(f'dualptr 1 60000 5 0 10 {pv_kernel}', commands)
+                self.assertEqual(positive.call_args.kwargs['pv_kernel'], pv_kernel)
+                self.assertEqual(json.loads((out/'manifest.json').read_text())['pv_kernel'], pv_kernel)
+                self.assertTrue((out/f'dualptr-128000-1-5-code10-pvk{pv_kernel}-clock1-fault0-0.txt').exists())
+
     def test_both_live_sources_both_rates_and_all4096_snapshots(self):
         for source in (5, 6):
             for cpw in (1, 2):

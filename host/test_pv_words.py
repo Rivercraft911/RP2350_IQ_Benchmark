@@ -15,6 +15,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import zlib
 
 import numpy as np
 
@@ -119,13 +120,16 @@ static int compare(uint32_t kbch, unsigned align, uint32_t every, uint32_t run, 
 
 int main(int argc, char **argv) {
     if (argc > 1) {
-        // Reference mode: the on-chip emulator pattern (16 messages, seq_mod 16), no nulls.
+        // Reference mode: by default the on-chip emulator pattern (16 messages, seq_mod 16);
+        // "1 65536" is pvbench's source, the 7 packets of pattern message 0. No nulls.
         const uint32_t kbch = (uint32_t)atoi(argv[1]), frames = (uint32_t)atoi(argv[2]);
+        const uint32_t n_messages = argc > 3 ? (uint32_t)atoi(argv[3]) : 16;
+        const uint32_t period = argc > 4 ? (uint32_t)atoi(argv[4]) : 16;
         const uint32_t nw = (kbch / 8 + 3) / 4;
         static pv_words_t ctx;
         nulls_every = 0;
-        pv_init(16);
-        fill(0, 16, 16);
+        pv_init(period);
+        fill(0, n_messages, period);
         assert(pv_words_prepare(&ctx, NULL, 0));
         printf("[");
         for (uint32_t f = 0; f < frames; f++) {
@@ -189,6 +193,22 @@ def main():
                 want = np.packbits(padded).view('>u4').astype(np.uint32)
                 assert np.array_equal(np.asarray(words, dtype=np.uint32), want), (rate, k)
             print(f"pv_bbframe_words == independent TS reference, normal {rate}: {frames} frames")
+        # Expected device `pvbench reps 1|2` words_crc: CRC-32 of the first 16 frames' words.
+        expected = []
+        for rate in ('2/3', '9/10'):
+            kbch = spi.ref.code(rate, False).kbch
+            stream = np.frombuffer(b''.join(spi.pv.pattern_packet(k % 7) for k in range(16 * 40)), np.uint8)
+            crc = 0
+            for bits in spi.ref.ts_bbframes(stream, rate, ro=0.20)[:16]:
+                padded = np.concatenate([bits, np.zeros((-len(bits)) % 32, np.uint8)])
+                crc = zlib.crc32(np.packbits(padded).view('>u4').astype('<u4').tobytes(), crc)
+            got = json.loads(subprocess.check_output([str(exe), str(kbch), '16', '1', '65536'], text=True))
+            native = 0
+            for words in got:
+                native = zlib.crc32(np.asarray(words, dtype='<u4').tobytes(), native)
+            assert native == crc, (rate, native, crc)
+            expected.append(crc)
+        print(f"pvbench words_crc expected for normal 2/3 and 9/10: {expected}")
     return 0
 
 
