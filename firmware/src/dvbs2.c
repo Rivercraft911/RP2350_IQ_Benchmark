@@ -519,6 +519,7 @@ extern const uint8_t dvbs2_ldpc_group_c5_pic[], dvbs2_ldpc_group_c5_pic_end[];
 extern const uint8_t dvbs2_ldpc_rows_c5_pic[], dvbs2_ldpc_rows_c5_pic_end[];
 extern const uint8_t dvbs2_ldpc_accumulate_c5_pic[];
 extern const uint8_t dvbs2_ldpc_pack_c5_pic[], dvbs2_ldpc_pack_c5_pic_end[];
+extern const uint8_t dvbs2_ldpc_pack_c9_pic[], dvbs2_ldpc_pack_c9_pic_end[];
 static ldpc_group_fn ldpc_group_prepared;
 static ldpc_group_fn ldpc_c5_prepared;
 static uint32_t pic_bytes(const uint8_t *start, const uint8_t *end) {
@@ -533,24 +534,26 @@ static uint32_t c5_pack_offset(void) {
 }
 uint32_t dvbs2_ldpc_code_bytes_mode(unsigned mode) {
     if (mode == 1) return pic_bytes(dvbs2_ldpc_group_pic, dvbs2_ldpc_group_pic_end);
-    if (mode == 2) return c5_pack_offset() +
-        pic_bytes(dvbs2_ldpc_pack_c5_pic, dvbs2_ldpc_pack_c5_pic_end);
+    if (mode == 2 || mode == 3) return c5_pack_offset() +
+        pic_bytes(dvbs2_ldpc_pack_c5_pic,
+            mode == 3 ? dvbs2_ldpc_pack_c9_pic_end : dvbs2_ldpc_pack_c5_pic_end);
     return 0;
 }
 void *dvbs2_ldpc_copy_mode(void *code, uint32_t bytes, unsigned mode) {
     const uint32_t needed = dvbs2_ldpc_code_bytes_mode(mode);
     if (!needed || !code || ((uintptr_t)code & 3u) || bytes < needed) return NULL;
-    const uint8_t *group = mode == 2 ? dvbs2_ldpc_group_c5_pic : dvbs2_ldpc_group_pic;
-    const uint32_t group_bytes = mode == 2 ?
+    const uint8_t *group = mode >= 2 ? dvbs2_ldpc_group_c5_pic : dvbs2_ldpc_group_pic;
+    const uint32_t group_bytes = mode >= 2 ?
         pic_bytes(group, dvbs2_ldpc_group_c5_pic_end) : needed;
     memcpy(code, (const void *)((uintptr_t)group & ~(uintptr_t)1), group_bytes);
-    if (mode == 2) {
+    if (mode >= 2) {
         memcpy((uint8_t *)code + c5_rows_offset(),
             (const void *)((uintptr_t)dvbs2_ldpc_rows_c5_pic & ~(uintptr_t)1),
             pic_bytes(dvbs2_ldpc_rows_c5_pic, dvbs2_ldpc_rows_c5_pic_end));
         memcpy((uint8_t *)code + c5_pack_offset(),
             (const void *)((uintptr_t)dvbs2_ldpc_pack_c5_pic & ~(uintptr_t)1),
-            pic_bytes(dvbs2_ldpc_pack_c5_pic, dvbs2_ldpc_pack_c5_pic_end));
+            pic_bytes(dvbs2_ldpc_pack_c5_pic,
+                mode == 3 ? dvbs2_ldpc_pack_c9_pic_end : dvbs2_ldpc_pack_c5_pic_end));
     }
     __asm volatile("dsb\n isb" ::: "memory");
     return (void *)((uintptr_t)code | 1u);
@@ -558,7 +561,7 @@ void *dvbs2_ldpc_copy_mode(void *code, uint32_t bytes, unsigned mode) {
 bool dvbs2_ldpc_prepare_mode(void *code, uint32_t bytes, unsigned mode) {
     void *group = dvbs2_ldpc_copy_mode(code, bytes, mode);
     if (!group) return false;
-    if (mode == 2) ldpc_c5_prepared = (ldpc_group_fn)group;
+    if (mode >= 2) ldpc_c5_prepared = (ldpc_group_fn)group;
     else ldpc_group_prepared = (ldpc_group_fn)group;
     return true;
 }
@@ -581,7 +584,7 @@ static ldpc_group_fn ldpc_c5_prepared = ldpc_group_direct;
 uint32_t dvbs2_ldpc_code_bytes_mode(unsigned mode) { (void)mode; return 0; }
 void *dvbs2_ldpc_copy_mode(void *code, uint32_t bytes, unsigned mode) {
     (void)code; (void)bytes;
-    return mode == 1 || mode == 2 ? (void *)ldpc_group_direct : NULL;
+    return mode >= 1 && mode <= 3 ? (void *)ldpc_group_direct : NULL;
 }
 bool dvbs2_ldpc_prepare_mode(void *code, uint32_t bytes, unsigned mode) {
     return dvbs2_ldpc_copy_mode(code, bytes, mode) != NULL;
@@ -597,10 +600,10 @@ bool dvbs2_ldpc_begin_reentrant_mode(uint32_t *frame, uint32_t *workspace,
                                     unsigned mode) {
     const uint32_t needed = dvbs2_ldpc_workspace_words();
     if (!needed || !frame || !workspace || !state || workspace_words < needed ||
-        mode > 2 || (mode == 1 && !ldpc_group_prepared) ||
-        (mode == 2 && !ldpc_c5_prepared)) return false;
+        mode > 3 || (mode == 1 && !ldpc_group_prepared) ||
+        (mode >= 2 && !ldpc_c5_prepared)) return false;
     *state = (dvbs2_ldpc_state_t){.frame = frame, .rows = (uint32_t (*)[12])workspace,
-        .group = mode == 2 ? ldpc_c5_prepared : mode ? ldpc_group_prepared : NULL,
+        .group = mode >= 2 ? ldpc_c5_prepared : mode ? ldpc_group_prepared : NULL,
         .mode = mode, .transpose = transpose32};
     return true;
 }
@@ -643,7 +646,7 @@ static void ldpc_pack_step(dvbs2_ldpc_state_t *state) {
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
     const uint32_t prefix = 0; // Device C5 packs through its separate PIC entry.
 #else
-    const uint32_t prefix = state->mode == 2 ? state->prefix[k] : 0;
+    const uint32_t prefix = state->mode >= 2 ? state->prefix[k] : 0;
 #endif
     uint32_t tile[2][32];
     for (unsigned row = 0; row < 32; row++)
@@ -770,7 +773,10 @@ static bool __attribute__((noinline)) ldpc_c5_step(dvbs2_ldpc_state_t *state, ui
                 typedef void (*pack_fn)(uint32_t *, uint32_t *, const uint32_t *, uint32_t,
                                         uint32_t, uint32_t *);
                 const uintptr_t base = (uintptr_t)state->group & ~(uintptr_t)1;
-                pack_fn pack = (pack_fn)((base + c5_pack_offset()) | 1u);
+                const uint32_t extra = state->mode == 3 ? (uint32_t)(
+                    ((uintptr_t)dvbs2_ldpc_pack_c9_pic & ~(uintptr_t)1) -
+                    ((uintptr_t)dvbs2_ldpc_pack_c5_pic & ~(uintptr_t)1)) : 0;
+                pack_fn pack = (pack_fn)((base + c5_pack_offset() + extra) | 1u);
                 pack(state->rows[0], state->frame + C->kldpc / 32u, state->prefix,
                      q, state->cursor, &state->acc);
             }
@@ -847,7 +853,7 @@ static bool __attribute__((noinline)) ldpc_step_baseline(dvbs2_ldpc_state_t *sta
 bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
     // A tiny tail-call dispatcher keeps the baseline's 256-byte local tile and
     // register saves out of every C5 unit, including group/row-only units.
-    return state->mode == 2 ? ldpc_c5_step(state, max_units) : ldpc_step_baseline(state, max_units);
+    return state->mode >= 2 ? ldpc_c5_step(state, max_units) : ldpc_step_baseline(state, max_units);
 }
 
 bool dvbs2_ldpc_set_pack(unsigned pack) {
@@ -1154,13 +1160,15 @@ static void HOT(bch160_continue_c)(const uint32_t *m, uint32_t *parity, uint32_t
 BCH_SOURCE(128, continue_y); BCH_SOURCE(160, continue_y); BCH_SOURCE(192, continue_y);
 BCH_SOURCE(128, fast_pic); BCH_SOURCE(160, fast_pic); BCH_SOURCE(192, fast_pic);
 BCH_SOURCE(128, table3_pic); BCH_SOURCE(160, table3_pic); BCH_SOURCE(192, table3_pic);
+BCH_SOURCE(128, table4_pic); BCH_SOURCE(160, table4_pic); BCH_SOURCE(192, table4_pic);
 #undef BCH_SOURCE
 static const uint8_t *bch_source(unsigned variant, const uint8_t **end) {
-    if (!C || C->is_short || variant > 2) return NULL;
+    if (!C || C->is_short || variant > 3) return NULL;
 #define SOURCE(D, V) do { *end = dvbs2_bch##D##_##V##_end; \
     return (const uint8_t *)((uintptr_t)dvbs2_bch##D##_##V & ~(uintptr_t)1); } while (0)
 #define DEGREE(D) case D: if (variant == 0) { SOURCE(D, continue_y); } \
-    if (variant == 1) { SOURCE(D, fast_pic); } SOURCE(D, table3_pic)
+    if (variant == 1) { SOURCE(D, fast_pic); } \
+    if (variant == 2) { SOURCE(D, table3_pic); } SOURCE(D, table4_pic)
     switch (bch_deg) { DEGREE(128); DEGREE(160); DEGREE(192); default: return NULL; }
 #undef DEGREE
 #undef SOURCE
@@ -1190,6 +1198,21 @@ static void bch_table3_leaf(const uint32_t *m, uint32_t *p, const void *table, u
     }
     for (unsigned k = words; k < 6; ++k) p[k] = 0;
 }
+static void bch_table4_leaf(const uint32_t *m, uint32_t *p, const void *table, uint32_t nw) {
+    const uint32_t *t = table;
+    const unsigned words = bch_deg / 32u;
+    for (uint32_t n = 0; n < nw; ++n) {
+        const uint32_t x = p[0] ^ m[n];
+        const uint32_t *a = t + (x >> 24) * words;
+        const uint32_t *b = t + (256u + ((x >> 16) & 255u)) * words;
+        const uint32_t *c = t + (512u + ((x >> 8) & 255u)) * words;
+        const uint32_t *d = t + (768u + (x & 255u)) * words;
+        for (unsigned k = 0; k < words; ++k)
+            p[k] = (k + 1u < words ? p[k + 1] : 0) ^ a[k] ^ b[k] ^ c[k] ^ d[k];
+    }
+    for (unsigned k = words; k < 6; ++k) p[k] = 0;
+}
+
 #endif
 
 static dvbs2_bch_leaf_t bch_leaf(unsigned variant) {
@@ -1197,9 +1220,9 @@ static dvbs2_bch_leaf_t bch_leaf(unsigned variant) {
     const uint8_t *end, *start = bch_source(variant, &end);
     return start ? (dvbs2_bch_leaf_t)((uintptr_t)start | 1u) : NULL;
 #else
-    if (!C || C->is_short || (bch_deg != 128 && bch_deg != 160 && bch_deg != 192) || variant > 2)
+    if (!C || C->is_short || (bch_deg != 128 && bch_deg != 160 && bch_deg != 192) || variant > 3)
         return NULL;
-    return variant == 2 ? bch_table3_leaf : bch_byte_leaf;
+    return variant == 3 ? bch_table4_leaf : variant == 2 ? bch_table3_leaf : bch_byte_leaf;
 #endif
 }
 
@@ -1245,6 +1268,21 @@ bool dvbs2_bch_table3_init(void *table, uint32_t bytes) {
                     bch_tab[1][(x >> 8) & 255u][k] ^ bch_tab[0][x & 255u][k];
         }
     }
+    return true;
+}
+
+uint32_t dvbs2_bch_table4_bytes(void) {
+    return bch_leaf(3) ? 1024u * (bch_deg / 32u) * 4u : 0;
+}
+
+bool dvbs2_bch_table4_init(void *table, uint32_t bytes) {
+    const uint32_t needed = dvbs2_bch_table4_bytes();
+    if (!needed || !table || ((uintptr_t)table & 3u) || bytes < needed) return false;
+    uint32_t *out = table;
+    const unsigned words = bch_deg / 32u;
+    for (unsigned plane = 0; plane < 4; ++plane)
+        for (unsigned n = 0; n < 256; ++n)
+            for (unsigned k = 0; k < words; ++k) *out++ = bch_tab[3u - plane][n][k];
     return true;
 }
 

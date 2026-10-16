@@ -210,7 +210,7 @@ class C3Protocol(unittest.TestCase):
     def test_c8_option_masks_parse_and_are_verified_without_serial(self):
         for options in (1, 2, 4, 8, 16, 32, 33, 59, 63, 64, 66, 91, 95, 96, 123,
                         128, trial.C8_BEST_BASE, 256, 512, 544, 1024, trial.C8_BEST,
-                        1787, trial.C8_ALL):
+                        1787, trial.C8_ALL, 2299, 4603, 8443, 12539, 14587, trial.C9_ALL):
             with self.subTest(options=options):
                 good = fixture()
                 good["options"] = options
@@ -222,7 +222,7 @@ class C3Protocol(unittest.TestCase):
                             trial.main()
                         check.assert_called_once_with()
         with mock.patch.object(trial, "self_test") as check:
-            with mock.patch.object(sys, "argv", ["c3_fec_trial.py", "--self-test", "--options", str(trial.C8_ALL + 1)]):
+            with mock.patch.object(sys, "argv", ["c3_fec_trial.py", "--self-test", "--options", str(trial.C9_ALL + 1)]):
                 with contextlib.redirect_stderr(io.StringIO()):
                     with self.assertRaises(SystemExit) as result:
                         trial.main()
@@ -306,13 +306,13 @@ BRANCHES
             mask = ct.c_int.in_dll(lib, "mask_result")
             for kind, fields, best in ((0, ["c3pair", "5", "2", "4", "2"], trial.C8_BEST),
                                        (1, ["c3fec", "5", "100", "0", "1", "128"], trial.C8_BEST_BASE)):
-                for text, expected in (("best", best), (str(trial.C8_ALL), trial.C8_ALL),
+                for text, expected in (("best", best), (str(trial.C9_ALL), trial.C9_ALL),
                                        (None, 0 if kind else 31)):
                     args = [field.encode() for field in fields] + [text.encode() if text else None, None]
                     argv = (ct.c_char_p * len(args))(*args)
                     self.assertIsNone(lib.parse(kind, argv))
                     self.assertEqual(mask.value, expected)
-                args = [field.encode() for field in fields] + [str(trial.C8_ALL + 1).encode(), None]
+                args = [field.encode() for field in fields] + [str(trial.C9_ALL + 1).encode(), None]
                 self.assertIn(b"options: expected", lib.parse(kind, (ct.c_char_p * len(args))(*args)))
 
 

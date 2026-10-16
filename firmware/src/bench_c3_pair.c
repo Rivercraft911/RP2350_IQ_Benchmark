@@ -27,7 +27,7 @@
 
 enum {
     RING = 2048, STAGES = 4, SUB = 6, MAX_PAIRS = 200,
-    GOLD_WORDS = 1384, LDPC_CODE_WORDS = 2048, PLACE_WORDS = 256,
+    GOLD_WORDS = 1384, LDPC_CODE_WORDS = 2432, PLACE_WORDS = 256,
     WIDE_TABLE_BYTES = 120 * 1024,
     WIDE_GOLD_OFFSET = WIDE_TABLE_BYTES,
     SHARED_OFFSET = WIDE_GOLD_OFFSET + 4 * GOLD_WORDS,
@@ -65,6 +65,7 @@ typedef struct {
     uint8_t pattern[512];
 } wide_t;
 _Static_assert(sizeof(wide_t) <= sizeof cap_buf, "wide layout fits cap_buf");
+_Static_assert(24576 * 4 + 24 * 1024 <= WIDE_GOLD_OFFSET, "compact table avoids shared state");
 _Static_assert(sizeof(low_t) <= 4 * 24576, "low layout ends below the SRAM0-3 hammer");
 _Static_assert(sizeof(high_t) <= sizeof cap_buf, "high layout fits cap_buf");
 _Static_assert(4 * RING <= IN_WORDS, "two job rings fit in_buf");
@@ -164,7 +165,7 @@ static void begin(c3_job_t *job, const dvbs2_8psk_cfg_t *cfg, const uint32_t *co
     c3_job_begin_options(job, cfg, index, ring, ring + RING, options);
     job->stream.mask = RING - 1u;
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    job->ldpc_group = (options & (C4_LDPC | C5_LDPC)) ? (void *)((uintptr_t)code | 1u) : NULL;
+    job->ldpc_group = (options & (C4_LDPC | C5_LDPC | C9_LDPC_PACK)) ? (void *)((uintptr_t)code | 1u) : NULL;
 #else
     (void)code;
 #endif
@@ -175,8 +176,8 @@ static bool tables(dvbs2_8psk_cfg_t *cfg, uint32_t *gold, uint32_t *lut, uint32_
     return dvbs2_8psk_init(cfg, code, true, 0, gold, GOLD_WORDS) &&
         (!(options & (C4_MAP | C6_MAP)) ||
          dvbs2_8psk_codes_c6_init(cfg, lut, DVBS2_8PSK_CODES_C6_WORDS)) &&
-        (!(options & (C4_LDPC | C5_LDPC)) || dvbs2_ldpc_copy_mode(ldpc_code,
-            4 * LDPC_CODE_WORDS, options & C5_LDPC ? 2 : 1));
+        (!(options & (C4_LDPC | C5_LDPC | C9_LDPC_PACK)) || dvbs2_ldpc_copy_mode(ldpc_code,
+            4 * LDPC_CODE_WORDS, options & C9_LDPC_PACK ? 3 : options & C5_LDPC ? 2 : 1));
 }
 
 void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) {
@@ -185,12 +186,13 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
          code_index != S2_N8_9 && code_index != S2_N9_10) || pairs < 1 ||
         pairs > MAX_PAIRS || layout < 0 || layout > 4 || who < 0 || who > 7 ||
         (who >= 3 && (layout == 1 || layout == 4)) ||
-        (layout == 3 && !(options & C6_MAP)) || options < 0 || options > C8_ALL ||
+        (layout == 3 && !(options & C6_MAP)) || options < 0 || options > C9_ALL ||
         ((options & C7_TABLE3) && layout != 4) ||
-        ((options & C7_TABLE3) && (options & C7_BCH_LDM))) {
+        ((options & C7_TABLE3) && (options & C7_BCH_LDM)) ||
+        ((options & C9_BCH_TABLE4) && ((options & (C7_TABLE3 | C7_BCH_LDM)) || who == 4))) {
         printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8/9/10, pairs1..200, layout0..4 (3 needs bit64), "
-               "who0..7 (hammers exclude layout1/4), options0..%d; table3=1024 needs layout4 and no LDM=256; best=%d needs layout4\"}\n",
-               C8_ALL, C8_BEST);
+               "who0..7 (hammers exclude layout1/4), options0..%d; table3=1024 needs layout4 and no LDM=256; table4=2048 excludes1024/256; best=%d needs layout4\"}\n",
+               C9_ALL, C8_BEST);
         return;
     }
     const dvbs2_code_t *code = &DVBS2_CODES[code_index];
@@ -221,16 +223,16 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     bool ok = tables(cfg_a, gold_a, lut_a, code_a, code, (uint32_t)options) &&
         (layout == 4 || tables(&high->b.cfg, high->b.gold, high->b.lut, high->b.code,
                               code, (uint32_t)options)) &&
-        (!(options & (C4_LDPC | C5_LDPC)) || dvbs2_ldpc_prepare_mode(code_a,
-            4 * LDPC_CODE_WORDS, options & C5_LDPC ? 2 : 1));
-    const unsigned variant = options & C7_TABLE3 ? 2u : !!(options & C7_BCH_LDM);
+        (!(options & (C4_LDPC | C5_LDPC | C9_LDPC_PACK)) || dvbs2_ldpc_prepare_mode(code_a,
+            4 * LDPC_CODE_WORDS, options & C9_LDPC_PACK ? 3 : options & C5_LDPC ? 2 : 1));
+    const unsigned variant = options & C9_BCH_TABLE4 ? 3u : options & C7_TABLE3 ? 2u : !!(options & C7_BCH_LDM);
     uint32_t *const arena_a = layout == 4 ? ring_buf + WIDE_PLACE_OFFSET / 4 : low->a.place_code;
     uint32_t *const arena_b = layout == 4 ? wide->place_code : high->b.place_code;
     dvbs2_bch_leaf_t leaves[2] = {NULL, NULL};
     dvbs2_transpose_fn transposes[2] = {NULL, NULL};
     uint32_t *arenas[2] = {arena_a, arena_b};
     for (unsigned k = 0; k < 2; ++k) {
-        if (options & (C7_BCH_PLACE | C7_TABLE3)) {
+        if (options & (C7_BCH_PLACE | C7_TABLE3 | C9_BCH_TABLE4)) {
             leaves[k] = dvbs2_bch_copy(arenas[k], 512, variant);
             ok = ok && leaves[k];
         }
@@ -239,6 +241,10 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
             ok = ok && transposes[k];
         }
     }
+    // Fixed reserve outside low_t, below layout4 Gold/shared state.
+    uint32_t *const compact_table = ring_buf + 24576;
+    if (options & C9_BCH_TABLE4) ok = ok && dvbs2_bch_table4_init(compact_table,
+        24 * 1024);
     if (options & C7_TABLE3) ok = ok && dvbs2_bch_table3_init(ring_buf, WIDE_TABLE_BYTES);
     if (!ok) {
         dvbs2_bch_set_kernel(saved_bch);
@@ -254,7 +260,7 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     uint32_t *ring_a = in_buf, *ring_b = layout == 1 ? high->ring : in_buf + 2 * RING;
     // Layout2 changes only the LDPC leaf; C7 placement stays per worker.
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    void *const leaf_hi = (options & (C4_LDPC | C5_LDPC)) ? (void *)((uintptr_t)high->b.code | 1u) : NULL;
+    void *const leaf_hi = (options & (C4_LDPC | C5_LDPC | C9_LDPC_PACK)) ? (void *)((uintptr_t)high->b.code | 1u) : NULL;
 #else
     void *const leaf_hi = NULL;
 #endif
@@ -272,6 +278,7 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
         // C7's callback is used by modes0/1; C5 mode2's pack bundle includes
         // its own private transpose, so bit512 is redundant on that ARM path.
         job_a->transpose = transposes[0]; job_b->transpose = transposes[1];
+        if (options & C9_BCH_TABLE4) job_a->bch_table = job_b->bch_table = compact_table;
         if (options & C7_TABLE3) job_a->bch_table = job_b->bch_table = ring_buf;
         if (layout == 2) job_a->ldpc_group = job_b->ldpc_group = leaf_hi;
         const uint32_t irq = save_and_disable_interrupts();
@@ -350,12 +357,14 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
                (unsigned long)(sb[3] / runs), (unsigned long)(sb[4] / runs), (unsigned long)(sb[5] / runs));
     }
     printf("],\"bch_leaf\":[%lu,%lu],\"transpose_leaf\":[%lu,%lu],\"table3\":%lu,\"table3_bytes\":%lu,"
-           "\"gold_a\":%lu,\"gold_b\":%lu,\"shared_state\":%lu,\"shared_bytes\":%lu,"
+           "\"table4\":%lu,\"table4_bytes\":%lu,\"gold_a\":%lu,\"gold_b\":%lu,\"shared_state\":%lu,\"shared_bytes\":%lu,"
            "\"place_a\":%lu,\"place_b\":%lu,\"wide_bytes\":%lu}\n",
            (unsigned long)(uintptr_t)leaves[0], (unsigned long)(uintptr_t)leaves[1],
            (unsigned long)(uintptr_t)transposes[0], (unsigned long)(uintptr_t)transposes[1],
            (unsigned long)((options & C7_TABLE3) ? (uintptr_t)ring_buf : 0),
            (unsigned long)((options & C7_TABLE3) ? dvbs2_bch_table3_bytes() : 0),
+           (unsigned long)((options & C9_BCH_TABLE4) ? (uintptr_t)compact_table : 0),
+           (unsigned long)((options & C9_BCH_TABLE4) ? dvbs2_bch_table4_bytes() : 0),
            (unsigned long)(uintptr_t)cfg_a->gold, (unsigned long)(uintptr_t)cfg_b->gold,
            (unsigned long)(uintptr_t)shared, (unsigned long)sizeof *shared,
            (unsigned long)(uintptr_t)arena_a, (unsigned long)(uintptr_t)arena_b,

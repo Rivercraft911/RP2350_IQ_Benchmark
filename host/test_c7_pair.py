@@ -229,7 +229,10 @@ class C7Pair(unittest.TestCase):
         self.assertEqual(result["table3_bytes"], 5120 * (reference.ref.code(RATES[code]).t * 2)
                          if options & 1024 else 0)
         self.assertEqual(result["table3"], meta["ring_start"] if options & 1024 else 0)
-        self.assertEqual([bool(x) for x in result["bch_leaf"]], [bool(options & (128 | 1024))] * 2)
+        self.assertEqual(result["table4"], meta["ring_start"] + 98304 if options & 2048 else 0)
+        self.assertEqual(result["table4_bytes"], 1024 * (reference.ref.code(RATES[code]).t // 2) * 4
+                         if options & 2048 else 0)
+        self.assertEqual([bool(x) for x in result["bch_leaf"]], [bool(options & (128 | 1024 | 2048))] * 2)
         self.assertEqual([bool(x) for x in result["transpose_leaf"]], [bool(options & 512)] * 2)
         self.assertEqual(result["shared_state"], meta["ring_start"] + 128416)
         self.assertLessEqual(result["shared_bytes"], 128)
@@ -276,11 +279,19 @@ class C7Pair(unittest.TestCase):
                 with self.subTest(code=code, options=options):
                     self.assert_command(code, 4, 2, options)
 
+    def test_c9_compact_and_ldpc_masks(self):
+        for code in RATES:
+            for layout in (0, 1, 4):
+                for options in (2048, 2299, 4096, 4603, 6395, 8192, 8443, 12539, 12795, 14587):
+                    with self.subTest(code=code, layout=layout, options=options):
+                        self.assert_command(code, layout, 2, options)
+
     def test_invalid_wide_requests_are_rejected(self):
         for layout, who, options in ((0, 0, 1275), (1, 2, 1275), (2, 0, 1275),
                                      (3, 0, 1275), (4, 0, reference.C8_ALL),
                                      (4, 3, 251), (5, 0, 251), (3, 0, 27),
-                                     (0, 0, reference.C8_ALL + 1), (4, 0, -1)):
+                                     (0, 0, reference.C9_ALL + 1), (4, 0, -1),
+                                     (0, 0, 2304), (4, 0, 3072), (0, 4, 2299)):
             with self.subTest(layout=layout, who=who, options=options):
                 result, meta = self.run_command(5, layout, who, options)
                 self.assertIn("error", result)

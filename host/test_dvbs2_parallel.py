@@ -1,7 +1,7 @@
 """Two caller-owned bounded FEC workers vs serial C and independent Python bits.
 
 Minimum-sized dirty parity matrices have canaries. Real host threads and deterministic
-interleaving run selectors1/2/3 and LDPC modes0/1/2 across all supported normal/short rates.
+interleaving run selectors1/2/3 and LDPC modes0/1/2/3 across all supported normal/short rates.
 BB+BCH slices1/7/128/511, LDPC units0/1/3/17/128/UINT32_MAX, zero/idempotent steps,
 unaligned parity tails and unsupported/undersized begin are checked. Not M33 timing.
 Short rates enter LDPC from serial-checked BCH because the concurrent BCH frontend
@@ -52,7 +52,7 @@ def main() -> None:
         assert np.array_equal(got[:code.n], want), (record["code"], pattern, record["worker"])
         assert not np.any(got[code.n:]), (record["code"], "padding")
     print("Passed 128 independent Python FEC vectors; two threaded/interleaved workers, all16 reentrant rates, "
-          "three BCH selectors, LDPC modes0/1/2, bounded and full-frame grants, serial parity and canaries.")
+          "three BCH selectors, LDPC modes0/1/2/3, bounded and full-frame grants, serial parity and canaries.")
 
 
 if __name__ == "__main__":

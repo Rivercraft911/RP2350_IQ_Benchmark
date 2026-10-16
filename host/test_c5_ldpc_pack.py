@@ -1,7 +1,7 @@
-"""Execute the copied C5 pack assembly against independent parity bit strings.
+"""Execute the copied C5/C9 pack assembly against independent parity bit strings.
 
 The model checks actual source, all q<=64, arbitrary partial output alignment,
-both specialized gathers/packers, stack bounds and AAPCS state. It is instruction
+all specialized gathers/packers, C9 fallbacks, stack bounds and AAPCS state. It is instruction
 semantics, not Arm execution or M33 timing. No device access is performed.
 """
 from __future__ import annotations
@@ -20,10 +20,21 @@ MASK, END = 0xFFFFFFFF, 0xEEEEEEE0
 def program():
     macros, code, labels = {}, [], {}
     name, params, body = None, [], []
+    conditions = []
 
     def emit(line):
         head = line.split(maxsplit=1)[0]
-        if head in macros:
+        if head == ".if":
+            expression = line.split(maxsplit=1)[1]
+            assert re.fullmatch(r"[0-9 ()<>=!+*\-]+", expression), expression
+            conditions.append(bool(eval(expression, {"__builtins__": {}}, {})))
+        elif head == ".else":
+            conditions[-1] = not conditions[-1]
+        elif head == ".endif":
+            conditions.pop()
+        elif conditions and not all(conditions):
+            return
+        elif head in macros:
             names, lines = macros[head]
             args = operands(line.split(maxsplit=1)[1]) if names else []
             assert len(args) == len(names)
@@ -53,10 +64,11 @@ def program():
             body.append(line)
         else:
             emit(line)
+    assert not conditions
     return code, labels
 
 
-def execute(code, labels, matrix, prefix, q, k, initial, io):
+def execute(code, labels, matrix, prefix, q, k, initial, io, c9=False):
     memory, writable = {}, set()
     guard, stack_base, stack_top = 0xCA85319D, 0x500000, 0x500400
 
@@ -82,7 +94,7 @@ def execute(code, labels, matrix, prefix, q, k, initial, io):
 
     r = [0x12340000 + i * 0x111 for i in range(16)]
     r[:4] = [0x100000, 0x300004, 0x200000, q]
-    r[13:] = [stack_top, END | 1, labels["dvbs2_ldpc_pack_c5_pic"]]
+    r[13:] = [stack_top, END | 1, labels["dvbs2_ldpc_pack_c9_pic" if c9 else "dvbs2_ldpc_pack_c5_pic"]]
     access(stack_top, k)
     access(stack_top + 4, 0x400004)
     saved, zero, lower, counts, minimum_sp = r[4:12].copy(), False, False, Counter(), stack_top
@@ -221,27 +233,28 @@ def main():
     rng, cases = random.Random(23505), 0
     budgets = {}
     for q in range(1, 65):
-        for fill in (0, 1, 16, 31):
+        for fill in (0, 1, 16, 24, 31):
             for k in (0, 5, 11):
                 matrix = [rng.getrandbits(32) for _ in range(q * 12)]
                 prefix = [rng.getrandbits(32) for _ in range(12)]
                 initial = [rng.getrandbits(32) for _ in range(72)]
                 io = [rng.getrandbits(32) & (MASK << (32 - fill) & MASK), fill, 3]
-                got, state, counts = execute(code, labels, matrix, prefix, q, k, initial, io)
                 expected, expected_state = reference(matrix, prefix, q, k, initial, io)
-                assert (got, state) == (expected, expected_state), (q, k, fill, state, expected_state)
-                cases += 1
-                if (q, fill) in ((60, 0), (30, 16)):
-                    budgets[q, k] = counts
+                for c9 in (False, True):
+                    got, state, counts = execute(code, labels, matrix, prefix, q, k, initial, io, c9)
+                    assert (got, state) == (expected, expected_state), (q, k, fill, c9, state, expected_state)
+                    cases += 1
+                    if (q, fill) in ((60, 0), (30, 16), (45, 24)):
+                        budgets[c9, q, k] = counts
     # Frame counts include eleven full 32-column tiles and the final eight columns.
-    for q in (60, 30):
-        counts = Counter({op: 11 * n for op, n in budgets[q, 0].items()}) + budgets[q, 11]
+    for c9, q in ((False, 60), (False, 30), (False, 45), (True, 45)):
+        counts = Counter({op: 11 * n for op, n in budgets[c9, q, 0].items()}) + budgets[c9, q, 11]
         instructions = counts.total() - counts["block_words"]
-        print(f"C5 q={q}: {instructions} dynamic instructions/frame; "
+        print(f"{'C9' if c9 else 'C5'} q={q}: {instructions} dynamic instructions/frame; "
               f"{counts['block_words']} additional LDM/STM words; "
               f"load/store/multiple={sum(counts[op] for op in ('ldr', 'str', 'ldmia', 'stmia'))}; "
               "no silicon timing")
-    print(f"C5 copied pack assembly semantics: {cases} q/alignment/tile cases exact; "
+    print(f"C5/C9 copied pack assembly semantics: {cases} q/alignment/tile cases exact; "
           "q1..64, prefix fusion, AAPCS, 324-byte stack and guards")
 
 

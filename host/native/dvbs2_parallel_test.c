@@ -98,7 +98,8 @@ int main(void) {
     job_t jobs[2];
     if (dvbs2_ldpc_code_bytes() || !dvbs2_ldpc_prepare(NULL, 0) ||
         dvbs2_ldpc_code_bytes_mode(2) || !dvbs2_ldpc_prepare_mode(NULL, 0, 2) ||
-        dvbs2_ldpc_copy_mode(NULL, 0, 3) || dvbs2_ldpc_prepare_mode(NULL, 0, 3)) return 10;
+        dvbs2_ldpc_code_bytes_mode(3) || !dvbs2_ldpc_prepare_mode(NULL, 0, 3) ||
+        dvbs2_ldpc_copy_mode(NULL, 0, 4) || dvbs2_ldpc_prepare_mode(NULL, 0, 4)) return 10;
     for (unsigned ci = 0; ci < sizeof codes / sizeof codes[0]; ci++) {
         const dvbs2_code_t *code = &DVBS2_CODES[codes[ci]];
         dvbs2_init(code, true);
@@ -144,12 +145,12 @@ int main(void) {
             for (unsigned kernel = S2_BCH_WORDS_C; kernel <= S2_BCH_T8_ARM; kernel++) {
                 dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)kernel);
                 for (unsigned slice = 0; slice < sizeof units / sizeof units[0]; slice++) {
-                    for (unsigned mode = 0; mode < 3; ++mode) {
+                    for (unsigned mode = 0; mode < 4; ++mode) {
                         pthread_t threads[2];
                         for (unsigned j = 0; j < 2; j++) {
                             jobs[j].chunk = chunks[(slice + j) % 4];
                             jobs[j].units = units[(slice + j) % 5];
-                            jobs[j].mode = (mode + j) % 3;
+                            jobs[j].mode = (mode + j) % 4;
                             jobs[j].options = slice & 1 ? S2_FE_FAST_BCH : 0;
                             if (pthread_create(&threads[j], NULL, encode, &jobs[j])) return 6;
                         }
@@ -159,9 +160,9 @@ int main(void) {
                         }
                     }
                 }
-                for (unsigned mode = 0; mode < 3; ++mode) {
+                for (unsigned mode = 0; mode < 4; ++mode) {
                     for (unsigned j = 0; j < 2; ++j) {
-                        jobs[j].mode = (mode + j) % 3;
+                        jobs[j].mode = (mode + j) % 4;
                         jobs[j].chunk = chunks[j];
                         jobs[j].options = mode & 1 ? S2_FE_FAST_BCH : 0;
                     }
@@ -189,7 +190,7 @@ int main(void) {
     dvbs2_init(&DVBS2_CODES[S2_N2_3], false);
     if (dvbs2_ldpc_begin_reentrant(jobs[0].frame, jobs[0].bb, 60 * 12 - 1, &state) ||
         memcmp(&state, &saved, sizeof state)) return 9;
-    if (dvbs2_ldpc_begin_reentrant_mode(jobs[0].frame, jobs[0].bb, 60 * 12, &state, 3) ||
+    if (dvbs2_ldpc_begin_reentrant_mode(jobs[0].frame, jobs[0].bb, 60 * 12, &state, 4) ||
         memcmp(&state, &saved, sizeof state)) return 11;
     dvbs2_bch_set_kernel(S2_BCH_T8_ARM);
     dvbs2_frontend_t front, front_saved;

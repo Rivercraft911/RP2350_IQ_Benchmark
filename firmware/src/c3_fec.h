@@ -16,6 +16,8 @@ enum {
     // c3fec's "best" spelling selects BASE because its arena has no large BCH table.
     C8_BEST_BASE = (C4_ALL & ~C4_BCH) | C5_LDPC | C6_MAP | C7_BCH_PLACE,
     C8_BEST = C8_BEST_BASE | C7_TABLE3,
+    C9_BCH_TABLE4 = 2048, C9_SCHEDULE = 4096, C9_LDPC_PACK = 8192,
+    C9_ALL = C8_ALL | C9_BCH_TABLE4 | C9_SCHEDULE | C9_LDPC_PACK,
 };
 
 // In-memory GCS source: chronological payload byte j is (29*j+7) modulo256.
@@ -46,6 +48,7 @@ void c3_job_begin_options(c3_job_t *job, const dvbs2_8psk_cfg_t *cfg, uint32_t i
                           uint32_t *i, uint32_t *q, uint32_t options);
 // One bounded slice:64 GCS/BCH words, one LDPC unit, or eight map words
 // (32 map words with C6_MAP). C5_LDPC and C6_MAP override C4_LDPC and C4_MAP.
+// C9_SCHEDULE doubles BCH and LDPC units; GCS/mapping keep the same bounds.
 // False means a configuration error; stage==C3_DONE means ready for publication.
 bool c3_job_step(c3_job_t *job, const uint8_t *pattern);
 // In-order publication merges the one shared boundary word and returns the

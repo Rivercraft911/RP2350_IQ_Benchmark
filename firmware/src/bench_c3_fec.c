@@ -10,7 +10,8 @@
 #include "tx.h"
 
 enum { IDLE, RUN, READY, STAGES = 5, DELAY = 4, ERR_DEADLINE = 1, ERR_JOB = 2,
-       ERR_SERVICE = 4, SERVICE_US = 32, MAX_SERVICE_US = 128 };
+       ERR_SERVICE = 4, SERVICE_US = 32, MAX_SERVICE_US = 128,
+       TABLE4_OFFSET_WORDS = 256, TABLE4_RESERVE_BYTES = 24 * 1024 };
 // CPU-fit measurements may relax the core-0 service-gap fault; output-path runs keep 128 us.
 static uint32_t max_service_us = MAX_SERVICE_US;
 
@@ -27,7 +28,7 @@ typedef struct {
     worker_t core[2];
     dvbs2_8psk_cfg_t cfg;
     uint32_t gold[1384];
-    uint32_t map_lut[DVBS2_8PSK_CODES_C6_WORDS], ldpc_code[2048];
+    uint32_t map_lut[DVBS2_8PSK_CODES_C6_WORDS], ldpc_code[2432];
     uint32_t place_code[256]; // core0: BCH512 + transpose512; core1 borrows cap_buf
     dvbs2_bch_leaf_t bch_leaf[2];
     dvbs2_transpose_fn transpose[2];
@@ -36,7 +37,7 @@ typedef struct {
     uint32_t target;
     volatile uint32_t published, groups;
     uint32_t consumed, carry[2], slow_us, hz, cpw, options;
-    uint32_t late_frames, max_lateness_us, max_service_gap_us;
+    uint32_t late_frames, max_lateness_us, min_publish_slack_us, max_service_gap_us;
     // Gap diagnostics: count of gaps above the fixed 128-us gate, when the first one ended
     // (us after epoch) and the longest publish+release section.
     uint32_t gaps_over_128, first_over_at_us, first_over_gap_us, max_section_us, startup_us;
@@ -51,9 +52,21 @@ _Static_assert(sizeof(context_t) <= 65536, "C3 must fit the unused OUT8 table ta
 _Static_assert(IN_WORDS == 2 * C3_RING_GROUPS, "paired axis rings");
 _Static_assert(sizeof live.place_code == 2 * 512, "BCH and transpose have separate 512-byte slots");
 _Static_assert(sizeof cap_buf >= 2 * 512, "core1 private code fits borrowed capture buffer");
+_Static_assert(TABLE4_OFFSET_WORDS * 4 + TABLE4_RESERVE_BYTES <= sizeof cap_buf,
+               "compact BCH table follows the core1 private code slots");
+
+static void *table4(void) { return cap_buf + TABLE4_OFFSET_WORDS; }
 
 static uint64_t deadline(uint32_t frame) {
     // Round each absolute deadline upward once: no fractional-us drift.
+    if (live.options & C9_SCHEDULE) {
+        // Admitted clocks are exactly 128/256 MHz. One frame therefore has an
+        // integer duration in sixteenths of a microsecond, including every cpw.
+        // Keep the absolute product: repeated rounded increments would drift.
+        const uint32_t units = (C3_FRAME_CYCLES * live.cpw) >>
+            (live.hz == 128000000u ? 3 : 4);
+        return live.epoch + (((uint64_t)(frame + 2u) * units + 15u) >> 4);
+    }
     return live.epoch + ((uint64_t)(frame + 2u) * C3_FRAME_CYCLES * live.cpw * 1000000u + live.hz - 1u) / live.hz;
 }
 
@@ -61,6 +74,7 @@ static void release(unsigned core, uint32_t index) {
     worker_t *w = &live.core[core];
     c3_job_begin_options(&w->job, &live.cfg, index, in_buf, in_buf + C3_RING_GROUPS, live.options);
     w->job.bch_leaf = live.bch_leaf[core];
+    if (live.options & C9_BCH_TABLE4) w->job.bch_table = table4();
     w->job.transpose = live.transpose[core];
     w->frame_work = 0;
     w->delay_left = live.slow_us;
@@ -71,7 +85,7 @@ static void release(unsigned core, uint32_t index) {
     __sev();
 }
 
-static void work(unsigned core) {
+static uint32_t work(unsigned core) {
     worker_t *w = &live.core[core];
     const uint32_t begin = cycles();
     unsigned stage = w->job.stage;
@@ -94,7 +108,7 @@ static void work(unsigned core) {
         w->job_error = ERR_JOB;
         __dmb();
         w->status = IDLE;
-        return;
+        return spent;
     }
     if (w->job.stage == C3_DONE && !w->delay_left) {
         ++w->frames;
@@ -105,6 +119,7 @@ static void work(unsigned core) {
         __dmb();
         w->status = READY;
     }
+    return spent;
 }
 
 static void core1(uint32_t unused) {
@@ -133,6 +148,8 @@ static void publish(void) {
         const uint64_t now = time_us_64();
         const uint64_t due = live.options & C4_DEADLINES ? w->due_us : deadline(live.published);
         const uint32_t late = now > due ? (uint32_t)(now - due) : 0;
+        const uint32_t slack = now < due ? (uint32_t)(due - now) : 0;
+        if (slack < live.min_publish_slack_us) live.min_publish_slack_us = slack;
         if (late > live.max_lateness_us) live.max_lateness_us = late;
         if (late && !(live.errors & ERR_DEADLINE)) {
             ++live.late_frames;
@@ -152,12 +169,14 @@ void bench_c3_fec(int code_index, int ms, int slow_us, int cpw, int gap_us) {
 
 void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_us, int options) {
     const uint32_t hz = clock_get_hz(clk_sys);
+    const bool fast_schedule = !!(options & C9_SCHEDULE);
     max_service_us = (uint32_t)gap_us;
     if ((code_index != S2_N2_3 && code_index != S2_N3_4 && code_index != S2_N5_6) ||
         ms < 100 || ms > 60000 || slow_us < 0 || slow_us > 10000 ||
-        options < 0 || options > C8_ALL || (options & C7_TABLE3) || gap_us < 128 || gap_us > 4096 ||
+        options < 0 || options > C9_ALL || (options & C7_TABLE3) ||
+        ((options & C9_BCH_TABLE4) && (options & C7_BCH_LDM)) || gap_us < 128 || gap_us > 4096 ||
         (cpw != 1 && cpw != 2 && cpw != 4) || (hz != 128000000u && hz != 256000000u)) {
-        printf("@{\"cmd\":\"c3fec\",\"error\":\"needs normal2/3(5),3/4(6),5/6(8),100..60000ms,slow0..10000us,cpw1/2/4,SYS128/256,options0..%d excluding table3 bit1024\"}\n", C8_ALL);
+        printf("@{\"cmd\":\"c3fec\",\"error\":\"needs normal2/3(5),3/4(6),5/6(8),100..60000ms,slow0..10000us,cpw1/2/4,SYS128/256,options0..%d excluding table3 bit1024; table4=2048 excludes LDM=256\"}\n", C9_ALL);
         return;
     }
     const dvbs2_bch_kernel_t saved_bch = dvbs2_bch_get_kernel();
@@ -167,6 +186,7 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
     live.hz = hz;
     live.cpw = (uint32_t)cpw;
     live.options = (uint32_t)options;
+    live.min_publish_slack_us = UINT32_MAX;
     live.slow_us = (uint32_t)slow_us;
     live.target = (uint32_t)((uint64_t)ms * hz / ((uint64_t)C3_FRAME_CYCLES * cpw * 1000u));
     for (unsigned j = 0; j < sizeof live.pattern; ++j) live.pattern[j] = (uint8_t)(29u * j + 7u);
@@ -177,8 +197,9 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
     bool placement_ok = true;
     for (unsigned core = 0; core < 2; ++core) {
         uint32_t *arena = core ? cap_buf : live.place_code;
-        if (options & C7_BCH_PLACE) {
-            live.bch_leaf[core] = dvbs2_bch_copy(arena, 512, !!(options & C7_BCH_LDM));
+        if (options & (C7_BCH_PLACE | C9_BCH_TABLE4)) {
+            live.bch_leaf[core] = dvbs2_bch_copy(arena, 512,
+                options & C9_BCH_TABLE4 ? 3 : !!(options & C7_BCH_LDM));
             placement_ok = placement_ok && live.bch_leaf[core];
         }
         if (options & C7_TRANSPOSE) {
@@ -186,36 +207,55 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
             placement_ok = placement_ok && live.transpose[core];
         }
     }
+    if (options & C9_BCH_TABLE4)
+        placement_ok = placement_ok && dvbs2_bch_table4_init(table4(), TABLE4_RESERVE_BYTES);
     if (!dvbs2_8psk_init(&live.cfg, &DVBS2_CODES[code_index], true, 0, live.gold, 1384) ||
         ((options & (C4_MAP | C6_MAP)) &&
          !dvbs2_8psk_codes_c6_init(&live.cfg, live.map_lut, DVBS2_8PSK_CODES_C6_WORDS)) ||
-        ((options & (C4_LDPC | C5_LDPC)) && !dvbs2_ldpc_prepare_mode(live.ldpc_code,
-            sizeof live.ldpc_code, options & C5_LDPC ? 2 : 1)) || !placement_ok) {
+        ((options & (C4_LDPC | C5_LDPC | C9_LDPC_PACK)) && !dvbs2_ldpc_prepare_mode(live.ldpc_code,
+            sizeof live.ldpc_code, options & C9_LDPC_PACK ? 3 : options & C5_LDPC ? 2 : 1)) || !placement_ok) {
         dvbs2_bch_set_kernel(saved_bch);
         dvbs2_frontend_set_bank(saved_bank);
         printf("@{\"cmd\":\"c3fec\",\"error\":\"C3/C4 setup failed\"}\n");
         return;
     }
     enable_cyccnt();
+    // The worker may be launched while all jobs are IDLE: no FEC work occurs
+    // before epoch. An integrated transmitter also starts its worker at setup.
+    if (fast_schedule) tx_worker_start(core1, 0);
     live.epoch = time_us_64();
     if (live.options & C4_DEADLINES) live.retire_due = deadline(0);
     release(0, 0);
     release(1, 1);
-    tx_worker_start(core1, 0);
+    if (!fast_schedule) tx_worker_start(core1, 0);
     // The service-gap gate covers the cadence, not setup: two job releases and the core-1
     // launch take 150-180 us (f62a75c746, the only gap over 128 us in 3-s runs). Deadlines
     // still count from the earlier epoch. The setup interval is reported as startup_us.
     const uint64_t cadence_start = time_us_64();
     live.startup_us = (uint32_t)(cadence_start - live.epoch);
     uint64_t previous_service = cadence_start, next_service = cadence_start;
+    uint32_t service_cycles = cycles();
+    const uint32_t service_period_cycles = hz / 1000000u * SERVICE_US;
     for (;;) {
         const uint32_t loop_begin = cycles();
-        const uint64_t work_before = live.core[0].busy_cycles;
-        if (live.core[0].status == RUN) work(0);
+        const uint64_t work_before = fast_schedule ? 0 : live.core[0].busy_cycles;
+        const uint32_t worked = live.core[0].status == RUN ? work(0) : 0;
+        // CYCCNT only decides whether to poll the microsecond timer. The actual
+        // service-gap fault and every publication/deadline still use TIMER time.
+        // Unsigned subtraction tolerates CYCCNT wrap; each poll is at most one
+        // bounded FEC slice after the 32-us interval, far below a counter period.
+        const uint32_t loop_end = fast_schedule ? cycles() : 0;
+        const uint32_t work_cycles = fast_schedule ? worked :
+            (uint32_t)(live.core[0].busy_cycles - work_before);
+        if (fast_schedule && live.core[0].status == RUN &&
+            (uint32_t)(loop_end - service_cycles) < service_period_cycles) {
+            live.supervise_cycles += (uint32_t)(cycles() - loop_begin) - work_cycles;
+            continue;
+        }
         const uint64_t now = time_us_64();
         if (now < next_service) {
             live.supervise_cycles += (uint32_t)(cycles() - loop_begin) -
-                (uint32_t)(live.core[0].busy_cycles - work_before);
+                work_cycles;
             if (live.core[0].status != RUN) busy_wait_us_32((uint32_t)(next_service - now));
             continue;
         }
@@ -227,9 +267,10 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
         }
         previous_service = now;
         next_service = now + SERVICE_US;
+        service_cycles = loop_end;
         live.errors |= live.core[0].job_error | live.core[1].job_error;
         if (gap > max_service_us) live.errors |= ERR_SERVICE;
-        publish();
+        if (!fast_schedule || live.core[live.published & 1u].status == READY) publish();
         // Each parity slot is released only after its preceding frame retires.
         // At most44388 unconsumed symbols own the65536-symbol ring, including
         // complete output written ahead of its in-order publication counter.
@@ -247,7 +288,7 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
         const uint32_t section = (uint32_t)(time_us_64() - now);
         if (section > live.max_section_us) live.max_section_us = section;
         live.supervise_cycles += (uint32_t)(cycles() - loop_begin) -
-            (uint32_t)(live.core[0].busy_cycles - work_before);
+            work_cycles;
         if (live.errors) {
             // Finish active frames after failure so the final CRC never includes
             // speculative stores from an unpublished partial frame.
@@ -266,7 +307,7 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
            "\"clk_hz\":%lu,\"cpw\":%d,\"ms\":%d,\"slow_us\":%d,\"options\":%d,\"pilots\":true,\"gold\":0,\"source\":\"memory_gcs\",\"source_period_bytes\":256,"
            "\"frame_symbols\":%u,\"frame_cycles\":%u,\"ring_groups\":%u,\"frames_target\":%lu,"
            "\"published_frames\":%lu,\"consumed_frames\":%lu,\"published_groups\":%lu,\"pending_fill\":%lu,"
-           "\"code_crc\":[%lu,%lu],\"errors\":%lu,\"late_frames\":%lu,\"max_lateness_us\":%lu,"
+           "\"code_crc\":[%lu,%lu],\"errors\":%lu,\"late_frames\":%lu,\"max_lateness_us\":%lu,\"min_publish_slack_us\":%lu,"
            "\"service_gap_limit_us\":%lu,\"max_service_gap_us\":%lu,\"gaps_over_128\":%lu,\"first_over_at_us\":%lu,"
            "\"first_over_gap_us\":%lu,\"max_section_us\":%lu,\"startup_us\":%lu,\"elapsed_us\":%llu,\"supervise_cycles\":%llu,"
            "\"supervise_busy\":%.6f,\"context_bytes\":%u,\"core\":[",
@@ -275,6 +316,7 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
            (unsigned long)live.published, (unsigned long)live.consumed, (unsigned long)live.groups,
            (unsigned long)(live.published * C3_FRAME_SYMBOLS & 15u), (unsigned long)crc_i, (unsigned long)crc_q,
            (unsigned long)live.errors, (unsigned long)live.late_frames, (unsigned long)live.max_lateness_us,
+           (unsigned long)live.min_publish_slack_us,
            (unsigned long)max_service_us, (unsigned long)live.max_service_gap_us,
            (unsigned long)live.gaps_over_128, (unsigned long)live.first_over_at_us,
            (unsigned long)live.first_over_gap_us, (unsigned long)live.max_section_us, (unsigned long)live.startup_us, (unsigned long long)elapsed,
@@ -296,9 +338,11 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
                (unsigned long)w->stage_max_cycles[2], (unsigned long)w->stage_max_cycles[3],
                (unsigned long)w->stage_max_cycles[4]);
     }
-    printf("],\"bch_leaf\":[%lu,%lu],\"transpose_leaf\":[%lu,%lu]}\n",
+    printf("],\"bch_leaf\":[%lu,%lu],\"transpose_leaf\":[%lu,%lu],\"table4\":%lu,\"table4_bytes\":%lu}\n",
            (unsigned long)(uintptr_t)live.bch_leaf[0], (unsigned long)(uintptr_t)live.bch_leaf[1],
-           (unsigned long)(uintptr_t)live.transpose[0], (unsigned long)(uintptr_t)live.transpose[1]);
+           (unsigned long)(uintptr_t)live.transpose[0], (unsigned long)(uintptr_t)live.transpose[1],
+           (unsigned long)((options & C9_BCH_TABLE4) ? (uintptr_t)table4() : 0),
+           (unsigned long)((options & C9_BCH_TABLE4) ? dvbs2_bch_table4_bytes() : 0));
     dvbs2_bch_set_kernel(saved_bch);
     dvbs2_frontend_set_bank(saved_bank);
     uint32_t seed = SEED;

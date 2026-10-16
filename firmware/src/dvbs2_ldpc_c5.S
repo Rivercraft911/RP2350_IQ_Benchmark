@@ -80,6 +80,7 @@
 // One tile (at most 32 parity columns) is one bounded reentrant LDPC unit.
 // Main saves 320 bytes; a private transpose call adds four bytes (324 maximum).
 dvbs2_ldpc_pack_c5_pic:
+.Lc5_pack_entry:
     push    {r4-r11, lr}
     sub     sp, #284
     ldr     r4, [sp, #320]
@@ -340,6 +341,133 @@ dvbs2_ldpc_pack_c5_pic:
     pop     {pc}
     .size dvbs2_ldpc_pack_c5_pic, .-dvbs2_ldpc_pack_c5_pic
 dvbs2_ldpc_pack_c5_pic_end:
+
+// C9 appends a q45-only entry after the unchanged C5 bundle. Mode3 copies the
+// larger extent; other q values and alignments tail-call the original entry.
+// Normal 3/4 starts each full tile with 24 occupied bits (48600 mod 32).
+    .macro C9_PACK45 fill
+    ldr     r5, [r0], #4
+    ldr     r6, [r1], #4
+    .if \fill == 0
+    str     r5, [r2], #4
+    mov     r4, r6
+    .else
+    orr     r7, r4, r5, lsr #\fill
+    str     r7, [r2], #4
+    lsl     r4, r5, #(32-\fill)
+    .if \fill >= 19
+    orr     r7, r4, r6, lsr #\fill
+    str     r7, [r2], #4
+    lsl     r4, r6, #(32-\fill)
+    .else
+    orr     r4, r4, r6, lsr #\fill
+    .endif
+    .endif
+    .endm
+    .balign 4
+    .global dvbs2_ldpc_pack_c9_pic
+    .global dvbs2_ldpc_pack_c9_pic_end
+    .type dvbs2_ldpc_pack_c9_pic, %function
+    .thumb_func
+dvbs2_ldpc_pack_c9_pic:
+    cmp     r3, #45
+    bne     .Lc5_pack_entry
+    ldr     r12, [sp, #4]
+    ldr     r12, [r12, #4]
+    cmp     r12, #24
+    bne     .Lc5_pack_entry
+    push    {r4-r11, lr}
+    sub     sp, #284
+    ldr     r4, [sp, #320]
+    ldr     r5, [sp, #324]
+    str     r1, [sp, #260]
+    str     r4, [sp, #268]
+    str     r5, [sp, #272]
+    add     r0, r0, r4, lsl #2
+    str     r0, [sp, #256]
+    ldr     r2, [r2, r4, lsl #2]
+    mov     r1, sp
+    mov.w   r12, #0x00ff00ff
+    movs    r3, #8
+.Lc9_gather45_full:
+    C5_LOAD4
+    C5_GATHER_WIDE
+    bne     .Lc9_gather45_full
+    ldr     r0, [sp, #256]
+    add     r0, #1536
+    add     r1, sp, #128
+    movs    r3, #5
+.Lc9_gather45_tail2:
+    ldr     r4, [r0]
+    ldr     r5, [r0, #384]
+    mov     r6, r2
+    mov     r7, r2
+    C5_GATHER_WIDE
+    bne     .Lc9_gather45_tail2
+    movs    r3, #3
+.Lc9_gather45_tail1:
+    ldr     r4, [r0]
+    mov     r5, r2
+    mov     r6, r2
+    mov     r7, r2
+    C5_GATHER_WIDE
+    bne     .Lc9_gather45_tail1
+    mov     r0, sp
+    bl      .Lc5_transpose_low
+    add     r0, sp, #128
+    bl      .Lc5_transpose_low
+    ldr     r11, [sp, #272]
+    ldr     r10, [sp, #260]
+    ldr     r2, [r11, #8]
+    add     r2, r10, r2, lsl #2
+    mov     r0, sp
+    add     r1, sp, #128
+    ldr     r4, [r11]
+    C9_PACK45 24
+    C9_PACK45 5
+    C9_PACK45 18
+    C9_PACK45 31
+    C9_PACK45 12
+    C9_PACK45 25
+    C9_PACK45 6
+    C9_PACK45 19
+    ldr     r9, [sp, #268]
+    cmp     r9, #11
+    beq     .Lc9_pack45_last
+    C9_PACK45 0
+    C9_PACK45 13
+    C9_PACK45 26
+    C9_PACK45 7
+    C9_PACK45 20
+    C9_PACK45 1
+    C9_PACK45 14
+    C9_PACK45 27
+    C9_PACK45 8
+    C9_PACK45 21
+    C9_PACK45 2
+    C9_PACK45 15
+    C9_PACK45 28
+    C9_PACK45 9
+    C9_PACK45 22
+    C9_PACK45 3
+    C9_PACK45 16
+    C9_PACK45 29
+    C9_PACK45 10
+    C9_PACK45 23
+    C9_PACK45 4
+    C9_PACK45 17
+    C9_PACK45 30
+    C9_PACK45 11
+    str     r4, [r11]
+    b       .Lc5_written
+.Lc9_pack45_last:
+    movs    r4, #0
+    str     r4, [r11]
+    str     r4, [r11, #4]
+    b       .Lc5_written
+    .size dvbs2_ldpc_pack_c9_pic, .-dvbs2_ldpc_pack_c9_pic
+dvbs2_ldpc_pack_c9_pic_end:
+    .purgem C9_PACK45
     .purgem C5_SWAP
     .purgem C5_LOAD4
     .purgem C5_LOAD3

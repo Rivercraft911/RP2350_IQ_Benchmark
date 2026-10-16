@@ -318,4 +318,208 @@ dvbs2_bch192_table3_pic:
     pop     {r4-r11, pc}
     .size dvbs2_bch192_table3_pic, .-dvbs2_bch192_table3_pic
 dvbs2_bch192_table3_pic_end:
+// C9 compact four-byte planes: high byte first, with 256 rows per plane.
+// Only live remainder words are stored (16/20/24 KiB for t8/t10/t12).
+// Whole-row LDM reduces instruction fetch; table traffic remains 16/20/24
+// words per input word. The counted transfer work exceeds C7's padded LDM
+// leaf for t10/t12, so this is a placement/size candidate, not a speed claim.
+
+    .section .text.dvbs2_bch128_table4_pic, "ax", %progbits
+    .align 2
+    .global dvbs2_bch128_table4_pic
+    .global dvbs2_bch128_table4_pic_end
+    .type dvbs2_bch128_table4_pic, %function
+    .thumb_func
+dvbs2_bch128_table4_pic:
+    push    {r4-r11, lr}
+    push    {r1}
+    ldmia   r1, {r4-r7}
+    cmp     r3, #0
+    beq     .Lcompact128_store
+    .balign 4
+.Lcompact128_word:
+    ldr     lr, [r0], #4
+    subs    r3, r3, #1
+    eor     r8, r4, lr
+    ubfx    r1, r8, #24, #8
+    add     r1, r2, r1, lsl #4
+    ldmia   r1, {r9-r12}
+    eor     r4, r5, r9
+    eor     r5, r6, r10
+    ubfx    r1, r8, #16, #8
+    add     r1, r2, r1, lsl #4
+    eor     r6, r7, r11
+    add     r1, r1, #4096
+    mov     r7, r12
+    ldmia   r1, {r9-r12}
+    eor     r4, r4, r9
+    eor     r5, r5, r10
+    ubfx    r1, r8, #8, #8
+    add     r1, r2, r1, lsl #4
+    eor     r6, r6, r11
+    add     r1, r1, #8192
+    eor     r7, r7, r12
+    ldmia   r1, {r9-r12}
+    eor     r4, r4, r9
+    eor     r5, r5, r10
+    eor     r6, r6, r11
+    eor     r7, r7, r12
+    ubfx    r1, r8, #0, #8
+    add     r1, r2, r1, lsl #4
+    add     r1, r1, #12288
+    ldmia   r1, {r9-r12}
+    eor     r4, r4, r9
+    eor     r5, r5, r10
+    eor     r6, r6, r11
+    eor     r7, r7, r12
+    bne     .Lcompact128_word
+.Lcompact128_store:
+    pop     {r0}
+    stmia   r0!, {r4-r7}
+    movs    r1, #0
+    str     r1, [r0]
+    str     r1, [r0, #4]
+    pop     {r4-r11, pc}
+    .size dvbs2_bch128_table4_pic, .-dvbs2_bch128_table4_pic
+dvbs2_bch128_table4_pic_end:
+
+    .section .text.dvbs2_bch160_table4_pic, "ax", %progbits
+    .align 2
+    .global dvbs2_bch160_table4_pic
+    .global dvbs2_bch160_table4_pic_end
+    .type dvbs2_bch160_table4_pic, %function
+    .thumb_func
+dvbs2_bch160_table4_pic:
+    push    {r4-r11, lr}
+    push    {r1}
+    ldmia   r1, {r4-r8}
+    cmp     r3, #0
+    beq     .Lcompact160_store
+    .balign 4
+.Lcompact160_word:
+    ldr     lr, [r0], #4
+    subs    r3, r3, #1
+    eor     r9, r4, lr
+    ubfx    r1, r9, #24, #8
+    add     r1, r1, r1, lsl #2
+    add     r1, r2, r1, lsl #2
+    ldmia   r1, {r1, r10-r12, lr}
+    eor     r4, r5, r1
+    eor     r5, r6, r10
+    eor     r6, r7, r11
+    eor     r7, r8, r12
+    ubfx    r1, r9, #16, #8
+    add     r1, r1, r1, lsl #2
+    add     r1, r2, r1, lsl #2
+    add     r1, r1, #5120
+    mov     r8, lr
+    ldmia   r1, {r1, r10-r12, lr}
+    eor     r4, r4, r1
+    eor     r5, r5, r10
+    eor     r6, r6, r11
+    eor     r7, r7, r12
+    ubfx    r1, r9, #8, #8
+    add     r1, r1, r1, lsl #2
+    add     r1, r2, r1, lsl #2
+    add     r1, r1, #10240
+    eor     r8, r8, lr
+    ldmia   r1, {r1, r10-r12, lr}
+    eor     r4, r4, r1
+    eor     r5, r5, r10
+    eor     r6, r6, r11
+    eor     r7, r7, r12
+    eor     r8, r8, lr
+    ubfx    r1, r9, #0, #8
+    add     r1, r1, r1, lsl #2
+    add     r1, r2, r1, lsl #2
+    add     r1, r1, #15360
+    ldmia   r1, {r1, r10-r12, lr}
+    eor     r4, r4, r1
+    eor     r5, r5, r10
+    eor     r6, r6, r11
+    eor     r7, r7, r12
+    eor     r8, r8, lr
+    bne     .Lcompact160_word
+.Lcompact160_store:
+    pop     {r0}
+    stmia   r0!, {r4-r8}
+    movs    r1, #0
+    str     r1, [r0]
+    pop     {r4-r11, pc}
+    .size dvbs2_bch160_table4_pic, .-dvbs2_bch160_table4_pic
+dvbs2_bch160_table4_pic_end:
+
+    .section .text.dvbs2_bch192_table4_pic, "ax", %progbits
+    .align 2
+    .global dvbs2_bch192_table4_pic
+    .global dvbs2_bch192_table4_pic_end
+    .type dvbs2_bch192_table4_pic, %function
+    .thumb_func
+dvbs2_bch192_table4_pic:
+    push    {r4-r11, lr}
+    add     r3, r0, r3, lsl #2
+    push    {r1-r3}
+    ldmia   r1, {r4-r9}
+    cmp     r0, r3
+    beq     .Lcompact192_store
+    .balign 4
+.Lcompact192_word:
+    ldr     lr, [r0], #4
+    ldr     r2, [sp, #4]
+    eor     r10, r4, lr
+    ubfx    r1, r10, #24, #8
+    add     r1, r1, r1, lsl #1
+    add     r1, r2, r1, lsl #3
+    ldmia   r1, {r1-r3, r11-r12, lr}
+    eor     r4, r5, r1
+    eor     r5, r6, r2
+    eor     r6, r7, r3
+    eor     r7, r8, r11
+    eor     r8, r9, r12
+    ldr     r2, [sp, #4]
+    ubfx    r1, r10, #16, #8
+    add     r1, r1, r1, lsl #1
+    add     r1, r2, r1, lsl #3
+    add     r1, r1, #6144
+    mov     r9, lr
+    ldmia   r1, {r1-r3, r11-r12, lr}
+    eor     r4, r4, r1
+    eor     r5, r5, r2
+    eor     r6, r6, r3
+    eor     r7, r7, r11
+    eor     r8, r8, r12
+    ldr     r2, [sp, #4]
+    ubfx    r1, r10, #8, #8
+    add     r1, r1, r1, lsl #1
+    add     r1, r2, r1, lsl #3
+    add     r1, r1, #12288
+    eor     r9, r9, lr
+    ldmia   r1, {r1-r3, r11-r12, lr}
+    eor     r4, r4, r1
+    eor     r5, r5, r2
+    eor     r6, r6, r3
+    eor     r7, r7, r11
+    eor     r8, r8, r12
+    eor     r9, r9, lr
+    ldr     r2, [sp, #4]
+    ubfx    r1, r10, #0, #8
+    add     r1, r1, r1, lsl #1
+    add     r1, r2, r1, lsl #3
+    add     r1, r1, #18432
+    ldmia   r1, {r1-r3, r11-r12, lr}
+    eor     r4, r4, r1
+    eor     r5, r5, r2
+    eor     r6, r6, r3
+    ldr     r3, [sp, #8]
+    eor     r7, r7, r11
+    eor     r8, r8, r12
+    eor     r9, r9, lr
+    cmp     r0, r3
+    bne     .Lcompact192_word
+.Lcompact192_store:
+    pop     {r0-r2}
+    stmia   r0, {r4-r9}
+    pop     {r4-r11, pc}
+    .size dvbs2_bch192_table4_pic, .-dvbs2_bch192_table4_pic
+dvbs2_bch192_table4_pic_end:
 #endif

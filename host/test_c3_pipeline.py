@@ -24,7 +24,7 @@ OPTION_CASES = tuple(dict.fromkeys(
     list(range(32)) +
     [feature | base for feature in (32, 64, 96) for base in (0, 1, 2, 3, 4, 8, 16, 27, 31)] +
     [feature | base for feature in (128, 256, 512) for base in (0, 27, 32, 123, 127)] +
-    [251, 383, 639, 767, 895, 1023, 1024, 1152, 1275, 1536, 1568, 1787, 1791]))
+    [251, 383, 639, 767, 895, 1023, 1024, 1152, 1275, 1536, 1568, 1787, 1791, 2048, 2299, 4096, 4347, 4603, 6395, 8192, 8443, 12539, 12795, 14587]))
 
 
 def check_record(record, expected_cache, physical_cache):
@@ -53,7 +53,7 @@ def check_record(record, expected_cache, physical_cache):
 
 def main() -> None:
     assert len(set(OPTION_CASES)) == len(OPTION_CASES)
-    for bit in (1 << shift for shift in range(11)):
+    for bit in (1 << shift for shift in range(14)):
         assert any(options & bit for options in OPTION_CASES)
         assert any(not options & bit for options in OPTION_CASES)
     assert {32, 33, 64, 66, 96, 99, 123, 512, 544, 1023,
@@ -70,7 +70,7 @@ def main() -> None:
             for line in result.stdout.splitlines():
                 check_record(json.loads(line), expected_cache, physical_cache)
                 records += 1
-        for invalid in (reference.C8_ALL, reference.C8_ALL + 1, 1024 | 256):
+        for invalid in (reference.C8_ALL, reference.C9_ALL + 1, 1024 | 256, 2048 | 256, 2048 | 1024):
             rejected = subprocess.run([str(exe), str(invalid)], capture_output=True, text=True)
             assert rejected.returncode == 10 and not rejected.stdout, invalid
     assert records == len(OPTION_CASES) * 24, records

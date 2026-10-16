@@ -122,12 +122,15 @@ enum {
 typedef void (*dvbs2_bch_leaf_t)(const uint32_t *, uint32_t *, const void *, uint32_t);
 typedef void (*dvbs2_transpose_fn)(uint32_t *);
 // Idle-only C7 copies: variant0 = existing scratch-Y leaf, 1 = LDM, 2 = 11/11/10
-// table. Current code must be normal t8/t10/t12. No prepared global pointer changes.
+// table, 3 = compact four-byte planes. Current code must be normal t8/t10/t12. No prepared global pointer changes.
 // Arm requires word-aligned code and enough bytes; native returns C and uses no code arena.
 uint32_t dvbs2_bch_code_bytes(unsigned variant);
 dvbs2_bch_leaf_t dvbs2_bch_copy(void *code, uint32_t bytes, unsigned variant);
 uint32_t dvbs2_bch_table3_bytes(void);
 bool dvbs2_bch_table3_init(void *table, uint32_t bytes);
+// Four high-byte-first 256-row planes of only live words: 16/20/24 KiB.
+uint32_t dvbs2_bch_table4_bytes(void);
+bool dvbs2_bch_table4_init(void *table, uint32_t bytes);
 uint32_t dvbs2_transpose_code_bytes(void);
 dvbs2_transpose_fn dvbs2_transpose_copy(void *code, uint32_t bytes);
 // Per-worker C4 options, captured at begin. Unknown options fail without writes.
@@ -170,6 +173,9 @@ bool dvbs2_ldpc_begin_reentrant(uint32_t *frame, uint32_t *workspace,
 // as one PIC bundle. It clears/accumulates up to eight rows, or processes up to
 // four 360-bit groups per unit, and skips the
 // separate apply stage. No leaf runs in SCRATCH_X. Old prepare/copy/size select mode1.
+// Mode3 (C9) appends q45 fused gather/fixed-alignment packing; all other q/fill
+// combinations retain the C5 leaf. It uses the same preparation slot as mode2,
+// so prepare again when changing between mode2/mode3 borrowed arenas.
 uint32_t dvbs2_ldpc_code_bytes(void);
 bool dvbs2_ldpc_prepare(void *code, uint32_t bytes);
 uint32_t dvbs2_ldpc_code_bytes_mode(unsigned mode);

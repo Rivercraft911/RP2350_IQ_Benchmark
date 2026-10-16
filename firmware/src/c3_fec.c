@@ -73,6 +73,8 @@ void c3_job_begin_options(c3_job_t *job, const dvbs2_8psk_cfg_t *cfg, uint32_t i
 
 bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
     const dvbs2_code_t *code = job->cfg->code;
+    // C9 amortizes BCH/LDPC accounting over two original units. GCS and mapping
+    // retain their bounds: cold slices already reached 8k/12k cycles.
     // Command bits and the frontend's compact option byte are separate domains.
     const unsigned frontend_options = (job->options & C4_BCH ? S2_FE_FAST_BCH : 0u) |
         (job->options & C7_BCH_LDM ? S2_FE_LDM_BCH : 0u);
@@ -108,9 +110,10 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
             }
             break;
         case C3_BCH:
-            if (dvbs2_frontend_step(&job->front, 64)) {
+            if (dvbs2_frontend_step(&job->front, job->options & C9_SCHEDULE ? 128 : 64)) {
                 if (!dvbs2_ldpc_begin_reentrant_mode(job->frame, job->rows, C3_ROWS_WORDS,
-                        &job->ldpc, job->options & C5_LDPC ? 2 : !!(job->options & C4_LDPC))) return false;
+                        &job->ldpc, job->options & C9_LDPC_PACK ? 3 :
+                            job->options & C5_LDPC ? 2 : !!(job->options & C4_LDPC))) return false;
                 if (job->ldpc_group && job->ldpc.mode) {
                     typedef void (*group_fn)(uint32_t *, const uint32_t *, uint32_t, const uint16_t *,
                                              const uint16_t *, uint32_t);
@@ -121,7 +124,7 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
             }
             break;
         case C3_LDPC:
-            if (dvbs2_ldpc_step(&job->ldpc, 1)) {
+            if (dvbs2_ldpc_step(&job->ldpc, job->options & C9_SCHEDULE ? 2 : 1)) {
                 if (job->options & C6_MAP) {
                     if (!dvbs2_8psk_codes_begin_c6(&job->map, job->cfg, job->frame, &job->stream)) return false;
                 } else if (job->options & C4_MAP) {

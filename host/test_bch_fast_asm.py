@@ -30,10 +30,10 @@ def program(folder, existing=False):
                         "dvbs2_asm.S" if existing else "dvbs2_bch_fast.S")),
                     "-o", str(obj)], check=True)
     headers = subprocess.check_output([dump, "-h", str(obj)], text=True)
-    suffix = r"(?:bch\d+_continue_y|transpose32)" if existing else r"bch\d+_(?:fast_pic|table3_pic)"
+    suffix = r"(?:bch\d+_continue_y|transpose32)" if existing else r"bch\d+_(?:fast_pic|table3_pic|table4_pic)"
     sizes = {name: int(size, 16) for name, size in re.findall(
         rf"\s+\.(?:text|scratch_[xy])\.(dvbs2_{suffix})\s+([0-9a-f]+)\s", headers)}
-    assert len(sizes) == (4 if existing else 6) and all(0 < size <= 1024 for size in sizes.values()), sizes
+    assert len(sizes) == (4 if existing else 9) and all(0 < size <= 1024 for size in sizes.values()), sizes
     symbols = subprocess.check_output([dump, "-t", str(obj)], text=True)
     extents = {name: int(size, 16) for size, name in re.findall(
         rf"\n([0-9a-f]+)\s+g\s+\.(?:text|scratch_[xy])\.dvbs2_\w+\s+00000000\s+(dvbs2_{suffix})_end", symbols)}
@@ -233,12 +233,13 @@ void setup(int ci, uint32_t *table, uint32_t *generator) {
             original, generator = (ct.c_uint32 * 8192)(), (ct.c_uint32 * 6)()
             lib.setup(ci, original, generator)
             polynomial = int.from_bytes(b"".join(x.to_bytes(4, "big") for x in generator[:degree // 32]), "big")
-            for variant in ("fast", "table3"):
+            for variant in ("fast", "table3", "table4"):
                 entry = f"dvbs2_bch{degree}_{variant}_pic"
                 table = list(original)
                 slices = [(shift, 8) for shift in (24, 16, 8, 0)]
-                if variant == "table3":
-                    slices, table = [(21, 11), (10, 11), (0, 10)], []
+                if variant in ("table3", "table4"):
+                    slices, table = ([(21, 11), (10, 11), (0, 10)] if variant == "table3"
+                                     else [(24, 8), (16, 8), (8, 8), (0, 8)]), []
                     # Build independently from a serial polynomial recurrence,
                     # rather than using the firmware's table-combination helper.
                     for shift, bits in slices:
@@ -266,7 +267,8 @@ void setup(int ci, uint32_t *table, uint32_t *generator) {
                 # A used lookup bit is an explicit negative control for the
                 # independent recurrence comparison.
                 damaged = table.copy()
-                index = 8 if variant == "fast" else (4096 + 1) * (degree // 32)
+                index = (8 if variant == "fast" else
+                         (4096 + 1 if variant == "table3" else 768 + 1) * (degree // 32))
                 damaged[index] ^= 1
                 got, count = execute(code, labels, entry, [1], damaged, [0] * 6)
                 assert got != serial([1], [0] * 6, polynomial, degree)

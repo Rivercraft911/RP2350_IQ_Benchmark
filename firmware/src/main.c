@@ -175,7 +175,7 @@ static bool num(const char *s, const char *name, int def, int lo, int hi, int *o
 // supported candidate in this command: c3pair needs layout4, c3fec has no TABLE3.
 static bool c3_options(const char *s, int def, int best, int *out) {
     if (s && !strcmp(s, "best")) { *out = best; return true; }
-    return num(s, "options", def, 0, C8_ALL, out);
+    return num(s, "options", def, 0, C9_ALL, out);
 }
 #endif
 

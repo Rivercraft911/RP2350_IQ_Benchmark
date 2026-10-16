@@ -49,18 +49,21 @@ HARNESS = r'''
 #include "tx.h"
 
 static unsigned test_core, test_hz=128000000u, pump_active, worker_active, worker_joins;
-static unsigned inject_service_gap, injected;
+static unsigned inject_service_gap, injected, timer_reads;
 static uint64_t test_now, next_worker, worker_ticks;
 static unsigned step_us;
+static unsigned job_calls[2][4];
 
 // Preserve all production c3_job_step logic; only its modeled time is wrapped.
 #define c3_job_step real_c3_job_step
 #include "C3_SOURCE"
 #undef c3_job_step
 bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
+    assert(job->stage<4u);
+    ++job_calls[test_core][job->stage];
     const bool ok=real_c3_job_step(job,pattern);
     unsigned duration=1;
-    if (!test_core && inject_service_gap && !injected) { duration=200; injected=1; }
+    if (!test_core && (inject_service_gap&1u) && !injected) { duration=200; injected=1; }
     if (test_core) { worker_ticks+=(uint64_t)duration*(test_hz/1000000u); step_us+=duration; }
     else test_now+=duration;
     return ok;
@@ -93,6 +96,7 @@ static void pump(void) {
 }
 
 uint64_t time_us_64(void) {
+    ++timer_reads;
     if (!pump_active) { ++test_now; pump(); }
     return test_now;
 }
@@ -102,6 +106,7 @@ void busy_wait_us_32(uint32_t duration) {
 }
 void tx_worker_start(void (*fn)(uint32_t), uint32_t arg) {
     assert(fn==core1 && arg==0 && !worker_active);
+    test_now+=60; // modeled launch latency, never an M33 timing estimate
     worker_active=1;
     next_worker=test_now;
 }
@@ -120,6 +125,7 @@ int main(int argc, char **argv) {
     const int code=atoi(argv[1]), slow=atoi(argv[2]), cpw=atoi(argv[3]);
     test_hz=(unsigned)strtoul(argv[4],NULL,10);
     inject_service_gap=(unsigned)atoi(argv[5]);
+    if (inject_service_gap&2u) test_now=33554400u; // cross the 32-bit 128-MHz cycle counter
     const uint32_t guard=0xC39A75B1u;
     test_ring.before=test_ring.after=test_input.before=test_input.after=guard;
     for (unsigned j=0;j<N_BLOCKS*BLOCK_WORDS;++j) ring_buf[j]=0x57EAD219u;
@@ -130,7 +136,8 @@ int main(int argc, char **argv) {
     assert(dvbs2_ldpc_set_pack(1));
     assert(dvbs2_map_set_kernel(1));
     const int options=atoi(argv[6]);
-    const unsigned rejected=options<0 || options>C8_ALL || (options&C7_TABLE3);
+    const unsigned rejected=options<0 || options>C9_ALL || (options&C7_TABLE3) ||
+        ((options&C9_BCH_TABLE4) && (options&C7_BCH_LDM));
     bench_c3_fec_options(code,100,slow,cpw,128,options);
     assert(test_ring.before==guard && test_ring.after==guard);
     assert(test_input.before==guard && test_input.after==guard);
@@ -139,8 +146,26 @@ int main(int argc, char **argv) {
     assert(dvbs2_frontend_get_bank()==1);
     assert(dvbs2_ldpc_get_pack()==1 && dvbs2_map_get_kernel()==1);
     assert(!worker_active && worker_joins==!rejected);
-    printf("@meta {\"input_crc\":%lu,\"selectors_restored\":true,\"guards_ok\":true,\"worker_joins\":%u}\n",
-           (unsigned long)pv_crc32(0,in_buf,sizeof in_buf),worker_joins);
+    if (!rejected) {
+        // Independently derive the absolute deadline from frame symbols and
+        // SYS Hz, over the entire 60-second command range and counter-wrap test.
+        live.options=C9_SCHEDULE;
+        for (unsigned clock=128000000u;clock<=256000000u;clock*=2u) {
+            live.hz=clock;
+            for (unsigned ratio=1;ratio<=4;ratio*=2u) {
+                live.cpw=ratio;
+                for (unsigned frame=0;frame<=86510u;++frame) {
+                    const uint64_t numerator=(uint64_t)(frame+2u)*22194u*8u*ratio*1000000u;
+                    assert(deadline(frame)==live.epoch+(numerator+clock-1u)/clock);
+                }
+            }
+        }
+    }
+    printf("@meta {\"input_crc\":%lu,\"selectors_restored\":true,\"guards_ok\":true,\"worker_joins\":%u,\"timer_reads\":%u,"
+           "\"job_calls\":[[%u,%u,%u,%u],[%u,%u,%u,%u]]}\n",
+           (unsigned long)pv_crc32(0,in_buf,sizeof in_buf),worker_joins,timer_reads,
+           job_calls[0][0],job_calls[0][1],job_calls[0][2],job_calls[0][3],
+           job_calls[1][0],job_calls[1][1],job_calls[1][2],job_calls[1][3]);
     return 0;
 }
 '''
@@ -183,11 +208,21 @@ class C3Bench(unittest.TestCase):
         self.assertTrue(lines[0].startswith("@{"), process.stdout)
         self.assertTrue(lines[1].startswith("@meta "), process.stdout)
         result, meta = json.loads(lines[0][1:]), json.loads(lines[1][6:])
-        rejected = options < 0 or options > trial.C8_ALL or bool(options & 1024)
+        rejected = (options < 0 or options > trial.C9_ALL or bool(options & 1024)
+                    or bool(options & 2048 and options & 256))
         expected = (trial.iq.m.xorshift32(0x1234ABCD, 8192).astype("<u4").tobytes()
                     if not rejected else b"\xA5" * 32768)
+        timer_reads = meta.pop("timer_reads")
+        job_calls = meta.pop("job_calls")
         self.assertEqual(meta, dict(input_crc=zlib.crc32(expected), selectors_restored=True,
                                     guards_ok=True, worker_joins=int(not rejected)))
+        result["timer_reads"] = timer_reads
+        result["job_calls"] = job_calls
+        if not rejected:
+            if result["late_frames"]:
+                self.assertEqual(result["min_publish_slack_us"], 0)
+            else:
+                self.assertGreater(result["min_publish_slack_us"], 0)
         return result
 
     def test_real_encoder_command_positive_all_requested_rates(self):
@@ -204,12 +239,14 @@ class C3Bench(unittest.TestCase):
             for options in (1, 2, 4, 8, 15, 16, 27, 31, 32, 33, 59, 63, 64, 66,
                             91, 95, 96, 123, 127, 128, 155, trial.C8_BEST_BASE,
                             256, 283, 379, 384, 512, 539, 544, 635, 640, 763, 767,
-                            895, trial.C8_FEC_ALL):
+                            895, trial.C8_FEC_ALL, 2048, 2299, 4096, 4347, 4603,
+                            6395, 8192, 8443, 12539, 12795, 14587):
                 with self.subTest(code=code, options=options):
                     result = self.run_command(code, options=options)
                     self.assertEqual(result["options"], options)
                     self.assertEqual(trial.run_faults(result, code, 100, 0, options=options), [])
-        for options in (31, 32, 64, 123, trial.C8_BEST_BASE, 512, 544, trial.C8_FEC_ALL):
+        for options in (31, 32, 64, 123, trial.C8_BEST_BASE, 512, 544, trial.C8_FEC_ALL,
+                        4347, 6395, 12539, 12795, 14587):
             result = self.run_command(slow=5000, options=options)
             self.assertEqual(trial.run_faults(result, 5, 100, 5000, options=options), [])
 
@@ -225,7 +262,8 @@ class C3Bench(unittest.TestCase):
                     self.assertEqual(cached[field], result[field])
 
     def test_table3_and_unknown_bits_rejected_before_mutation(self):
-        for options in (-1, 1024, trial.C8_BEST, trial.C8_ALL, trial.C8_ALL + 1):
+        for options in (-1, 1024, trial.C8_BEST, trial.C8_ALL, trial.C9_ALL,
+                        trial.C9_ALL + 1, 2304, 6400):
             with self.subTest(options=options):
                 result = self.run_command(options=options)
                 self.assertIn("error", result)
@@ -240,14 +278,30 @@ class C3Bench(unittest.TestCase):
         self.assertTrue(any("cadence" in x for x in trial.run_faults(result, 5, 100, 0)))
 
     def test_service_gap_fault_detected_and_active_frames_drained(self):
-        result = self.run_command(gap=1)
-        self.assertTrue(result["errors"] & 4, result)
-        self.assertGreater(result["max_service_gap_us"], 128)
-        self.assertEqual(result["late_frames"], 0)
-        self.assertEqual(result["published_frames"], 2)
-        expected = trial.ring_reference(5, result["published_frames"], 4096)
-        self.assertEqual(result["code_crc"], expected["code_crc"])
-        self.assertTrue(trial.run_faults(result, 5, 100, 0))
+        for options in (0, 4347, 6395, 12539, 12795, 14587):
+            with self.subTest(options=options):
+                result = self.run_command(gap=1, options=options)
+                self.assertTrue(result["errors"] & 4, result)
+                self.assertGreater(result["max_service_gap_us"], 128)
+                self.assertEqual(result["late_frames"], 0)
+                self.assertEqual(result["published_frames"], 2)
+                expected = trial.ring_reference(5, result["published_frames"], 4096)
+                self.assertEqual(result["code_crc"], expected["code_crc"])
+                self.assertTrue(trial.run_faults(result, 5, 100, 0, options=options))
+
+    def test_fast_schedule_keeps_output_and_deadlines_across_cycle_counter_wrap(self):
+        for code in trial.RATES:
+            baseline = self.run_command(code, options=251)
+            fast = self.run_command(code, options=4347)
+            wrapped = self.run_command(code, options=4347, gap=2)
+            for result in (fast, wrapped):
+                self.assertEqual(trial.run_faults(result, code, 100, 0, options=4347), [])
+                for field in ("frames_target", "published_frames", "consumed_frames", "code_crc"):
+                    self.assertEqual(result[field], baseline[field])
+            self.assertLess(fast["timer_reads"], baseline["timer_reads"])
+            self.assertLess(fast["startup_us"], baseline["startup_us"])
+            self.assertLess(fast["job_calls"][0][1], baseline["job_calls"][0][1])
+            self.assertLess(fast["job_calls"][0][2], baseline["job_calls"][0][2])
 
 
 if __name__ == "__main__":

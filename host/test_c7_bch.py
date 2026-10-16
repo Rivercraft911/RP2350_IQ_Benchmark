@@ -118,8 +118,8 @@ class C7BCH(unittest.TestCase):
             for variant in range(3):
                 self.assertEqual(self.lib.dvbs2_bch_code_bytes(variant), 0)
                 self.assertTrue(self.lib.dvbs2_bch_copy(None, 0, variant))
-            self.assertEqual(self.lib.dvbs2_bch_code_bytes(3), 0)
-            self.assertFalse(self.lib.dvbs2_bch_copy(None, 0, 3))
+            self.assertEqual(self.lib.dvbs2_bch_code_bytes(4), 0)
+            self.assertFalse(self.lib.dvbs2_bch_copy(None, 0, 4))
             self.assertEqual(self.lib.c7_rejects_without_writes(1 << 31), 1)
         self.assertEqual(self.lib.dvbs2_transpose_code_bytes(), 0)
         self.assertTrue(self.lib.dvbs2_transpose_copy(None, 0))

@@ -65,7 +65,7 @@ static int complete(c3_job_t *job) {
                 (job->options & C7_BCH_LDM ? dvbs2_bch_copy(NULL, 0, 1) : NULL)) ||
              job->front.table != job->bch_table)) return 0;
         if (job->stage == C3_LDPC && job->ldpc.mode !=
-            (job->options & C5_LDPC ? 2u : !!(job->options & C4_LDPC))) return 0;
+            (job->options & C9_LDPC_PACK ? 3u : job->options & C5_LDPC ? 2u : !!(job->options & C4_LDPC))) return 0;
         if (job->stage == C3_MAP &&
             (job->map.c6 != !!(job->options & C6_MAP) ||
              job->map.fast != !!(job->options & (C4_MAP | C6_MAP)))) return 0;
@@ -77,7 +77,8 @@ static int complete(c3_job_t *job) {
 
 int main(int argc, char **argv) {
     const unsigned options = argc > 1 ? (unsigned)atoi(argv[1]) : 0;
-    if (options > C8_ALL || ((options & C7_TABLE3) && (options & C7_BCH_LDM)) ||
+    if (options > C9_ALL || ((options & C7_TABLE3) && (options & C7_BCH_LDM)) ||
+        ((options & C9_BCH_TABLE4) && (options & (C7_TABLE3 | C7_BCH_LDM))) ||
         !dvbs2_ldpc_prepare(NULL, 0)) return 10;
     const unsigned codes[] = {S2_N2_3, S2_N5_6, S2_N3_4};
     for (unsigned k = 0; k < sizeof pattern; k++) pattern[k] = (uint8_t)(29u * k + 7u);
@@ -88,12 +89,14 @@ int main(int argc, char **argv) {
         dvbs2_ldpc_set_pack(1);
         dvbs2_init(code, true);
         table3.before = table3.after = GUARD;
-        const uint32_t table_bytes = options & C7_TABLE3 ? dvbs2_bch_table3_bytes() : 0;
-        if (table_bytes && !dvbs2_bch_table3_init(table3.words, sizeof table3.words)) return 11;
+        const uint32_t table_bytes = options & C9_BCH_TABLE4 ? dvbs2_bch_table4_bytes() :
+            options & C7_TABLE3 ? dvbs2_bch_table3_bytes() : 0;
+        if ((options & C9_BCH_TABLE4) && !dvbs2_bch_table4_init(table3.words, sizeof table3.words)) return 11;
+        if ((options & C7_TABLE3) && !dvbs2_bch_table3_init(table3.words, sizeof table3.words)) return 11;
         const uint32_t table_crc = pv_crc32(0, table3.words, table_bytes);
-        dvbs2_bch_leaf_t bch_leaf = options & (C7_BCH_PLACE | C7_TABLE3) ?
-            dvbs2_bch_copy(NULL, 0, options & C7_TABLE3 ? 2 : !!(options & C7_BCH_LDM)) : NULL;
-        if ((options & (C7_BCH_PLACE | C7_TABLE3)) && !bch_leaf) return 12;
+        dvbs2_bch_leaf_t bch_leaf = options & (C7_BCH_PLACE | C7_TABLE3 | C9_BCH_TABLE4) ?
+            dvbs2_bch_copy(NULL, 0, options & C9_BCH_TABLE4 ? 3 : options & C7_TABLE3 ? 2 : !!(options & C7_BCH_LDM)) : NULL;
+        if ((options & (C7_BCH_PLACE | C7_TABLE3 | C9_BCH_TABLE4)) && !bch_leaf) return 12;
         dvbs2_8psk_cfg_t cfg;
         if (!dvbs2_8psk_init(&cfg, code, true, 0, gold, sizeof gold / sizeof gold[0]) ||
             cfg.frame_symbols != C3_FRAME_SYMBOLS ||
