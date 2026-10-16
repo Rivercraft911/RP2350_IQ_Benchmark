@@ -97,7 +97,8 @@ def writers(layout: str) -> list[Machine]:
     if layout == "two-paired":
         return [Machine(firmware_program("paired_i_code"), 0, side_bits=2, optional=True),
                 Machine(firmware_program("paired_q_code"), 1, side_bits=2, optional=True)]
-    prefix, samples = {"four-row4": ("four", 8), "four-row8": ("quad_four", 16)}[layout]
+    prefix, samples = {"four-row2": ("row_four", 4), "four-row4": ("four", 8),
+                       "four-row8": ("quad_four", 16)}[layout]
     i_code, q_code = firmware_program(f"{prefix}_i_code"), firmware_program(f"{prefix}_q_code")
     starts, xs = (0, 1, 2, 1), (samples - 1, samples, 0, 0)
     return [Machine(i_code if s % 2 == 0 else q_code, starts[s], xs[s], 2, True) for s in range(4)]
@@ -117,7 +118,7 @@ def run(layout: str, clock_pc: int, slots: int) -> list[tuple[int, int]]:
     return trace
 
 
-LAYOUTS = ("two-row2", "two-paired", "four-row4", "four-row8")
+LAYOUTS = ("two-row2", "two-paired", "four-row2", "four-row4", "four-row8")
 
 
 class DdrClockModel(unittest.TestCase):

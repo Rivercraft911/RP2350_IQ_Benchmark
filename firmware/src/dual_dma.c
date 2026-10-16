@@ -35,6 +35,17 @@ static const pio_program_t paired_i_program = {
 static const pio_program_t paired_q_program = {
     .instructions = paired_q_code, .length = 2, .origin = -1,
 };
+#ifdef IQ4HIST_EXPERIMENT
+// Four samples (one axis row), then eight silent slots; writers return every two rows.
+static const uint16_t row_four_i_code[] = {0x7810, 0x0040, 0xe323, 0x0300};
+static const uint16_t row_four_q_code[] = {0x7010, 0x0040, 0xe323, 0x0300};
+static const pio_program_t row_four_i_program = {
+    .instructions = row_four_i_code, .length = 4, .origin = -1,
+};
+static const pio_program_t row_four_q_program = {
+    .instructions = row_four_q_code, .length = 4, .origin = -1,
+};
+#endif
 // Eight samples (one paired row) on alternating slots, then sixteen silent slots.
 // Optional side-set leaves three delay bits: SET[7] and JMP[7] each take eight slots.
 static const uint16_t four_i_code[] = {0x7810, 0x0040, 0xe727, 0x0700};
@@ -123,11 +134,17 @@ static bool shared_samples(void) {
 }
 
 static const pio_program_t *i_output_program(void) {
+#ifdef IQ4HIST_EXPERIMENT
+    if (state.writers == 4 && state.shared_axis_row) return &row_four_i_program;
+#endif
     return state.writers == 4 ? (state.row_words == 8 ? &quad_four_i_program : &four_i_program) :
         shared_samples() ? &paired_i_program : &out_program;
 }
 
 static const pio_program_t *q_output_program(void) {
+#ifdef IQ4HIST_EXPERIMENT
+    if (state.writers == 4 && state.shared_axis_row) return &row_four_q_program;
+#endif
     return state.writers == 4 ? (state.row_words == 8 ? &quad_four_q_program : &four_q_program) : &paired_q_program;
 }
 
@@ -544,14 +561,14 @@ bool dual_dma_start_axis_fifo(const volatile uint32_t *rx_i, const volatile uint
     claim_init();
     state.fifo_source = true;
     state.shared_axis_row = true;
-    if (selected_writers != 2 || selected_row_words != 2 ||
+    if ((selected_writers != 2 && selected_writers != 4) || selected_row_words != 2 ||
         !rx_i || !rx_q || rx_i == rx_q || dreq_i == dreq_q ||
         !valid_rx_source(rx_i, dreq_i) || !valid_rx_source(rx_q, dreq_q) ||
         (cpw != 2 && cpw != 4))
-        return start_failed("axis FIFO needs two writers, two-word shared rows and cpw2/4",
+        return start_failed("axis FIFO needs two/four writers, two-word shared rows and cpw2/4",
                             DUAL_DMA_ERR_CONFIG);
-    state.writers = 2;
-    state.output_pio = pio0;
+    state.writers = selected_writers;
+    state.output_pio = state.writers == 4 ? pio2 : pio0;
     state.row_words = 2;
     state.rx_i = rx_i; state.rx_q = rx_q;
     state.rx_dreq_i = dreq_i; state.rx_dreq_q = dreq_q;

@@ -72,7 +72,7 @@ static uint32_t time_us_32(void) { uint32_t result = now; now += tick; return re
 static struct {
     PIO output_pio;
     int sm[4], control[4], data[4], sm_cap, cap_dma, clock_sm;
-    bool owned, fifo_source, control_bswap;
+    bool owned, fifo_source, control_bswap, shared_axis_row;
     uint32_t fifo_targets[2][2] __attribute__((aligned(8)));
     uint32_t count, mask, divider256, schedule, row_words, writers, sys_hz;
     uint32_t last[4], last_poll_us, poll_limit_us;
@@ -143,9 +143,10 @@ static void config_checks(void) {
     }
     for (unsigned swap = 0; swap < 2; swap++)
     for (unsigned schedule = 0; schedule < 4; schedule++)
+    for (unsigned words = 2; words <= 8; words *= 2)
     for (unsigned p = 0; p < 3; p++)
     for (unsigned sm = 0; sm < 4; sm++) {
-        reset(); state.output_pio = pio2; state.row_words = 8; state.writers = 4;
+        reset(); state.output_pio = pio2; state.row_words = words; state.writers = 4;
         state.schedule = schedule; state.control_bswap = swap;
         state.rx_i = &ports[p].rxf[sm]; state.rx_q = &ports[p].rxf[(sm + 1) % 4];
         state.rx_dreq_i = 8 * p + sm + 4; state.rx_dreq_q = 8 * p + (sm + 1) % 4 + 4;
@@ -178,7 +179,7 @@ static void config_checks(void) {
                 unsigned data = parity ? odd : even, writer = axis + 2 * parity;
                 dma_channel_config d = channels[data].config;
                 assert(channels[data].read == NULL && channels[data].write == &pio2->txf[writer]);
-                assert(channels[data].count == 8 && d.size == DMA_SIZE_32);
+                assert(channels[data].count == words && d.size == DMA_SIZE_32);
                 assert(d.dreq == 16 + writer && d.chain == router && d.read_inc && !d.write_inc);
                 assert(!d.ctrl && !d.ring_bits && !d.ring_write && d.quiet && !d.bswap);
                 assert(d.high == (schedule != 1));
@@ -187,6 +188,22 @@ static void config_checks(void) {
     }
 }
 static void validation_checks(void) {
+    for (unsigned writers = 2; writers <= 4; writers++)
+    for (unsigned cpw = 0; cpw <= 5; cpw++)
+    for (unsigned bad = 0; bad < 6; bad++) {
+        reset(); selected_writers = writers; selected_row_words = bad == 1 ? 4 : 2;
+        pio0->claimed[0] = pio0->claimed[1] = true;
+        if (bad == 2) pio0->claimed[1] = false;
+        bool ok = dual_dma_start_axis_fifo(bad == 3 ? NULL : &pio0->rxf[0],
+                &pio0->rxf[1], bad == 4 ? 8 : 4, bad == 5 ? 4 : 5, cpw);
+        bool want = writers != 3 && (cpw == 2 || cpw == 4) && bad == 0;
+        assert(ok == want && starts == (unsigned)want);
+        if (want) {
+            assert(state.writers == writers && state.row_words == 2 && state.shared_axis_row);
+            assert(state.output_pio == (writers == 4 ? pio2 : pio0));
+            assert(state.fifo_source && !state.control_bswap && divider_arg == cpw * 256);
+        }
+    }
     for (unsigned claimed = 0; claimed < 2; claimed++)
     for (unsigned p = 0; p < 3; p++)
     for (unsigned sm = 0; sm < 4; sm++)
@@ -475,7 +492,7 @@ def compile_run(code, stem):
         test = Path(directory) / f"{stem}.c"
         executable = Path(directory) / stem
         test.write_text(code)
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-DIQ4HIST_EXPERIMENT=1",
                         f"-I{ROOT / 'firmware/src'}", str(test), "-o", str(executable)], check=True)
         subprocess.run([str(executable)], check=True)
 
@@ -492,6 +509,7 @@ def main():
         ("bool", "dual_dma_start_div256", "const uint32_t *desc_i, const uint32_t *desc_q, unsigned count_log2, unsigned divider256"),
         ("bool", "dual_dma_start_fifo_div256", "const volatile uint32_t *rx_i, const volatile uint32_t *rx_q, unsigned dreq_i, unsigned dreq_q, bool control_bswap, unsigned divider256"),
         ("bool", "dual_dma_start_fifo", "const volatile uint32_t *rx_i, const volatile uint32_t *rx_q, unsigned dreq_i, unsigned dreq_q, bool control_bswap, unsigned cpw"),
+        ("bool", "dual_dma_start_axis_fifo", "const volatile uint32_t *rx_i, const volatile uint32_t *rx_q, unsigned dreq_i, unsigned dreq_q, unsigned cpw"),
         ("static void", "sample_reads", "bool check_time"),
     ]
     code = FIXTURE + "\n".join(f"{result} {name}({args}) {{\n{function_body(source, name)}\n}}"
