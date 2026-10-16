@@ -63,7 +63,7 @@ python3 host/test_iq4hist8.py --spectrum
 python3 host/test_iq4hist.py --spectrum
 ```
 
-All completed successfully in this worktree. [`docs/rd/b4-model.json`](docs/rd/b4-model.json) preserves all numeric gate outputs, rejected-scale results and host Python/NumPy/platform versions. Host runtime is not a Cortex-M33 timing measurement. The new generator's int64 division runs only during setup; output does no FIR arithmetic or division.
+All completed successfully in this worktree. [`docs/rd/b4-model.json`](b4-model.json) preserves all numeric gate outputs, rejected-scale results and host Python/NumPy/platform versions. Host runtime is not a Cortex-M33 timing measurement. The new generator's int64 division runs only during setup; output does no FIR arithmetic or division.
 
 ## First-principles budgets
 
@@ -335,13 +335,13 @@ All normal pilot-enabled 8PSK frames contain 22194 symbols. At 16 Msym/s
 their duration is 1.387125 ms and each core has 177552 SYS cycles/frame;
 two cores together have 355104. Stage inputs are the measured optimized
 `fec_stage_A` BB+BCH and pack1 LDPC counts and `fec_stage_B` packed-8PSK
-mapping counts from [frontier inputs](docs/frontier/frontier_inputs.json),
+mapping counts from [frontier inputs](../frontier/frontier_inputs.json),
 with provenance in that file. 3/4 retains its measured t=12 kernel; the
 merged t=8 change does not reduce it.
 
 Use the prior measured GCS ingress cost 0.606207857 cycles/BB data-field
 bit, conversion 3.45–3.59 cycles/symbol from
-[B2](results/b2-8psk-live/2026-10-15/README.md), 3.3% of one core for
+[B2](../../results/b2-8psk-live/2026-10-15/README.md), 3.3% of one core for
 supervision and the observed approximately six-point core-1 penalty from
 mask 13. The formula for ideally balanced per-core utilization is
 
@@ -424,7 +424,7 @@ Validation completed without device access:
 - The runner's synthetic captures span a source wrap, both clock phases, SYS128/cpw1/2/4 and ratio-equivalent SYS256/cpw2/4. Corrupt low/high sample bits, IQ_FLAG, spare, clock, source identity, transport, priority, row format, duration/accounting and cleanup fail validation. SYS256 cases are synthetic tests, not a clock qualification.
 - `git diff --check` and relative Markdown links pass. No files under `results/` were modified.
 
-Native host environment: Python 3.13.2, NumPy 2.2.5 and Apple clang 17. Host duration is never used as an M33 cycle measurement. Full numeric spectrum output and environment provenance are in [b4-model.json](docs/rd/b4-model.json).
+Native host environment: Python 3.13.2, NumPy 2.2.5 and Apple clang 17. Host duration is never used as an M33 cycle measurement. Full numeric spectrum output and environment provenance are in [b4-model.json](b4-model.json).
 
 ## Reproduction and coordinating-engineer device commands
 
