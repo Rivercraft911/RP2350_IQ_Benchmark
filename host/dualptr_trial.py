@@ -46,9 +46,10 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, source: int,
         if not math.isfinite(ingress) or not 0 <= ingress <= 1:
             faults.append('core0_ingress_busy')
         if pv_kernel == 3:
-            # Core 0 must have built the runtime BBFRAMEs and core 1 none of them.
+            # Core 0 must have built the runtime BBFRAMEs and core 1 none of them. The firmware
+            # reports core 1's ts_busy at the top level, beside pv_spi (bench_dual.c).
             if (r.get('ingress_core') != 0 or not ingress > 0 or not int(r.get('ingress_steps', 0)) > 0 or
-                    r.get('ingress_step_packets') != 4 or r.get('pv_spi', {}).get('ts_busy') != 0):
+                    r.get('ingress_step_packets') != 4 or r.get('ts_busy') != 0):
                 faults.append('core-0 TS ingress')
         elif r.get('ingress_core', 1) != 1 or ingress or r.get('ingress_steps', 0):
             faults.append('core-0 TS ingress')

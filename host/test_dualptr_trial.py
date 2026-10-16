@@ -188,14 +188,14 @@ class DualptrTrial(unittest.TestCase):
                     r.update(ingress_core=0, core0_ingress_busy=0.17, ingress_steps=1000,
                              ingress_max_step_cyc=5000, ingress_step_packets=4,
                              core0_work_busy=r['core0_work_busy'] + 0.17)
-                    r['pv_spi']['ts_busy'] = 0.0
+                    r['ts_busy'] = 0.0
                     for change in (dict(ingress_core=1), dict(core0_ingress_busy=0.0), dict(ingress_steps=0),
                                    dict(ingress_step_packets=8), dict(core0_work_busy=0.486),
                                    dict(core0_ingress_busy=float('nan'))):
                         self.assertTrue(trial.validate_run(dict(r, **change), lines, 1, 3000, 5, 0, 1, 128000000,
                                                            'frozen-test-image', code_index, 2, 1,
                                                            pv_kernel=3)['faults'], change)
-                    busy_core1 = copy.deepcopy(r); busy_core1['pv_spi']['ts_busy'] = 0.1
+                    busy_core1 = copy.deepcopy(r); busy_core1['ts_busy'] = 0.1
                     self.assertTrue(trial.validate_run(busy_core1, lines, 1, 3000, 5, 0, 1, 128000000,
                                                        'frozen-test-image', code_index, 2, 1, pv_kernel=3)['faults'])
                 else:
