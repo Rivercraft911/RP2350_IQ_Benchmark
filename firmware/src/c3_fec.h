@@ -51,6 +51,15 @@ void c3_job_begin_options(c3_job_t *job, const dvbs2_8psk_cfg_t *cfg, uint32_t i
 // C9_SCHEDULE doubles BCH and LDPC units; GCS/mapping keep the same bounds.
 // False means a configuration error; stage==C3_DONE means ready for publication.
 bool c3_job_step(c3_job_t *job, const uint8_t *pattern);
+// B9's output supervisor needs shorter MAP slices: 16 C6 words, four other
+// mapper words. Without C4_BB, also split the final BB scrambling/zero pass
+// into <=64 words instead of doing the complete frame in the last GCS slice.
+// C9_SCHEDULE uses BCH96/LDPC2 here; c3pair/c3fec retain BCH128/LDPC2.
+// Existing c3pair/c3fec bounds and option meanings remain unchanged.
+// Optional copied GCS/LDPC bodies avoid XIP in their repeated inner loops.
+typedef dvbs2_gcs_words_fn c3_gcs_words_fn;
+bool c3_job_step_b9(c3_job_t *job, const uint8_t *pattern,
+                    c3_gcs_words_fn gcs_words, dvbs2_ldpc_step_fn ldpc_step);
 // In-order publication merges the one shared boundary word and returns the
 // complete-group cursor. carry holds the preceding frame's unpublished tail.
 uint32_t c3_job_publish(const c3_job_t *job, uint32_t carry[2]);

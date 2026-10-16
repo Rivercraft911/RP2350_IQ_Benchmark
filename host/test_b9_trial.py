@@ -18,19 +18,20 @@ import b9_trial as trial
 from pulse_profiles import iq4hist8_rows
 
 
-def capture_fixture(symbol=0, phase=3, invert=0):
+def capture_fixture(symbol=0, phase=3, invert=0, code_index=5):
     cursor = symbol // 16
     first = max(0, cursor * 16 - 4096)
-    reference = trial.reference_bus(first, 32768)
+    reference = trial.reference_bus(first, 32768, code_index)
     offset = (symbol - first) * trial.BUS_PER_SYMBOL + phase
     words = reference[offset + trial.STRIDE * np.arange(trial.CAP_WORDS)].astype('<u4')
     words |= ((((words >> 14) & 1) ^ invert) << 28)
     metadata, lines = trial.capture_lines(words)
     metadata['cap_source_word'] = cursor
+    metadata['code_index'] = code_index
     return metadata, words, lines
 
 
-def run_fixture(cpw=1, ms=1000, invert=0, priority=13, slow_us=0, options=251):
+def run_fixture(cpw=1, ms=1000, invert=0, priority=13, slow_us=0, options=251, code_index=5, sram_hot=1):
     rate = trial.CLOCK_HZ / (8 * cpw)
     elapsed = 2800 * cpw if slow_us else ms * 1000
     accounting = elapsed + 250
@@ -40,10 +41,14 @@ def run_fixture(cpw=1, ms=1000, invert=0, priority=13, slow_us=0, options=251):
     completed = groups if slow_us else math.floor(rate * elapsed / 16e6 / 512) * 512
     capture_symbol = 16 * (math.floor(rate * .0005 / 16) if slow_us else
                            math.floor(rate * ms / 32000 / 512) * 512)
-    record, words, lines = capture_fixture(capture_symbol, invert=invert)
+    record, words, lines = capture_fixture(capture_symbol, invert=invert, code_index=code_index)
     record.update(cmd='b9', clk_hz=trial.CLOCK_HZ, cpw=cpw, ms=ms, invert=invert,
                   bus_priority=priority, slow_us=slow_us, options=options,
-                  source='memory_gcs', source_period_bytes=256, code_index=5, s2_code='normal 2/3',
+                  sram_hot=sram_hot,
+                  source='memory_gcs', source_period_bytes=256, code_index=code_index,
+                  s2_code='normal ' + trial.RATES[code_index], kbch=trial.KBCH[code_index],
+                  payload_bits=trial.KBCH[code_index] - 80,
+                  payload_bps=(trial.KBCH[code_index] - 80) * rate / trial.FRAME_SYMBOLS,
                   pilots=True, gold=0, frame_symbols=trial.FRAME_SYMBOLS,
                   frame_cycles=trial.FRAME_SYMBOLS * 8 * cpw, ring_groups=4096, sample_bits=8,
                   sps=4, L=7, row_profile=trial.L7_PROFILE, row_symbols=1, row_words=1,
@@ -74,7 +79,7 @@ def run_fixture(cpw=1, ms=1000, invert=0, priority=13, slow_us=0, options=251):
                              stage_cycles={key: amount * ((frames + 1 - index) // 2) for key, amount in
                                            dict(gcs=10000, bch=100000, ldpc=130000, map=60000, delay=0).items()})
                         for index in range(2)])
-    record.update(trial.fec.ring_reference(5, frames, 4096))
+    record.update(trial.fec.ring_reference(code_index, frames, 4096))
     return record, words, lines
 
 
@@ -173,9 +178,64 @@ class B9Reference(unittest.TestCase):
         for first, length in ((-1, 32), (True, 32), (0, 0), (0, 1.0)):
             with self.assertRaises(ValueError):
                 trial.reference_bus(first, length)
+        for code_index in (0, 4, 7, 9, True, '5', 5.0):
+            with self.assertRaises(ValueError):
+                trial.reference_bus(0, 32, code_index)
+
+    def test_all_rates_preserve_unpadded_frame_seams_and_select_capture_reference(self):
+        # Construct each capture across a genuine PLFRAME/FIR-history seam.
+        # Validation must reject a different normal rate even though the ring,
+        # frame length, clock, header cadence and transport CRC are all plausible.
+        for code_index in (5, 8, 6):
+            with self.subTest(code=code_index):
+                self.assertEqual(trial.KBCH[code_index],
+                                 trial.fec.ref.code(trial.RATES[code_index], False).kbch)
+                symbol = 7 * trial.FRAME_SYMBOLS - 137
+                metadata, _, lines = capture_fixture(symbol, code_index=code_index)
+                checked = trial.validate_capture(metadata, lines, 0)
+                self.assertEqual(checked['cap_mismatches'], 0, checked)
+                self.assertEqual(checked['cap_global_bus_offset'], symbol * 8 + 3)
+                full = trial.reference_bus(trial.FRAME_SYMBOLS - 12, 96, code_index)
+                np.testing.assert_array_equal(trial.reference_bus(trial.FRAME_SYMBOLS + 1, 32, code_index),
+                                              full[13 * 8:45 * 8])
+                wrong = trial.validate_capture(metadata, lines, 0, 8 if code_index == 5 else 5)
+                self.assertTrue(not wrong['cap_aligned'] or wrong['cap_mismatches'] > 0, wrong)
 
 
 class B9Protocol(unittest.TestCase):
+    def test_c9_masks_new_rates_and_independent_payload_metadata(self):
+        for code_index, payload, mbps in ((5, 42960, 30.97053), (8, 53760, 38.75642),
+                                          (6, 48328, 34.84041)):
+            for options in (251, 4603, 6395, 12795):
+                with self.subTest(code=code_index, options=options):
+                    record, _, lines = run_fixture(code_index=code_index, options=options)
+                    self.assertEqual(record['payload_bits'], payload)
+                    self.assertAlmostEqual(record['payload_bps'] / 1e6, mbps, places=4)
+                    checked = trial.validate_run(record, lines, 1, 1000, 0,
+                                                 options=options, code_index=code_index)
+                    self.assertEqual(checked['faults'], [], checked)
+                    self.assertEqual(checked['classification'],
+                                     'complete_8psk_' + trial.RATES[code_index].replace('/', '_') + '_clean')
+            for invert, slow_us in ((1, 0), (0, 5000)):
+                record, _, lines = run_fixture(code_index=code_index, options=6395,
+                                               invert=invert, slow_us=slow_us)
+                checked = trial.validate_run(record, lines, 1, 1000, invert, slow_us=slow_us,
+                                             options=6395, code_index=code_index)
+                self.assertEqual(checked['faults'], [], checked)
+            record, _, lines = run_fixture(code_index=code_index)
+            for change in (dict(code_index=8 if code_index == 5 else 5), dict(s2_code='normal 1/2'),
+                           dict(kbch=payload), dict(payload_bits=payload + 80),
+                           dict(payload_bps=record['payload_bps'] * 2), dict(payload_bps=float('nan')),
+                           dict(code_crc=trial.fec.ring_reference(8 if code_index == 5 else 5,
+                                                               record['published_frames'], 4096)['code_crc'])):
+                checked = trial.validate_run(dict(record, **change), lines, 1, 1000, 0, code_index=code_index)
+                self.assertTrue(checked['faults'], change)
+            for key in ('kbch', 'payload_bits', 'payload_bps'):
+                changed = dict(record)
+                del changed[key]
+                checked = trial.validate_run(changed, lines, 1, 1000, 0, code_index=code_index)
+                self.assertEqual(bool(checked['faults']), code_index != 5, checked)
+
     def test_rates_priorities_options_and_negative_controls(self):
         for cpw in (1, 2):
             for priority in (0, 13):
@@ -188,6 +248,17 @@ class B9Protocol(unittest.TestCase):
                         self.assertEqual(checked['faults'], [], checked)
                         self.assertEqual(checked['classification'], 'source_underrun_detected' if slow_us else
                                          'clock_inversion_detected' if invert else 'complete_8psk_2_3_clean')
+
+    def test_legacy_logs_and_explicit_hot_placement_are_distinguished(self):
+        record, _, lines = run_fixture()
+        for key in ('kbch', 'payload_bits', 'payload_bps', 'sram_hot'):
+            del record[key]
+        self.assertEqual(trial.validate_run(record, lines, 1, 1000, 0)['faults'], [])
+        record, _, lines = run_fixture(sram_hot=0)
+        self.assertEqual(trial.validate_run(record, lines, 1, 1000, 0, sram_hot=0)['faults'], [])
+        self.assertTrue(trial.validate_run(record, lines, 1, 1000, 0, sram_hot=1)['faults'])
+        del record['sram_hot']
+        self.assertTrue(trial.validate_run(record, lines, 1, 1000, 0, sram_hot=0)['faults'])
 
     def test_frame_publication_and_finite_grants_fail_closed(self):
         record, _, lines = run_fixture()
@@ -246,10 +317,12 @@ class B9Protocol(unittest.TestCase):
             def command(text, **kwargs):
                 if text == 'info':
                     return dict(cmd='info', clk_hz=trial.CLOCK_HZ, git='offline-b9'), []
-                name, cpw, ms, invert, priority, slow_us, options = text.split()
+                name, cpw, ms, invert, priority, slow_us, options, *codes = text.split()
                 self.assertEqual(name, 'b9')
+                self.assertLessEqual(len(codes), 2)
                 record, _, lines = run_fixture(int(cpw), int(ms), int(invert), int(priority),
-                                               int(slow_us), int(options))
+                                               int(slow_us), int(options), int(codes[0]) if codes else 5,
+                                               int(codes[1]) if len(codes) == 2 else 1)
                 return record, lines
 
             board.cmd.side_effect = command
@@ -268,13 +341,47 @@ class B9Protocol(unittest.TestCase):
             self.assertTrue(all(not record['faults'] for record in records))
             manifest = json.loads((output / 'manifest.json').read_text())
             self.assertEqual(manifest['head'], 'offline-host')
+            self.assertEqual(manifest['codes'], [5])
             self.assertIn('host/b9_trial.py', manifest['sha256'])
             with patch.object(trial.iq, 'Board') as unopened, self.assertRaises(FileExistsError):
                 trial.main(['--out', str(output), '--port', 'synthetic-only', '--build', str(build)])
             unopened.assert_not_called()
+            board.reset_mock()
+            rates_output = temporary / 'rates-results'
+            with patch.object(trial.iq, 'Board', return_value=board), \
+                 patch.object(trial.subprocess, 'check_output', return_value='offline-host\n'), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                trial.main(['--out', str(rates_output), '--port', 'synthetic-only', '--build', str(build),
+                            '--ms', '1000', '--cpws', '1', '--priorities', '13', '--codes', '5', '8', '6',
+                            '--options', '251', '4603', '6395', '12795', '--expected-git', 'offline-b9'])
+            self.assertEqual([call.args[0] for call in board.cmd.call_args_list],
+                             ['info'] + [f'b9 1 1000 0 13 0 {options} {code}'
+                                         for code in (5, 8, 6) for options in (251, 4603, 6395, 12795)])
+            records = [json.loads(line) for line in (rates_output / 'runs.jsonl').read_text().splitlines()]
+            self.assertEqual(len(records), 12)
+            self.assertTrue(all(not record['faults'] for record in records))
+            self.assertTrue(all(record['label'].endswith('-code' + str(record['code_index'])) for record in records))
+            rates_manifest = json.loads((rates_output / 'manifest.json').read_text())
+            self.assertEqual(rates_manifest['codes'], [5, 8, 6])
+            self.assertEqual(rates_manifest['rates'], {'5': '2/3', '8': '5/6', '6': '3/4'})
+            board.reset_mock()
+            hot_output = temporary / 'hot-control-results'
+            with patch.object(trial.iq, 'Board', return_value=board), \
+                 patch.object(trial.subprocess, 'check_output', return_value='offline-host\n'), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                trial.main(['--out', str(hot_output), '--port', 'synthetic-only', '--build', str(build),
+                            '--ms', '1000', '--cpws', '1', '--priorities', '13', '--sram-hot', '0'])
+            self.assertEqual([call.args[0] for call in board.cmd.call_args_list], ['info', 'b9 1 1000 0 13 0 251 5 0'])
+            record = json.loads((hot_output / 'runs.jsonl').read_text())
+            self.assertEqual(record['faults'], [])
+            self.assertEqual(record['sram_hot'], 0)
         for options in ([], ['--out', '/unused'], ['--port', 'synthetic-only'],
                         ['--out', '/unused', '--port', 'synthetic-only', '--ms', '99'],
-                        ['--out', '/unused', '--port', 'synthetic-only', '--options', '1024']):
+                        ['--out', '/unused', '--port', 'synthetic-only', '--options', '1024'],
+                        ['--out', '/unused', '--port', 'synthetic-only', '--options', '2304'],
+                        ['--out', '/unused', '--port', 'synthetic-only', '--options', '16384'],
+                        ['--out', '/unused', '--port', 'synthetic-only', '--sram-hot', '2'],
+                        ['--out', '/unused', '--port', 'synthetic-only', '--codes', '7']):
             with patch.object(trial.iq, 'Board') as unopened, contextlib.redirect_stderr(io.StringIO()), \
                  self.assertRaises(SystemExit):
                 trial.main(options)

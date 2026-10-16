@@ -42,7 +42,7 @@
 // FEC and encoder
 //   dvbs2 <code> <pilots> [reps]                  encoder stage cycles + PLFRAME CRC
 //   c3fec code ms [slow_us] [cpw] [gap_us] [options]   [exp] two-core frame-parallel 8PSK FEC, no output
-//   b9 cpw ms invert prio slow_us options           [exp] complete GCS 8PSK2/3, options0/251
+//   b9 cpw ms invert prio slow_us options [code] [sram_hot] [exp] GCS 8PSK, default5/251/hot1
 //   c3pair code pairs layout who options          [exp] FEC SRAM-bank contention, per-stage cycles
 //        options=best: c3fec=251; c3pair=1275 requires layout4 (large BCH table)
 //   bchkernel <0|1|2|3> / bchbank <0|1> / ldpcpack <0|1> / mapkernel <0|1>   encoder selectors
@@ -345,14 +345,16 @@ static const char *dispatch(char *line) {
             !c3_options(a[5], C4_ALL, C8_BEST, &options)) return err;
         bench_c3_pair(code, pairs, layout, who, options);
     } else if (!strcmp(cmd, "b9")) {
-        int invert, options, priority;
+        int invert, options, priority, sram_hot;
         if (!num(a[1], "cpw", 1, 1, 2, &r.cpw) ||
             !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
             !num(a[3], "invert", 0, 0, 1, &invert) ||
             !num(a[4], "prio", 13, 0, 15, &priority) ||
             !num(a[5], "slow_us", 0, 0, 10000, &reps) ||
-            !c3_options(a[6], C8_BEST_BASE, C8_BEST_BASE, &options)) return err;
-        bench_b9(r.cpw, r.ms, invert, priority, reps, options);
+            !c3_options(a[6], C8_BEST_BASE, C8_BEST_BASE, &options) ||
+            !num(a[7], "code", S2_N2_3, 0, N_DVBS2_CODES - 1, &code) ||
+            !num(a[8], "sram_hot", 1, 0, 1, &sram_hot)) return err;
+        bench_b9(r.cpw, r.ms, invert, priority, reps, options, code, sram_hot);
     } else if (!strcmp(cmd, "c3fec")) {
         int gap_us, options;
         if (!num(a[1], "code", REQUIRED, 0, N_DVBS2_CODES - 1, &code) ||

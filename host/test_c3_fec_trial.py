@@ -276,15 +276,16 @@ class C3FirmwareOptions(unittest.TestCase):
 #include "dvbs2_codes.h"
 enum { REQUIRED = -1 };
 static char err[128];
-int mask_result, layout_result, cpw_result, gap_result;
+int mask_result, layout_result, cpw_result, gap_result, code_result, hot_result;
 void bench_c3_pair(int code,int pairs,int layout,int who,int mask) {
     (void)code; (void)pairs; (void)who; mask_result=mask; layout_result=layout;
 }
 void bench_c3_fec_options(int code,int ms,int slow,int cpw,int gap,int mask) {
     (void)code; (void)ms; (void)slow; mask_result=mask; cpw_result=cpw; gap_result=gap;
 }
-void bench_b9(int cpw,int ms,int invert,int priority,int slow,int mask) {
-    (void)ms; (void)invert; (void)priority; (void)slow; mask_result=mask; cpw_result=cpw;
+void bench_b9(int cpw,int ms,int invert,int priority,int slow,int mask,int code,int hot) {
+    (void)ms; (void)invert; (void)priority; (void)slow;
+    mask_result=mask; cpw_result=cpw; code_result=code; hot_result=hot;
 }
 NUMERIC
 OPTIONS
@@ -307,17 +308,35 @@ BRANCHES
             lib.parse.argtypes = [ct.c_uint, ct.POINTER(ct.c_char_p)]
             lib.parse.restype = ct.c_char_p
             mask = ct.c_int.in_dll(lib, "mask_result")
+            code = ct.c_int.in_dll(lib, "code_result")
+            hot = ct.c_int.in_dll(lib, "hot_result")
             for kind, fields, best in ((0, ["c3pair", "5", "2", "4", "2"], trial.C8_BEST),
                                        (1, ["c3fec", "5", "100", "0", "1", "128"], trial.C8_BEST_BASE),
                                        (2, ["b9", "1", "100", "0", "13", "0"], trial.C8_BEST_BASE)):
                 for text, expected in (("best", best), (str(trial.C9_ALL), trial.C9_ALL),
                                        (None, trial.C8_BEST_BASE if kind == 2 else 0 if kind else 31)):
-                    args = [field.encode() for field in fields] + [text.encode() if text else None, None]
+                    args = [field.encode() for field in fields] + [text.encode() if text else None, None, None, None]
                     argv = (ct.c_char_p * len(args))(*args)
                     self.assertIsNone(lib.parse(kind, argv))
                     self.assertEqual(mask.value, expected)
+                    if kind == 2:
+                        self.assertEqual(code.value, 5)
+                        self.assertEqual(hot.value, 1)
                 args = [field.encode() for field in fields] + [str(trial.C9_ALL + 1).encode(), None]
                 self.assertIn(b"options: expected", lib.parse(kind, (ct.c_char_p * len(args))(*args)))
+            for code_index in (5, 8, 6):
+                for options in (251, 4603, 6395, 12795):
+                    args = [field.encode() for field in ("b9", "1", "100", "0", "13", "0",
+                                                         str(options), str(code_index))] + [None, None]
+                    self.assertIsNone(lib.parse(2, (ct.c_char_p * len(args))(*args)))
+                    self.assertEqual((mask.value, code.value), (options, code_index))
+                    self.assertEqual(hot.value, 1)
+            for value in (0, 1):
+                args = [field.encode() for field in ("b9", "1", "100", "0", "13", "0", "251", "8", str(value))] + [None]
+                self.assertIsNone(lib.parse(2, (ct.c_char_p * len(args))(*args)))
+                self.assertEqual((code.value, hot.value), (8, value))
+            args = [field.encode() for field in ("b9", "1", "100", "0", "13", "0", "251", "bad")] + [None]
+            self.assertIn(b"code: expected", lib.parse(2, (ct.c_char_p * len(args))(*args)))
 
 
 if __name__ == "__main__":

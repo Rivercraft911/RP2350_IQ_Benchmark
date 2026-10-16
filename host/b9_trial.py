@@ -1,4 +1,4 @@
-"""Complete B9 memory-GCS -> 8PSK 2/3 -> L7/OUT8 digital trial.
+"""Complete B9 memory-GCS -> normal 8PSK 2/3, 5/6 or 3/4 -> L7/OUT8 trial.
 
 Import and --self-test are entirely offline. A device run requires an explicit
 --port and --out; the runner never builds, flashes, or discovers serial ports.
@@ -27,12 +27,25 @@ from iq4hist_trial import firmware_identity, table_crc, validate_clock
 from pulse_profiles import FOUR_LEVELS_Q30, L7_COEFFICIENTS, L7_PROFILE
 
 CLOCK_HZ, CODE_INDEX = 128000000, 5
+RATES = fec.RATES
+# EN 302 307-1 Table 5a. The 80-bit BBHEADER occupies part of each Kbch.
+KBCH = {5: 43040, 8: 53840, 6: 48408}
 FRAME_SYMBOLS, RING_GROUPS, CAP_WORDS, STRIDE = fec.FRAME_SYMBOLS, 4096, 4096, 17
 BUS_PER_SYMBOL, SPAN, OPTIONS = 8, 7, 251
 
 
+def option_mask(value: str) -> int:
+    """B9 shares C9's FEC masks, with the same compact borrowed-arena limits."""
+    mask = fec.option_mask(value)
+    if mask & 1024:
+        raise argparse.ArgumentTypeError('BCH three-table bit 1024 requires c3pair layout4')
+    if mask & 2048 and mask & 256:
+        raise argparse.ArgumentTypeError('compact BCH table bit 2048 excludes LDM bit 256')
+    return mask
+
+
 @lru_cache(maxsize=8)
-def reference_bus(first_symbol: int, symbols: int) -> np.ndarray:
+def reference_bus(first_symbol: int, symbols: int, code_index: int = CODE_INDEX) -> np.ndarray:
     """Finite chronological stream, including real inter-frame and startup history.
 
     The producer startup registers are zero on both axes, so the six symbols before
@@ -40,9 +53,11 @@ def reference_bus(first_symbol: int, symbols: int) -> np.ndarray:
     """
     if type(first_symbol) is not int or first_symbol < 0 or type(symbols) is not int or symbols < 1:
         raise ValueError('positive finite source symbol window required')
+    if type(code_index) is not int or code_index not in RATES:
+        raise ValueError('normal 8PSK code 5 (2/3), 8 (5/6) or 6 (3/4) required')
     first_frame = max(0, (first_symbol - (SPAN - 1)) // FRAME_SYMBOLS)
     last_frame = (first_symbol + symbols - 1) // FRAME_SYMBOLS + 1
-    codes = np.concatenate([fec.frame_codes(index, CODE_INDEX)
+    codes = np.concatenate([fec.frame_codes(index, code_index)
                             for index in range(first_frame, last_frame)], axis=1)
     absolute = np.arange(first_symbol, first_symbol + symbols)[:, None] - np.arange(SPAN)
     relative = absolute - first_frame * FRAME_SYMBOLS
@@ -59,19 +74,20 @@ def reference_bus(first_symbol: int, symbols: int) -> np.ndarray:
     return bus
 
 
-def capture_window(result: dict) -> tuple[int, np.ndarray, int, int]:
+def capture_window(result: dict, code_index: int | None = None) -> tuple[int, np.ndarray, int, int]:
     """Bounded source cursor window; no cyclic replay or per-sample alignment."""
     word = result['cap_source_word']
     if type(word) is not int or word < 0:
         raise ValueError('absolute complete-group capture cursor required')
     first = max(0, word * 16 - 4096)
-    bus = reference_bus(first, 32768)
+    bus = reference_bus(first, 32768, result.get('code_index', CODE_INDEX) if code_index is None else code_index)
     stop = min((word * 16 + 12288 - first) * BUS_PER_SYMBOL,
                len(bus) - STRIDE * (CAP_WORDS - 1))
     return first * BUS_PER_SYMBOL, bus, 0, stop
 
 
-def validate_capture(result: dict, lines: list[str], invert: int) -> dict:
+def validate_capture(result: dict, lines: list[str], invert: int,
+                     code_index: int | None = None) -> dict:
     """Check all 4096 captured bus slots and GPIO28 against one finite offset."""
     try:
         words = parse_capture(lines)
@@ -81,7 +97,7 @@ def validate_capture(result: dict, lines: list[str], invert: int) -> dict:
             raise ValueError('complete pins32 capture at stride 17 required')
         if zlib.crc32(words.tobytes()) != result.get('cap_crc'):
             raise ValueError('capture CRC mismatch (serial transfer)')
-        base, reference, start, stop = capture_window(result)
+        base, reference, start, stop = capture_window(result, code_index)
         bus = (words & 0xffff).astype('<u2')
         candidates = np.flatnonzero(reference[start:stop] == bus[0]) + start
         for index in range(1, 32):
@@ -130,15 +146,18 @@ def _finite(value):
 
 def run_faults(result: dict, cpw: int, ms: int, invert: int, priority: int = 13,
                slow_us: int = 0, options: int = OPTIONS,
-               expected_git: str | None = None) -> list[str]:
+               expected_git: str | None = None, code_index: int = CODE_INDEX,
+               sram_hot: int | None = None) -> list[str]:
     """Fail closed on profile, finite publication ownership, FEC CRC and output faults."""
     r, faults = result, []
     if r.get('error'):
         return [f"firmware error: {r['error']}"]
+    if type(code_index) is not int or code_index not in RATES:
+        return ['unsupported requested normal 8PSK code']
     expected = dict(cmd='b9', clk_hz=CLOCK_HZ, cpw=cpw, ms=ms, invert=invert,
                     bus_priority=priority, slow_us=slow_us, options=options,
                     source='memory_gcs', source_period_bytes=fec.SOURCE_BYTES,
-                    code_index=CODE_INDEX, s2_code='normal 2/3', pilots=True, gold=0,
+                    code_index=code_index, s2_code='normal ' + RATES[code_index], pilots=True, gold=0,
                     frame_symbols=FRAME_SYMBOLS, frame_cycles=FRAME_SYMBOLS * 8 * cpw,
                     ring_groups=RING_GROUPS, sample_bits=8, sps=4, L=SPAN,
                     row_profile=L7_PROFILE, row_symbols=1, row_words=1, writers=4, producers=4,
@@ -152,6 +171,19 @@ def run_faults(result: dict, cpw: int, ms: int, invert: int, priority: int = 13,
         expected['git'] = firmware_identity(expected_git)
     faults.extend(f'{key}={r.get(key)!r}, expected {value!r}'
                   for key, value in expected.items() if r.get(key) != value)
+    if (sram_hot is not None or 'sram_hot' in r) and (
+            type(r.get('sram_hot')) is not int or r['sram_hot'] != (1 if sram_hot is None else sram_hot)):
+        faults.append('sram_hot differs from requested hot-code placement')
+    # Old 2/3 logs predate these explanatory metadata fields. New rates and
+    # any fields present in newer logs must match independent Table 5a values.
+    for key, expected_value in (('kbch', KBCH[code_index]), ('payload_bits', KBCH[code_index] - 80)):
+        if (code_index != CODE_INDEX or key in r) and (
+                type(r.get(key)) is not int or r[key] != expected_value):
+            faults.append(f'{key} differs from independent EN 302 307-1 Table 5a')
+    payload_bps = (KBCH[code_index] - 80) * CLOCK_HZ / (FRAME_SYMBOLS * 8 * cpw)
+    if (code_index != CODE_INDEX or 'payload_bps' in r) and (
+            not _finite(r.get('payload_bps')) or not math.isclose(r['payload_bps'], payload_bps, abs_tol=.1)):
+        faults.append('payload_bps differs from independent BB payload/frame duration')
     if not isinstance(r.get('git'), str) or not r['git']:
         faults.append('missing firmware identity')
     counters = ('elapsed_us', 'accounting_elapsed_us', 'published_frames', 'published_groups', 'pending_fill',
@@ -193,7 +225,7 @@ def run_faults(result: dict, cpw: int, ms: int, invert: int, priority: int = 13,
             r['published_words'] != r['stream_groups']):
         faults.append('frame-to-complete-group publication differs')
     try:
-        reference = fec.ring_reference(CODE_INDEX, final, RING_GROUPS)
+        reference = fec.ring_reference(code_index, final, RING_GROUPS)
         for key in ('code_crc', 'pending_fill'):
             if r.get(key) != reference[key]:
                 faults.append(f'{key} differs from independent continuous GCS/FEC/PL reference')
@@ -277,13 +309,15 @@ def run_faults(result: dict, cpw: int, ms: int, invert: int, priority: int = 13,
 
 def validate_run(result: dict, lines: list[str], cpw: int, ms: int, invert: int,
                  priority: int = 13, slow_us: int = 0, options: int = OPTIONS,
-                 expected_git: str | None = None) -> dict:
-    capture = validate_capture(result, lines, invert)
+                 expected_git: str | None = None, code_index: int = CODE_INDEX,
+                 sram_hot: int | None = None) -> dict:
+    capture = validate_capture(result, lines, invert, code_index)
     faults = run_faults(dict(result, **capture), cpw, ms, invert, priority, slow_us,
-                        options, expected_git)
+                        options, expected_git, code_index, sram_hot)
     return dict(capture, faults=faults,
                 classification='failed' if faults else 'source_underrun_detected' if slow_us
-                else 'clock_inversion_detected' if invert else 'complete_8psk_2_3_clean')
+                else 'clock_inversion_detected' if invert
+                else 'complete_8psk_' + RATES[code_index].replace('/', '_') + '_clean')
 
 
 def self_test():
@@ -302,12 +336,17 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path)
     parser.add_argument('--port')
+    parser.add_argument('--codes', nargs='+', type=int, choices=(5, 8, 6),
+                        help='normal 8PSK: 5=2/3 (default), 8=5/6, 6=3/4')
+    parser.add_argument('--sram-hot', type=int, choices=(0, 1),
+                        help='same-image hot-code placement control (firmware default 1)')
     parser.add_argument('--cpws', nargs='+', type=int, choices=(1, 2), default=[1, 2])
     parser.add_argument('--ms', type=int, default=3000)
     parser.add_argument('--inverts', nargs='+', type=int, choices=(0, 1), default=[0])
     parser.add_argument('--priorities', nargs='+', type=int, choices=range(16), default=[0, 13])
     parser.add_argument('--slow-us', type=int, default=0)
-    parser.add_argument('--options', nargs='+', type=fec.option_mask, choices=(0, OPTIONS), default=[OPTIONS])
+    parser.add_argument('--options', nargs='+', type=option_mask, default=[OPTIONS],
+                        help='C8/C9 FEC masks, e.g. 251, 4603, 6395, 12795; best=251')
     parser.add_argument('--expected-git')
     parser.add_argument('--build', type=Path, default=iq.ROOT / 'firmware/build-exp')
     parser.add_argument('--self-test', action='store_true')
@@ -335,7 +374,10 @@ def main(argv=None):
             if path.suffix in ('.c', '.h', '.S', '.pio', '.py') and 'build' not in path.parts:
                 hashes[str(path.relative_to(iq.ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
     hashes['firmware/CMakeLists.txt'] = hashlib.sha256((iq.ROOT / 'firmware/CMakeLists.txt').read_bytes()).hexdigest()
-    manifest = dict(started=dt.datetime.now().isoformat(), ms=args.ms, cpws=args.cpws,
+    codes = args.codes or [CODE_INDEX]
+    manifest = dict(started=dt.datetime.now().isoformat(), codes=codes,
+                    rates={code: RATES[code] for code in codes}, sram_hot=1 if args.sram_hot is None else args.sram_hot,
+                    ms=args.ms, cpws=args.cpws,
                     inverts=args.inverts, priorities=args.priorities, slow_us=args.slow_us,
                     options=args.options, expected_firmware_git=args.expected_git,
                     head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=iq.ROOT, text=True).strip(),
@@ -351,21 +393,28 @@ def main(argv=None):
         info, _ = board.cmd('info')
         validate_clock(info, args.expected_git, CLOCK_HZ)
         (args.out / 'info.json').write_text(json.dumps(info, indent=2) + '\n')
-        for cpw in args.cpws:
-            for invert in args.inverts:
-                for priority in args.priorities:
-                    for options in args.options:
-                        label = f'b9-cpw{cpw}-invert{invert}-prio{priority}-slow{args.slow_us}-opt{options}'
-                        command = f'b9 {cpw} {args.ms} {invert} {priority} {args.slow_us} {options}'
-                        result, lines = board.cmd(command, timeout=args.ms / 1000 + 60)
-                        (args.out / f'{label}.txt').write_text('\n'.join(lines) + '\n')
-                        result.update(validate_run(result, lines, cpw, args.ms, invert, priority,
-                                                   args.slow_us, options, args.expected_git))
-                        result['label'] = label
-                        with (args.out / 'runs.jsonl').open('a') as stream:
-                            stream.write(json.dumps(result) + '\n')
-                        print(json.dumps(result), flush=True)
-                        failed |= bool(result['faults'])
+        for code_index in codes:
+            for cpw in args.cpws:
+                for invert in args.inverts:
+                    for priority in args.priorities:
+                        for options in args.options:
+                            label = f'b9-cpw{cpw}-invert{invert}-prio{priority}-slow{args.slow_us}-opt{options}'
+                            command = f'b9 {cpw} {args.ms} {invert} {priority} {args.slow_us} {options}'
+                            if args.codes is not None or args.sram_hot is not None:
+                                label += f'-code{code_index}'
+                                command += f' {code_index}'
+                            if args.sram_hot is not None:
+                                label += f'-sram{args.sram_hot}'
+                                command += f' {args.sram_hot}'
+                            result, lines = board.cmd(command, timeout=args.ms / 1000 + 60)
+                            (args.out / f'{label}.txt').write_text('\n'.join(lines) + '\n')
+                            result.update(validate_run(result, lines, cpw, args.ms, invert, priority,
+                                                       args.slow_us, options, args.expected_git, code_index, args.sram_hot))
+                            result['label'] = label
+                            with (args.out / 'runs.jsonl').open('a') as stream:
+                                stream.write(json.dumps(result) + '\n')
+                            print(json.dumps(result), flush=True)
+                            failed |= bool(result['faults'])
     finally:
         board.s.close()
     if failed:

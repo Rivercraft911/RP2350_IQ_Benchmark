@@ -25,6 +25,7 @@ OPTION_CASES = tuple(dict.fromkeys(
     [feature | base for feature in (32, 64, 96) for base in (0, 1, 2, 3, 4, 8, 16, 27, 31)] +
     [feature | base for feature in (128, 256, 512) for base in (0, 27, 32, 123, 127)] +
     [251, 383, 639, 767, 895, 1023, 1024, 1152, 1275, 1536, 1568, 1787, 1791, 2048, 2299, 4096, 4347, 4603, 6395, 8192, 8443, 12539, 12795, 14587]))
+B9_CASES = (0, 251, 4603, 6395, 12795)
 
 
 def check_record(record, expected_cache, physical_cache):
@@ -70,13 +71,19 @@ def main() -> None:
             for line in result.stdout.splitlines():
                 check_record(json.loads(line), expected_cache, physical_cache)
                 records += 1
+        for options in B9_CASES:
+            result = subprocess.run([str(exe), str(options), "b9"], check=True, capture_output=True, text=True)
+            for line in result.stdout.splitlines():
+                check_record(json.loads(line), expected_cache, physical_cache)
+                records += 1
         for invalid in (reference.C8_ALL, reference.C9_ALL + 1, 1024 | 256, 2048 | 256, 2048 | 1024):
             rejected = subprocess.run([str(exe), str(invalid)], capture_output=True, text=True)
             assert rejected.returncode == 10 and not rejected.stdout, invalid
-    assert records == len(OPTION_CASES) * 24, records
+    assert records == (len(OPTION_CASES) + len(B9_CASES)) * 24, records
     print(f"Passed C3 real portable job pipeline: {len(OPTION_CASES)} sampled option masks ×three rates ×16 continuous frames, "
           "odd-first completion, every pair's physical rings/carry vs independent Python; "
-          "GCS zero/one-word slices vs existing PV adapter and canaries.")
+          "GCS zero/one-word slices vs existing PV adapter and canaries; "
+          f"{len(B9_CASES)} B9 masks with bounded GCS writes and MAP progress.")
 
 
 if __name__ == "__main__":

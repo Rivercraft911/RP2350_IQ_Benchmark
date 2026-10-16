@@ -54,25 +54,32 @@ HARNESS = r'''
 #include "iq4prod_dma.h"
 
 static unsigned test_core, test_hz=128000000u, pump_active, worker_active, worker_joins;
-static unsigned step_us, run_cpw, run_slow;
+static unsigned step_us, run_cpw, run_slow, run_hot;
 static uint64_t test_now, next_worker, worker_ticks, output_begin;
 static const char *mode;
 static bool is(const char *value) { return !strcmp(mode,value); }
 
 // Preserve all actual GCS, BCH, LDPC and packed mapping logic.
-#define c3_job_step real_c3_job_step
+#define c3_job_step_b9 real_c3_job_step_b9
 #include "C3_SOURCE"
-#undef c3_job_step
+#undef c3_job_step_b9
 static uint64_t reusable, published;
 static bool output_running, producer_running, producer_prepared;
-static unsigned map_steps, credit_wait_checks, blocked_map_attempts;
-bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
+static unsigned map_steps, credit_wait_checks, blocked_map_attempts, foreground_polls;
+static bool service_delay_pending;
+bool c3_job_step_b9(c3_job_t *job, const uint8_t *pattern,
+                    c3_gcs_words_fn gcs_words, dvbs2_ldpc_step_fn ldpc_step) {
+    assert(!!gcs_words==!!run_hot && !!ldpc_step==!!run_hot);
+    if(output_running && !test_core) {
+        assert(foreground_polls>0); // The first output action must service supervision.
+        assert(!service_delay_pending); // Recheck a delayed service before any core0 slice.
+    }
     if (output_running && job->stage==C3_MAP) {
         const uint64_t end=((uint64_t)(job->index+1u)*C3_FRAME_SYMBOLS+15u)/16u;
         assert(end-reusable<=C3_RING_GROUPS);
         ++map_steps;
     }
-    const bool ok=real_c3_job_step(job,pattern);
+    const bool ok=real_c3_job_step_b9(job,pattern,gcs_words,ldpc_step);
     const unsigned duration=1;
     if(test_core) { worker_ticks+=(uint64_t)duration*(test_hz/1000000u); step_us+=duration; }
     else test_now+=duration;
@@ -103,7 +110,10 @@ static void pump(void) {
     pump_active=0;
 }
 uint32_t clock_get_hz(unsigned clock) { assert(clock==clk_sys); return is("badclock")?150000000u:test_hz; }
-uint64_t time_us_64(void) { if(!pump_active) { ++test_now;pump(); } return test_now; }
+uint64_t time_us_64(void) {
+    if(!pump_active) { service_delay_pending=false;++test_now;pump(); }
+    return test_now;
+}
 uint32_t time_us_32(void) { return (uint32_t)time_us_64(); }
 uint32_t cycles(void) {
     if(!test_core && !pump_active) { ++test_now;pump(); }
@@ -148,11 +158,14 @@ dual_dma_faults_t dual_dma_faults(void) {
     return (dual_dma_faults_t){.errors=output_errors,.running=output_running&&!output_errors};
 }
 bool dual_dma_capture_pins(uint32_t *data,uint32_t count) {
-    assert(data>=cap_buf+256 && data+count<=cap_buf+CAP_WORDS_MAX && count==4096 && output_running);
+    assert(data==cap_buf+256 && data+count<=cap_buf+CAP_WORDS_MAX && count==4096 && output_running);
     ++captures;
     if(is("capturefail"))return false;
     dma_claims|=1u<<12;sm_claims[1]|=2;
     for(unsigned j=0;j<count;j++)data[j]=0x10004000u^j;
+    if(is("capture80us") || is("capture160us")) {
+        test_now+=is("capture80us")?80u:160u;service_delay_pending=true;
+    }
     return true;
 }
 bool dual_dma_capture_done(void) { return captures!=0; }
@@ -205,6 +218,7 @@ iq4prod_progress_t iq4prod_dma_progress(void) {
     progress.running=producer_running&&!progress.errors;return progress;
 }
 iq4prod_irq_poll_t iq4prod_dma_poll_irq(void) {
+    ++foreground_polls;
     const iq4prod_progress_t p=iq4prod_dma_progress();
     return (iq4prod_irq_poll_t){.reusable_words=(uint32_t)p.reusable_words,
         .published_words=(uint32_t)p.published_words,.errors=p.errors};
@@ -227,9 +241,10 @@ void iq4prod_dma_stop(void) {
 }
 
 int main(int argc,char **argv) {
-    if(argc!=7)return 2;
+    if(argc!=9)return 2;
     mode=argv[1];run_cpw=(unsigned)atoi(argv[2]);run_slow=(unsigned)atoi(argv[3]);
-    const int options=atoi(argv[4]),invert=atoi(argv[5]),prio=atoi(argv[6]);
+    const int options=atoi(argv[4]),invert=atoi(argv[5]),prio=atoi(argv[6]),code_index=atoi(argv[7]),sram_hot=atoi(argv[8]);
+    run_hot=(unsigned)sram_hot;
     void *allocation=malloc(sizeof(ring_storage_t)+65535u);assert(allocation);
     uintptr_t words=((uintptr_t)allocation+4u+65535u)&~(uintptr_t)65535u;
     test_ring_ptr=(ring_storage_t *)(words-4u);
@@ -242,7 +257,7 @@ int main(int argc,char **argv) {
     if(is("sm2busy"))sm_claims[2]=1;
     initial_dma=dma_claims;memcpy(initial_sm,sm_claims,sizeof sm_claims);
     pv_init(16);assert(dvbs2_bch_set_kernel(S2_BCH_T8_ARM));assert(dvbs2_frontend_set_bank(1));
-    bench_b9((int)run_cpw,100,invert,prio,(int)run_slow,options);
+    bench_b9((int)run_cpw,100,invert,prio,(int)run_slow,options,code_index,sram_hot);
     assert(test_ring.before==guard && test_ring.after==guard && test_input.before==guard && test_input.after==guard);
     assert(test_capture.before==guard && test_capture.after==guard);
     assert(dvbs2_bch_get_kernel()==S2_BCH_T8_ARM && dvbs2_frontend_get_bank()==1);
@@ -294,8 +309,9 @@ class B9Bench(unittest.TestCase):
     def tearDownClass(cls):
         cls.temporary.cleanup()
 
-    def run_command(self, mode="positive", cpw=1, slow=0, options=251, invert=0, priority=13):
-        process = subprocess.run([str(self.executable), mode, str(cpw), str(slow), str(options), str(invert), str(priority)],
+    def run_command(self, mode="positive", cpw=1, slow=0, options=251, invert=0, priority=13, code_index=5, sram_hot=1):
+        process = subprocess.run([str(self.executable), mode, str(cpw), str(slow), str(options), str(invert), str(priority),
+                                  str(code_index), str(sram_hot)],
                                  capture_output=True, text=True, check=True, timeout=30)
         records = [json.loads(line[1:]) for line in process.stdout.splitlines() if line.startswith("@{")]
         metadata = [json.loads(line[6:]) for line in process.stdout.splitlines() if line.startswith("@meta ")]
@@ -336,6 +352,62 @@ class B9Bench(unittest.TestCase):
         self.assertEqual(meta["worker_joins"], 1)
         self.assertEqual(meta["captures"], 1)
 
+    def test_rates_c9_masks_and_transpose_arenas_match_independent_continuous_frames(self):
+        # These are production-command executions, including prefill, live
+        # retirement, native arena guards and final drain. No CPU timing claim.
+        for code_index, kbch in ((5, 43040), (8, 53840), (6, 48408)):
+            for options in (0, 251, 4603, 6395, 12795, 6395 | 512):
+                with self.subTest(code_index=code_index, options=options):
+                    cpw = 2 if options == 0 else 1
+                    result, meta = self.run_command(code_index=code_index, options=options, cpw=cpw)
+                    self.assertEqual(result["errors"], 0, result)
+                    self.assertEqual((result["code_index"], result["s2_code"], result["options"]),
+                                     (code_index, "normal " + reference.RATES[code_index], options))
+                    self.assertEqual((result["kbch"], result["payload_bits"]), (kbch, kbch - 80))
+                    self.assertAlmostEqual(result["payload_bps"], (kbch - 80) * 16e6 / (22194 * cpw), delta=.1)
+                    expected = reference.ring_reference(code_index, result["published_frames"], 4096)
+                    self.assertEqual(result["code_crc"], expected["code_crc"])
+                    self.assertEqual(result["pending_fill"], expected["pending_fill"])
+                    self.assertEqual(result["ldpc_bytes"], 9728)
+                    self.assertEqual(result["bch_table_base"], result["capture_base"] + 4096 * 4)
+                    if options & 2048:
+                        self.assertGreater(result["bch_table_bytes"], 0)
+                        self.assertLessEqual(result["bch_table_bytes"], 24576)
+                    else:
+                        self.assertEqual(result["bch_table_bytes"], 0)
+                    for core in result["core"]:
+                        self.assertEqual(len(core["stage_max_cycles"]), 5)
+                        self.assertEqual(max(core["stage_max_cycles"]), core["max_slice_cycles"])
+                    self.assertTrue(meta["guards_ok"])
+                    self.assertGreater(meta["blocked_map_attempts"], 0)
+
+    def test_service_cost_rechecks_before_work_and_long_delay_keeps_128us_gate(self):
+        for mode, delay_us, failed in (("capture80us", 80, False), ("capture160us", 160, True)):
+            with self.subTest(mode=mode):
+                result, meta = self.run_command(mode=mode)
+                self.assertGreaterEqual(result["max_service_cycles"], delay_us * 128)
+                if failed:
+                    self.assertTrue(result["errors"] & (1 << 17), result)
+                    self.assertEqual(result["reason"], "supervision gap")
+                    self.assertGreater(result["max_service_gap_us"], 128)
+                    self.assertGreater(result["gaps_over_96"], 0)
+                else:
+                    self.assertEqual(result["errors"], 0, result)
+                    self.assertLessEqual(result["max_service_gap_us"], 128)
+                self.assertEqual(result["code_crc"],
+                                 reference.ring_reference(5, result["published_frames"], 4096)["code_crc"])
+                self.assertEqual(meta["worker_joins"], 1)
+
+    def test_hot_placement_off_keeps_same_reference_and_reserved_layout(self):
+        for code_index, options in ((5, 251), (8, 6395), (6, 12795)):
+            with self.subTest(code_index=code_index, options=options):
+                result, _ = self.run_command(code_index=code_index, options=options, sram_hot=0)
+                self.assertEqual((result["errors"], result["sram_hot"]), (0, 0), result)
+                self.assertEqual(result["hot_bytes"], 2048)
+                self.assertEqual(result["ldpc_bytes"], 9728)
+                self.assertEqual(result["code_crc"],
+                                 reference.ring_reference(code_index, result["published_frames"], 4096)["code_crc"])
+
     def test_setup_capture_and_output_faults_release_everything(self):
         for mode in ("preparefail", "producerstartfail", "startfail", "capturefail", "outputfault"):
             with self.subTest(mode=mode):
@@ -345,7 +417,8 @@ class B9Bench(unittest.TestCase):
                 self.assertEqual(result["code_crc"], reference.ring_reference(5, result["published_frames"], 4096)["code_crc"])
 
     def test_invalid_arguments_and_claims_do_not_start_workers(self):
-        cases = [dict(cpw=4), dict(options=-1), dict(options=31), dict(options=1275),
+        cases = [dict(cpw=4), dict(options=-1), dict(options=16384), dict(options=1275),
+                 dict(options=2304), dict(code_index=4), dict(code_index=7), dict(sram_hot=2),
                  dict(invert=2), dict(priority=16), dict(slow=10001)]
         cases += [dict(mode=mode) for mode in ("badclock", "claimsbusy", "sm0busy", "sm1busy", "sm2busy")]
         for case in cases:

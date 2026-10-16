@@ -188,6 +188,17 @@ bool dvbs2_ldpc_begin_reentrant_mode(uint32_t *frame, uint32_t *workspace,
                                     uint32_t workspace_words, dvbs2_ldpc_state_t *state,
                                     unsigned mode);
 bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units);
+// B10 idle-only copies for the B9 borrowed arena. The scheduler accepts C5/C9
+// modes (2/3); it changes no prepared global pointer. Keep both copies alive
+// until both workers stop. Native copies return equivalent C, needing no bytes.
+typedef bool (*dvbs2_ldpc_step_fn)(dvbs2_ldpc_state_t *, uint32_t);
+uint32_t dvbs2_ldpc_schedule_code_bytes(void);
+dvbs2_ldpc_step_fn dvbs2_ldpc_schedule_copy(void *code, uint32_t bytes);
+// At most 64 words, starting at any offset in a twice-repeated 256-byte pattern.
+// Caller advances pattern/scramble to the current source byte and BB word.
+typedef void (*dvbs2_gcs_words_fn)(uint32_t *, const uint8_t *, const uint32_t *, uint32_t);
+uint32_t dvbs2_gcs_words_code_bytes(void);
+dvbs2_gcs_words_fn dvbs2_gcs_words_copy(void *code, uint32_t bytes);
 // Instruction placement for frontend steps with selectors STREAM_ARM/T8_ARM: 0 = striped SRAM
 // (default), 1 = an identical copy in scratch Y, for a core-0 caller. Select while idle.
 // T8_ARM degree128 specializes only bank1 to four words; bank0 retains the five-word leaf.

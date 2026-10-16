@@ -14,6 +14,25 @@ static uint32_t gold[5536 / 4], map_lut[DVBS2_8PSK_CODES_C6_WORDS], source_curso
 static struct { uint32_t before, words[30720], after; } table3;
 static uint8_t pattern[512], packet[188];
 static unsigned transpose_calls;
+static int b9_slices;
+static unsigned gcs_words_calls, ldpc_step_calls;
+
+static void checked_gcs_words(uint32_t *dst, const uint8_t *source,
+                               const uint32_t *scramble, uint32_t count) {
+    if (!count || count > 64 || source < pattern || source + 4u * count > pattern + sizeof pattern) abort();
+    ++gcs_words_calls;
+    for (uint32_t n = 0; n < count; ++n) {
+        uint32_t v;
+        memcpy(&v, source + 4u * n, sizeof v);
+        dst[n] = __builtin_bswap32(v) ^ scramble[n];
+    }
+}
+
+static bool checked_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t units) {
+    if (state->mode < 2 || (units != 1 && units != 2)) abort();
+    ++ldpc_step_calls;
+    return dvbs2_ldpc_step(state, units);
+}
 
 static void private_transpose(uint32_t *matrix) {
     ++transpose_calls;
@@ -57,9 +76,34 @@ static int source_test(const dvbs2_code_t *code) {
 }
 
 static int complete(c3_job_t *job) {
-    unsigned calls = 0;
+    unsigned calls = 0, bch_calls = 0, map_calls = 0;
     while (job->stage != C3_DONE) {
-        if (!c3_job_step(job, pattern) || ++calls > 4096) return 0;
+        const uint32_t stage = job->stage, cursor = job->cursor, data = job->map.data;
+        const uint32_t bch_cursor = job->front.cursor;
+        uint32_t previous_bb[DVBS2_FE_WORDS], previous_frame[DVBS2_FE_WORDS];
+        if (b9_slices && stage == C3_GCS) {
+            memcpy(previous_bb, job->bb, sizeof previous_bb);
+            memcpy(previous_frame, job->frame, sizeof previous_frame);
+        }
+        // Alternate pairs cover both optional hot callbacks and NULL fallback.
+        const bool hot = !!(job->index & 2u);
+        if (!(b9_slices ? c3_job_step_b9(job, pattern, hot ? checked_gcs_words : NULL,
+                                        hot ? checked_ldpc_step : NULL) :
+                          c3_job_step(job, pattern)) || ++calls > 4096) return 0;
+        if (b9_slices && stage == C3_GCS) {
+            unsigned changed_bb = 0, changed_frame = 0;
+            for (unsigned n = 0; n < DVBS2_FE_WORDS; ++n) {
+                changed_bb += previous_bb[n] != job->bb[n];
+                changed_frame += previous_frame[n] != job->frame[n];
+            }
+            if (job->cursor - cursor > 64 || changed_bb + changed_frame > 64) return 0;
+        }
+        if (b9_slices && stage == C3_MAP &&
+            job->map.data - data > (job->options & C6_MAP ? 16u : 4u) * 32u) return 0;
+        if (b9_slices && stage == C3_BCH && job->front.cursor - bch_cursor >
+            (job->options & C9_SCHEDULE ? 96u : 64u)) return 0;
+        bch_calls += stage == C3_BCH;
+        map_calls += stage == C3_MAP;
         if (job->stage == C3_BCH &&
             (job->front.leaf != (job->bch_leaf ? job->bch_leaf :
                 (job->options & C7_BCH_LDM ? dvbs2_bch_copy(NULL, 0, 1) : NULL)) ||
@@ -70,6 +114,15 @@ static int complete(c3_job_t *job) {
             (job->map.c6 != !!(job->options & C6_MAP) ||
              job->map.fast != !!(job->options & (C4_MAP | C6_MAP)))) return 0;
     }
+    if (b9_slices) {
+        // BCH consumes whole words plus its final 0..3 bytes in the last call;
+        // mapping consumes the normal frame's 675 32-symbol column words.
+        const uint32_t bch_words = job->cfg->code->kbch / 32u;
+        const uint32_t bch_unit = job->options & C9_SCHEDULE ? 96u : 64u;
+        const uint32_t map_unit = job->options & C6_MAP ? 16u : 4u;
+        if (bch_calls != (bch_words + bch_unit - 1u) / bch_unit ||
+            map_calls != (675u + map_unit - 1u) / map_unit) return 0;
+    }
     const uint32_t n = job->stream.n, fill = job->stream.fill;
     return c3_job_step(job, pattern) && job->stage == C3_DONE &&
         job->stream.n == n && job->stream.fill == fill;
@@ -77,6 +130,7 @@ static int complete(c3_job_t *job) {
 
 int main(int argc, char **argv) {
     const unsigned options = argc > 1 ? (unsigned)atoi(argv[1]) : 0;
+    b9_slices = argc > 2 && !strcmp(argv[2], "b9");
     if (options > C9_ALL || ((options & C7_TABLE3) && (options & C7_BCH_LDM)) ||
         ((options & C9_BCH_TABLE4) && (options & (C7_TABLE3 | C7_BCH_LDM))) ||
         !dvbs2_ldpc_prepare(NULL, 0)) return 10;
@@ -145,5 +199,7 @@ int main(int argc, char **argv) {
             puts("]}");
         }
     }
+    if (b9_slices && ((!!(options & C4_BB) != !!gcs_words_calls) ||
+        (!!(options & (C5_LDPC | C9_LDPC_PACK)) != !!ldpc_step_calls))) return 14;
     return 0;
 }

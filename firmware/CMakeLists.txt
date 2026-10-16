@@ -47,7 +47,7 @@ if(IQ4HIST_EXPERIMENT)
     target_sources(iqbench PRIVATE src/iq4hist.c src/iq4ptr.c src/bench4live.c src/bench4fec.c
         src/iq4quad.c src/bench4quad.c src/iq4prod.c src/iq4prod_dma.c
         src/iq4prod_source.c src/bench4prod.c src/dmaloop.c src/c3_fec.c src/bench_c3_fec.c src/bench_c3_pair.c
-        src/r2grant.c src/bench_r2grant.c src/bench_b9.c)
+        src/r2grant.c src/bench_r2grant.c src/bench_b9.c src/b10_hot.S)
     target_compile_definitions(iqbench PRIVATE IQ4HIST_EXPERIMENT=1)
 endif()
 # A3 multiply-form 32APSK conversion: linked last so its SCRATCH_Y section follows
@@ -109,6 +109,14 @@ string(REPLACE "    .ram_vector_table (NOLOAD):"
        "    .input_ring (NOLOAD) : { *(.bss.in_buf) *(.bss.link_ring) } > RAM\n\n    .ram_vector_table (NOLOAD):"
        LD "${LD}")
 if(IQ4HIST_EXPERIMENT)
+    # B10's optional borrowed-SRAM scheduler copy must include the one direct
+    # callee and both literal pools. No static SRAM allocation is added.
+    string(REPLACE "        *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .text*)"
+           "        . = ALIGN(4);\n        __b10_ldpc_schedule_start__ = .;\n        KEEP(*(.text.b10_ldpc_schedule_pic))\n        __b10_ldpc_schedule_end__ = .;\n        *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .text*)"
+           LD "${LD}")
+    if(NOT LD MATCHES "__b10_ldpc_schedule_start__")
+        message(FATAL_ERROR "SDK text section changed; update the B10 scheduler copy patch")
+    endif()
     # The idle-only experiment borrows the entire existing output ring as one LUT.
     # Reserve it first, at RAM origin, so PIO can concatenate a 17-bit byte offset.
     string(REPLACE "    .input_ring (NOLOAD) :"

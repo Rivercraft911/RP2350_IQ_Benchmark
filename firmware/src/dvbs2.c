@@ -23,6 +23,15 @@ static inline uint32_t rbit(uint32_t x) {
 }
 #endif
 
+// The two functions in this section have only an internal direct BL and
+// indirect leaf calls. The experiment linker keeps their literals and code
+// together, so an idle-only B9 copy preserves every relative address.
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__) && defined(IQ4HIST_EXPERIMENT)
+#define B10_SCHEDULE __attribute__((section(".text.b10_ldpc_schedule_pic"), noinline))
+#else
+#define B10_SCHEDULE
+#endif
+
 enum {
     MAX_BITS_W = DVBS2_FE_WORDS,     // FECFRAME words, plus padding for 64-bit reads
     MAX_Q = 135,                     // normal 1/4
@@ -628,7 +637,7 @@ static void ldpc_group_into(const uint32_t *info, uint32_t (*rows)[12], uint32_t
         xor_rot(rows[a_row[a]], u2 + (a_off[a] >> 5), a_off[a] & 31);
 }
 
-static void ldpc_prefix_into(dvbs2_ldpc_state_t *state) {
+static void B10_SCHEDULE ldpc_prefix_into(dvbs2_ldpc_state_t *state) {
     uint32_t carry = 0;
     for (unsigned k = 0; k < 12; k++) {
         uint32_t x = state->rows[C->q - 1][k] & (k == 11 ? 0xFF000000u : ~0u);
@@ -734,7 +743,7 @@ static void ldpc_c5_rows(dvbs2_ldpc_state_t *state, uint32_t count, bool accumul
 
 // Keep C5 address arithmetic and dispatch out of the baseline step. In particular,
 // GCC otherwise hoists arena-offset calculations into mode0/1 calls as well.
-static bool __attribute__((noinline)) ldpc_c5_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
+static bool __attribute__((noinline)) B10_SCHEDULE ldpc_c5_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
     if (state->done) return true;
     const uint32_t q = C->q;
     while (max_units--) {
@@ -855,6 +864,52 @@ bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units) {
     // register saves out of every C5 unit, including group/row-only units.
     return state->mode >= 2 ? ldpc_c5_step(state, max_units) : ldpc_step_baseline(state, max_units);
 }
+
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__) && defined(IQ4HIST_EXPERIMENT)
+extern const uint8_t __b10_ldpc_schedule_start__[], __b10_ldpc_schedule_end__[];
+extern const uint8_t dvbs2_gcs_words_pic[], dvbs2_gcs_words_pic_end[];
+uint32_t dvbs2_ldpc_schedule_code_bytes(void) {
+    return (uint32_t)((uintptr_t)__b10_ldpc_schedule_end__ -
+                      (uintptr_t)__b10_ldpc_schedule_start__);
+}
+dvbs2_ldpc_step_fn dvbs2_ldpc_schedule_copy(void *code, uint32_t bytes) {
+    const uint32_t needed = dvbs2_ldpc_schedule_code_bytes();
+    const uintptr_t entry = (uintptr_t)ldpc_c5_step & ~(uintptr_t)1;
+    const uintptr_t start = (uintptr_t)__b10_ldpc_schedule_start__;
+    if (!code || ((uintptr_t)code & 3u) || !needed || bytes < needed ||
+        entry < start || entry >= start + needed) return NULL;
+    memcpy(code, __b10_ldpc_schedule_start__, needed);
+    __asm volatile("dsb\n isb" ::: "memory");
+    return (dvbs2_ldpc_step_fn)(((uintptr_t)code + entry - start) | 1u);
+}
+uint32_t dvbs2_gcs_words_code_bytes(void) {
+    return pic_bytes(dvbs2_gcs_words_pic, dvbs2_gcs_words_pic_end);
+}
+dvbs2_gcs_words_fn dvbs2_gcs_words_copy(void *code, uint32_t bytes) {
+    const uint32_t needed = dvbs2_gcs_words_code_bytes();
+    if (!code || ((uintptr_t)code & 3u) || !needed || bytes < needed) return NULL;
+    memcpy(code, (const void *)((uintptr_t)dvbs2_gcs_words_pic & ~(uintptr_t)1), needed);
+    __asm volatile("dsb\n isb" ::: "memory");
+    return (dvbs2_gcs_words_fn)((uintptr_t)code | 1u);
+}
+#else
+static void gcs_words_c(uint32_t *dst, const uint8_t *pattern,
+                        const uint32_t *scramble, uint32_t count) {
+    for (uint32_t n = 0; n < count; ++n) {
+        const uint8_t *p = pattern + 4u * n;
+        dst[n] = ((uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 |
+                  (uint32_t)p[2] << 8 | p[3]) ^ scramble[n];
+    }
+}
+uint32_t dvbs2_ldpc_schedule_code_bytes(void) { return 0; }
+dvbs2_ldpc_step_fn dvbs2_ldpc_schedule_copy(void *code, uint32_t bytes) {
+    (void)code; (void)bytes; return ldpc_c5_step;
+}
+uint32_t dvbs2_gcs_words_code_bytes(void) { return 0; }
+dvbs2_gcs_words_fn dvbs2_gcs_words_copy(void *code, uint32_t bytes) {
+    (void)code; (void)bytes; return gcs_words_c;
+}
+#endif
 
 bool dvbs2_ldpc_set_pack(unsigned pack) {
     if (pack > 1) return false;
