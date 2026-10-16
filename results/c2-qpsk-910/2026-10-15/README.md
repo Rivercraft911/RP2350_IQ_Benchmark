@@ -34,3 +34,8 @@ Live, 9/10 at 16 Msym/s, every capture 0 bus and 0 clock-parity mismatches:
 The hang left no device record; the host saw no reply to the 60 s `dualstream` and every
 later command timed out until the board was unplugged. Unknowns: cause (stack overflow into
 SCRATCH_Y code is one hypothesis C2 flagged; a USB/host event is another), and its rate.
+
+`control-56-60s/` (5/6 GCS 60 s control, started 18:49:56) has only its manifest and an empty
+log: the device stopped answering again. Both hangs were later traced to a core-0 stack overflow
+into SCRATCH_Y code that C2's new code exposed; the core-0 stack now lives in SRAM4-7
+(`results/round2/2026-10-15/STACK.md`).
