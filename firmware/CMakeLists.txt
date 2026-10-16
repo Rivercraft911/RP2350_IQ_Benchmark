@@ -49,6 +49,11 @@ if(IQ4HIST_EXPERIMENT)
         src/r2grant.c src/bench_r2grant.c)
     target_compile_definitions(iqbench PRIVATE IQ4HIST_EXPERIMENT=1)
 endif()
+# A3 multiply-form 32APSK conversion: linked last so its SCRATCH_Y section follows
+# every existing scratch leaf and none of them moves.
+foreach(target iqbench pvflight)
+    target_sources(${target} PRIVATE src/iq32offsets_mla.c)
+endforeach()
 # git_rev.h is rewritten on every build (only when the revision changes), so logged firmware
 # revisions are current. Records made before 2026-09-30 could carry a stale configure-time value.
 add_custom_target(git_rev ALL
