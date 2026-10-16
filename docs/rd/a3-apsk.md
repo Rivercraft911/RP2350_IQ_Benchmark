@@ -1,5 +1,10 @@
 # A3: table-driven APSK PL mapping and a cheaper 32APSK key conversion
 
+**Device result (coordinator, 2026-10-16):** 60 s clean at 16APSK cpw 7 option 1 (4.571 Msym/s,
+14.73 Mb/s) and 32APSK cpw 9 option 3 (3.556 Msym/s, 14.33 Mb/s). Kernels measured inside the
+estimates (5.71, 8.77, 7.16 cycles/symbol); the predicted cpw 6 / cpw 8 underran because the
+worst frame, not the mean, sets the limit. See [results](../../results/a3-apsk/2026-10-16/README.md).
+
 2026-10-16, branch `worktree-agent-ab62c7d523917fc33`, based on `main` at `0296275`.
 Implemented and natively verified. **No device measurement was made**: nothing here opened
 the Pico, a serial port or picotool. Every cycle figure for the new code is an estimate
