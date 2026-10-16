@@ -1,5 +1,9 @@
 # C9: smaller FEC tables and bounded scheduling work
 
+**Device result (coordinator, 2026-10-16):** pair work at 5/6 318k -> 304k (6395) and 3/4
+328k -> 312k (12795), bit-exact. The 16 Msym/s cadence still misses the first frame, by 27 µs
+(5/6) and 109 µs (3/4). See [results](../../results/c9-fec-fit/2026-10-16/README.md).
+
 C9 supplies a same-image candidate for 5/6 and 3/4 at the 16 Msym/s FEC cadence.
 **Cadence fit is not established: no device was accessed.** The preferred starting
 masks are **4603 for 5/6** and **12795 for 3/4**. They use the existing LDM BCH
