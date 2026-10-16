@@ -5,7 +5,8 @@
 //   who 0: core 0 runs A then B (no concurrent FEC)      who 1: core 1 runs A then B
 //   who 2: core 0 runs A while core 1 runs B, both released together
 //   who 3..6: core 0 runs A then B while core 1 hammers one shared resource: 3 flash (XIP) code
-//   fetches, 4 SRAM0-3 copies, 5 SRAM4-7 copies, 6 an SRAM-resident ALU loop (fetch only)
+//   fetches, 4 SRAM0-3 copies, 5 SRAM4-7 copies, 6 an SRAM-resident ALU loop (fetch only),
+//   7 dvbs2_transpose32 in a loop (SCRATCH_X code fetch, the LDPC transpose leaf)
 //   layout 0: both jobs, their code rings and one shared gold/LUT/LDPC-leaf set in SRAM0-3
 //   layout 1: job B with its own rings, gold, LUT and LDPC leaf copy in SRAM4-7 (cap_buf)
 // Shared read-only tables (BCH, BB PRBS, LDPC addresses) stay where the linker put them.
@@ -86,7 +87,7 @@ static void __attribute__((noinline)) hammer_flash(void) {
         for (unsigned k = 0; k < 64; ++k) x = x * 1664525u + 1013904223u;
     remote.total = x;
 }
-static void __not_in_flash_func(hammer_sram_code)(void) {
+static void __attribute__((noinline)) __not_in_flash_func(hammer_sram_code)(void) {
     uint32_t x = 1;
     while (!remote.stop)
         for (unsigned k = 0; k < 64; ++k) x = x * 1664525u + 1013904223u;
@@ -95,8 +96,15 @@ static void __not_in_flash_func(hammer_sram_code)(void) {
 static void hammer_copy(uint32_t *buf, uint32_t words) {
     while (!remote.stop) memcpy(buf + words, buf, words * 4u);
 }
+void dvbs2_transpose32(uint32_t *a); // dvbs2_asm.S
+static void hammer_transpose(void) {
+    // dvbs2_transpose32 is linked in SCRATCH_X: both LDPC workers fetch it from that one bank.
+    uint32_t *tile = cap_buf + 8192;
+    while (!remote.stop) dvbs2_transpose32(tile);
+}
 static void hammer_task(uint32_t kind) {
-    if (kind == 3) hammer_flash();
+    if (kind == 7) hammer_transpose();
+    else if (kind == 3) hammer_flash();
     else if (kind == 4) hammer_copy(ring_buf + 24576, 2048);            // SRAM0-3, outside low_t
     else if (kind == 5) hammer_copy(cap_buf, 2048);                     // SRAM4-7
     else hammer_sram_code();
@@ -117,9 +125,9 @@ static bool tables(lane_t *lane, const dvbs2_code_t *code, uint32_t options) {
 void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) {
     const uint32_t hz = clock_get_hz(clk_sys);
     if ((code_index != S2_N2_3 && code_index != S2_N3_4 && code_index != S2_N5_6) || pairs < 1 ||
-        pairs > MAX_PAIRS || layout < 0 || layout > 1 || who < 0 || who > 6 || (who >= 3 && layout) ||
+        pairs > MAX_PAIRS || layout < 0 || layout > 1 || who < 0 || who > 7 || (who >= 3 && layout) ||
         options < 0 || options > C4_ALL) {
-        printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8, pairs1..200, layout0/1, who0..6 (3..6 layout0), options0..31\"}\n");
+        printf("@{\"cmd\":\"c3pair\",\"error\":\"needs code5/6/8, pairs1..200, layout0/1, who0..7 (3..7 layout0), options0..31\"}\n");
         return;
     }
     const dvbs2_code_t *code = &DVBS2_CODES[code_index];

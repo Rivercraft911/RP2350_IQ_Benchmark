@@ -320,7 +320,7 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "c3pair")) {
         int pairs, layout, who, options;
         if (!num(a[1], "code", REQUIRED, 0, N_DVBS2_CODES - 1, &code) || !num(a[2], "pairs", 40, 1, 200, &pairs) ||
-            !num(a[3], "layout", 0, 0, 1, &layout) || !num(a[4], "who", 2, 0, 6, &who) ||
+            !num(a[3], "layout", 0, 0, 1, &layout) || !num(a[4], "who", 2, 0, 7, &who) ||
             !num(a[5], "options", C4_ALL, 0, C4_ALL, &options)) return err;
         bench_c3_pair(code, pairs, layout, who, options);
     } else if (!strcmp(cmd, "c3fec")) {
