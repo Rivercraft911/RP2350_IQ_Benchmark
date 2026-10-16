@@ -3,6 +3,7 @@
 #include "tx.h"
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
+#include "hardware/irq.h"
 #include "hardware/sync.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -21,7 +22,9 @@ typedef struct {
     int sm[4], dma[4];
     unsigned offset[2];
     uint32_t sm_mask[2], dma_mask, last[4], last_poll_us;
-    bool owned, added[2], live, worker_started;
+    bool owned, added[2], live, worker_started, irq_mode, irq_installed;
+    int8_t irq_index;
+    uint8_t irq_priority;
     volatile bool worker_stop, worker_ready;
     volatile uint32_t published, snapshot_seq;
     volatile worker_snapshot_t snapshot;
@@ -30,7 +33,7 @@ typedef struct {
 
 // Core0's stack is relocated to SRAM_HI in the experiment build. Its unused
 // SRAM9 space holds this worker and state without expanding crowded SRAM0..7.
-static producer_state_t state __attribute__((section(".scratch_y.iq4prod_state"))) = {0};
+static producer_state_t state __attribute__((section(".scratch_y_data.iq4prod_state"))) = {0};
 static const char *last_error = "not prepared";
 static const pio_program_t program = {
     .instructions = IQ4PROD_PROGRAM, .length = IQ4PROD_PROGRAM_LENGTH, .origin = -1,
@@ -62,6 +65,51 @@ static worker_snapshot_t load_snapshot(void) {
         after = state.snapshot_seq;
     } while ((before & 1u) || before != after);
     return s;
+}
+
+// Finite normal-mode grants remain the ownership fence. In particular, an
+// interrupt delayed past the input FIFO runway stops the producer and reports
+// SOURCE_EMPTY; it never turns a live ring into an endless stale-data replay.
+// Core0 publication calls this same bounded body with interrupts excluded.
+static void __attribute__((section(".scratch_y.iq4prod_irq"), optimize("Os"))) input_irq(void) {
+    const uint32_t begin = cycles();
+    dma_hw->intr = state.dma_mask;
+    state.snapshot_seq++;
+    __dmb();
+    volatile worker_snapshot_t *s = &state.snapshot;
+    const uint32_t published = state.published;
+    for (unsigned block = 0; block < 2; ++block) {
+        const uint32_t flags = (block ? pio1 : pio0)->fdebug;
+        const uint32_t mask = state.sm_mask[block];
+        const uint32_t tx = (flags >> PIO_FDEBUG_TXSTALL_LSB) & mask;
+        s->txstall |= tx << (4 * block);
+        s->rxstall |= ((flags >> PIO_FDEBUG_RXSTALL_LSB) & mask) << (4 * block);
+        if (tx) s->errors |= IQ4PROD_ERR_SOURCE_EMPTY;
+        if (flags & ((mask << PIO_FDEBUG_TXOVER_LSB) |
+                     (mask << PIO_FDEBUG_RXUNDER_LSB))) s->errors |= IQ4PROD_ERR_PIO;
+    }
+    for (unsigned stream = 0; stream < 4; ++stream) {
+        const unsigned ch = (unsigned)state.dma[stream];
+        const uint32_t ctrl = dma_hw->ch[ch].ctrl_trig;
+        if (ctrl & DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS) s->errors |= IQ4PROD_ERR_DMA;
+        if (ctrl & DMA_CH0_CTRL_TRIG_BUSY_BITS) continue;
+        s->completed[stream] = s->granted[stream];
+        if (published < s->granted[stream]) { s->errors |= IQ4PROD_ERR_OWNERSHIP; continue; }
+        if (s->errors) continue;
+        uint32_t count = published - s->granted[stream];
+        if (count > IQ4PROD_BATCH_WORDS) count = IQ4PROD_BATCH_WORDS;
+        if (!count) continue;
+        s->granted[stream] += count;
+        __dmb();
+        dma_hw->ch[ch].al1_transfer_count_trig = count;
+    }
+    if (s->errors) disable_producers();
+    const uint32_t spent = cycles() - begin;
+    s->polls++;
+    s->service_cycles += spent;
+    if (spent > s->max_gap) s->max_gap = spent;
+    __dmb();
+    state.snapshot_seq++;
 }
 
 static void __attribute__((section(".scratch_y.iq4prod_worker"))) input_worker(uint32_t ignored) {
@@ -214,6 +262,36 @@ bool iq4prod_dma_prepare(const uint32_t *input_i, const uint32_t *input_q,
     return true;
 }
 
+bool iq4prod_dma_prepare_irq(const uint32_t *input_i, const uint32_t *input_q,
+                     const uint32_t *table, uint32_t previous_i, uint32_t previous_q,
+                     uint64_t published_words) {
+    if (!iq4prod_dma_prepare(input_i, input_q, table, previous_i, previous_q,
+                            true, published_words)) return false;
+    int selected = -1;
+    for (int index = NUM_DMA_IRQS - 1; index >= 2; --index) {
+        const unsigned irq = DMA_IRQ_NUM(index);
+        if (!irq_is_enabled(irq) && !dma_hw->irq_ctrl[index].inte && !dma_hw->irq_ctrl[index].intf &&
+            !irq_has_shared_handler(irq) && !irq_get_exclusive_handler(irq)) {
+            selected = index;
+            break;
+        }
+    }
+    if (selected < 0) return failed("producer requires an unused core0 DMA IRQ2/3", IQ4PROD_ERR_CONFIG);
+    state.irq_mode = true;
+    state.irq_index = selected;
+    state.irq_priority = irq_get_priority(DMA_IRQ_NUM(selected));
+    irq_set_exclusive_handler(DMA_IRQ_NUM(selected), input_irq);
+    state.irq_installed = true;
+    irq_set_priority(DMA_IRQ_NUM(selected), 0);
+    for (unsigned stream = 0; stream < 4; ++stream) {
+        hw_clear_bits(&dma_hw->ch[state.dma[stream]].al1_ctrl, DMA_CH0_CTRL_TRIG_IRQ_QUIET_BITS);
+        dma_irqn_set_channel_enabled(selected, state.dma[stream], true);
+        state.snapshot.granted[stream] = IQ4PROD_BATCH_WORDS;
+    }
+    state.result.irq_index = selected;
+    return true;
+}
+
 bool iq4prod_dma_start(void) {
     if (!state.owned || state.result.running || state.result.errors)
         return failed("start requires prepared idle producers", IQ4PROD_ERR_CONFIG);
@@ -234,7 +312,10 @@ bool iq4prod_dma_start(void) {
         pio->fdebug = (mask << PIO_FDEBUG_TXSTALL_LSB) | (mask << PIO_FDEBUG_RXSTALL_LSB) |
                      (mask << PIO_FDEBUG_TXOVER_LSB) | (mask << PIO_FDEBUG_RXUNDER_LSB);
     }
-    if (state.live) {
+    if (state.irq_mode) {
+        irq_clear(DMA_IRQ_NUM(state.irq_index));
+        irq_set_enabled(DMA_IRQ_NUM(state.irq_index), true);
+    } else if (state.live) {
         state.worker_started = true;
         tx_worker_start(input_worker, 0);
         while (!state.worker_ready)
@@ -265,9 +346,30 @@ iq4prod_progress_t iq4prod_dma_progress(void) {
         state.result.errors |= s.errors;
         state.result.txstall_mask |= s.txstall;
         state.result.rxstall_mask |= s.rxstall;
-        state.result.worker_polls = s.polls;
-        state.result.worker_max_gap_cycles = s.max_gap;
-        state.result.worker_service_cycles = s.service_cycles;
+        if (state.irq_mode) {
+            state.result.irq_calls = s.polls;
+            state.result.irq_max_service_cycles = s.max_gap;
+            state.result.irq_service_cycles = s.service_cycles;
+            // At the publication frontier every channel can be idle with no
+            // further completion IRQ. FIFO drain must still become a sticky
+            // SOURCE_EMPTY on the foreground's bounded supervision poll.
+            // FDEBUG is never cleared here or by the ISR, so concurrent reads
+            // need no IRQ exclusion and cannot lose a producer fault.
+            for (unsigned block = 0; block < 2; ++block) {
+                const uint32_t flags = (block ? pio1 : pio0)->fdebug;
+                const uint32_t mask = state.sm_mask[block];
+                const uint32_t tx = (flags >> PIO_FDEBUG_TXSTALL_LSB) & mask;
+                state.result.txstall_mask |= tx << (4 * block);
+                state.result.rxstall_mask |= ((flags >> PIO_FDEBUG_RXSTALL_LSB) & mask) << (4 * block);
+                if (tx) state.result.errors |= IQ4PROD_ERR_SOURCE_EMPTY;
+                if (flags & ((mask << PIO_FDEBUG_TXOVER_LSB) |
+                             (mask << PIO_FDEBUG_RXUNDER_LSB))) state.result.errors |= IQ4PROD_ERR_PIO;
+            }
+        } else {
+            state.result.worker_polls = s.polls;
+            state.result.worker_max_gap_cycles = s.max_gap;
+            state.result.worker_service_cycles = s.service_cycles;
+        }
     } else {
         if (!state.result.running) return state.result;
         const uint32_t now = time_us_32();
@@ -307,6 +409,39 @@ iq4prod_progress_t iq4prod_dma_progress(void) {
     return state.result;
 }
 
+iq4prod_irq_poll_t iq4prod_dma_poll_irq(void) {
+    if (!state.owned || !state.irq_mode)
+        return (iq4prod_irq_poll_t){0, 0, IQ4PROD_ERR_CONFIG};
+    uint32_t low = UINT32_MAX;
+    for (unsigned stream = 0; stream < 4; ++stream) {
+        const uint32_t completed = state.snapshot.completed[stream];
+        if (completed < low) low = completed;
+    }
+    // IRQ retirement only increases. If the IRQ interrupts these four loads,
+    // each loaded cursor is <= its current value and their minimum remains a
+    // safe reuse bound. No 64-bit field or sequence-counter retry is needed.
+    state.result.reusable_words = low;
+    state.result.errors |= state.snapshot.errors;
+    if (state.result.running) {
+        for (unsigned block = 0; block < 2; ++block) {
+            const uint32_t flags = (block ? pio1 : pio0)->fdebug;
+            const uint32_t mask = state.sm_mask[block];
+            const uint32_t tx = (flags >> PIO_FDEBUG_TXSTALL_LSB) & mask;
+            state.result.txstall_mask |= tx << (4 * block);
+            state.result.rxstall_mask |= ((flags >> PIO_FDEBUG_RXSTALL_LSB) & mask) << (4 * block);
+            if (tx) state.result.errors |= IQ4PROD_ERR_SOURCE_EMPTY;
+            if (flags & ((mask << PIO_FDEBUG_TXOVER_LSB) |
+                         (mask << PIO_FDEBUG_RXUNDER_LSB))) state.result.errors |= IQ4PROD_ERR_PIO;
+        }
+    }
+    if (state.result.errors) {
+        disable_producers();
+        state.result.running = false;
+        last_error = "producer fault; inspect sticky flags";
+    }
+    return (iq4prod_irq_poll_t){low, state.published, state.result.errors};
+}
+
 iq4prod_progress_t iq4prod_dma_publish(uint64_t published_words) {
     iq4prod_dma_progress();
     if (!state.owned || !state.live || !state.result.running) return state.result;
@@ -322,6 +457,13 @@ iq4prod_progress_t iq4prod_dma_publish(uint64_t published_words) {
     __dmb();
     state.published = (uint32_t)published_words;
     state.result.published_words = published_words;
+    if (state.irq_mode) {
+        // A channel may have reached the publication frontier and have no
+        // completion IRQ pending. Kick it immediately after releasing words.
+        const uint32_t saved = save_and_disable_interrupts();
+        input_irq();
+        restore_interrupts(saved);
+    }
     return state.result;
 }
 
@@ -338,6 +480,15 @@ int iq4prod_dma_sm(unsigned stream) { return state.owned && stream < 4 ? state.s
 
 void iq4prod_dma_stop(void) {
     if (!state.owned) return;
+    if (state.irq_installed) {
+        irq_set_enabled(DMA_IRQ_NUM(state.irq_index), false);
+        dma_irqn_set_channel_mask_enabled(state.irq_index, state.dma_mask, false);
+        dma_hw->intr = state.dma_mask;
+        irq_clear(DMA_IRQ_NUM(state.irq_index));
+        irq_remove_handler(DMA_IRQ_NUM(state.irq_index), input_irq);
+        irq_set_priority(DMA_IRQ_NUM(state.irq_index), state.irq_priority);
+        state.irq_installed = false;
+    }
     if (state.worker_started) {
         state.worker_stop = true;
         __dmb();
@@ -369,6 +520,13 @@ void iq4prod_dma_stop(void) {
             last_error = "producer DMA abort did not retire; claims retained";
             return;
         }
+    // Abort may finish an access after IRQ service was disabled. Preserve its
+    // AHB fault before cleanup clears the hardware flags. Do not infer source
+    // retirement from post-abort BUSY/count: abort can terminate a partial grant.
+    for (unsigned stream = 0; stream < 4; ++stream)
+        if (state.dma[stream] >= 0 &&
+            (dma_hw->ch[state.dma[stream]].ctrl_trig & DMA_CH0_CTRL_TRIG_AHB_ERROR_BITS))
+            state.result.errors |= IQ4PROD_ERR_DMA;
     for (unsigned stream = 0; stream < 4; ++stream) {
         if (state.dma[stream] >= 0) {
             dma_channel_cleanup(state.dma[stream]);

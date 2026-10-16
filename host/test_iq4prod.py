@@ -147,7 +147,9 @@ static struct { uint32_t fdebug; } pio_ports[2];
 #define pio1 (&pio_ports[1])
 static struct {
     int dma[4]; uint32_t sm_mask[2], published;
-    bool owned, live, worker_stop, worker_ready;
+    bool owned, live, worker_stop, worker_ready, irq_mode;
+    uint32_t irq_calls, irq_max_service_cycles;
+    uint64_t irq_service_cycles;
     worker_snapshot_t snapshot;
     iq4prod_progress_t result;
 } state;
@@ -158,6 +160,7 @@ static bool automatic_source, exhausted;
 static void __dmb(void) { }
 static uint32_t save_and_disable_interrupts(void) { return 17; }
 static void restore_interrupts(uint32_t saved) { assert(saved==17); }
+static void input_irq(void) { assert(!state.irq_mode); }
 static void disable_producers(void) { disabled++; }
 static void store_snapshot(const worker_snapshot_t *s) { state.snapshot=*s; }
 static worker_snapshot_t load_snapshot(void) { return state.snapshot; }
