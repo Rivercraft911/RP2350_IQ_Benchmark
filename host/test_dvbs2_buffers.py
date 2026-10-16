@@ -1,8 +1,8 @@
 """Verify caller-owned FE interleaving against independent Python DVB-S2 output.
 
-All 42 code/pilot settings use three different frames and all three BCH selectors.
+All 42 code/pilot settings use three different frames and all four BCH selectors.
 The C harness also checks legacy-wrapper equivalence, untouched waiting buffers,
-caller BB preservation, canaries, and the continuous partial symbol word. Degree160
+caller BB preservation, canaries, and the continuous partial symbol word. Degree128/160
 frontends additionally use chunks of 1/7/128/511 words and a bit-serial parity check;
 unsupported modes must leave init arguments untouched before the explicit fallback.
 This is a functional sequential interleaving test, not a multicore timing measurement.
@@ -65,12 +65,12 @@ def main() -> None:
             tail = sum(int(bit) << j for j, bit in enumerate(bits[full * 16:]))
             assert record[name] == tail, (record["code"], name, "partial word")
         print(f"ok {record['code']:<11} pilots={record['pilots']} frames=3 "
-              f"syms={len(b_i)} kernels=3 partial={fill}")
+              f"syms={len(b_i)} kernels=4 partial={fill}")
     if len(sys.argv) == 1:
         assert len(records) == 42, len(records)
-    print(f"Passed {len(records)} configurations ×3 varied frames ×3 BCH selectors; "
+    print(f"Passed {len(records)} configurations ×3 varied frames ×4 BCH selectors; "
           "continuous words match independent Python reference; "
-          "degree160 chunk sizes1/7/128/511 also match bit-serial parity.")
+          "degree128/160 chunk sizes1/7/128/511 also match bit-serial parity.")
 
 
 if __name__ == "__main__":

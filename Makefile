@@ -32,6 +32,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_dvbs2_buffers.py
 	python3 host/test_frame_order.py
 	python3 host/test_dvbs2_fec.py
+	python3 host/test_bch128_asm.py
 	python3 host/test_pv_native.py
 	python3 host/test_gcs_native.py
 	python3 host/test_pvspi_rx.py

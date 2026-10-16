@@ -202,7 +202,42 @@ static void HOT(bch160_words)(const uint32_t *m, uint32_t *parity) {
 void dvbs2_bch160_stream(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
 void dvbs2_bch160_continue(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
 void dvbs2_bch160_continue_y(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
+void dvbs2_bch128_continue(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
+void dvbs2_bch128_continue_y(const uint32_t *m, uint32_t *parity, const void *tab, uint32_t nw);
+#else
+static void bch128_continue_c(const uint32_t *m, uint32_t *parity, uint32_t nw) {
+    uint32_t r0_ = parity[0], r1_ = parity[1], r2 = parity[2], r3 = parity[3];
+    for (uint32_t i = 0; i < nw; i++) {
+        const uint32_t x = r0_ ^ m[i];
+        const uint32_t *a = bch_tab[3][x >> 24], *b = bch_tab[2][(x >> 16) & 0xFF],
+                       *c = bch_tab[1][(x >> 8) & 0xFF], *d = bch_tab[0][x & 0xFF];
+        r0_ = r1_ ^ a[0] ^ b[0] ^ c[0] ^ d[0];
+        r1_ = r2 ^ a[1] ^ b[1] ^ c[1] ^ d[1];
+        r2 = r3 ^ a[2] ^ b[2] ^ c[2] ^ d[2];
+        r3 = a[3] ^ b[3] ^ c[3] ^ d[3];
+    }
+    parity[0] = r0_; parity[1] = r1_; parity[2] = r2; parity[3] = r3;
+    parity[4] = parity[5] = 0;
+}
 #endif
+
+// Only selector3 enters this orchestration. Keep it in XIP, with no additional table,
+// so the near-full low SRAM retains its default hot kernels and placement.
+static void __attribute__((noinline)) COMPACT bch128_words(const uint32_t *m, uint32_t *parity) {
+    const uint32_t nw = C->kbch / 32u;
+    memset(parity, 0, BCH_W * sizeof parity[0]);
+#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+    dvbs2_bch128_continue(m, parity, bch_tab, nw);
+#else
+    bch128_continue_c(m, parity, nw);
+#endif
+    for (uint32_t i = 0; i < (C->kbch % 32u) / 8; i++) {
+        const uint32_t *t = bch_tab[0][(parity[0] >> 24) ^ ((m[nw] >> (24 - 8 * i)) & 0xFF)];
+        for (unsigned k = 0; k < 3; k++)
+            parity[k] = ((parity[k] << 8) | (parity[k + 1] >> 24)) ^ t[k];
+        parity[3] = (parity[3] << 8) ^ t[3];
+    }
+}
 
 bool dvbs2_frontend_set_bank(unsigned bank) {
     if (bank > 1) return false;
@@ -213,7 +248,7 @@ bool dvbs2_frontend_set_bank(unsigned bank) {
 unsigned dvbs2_frontend_get_bank(void) { return frontend_bank; }
 
 bool dvbs2_bch_set_kernel(dvbs2_bch_kernel_t kernel) {
-    if ((unsigned)kernel > S2_BCH_STREAM_ARM) return false;
+    if ((unsigned)kernel > S2_BCH_T8_ARM) return false;
     bch_kernel = kernel;
     return true;
 }
@@ -221,12 +256,16 @@ bool dvbs2_bch_set_kernel(dvbs2_bch_kernel_t kernel) {
 dvbs2_bch_kernel_t dvbs2_bch_get_kernel(void) { return bch_kernel; }
 
 void HOT(dvbs2_bch)(const uint32_t *m, uint32_t *parity) {
+    if (bch_kernel == S2_BCH_T8_ARM && bch_deg == 128) {
+        bch128_words(m, parity);
+        return;
+    }
     if (bch_kernel == S2_BCH_BASELINE || bch_deg != 160) {
         bch_baseline(m, parity);
         return;
     }
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    if (bch_kernel == S2_BCH_STREAM_ARM) {
+    if (bch_kernel >= S2_BCH_STREAM_ARM) {
         const uint32_t nw = C->kbch / 32u, tail = (C->kbch % 32u) / 8;
         dvbs2_bch160_stream(m, parity, bch_tab, nw);
         for (uint32_t i = 0; i < tail; i++) {
@@ -666,7 +705,7 @@ void dvbs2_init(const dvbs2_code_t *c, bool pil_on) {
 uint32_t *dvbs2_frame_buffer(void) { return fe; }
 
 bool HOT(dvbs2_frontend_begin)(const uint32_t *bb, uint32_t *frame, dvbs2_frontend_t *state) {
-    if (bch_deg != 160 || bch_kernel == S2_BCH_BASELINE) return false;
+    if ((bch_deg != 128 && bch_deg != 160) || bch_kernel == S2_BCH_BASELINE) return false;
     PROF(4);
     const uint32_t kw = (C->kbch + 31u) / 32;
     for (uint32_t k = 0; k < kw; k++) frame[k] = bb[k] ^ bb_prbs[k];
@@ -700,10 +739,16 @@ bool HOT(dvbs2_frontend_step)(dvbs2_frontend_t *state, uint32_t max_words) {
     const uint32_t take = left < max_words ? left : max_words;
     const uint32_t *m = state->frame + state->cursor;
 #if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
-    if (state->kernel == S2_BCH_STREAM_ARM) {
-        if (frontend_bank) dvbs2_bch160_continue_y(m, state->parity, bch_tab, take);
+    if (state->kernel >= S2_BCH_STREAM_ARM) {
+        if (frontend_bank && bch_deg == 128 && state->kernel == S2_BCH_T8_ARM)
+            dvbs2_bch128_continue_y(m, state->parity, bch_tab, take);
+        else if (frontend_bank) dvbs2_bch160_continue_y(m, state->parity, bch_tab, take);
         else dvbs2_bch160_continue(m, state->parity, bch_tab, take);
     } else
+#else
+    if (bch_deg == 128 && state->kernel == S2_BCH_T8_ARM)
+        bch128_continue_c(m, state->parity, take);
+    else
 #endif
         bch160_continue_c(m, state->parity, take);
     state->cursor += take;
