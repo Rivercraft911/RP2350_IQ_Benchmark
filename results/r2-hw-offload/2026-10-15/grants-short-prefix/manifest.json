@@ -1,0 +1,33 @@
+{
+  "started": "2026-10-15T22:55:02.953086",
+  "expected_git": "523de4a7ed",
+  "batches": 8,
+  "cpws": [
+    1
+  ],
+  "gap_us": 6000,
+  "fault": 1,
+  "priorities": [
+    13
+  ],
+  "repeats": 3,
+  "sha256": {
+    "firmware/src/r2grant.c": "25b7971d14baef961de0f38002b80a05b386b9d1ff25e6f9aabd0e6087eee297",
+    "firmware/src/r2grant.h": "ed29430190165339a86cdd0af97ed7e84bc025cef468daf94279fb40f15bc84d",
+    "firmware/src/bench_r2grant.c": "089391992767fb44d4535afbc4a167438372b7589a2147c892e492b93028d47c",
+    "firmware/src/main.c": "47476f7168e5011efbeab4e0ac89cec01f8d616e50e550837557520bf16b15d8",
+    "firmware/src/iqgen.c": "03082b643b4a3c1d63558a9bef559e4d9c76851349a59af537dcff42cf839e84",
+    "firmware/CMakeLists.txt": "cb44e19c902a3bdede46bc2119b0977ddd4c693398a548e199d5d78522178340",
+    "Makefile": "e2609b531da9d7163d603a62f084911e715b7fb43dede1afa3cd71c4b89c7c4d",
+    "host/r2_grant_trial.py": "09895861c9b0fbcc5f54c5f1aa2a45dab05731b713b9770795a02c188aaf3014",
+    "host/test_r2grant.py": "83d87846b9a361c20039df8c042656f5719a96bfe83f9d2c0730e762ad075580",
+    "host/test_bench_r2grant.py": "2f863bcec0734a0319e49339766b163b2d1e79e7b3db898247157cc70d8fd697",
+    "host/iqbench.py": "17cca9271652beedac5cc8d1bb5867354784e2df78265647f7b33d31cd0d8607",
+    "build/iqbench.uf2": "5285b6a79e10cf26f3b6a9a19f5aa4ded83e5ce8b41bde83345002b4abf2ef9d",
+    "build/iqbench.elf": "56cad11080d68518e52d3e93893a1a2c073ef8ece08ecf79849885eff0d45c44",
+    "build/CMakeCache.txt": "b275396fd3e07c1000ee03d278269b3ada90dcafbf02176a1367933b0b76f1f9",
+    "build/memmap_iq.ld": "dfeab94faebe4d9c09429961bddb575c1f6d9e7d7cbe1acfb73f79b05a262fa5",
+    "build/git_rev.h": "b010ce8d9c1e9eb08bfce21cb0a65544c5cced258bb4e0ea33d98dd1dba9cf23"
+  },
+  "scope": "finite prepublished input grants, pin-free four-reader exact echo; no shaping or rolling publication"
+}
