@@ -28,9 +28,9 @@ def main() -> None:
                         *(str(src / name) for name in ("dvbs2.c", "dvbs2_8psk.c", "pvproto.c", "c3_fec.c")),
                         str(ROOT / "host/native/c3_pipeline_test.c"), "-o", str(exe)], check=True)
         results = [subprocess.run([str(exe), str(options)], check=True, capture_output=True, text=True)
-                   for options in range(32)]
+                   for options in range(64)]
     records = [json.loads(line) for result in results for line in result.stdout.splitlines()]
-    assert len(records) == 32 * 24, len(records)
+    assert len(records) == 64 * 24, len(records)
     expected_cache, physical_cache = {}, {}
     for record in records:
         code, frames = record["code_index"], record["frames"]
@@ -55,7 +55,7 @@ def main() -> None:
             physical_cache[key] = expected
         expected = physical_cache[key]
         assert np.array_equal(got, expected), (code, frames, "physical rings")
-    print("Passed C3 real portable job pipeline: all32 option masks ×three rates ×16 continuous frames, "
+    print("Passed C3 real portable job pipeline: all64 option masks ×three rates ×16 continuous frames, "
           "odd-first completion, every pair's physical rings/carry vs independent Python; "
           "GCS zero/one-word slices vs existing PV adapter and canaries.")
 

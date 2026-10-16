@@ -9,6 +9,7 @@ enum {
     C3_RING_GROUPS = 4096, C3_ROWS_WORDS = 60 * 12,
     C3_GCS = 0, C3_BCH, C3_LDPC, C3_MAP, C3_DONE,
     C4_LDPC = 1, C4_MAP = 2, C4_BCH = 4, C4_BB = 8, C4_DEADLINES = 16, C4_ALL = 31,
+    C6_MAP = 32, C6_ALL = C4_ALL | C6_MAP,
 };
 
 // In-memory GCS source: chronological payload byte j is (29*j+7) modulo256.

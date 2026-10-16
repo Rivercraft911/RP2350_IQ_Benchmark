@@ -194,7 +194,7 @@ class C3Bench(unittest.TestCase):
 
     def test_each_c4_option_and_combinations(self):
         for code in trial.RATES:
-            for options in (1, 2, 4, 8, 15, 16, 31):
+            for options in (1, 2, 4, 8, 15, 16, 31, 32, 59, 63):
                 with self.subTest(code=code, options=options):
                     result = self.run_command(code, options=options)
                     self.assertEqual(result["options"], options)
