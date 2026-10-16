@@ -104,7 +104,7 @@ if(IQ4HIST_EXPERIMENT)
            "    .waveform_ring (NOLOAD) : { *(.bss.ring_buf) } > RAM\n\n    .input_ring (NOLOAD) :"
            LD "${LD}")
 endif()
-option(CORE0_STACK_SRAM_HI "core 0 stack (4 KiB) at the top of SRAM4-7 instead of above SCRATCH_Y code" OFF)
+option(CORE0_STACK_SRAM_HI "core 0 stack (4 KiB) at the top of SRAM4-7 instead of above SCRATCH_Y code" ON)
 if(CORE0_STACK_SRAM_HI)
     # The default 2 KiB core-0 stack sits directly above SCRATCH_Y code; deep print paths
     # overflow it into that code (results/round2/2026-10-15/stack-1). Move it to RAM_HI.

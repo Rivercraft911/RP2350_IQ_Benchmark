@@ -1,0 +1,1 @@
+{"label": "dualptr-128000-1-6-code10-clock1-fault0-0", "command": "dualptr 1 3000 6 0 10", "faults": ["host exception"], "exception": "TimeoutError", "detail": "no reply to 'dualptr 1 3000 6 0 10'", "classification": "failed"}

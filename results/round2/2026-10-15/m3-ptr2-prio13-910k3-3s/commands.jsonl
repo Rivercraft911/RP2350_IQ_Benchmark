@@ -1,0 +1,9 @@
+{"command": "dualprio 13", "response": {"cmd": "dualprio", "mask": 13}}
+{"command": "dualwriters 4", "response": {"cmd": "dualwriters", "writers": 4}}
+{"command": "quadprofile 1", "response": {"cmd": "quadprofile", "profile": 1}}
+{"command": "bchkernel 3", "response": {"cmd": "bchkernel", "kernel": 3}}
+{"command": "mapkernel 1", "response": {"cmd": "mapkernel", "kernel": 1}}
+{"command": "ldpcpack 1", "response": {"cmd": "ldpcpack", "pack": 1}}
+{"command": "bchbank 1", "response": {"cmd": "bchbank", "bank": 1}}
+{"command": "clock 128000", "response": {"cmd": "info", "git": "9a3fb1b860", "built": "Oct 15 2026 19:00:35", "clk_hz": 128000000, "board": "pimoroni_pico_plus2_rp2350", "pin_d0": 0, "pin_clkio": 16, "block_words": 4096, "n_blocks": 8, "in_words": 8192, "pin_ready": 22, "seed": 305441741, "cap_words_max": 14336, "cap_words_max_selftest": 9008, "n_codes": 21, "kernels": ["conv:0:0", "lut_shift:0:0", "lut_win:2:8", "lut_win:2:10", "lut_win:2:12", "lut_win:4:8", "lut_win:4:10", "lut_win:4:12", "lut_pair:2:8", "lut_pair:2:10", "lut_pair:2:12", "lut_pair:4:8", "lut_pair:4:10", "lut_pair:4:12", "lut_pair:8:8", "lut_pair:8:10", "lut_asm:2:8", "lut_asm:2:10", "lut_asm:2:12", "lut_asm:4:8", "lut_asm:4:10", "lut_asm:4:12", "lut_asm:8:8", "lut_asm:8:10", "lut_asm_p:4:10", "lut_asm_p:4:12"]}}
+{"command": "dualclock 1", "response": {"cmd": "dualclock", "mode": 1}}
