@@ -32,6 +32,10 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_c3_pipeline.py
 	python3 host/test_c3_bench.py
 	python3 host/test_c3_fec_trial.py
+	python3 host/test_b8_ingress.py
+	python3 host/test_b8_bench.py
+	python3 host/test_b8_lean8_trial.py
+	python3 host/b8_lean8_trial.py --self-test
 	python3 host/c3_fec_trial.py --self-test
 	python3 host/test_r2grant.py
 	python3 host/test_bench_r2grant.py

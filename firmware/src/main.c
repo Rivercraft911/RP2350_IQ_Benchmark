@@ -23,6 +23,7 @@
 //
 // 8PSK on the four-level table [exp]
 //   bench4fec cpw ms invert [prio] [bits]        live 8PSK FEC -> hardware shaping; bits 8 = B7 transmitter
+//   b8lean8 code ms cpw invert prio options starve  B8 complete frame-parallel GCS/OUT8 transmitter
 //   bench4prod8 / bench4prod8live cpw ms invert [prio] [starve_ms]   four PIO producers (B6, 16 Msym/s)
 //   bench4quad8 / bench4quad cpw ms invert [prio] four SRAM-fed chains, cyclic (B5)
 //   bench4live / bench4live8 cpw ms invert [prio]   one chain per axis, cyclic (B1 / B4)
@@ -73,6 +74,7 @@
 #ifdef IQ4HIST_EXPERIMENT
 #include "bench4live.h"
 #include "bench4fec.h"
+#include "b8_lean8.h"
 #include "bench4quad.h"
 #include "bench4prod.h"
 #include "dmaloop.h"
@@ -313,6 +315,16 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "mode", 1, 0, 1, &code)) return err;
         bench_quadptr(code);
 #ifdef IQ4HIST_EXPERIMENT
+    } else if (!strcmp(cmd, "b8lean8")) {
+        int invert, priority, options, starve;
+        if (!num(a[1], "code", 8, 0, N_DVBS2_CODES - 1, &code) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "cpw", 2, 1, 4, &r.cpw) ||
+            !num(a[4], "invert", 0, 0, 1, &invert) ||
+            !num(a[5], "prio", 13, 0, 15, &priority) ||
+            !num(a[6], "options", 27, 0, C4_ALL, &options) ||
+            !num(a[7], "starve", 0, 0, 1, &starve)) return err;
+        bench_b8_lean8(code, r.ms, r.cpw, invert, priority, options, starve);
     } else if (!strcmp(cmd, "r2grant")) {
         int gap_us, fault;
         if (!num(a[1], "batches", 8, 1, 8, &reps) ||

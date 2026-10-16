@@ -12,6 +12,12 @@ device results added in each branch's `results/` folder.
 
 The [frontier model](../frontier/frontier.md) bounds what these paths can reach.
 
+## Pending integration (2026-10-16)
+
+| Branch | Work | Device result | Here |
+|---|---|---|---|
+| `rd/b8-lean8` | Complete GCS/two-core FEC/OUT8 transmitter with bounded input and automatic DMA grants | native verified; device qualification pending | [report](b8-lean8.md) |
+
 # R&D round 2 (2026-10-15)
 
 Merged on `rd/round2-merge` with the core-0 stack moved out of SCRATCH_Y
