@@ -1,3 +1,9 @@
+# N5 follow-up (2026-10-16)
+
+| Branch | Work | Status | Here |
+|---|---|---|---|
+| `rd/n5-12m8` | L7/N5 pulse, padded 8-bit rows and four SRAM-fed writers at calculated 12.8/6.4 Msym/s | Held-DAC model and native checks pass; device runs pending | [report](n5-12m8.md), [model](n5-model.json) |
+
 # R&D round 1 (2026-10-15)
 
 Three Codex agents worked from `integration/yapogee-2026-10-15` (`8014ed3`); the
