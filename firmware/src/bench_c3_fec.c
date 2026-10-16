@@ -37,6 +37,9 @@ typedef struct {
     volatile uint32_t published, groups;
     uint32_t consumed, carry[2], slow_us, hz, cpw, options;
     uint32_t late_frames, max_lateness_us, max_service_gap_us;
+    // Gap diagnostics: count of gaps above the fixed 128-us gate, when the first one ended
+    // (us after epoch) and the longest publish+release section.
+    uint32_t gaps_over_128, first_over_at_us, first_over_gap_us, max_section_us;
     uint64_t epoch, supervise_cycles, retire_due;
 } context_t;
 
@@ -213,6 +216,10 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
         }
         const uint32_t gap = (uint32_t)(now - previous_service);
         if (gap > live.max_service_gap_us) live.max_service_gap_us = gap;
+        if (gap > MAX_SERVICE_US && !live.gaps_over_128++) {
+            live.first_over_at_us = (uint32_t)(now - live.epoch);
+            live.first_over_gap_us = gap;
+        }
         previous_service = now;
         next_service = now + SERVICE_US;
         live.errors |= live.core[0].job_error | live.core[1].job_error;
@@ -232,6 +239,8 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
                 if (index < live.target) release(index & 1u, index);
             }
         }
+        const uint32_t section = (uint32_t)(time_us_64() - now);
+        if (section > live.max_section_us) live.max_section_us = section;
         live.supervise_cycles += (uint32_t)(cycles() - loop_begin) -
             (uint32_t)(live.core[0].busy_cycles - work_before);
         if (live.errors) {
@@ -253,14 +262,17 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
            "\"frame_symbols\":%u,\"frame_cycles\":%u,\"ring_groups\":%u,\"frames_target\":%lu,"
            "\"published_frames\":%lu,\"consumed_frames\":%lu,\"published_groups\":%lu,\"pending_fill\":%lu,"
            "\"code_crc\":[%lu,%lu],\"errors\":%lu,\"late_frames\":%lu,\"max_lateness_us\":%lu,"
-           "\"service_gap_limit_us\":%lu,\"max_service_gap_us\":%lu,\"elapsed_us\":%llu,\"supervise_cycles\":%llu,"
+           "\"service_gap_limit_us\":%lu,\"max_service_gap_us\":%lu,\"gaps_over_128\":%lu,\"first_over_at_us\":%lu,"
+           "\"first_over_gap_us\":%lu,\"max_section_us\":%lu,\"elapsed_us\":%llu,\"supervise_cycles\":%llu,"
            "\"supervise_busy\":%.6f,\"context_bytes\":%u,\"core\":[",
            GIT_REV, code_index, DVBS2_CODES[code_index].name, (unsigned long)hz, cpw, ms, slow_us, options,
            C3_FRAME_SYMBOLS, C3_FRAME_CYCLES * cpw, C3_RING_GROUPS, (unsigned long)live.target,
            (unsigned long)live.published, (unsigned long)live.consumed, (unsigned long)live.groups,
            (unsigned long)(live.published * C3_FRAME_SYMBOLS & 15u), (unsigned long)crc_i, (unsigned long)crc_q,
            (unsigned long)live.errors, (unsigned long)live.late_frames, (unsigned long)live.max_lateness_us,
-           (unsigned long)max_service_us, (unsigned long)live.max_service_gap_us, (unsigned long long)elapsed,
+           (unsigned long)max_service_us, (unsigned long)live.max_service_gap_us,
+           (unsigned long)live.gaps_over_128, (unsigned long)live.first_over_at_us,
+           (unsigned long)live.first_over_gap_us, (unsigned long)live.max_section_us, (unsigned long long)elapsed,
            (unsigned long long)live.supervise_cycles, live.supervise_cycles / budget, (unsigned)sizeof live);
     for (unsigned c = 0; c < 2; ++c) {
         const worker_t *w = &live.core[c];
