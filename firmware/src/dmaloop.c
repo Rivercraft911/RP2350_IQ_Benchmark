@@ -35,6 +35,13 @@ static void hammer_task(uint32_t words) {
     hammer_copies = n;
 }
 
+// Snapshot a counting sink's X (decremented once per consumed word) through its RX FIFO.
+static uint32_t sink_count(PIO pio, uint sm) {
+    pio_sm_exec(pio, sm, pio_encode_in(pio_x, 32));
+    pio_sm_exec(pio, sm, pio_encode_push(false, false));
+    return pio->rxf[sm];
+}
+
 static void set_priority(unsigned mask) {
     busctrl_hw->priority = ((mask & 1u) << 0) | ((mask & 2u) << 3) | ((mask & 4u) << 6) | ((mask & 8u) << 9);
     while (!(busctrl_hw->priority_ack & 1u)) tight_loop_contents();
@@ -57,6 +64,17 @@ void dmaloop(int chains, int row_words, int sink, int load_div, int load_kind, i
     const char *error = NULL;
     const uint16_t sink_code[1] = {(uint16_t)pio_encode_out(pio_null, 32)};
     const pio_program_t sink_program = {.instructions = sink_code, .length = 1, .origin = -1};
+    // Mode 2 (PIO pointers, as B2/B4): sinks count consumed words in X, and one source SM per
+    // chain pushes its preloaded row address every cycle the RX FIFO has space.
+    const uint16_t count_code[2] = {(uint16_t)pio_encode_out(pio_null, 32), (uint16_t)pio_encode_jmp_x_dec(0)};
+    const uint16_t source_code[1] = {(uint16_t)pio_encode_in(pio_x, 32)};
+    const pio_program_t count_program = {.instructions = count_code, .length = 2, .origin = -1};
+    const pio_program_t source_program = {.instructions = source_code, .length = 1, .origin = -1};
+    const pio_program_t *chain_sink = sink == 2 ? &count_program : &sink_program;
+    int src_sm[4] = {-1, -1, -1, -1};
+    uint src_offset = 0;
+    bool src_added = false;
+    uint32_t x0[4] = {0};
     static uint32_t scratch[2], load_word = 0x5a5a5a5au;
     const unsigned saved_priority = busctrl_hw->priority;
     uint32_t total[4] = {0}, min_d[4], max_d[4], all = 0, chain_mask = 0, ctl_mask = 0;
@@ -75,8 +93,25 @@ void dmaloop(int chains, int row_words, int sink, int load_div, int load_kind, i
         if (ctl[c] < 0 || smp[c] < 0) { error = "DMA channels unavailable"; goto cleanup; }
     }
     if (sink) {
-        if (!pio_can_add_program(pio2, &sink_program)) { error = "PIO2 instruction space unavailable"; goto cleanup; }
-        offset = pio_add_program(pio2, &sink_program); added = true;
+        if (!pio_can_add_program(pio2, chain_sink)) { error = "PIO2 instruction space unavailable"; goto cleanup; }
+        offset = pio_add_program(pio2, chain_sink); added = true;
+    }
+    if (sink == 2) {
+        if (load_div && !load_kind) { error = "mode 2 uses PIO1 for pointer sources; use load_kind 1"; goto cleanup; }
+        if (!pio_can_add_program(pio1, &source_program)) { error = "PIO1 instruction space unavailable"; goto cleanup; }
+        src_offset = pio_add_program(pio1, &source_program); src_added = true;
+        for (int c = 0; c < chains; ++c) {
+            src_sm[c] = pio_claim_unused_sm(pio1, false);
+            if (src_sm[c] < 0) { error = "PIO1 source SMs unavailable"; goto cleanup; }
+            pio_sm_config cc = pio_get_default_sm_config();
+            sm_config_set_wrap(&cc, src_offset, src_offset);
+            sm_config_set_in_shift(&cc, false, true, 32);
+            pio_sm_init(pio1, (uint)src_sm[c], src_offset, &cc);
+            pio_sm_put(pio1, (uint)src_sm[c], in_buf[(uint32_t)c * RING_WORDS]);
+            pio_sm_exec(pio1, (uint)src_sm[c], pio_encode_pull(false, true));
+            pio_sm_exec(pio1, (uint)src_sm[c], pio_encode_mov(pio_x, pio_osr));
+            pio_sm_set_enabled(pio1, (uint)src_sm[c], true);
+        }
     }
     // Chain sinks on PIO2, the load sink on PIO1: OUT NULL,32 with autopull drains a word
     // every cycle or two, so the TX DREQ never holds a channel back.
@@ -91,9 +126,11 @@ void dmaloop(int chains, int row_words, int sink, int load_div, int load_kind, i
         if (sm[s] < 0) { error = "PIO sink SMs unavailable"; goto cleanup; }
         const uint at = load_sink ? load_offset : offset;
         pio_sm_config cc = pio_get_default_sm_config();
-        sm_config_set_wrap(&cc, at, at);
+        sm_config_set_wrap(&cc, at, at + (!load_sink && sink == 2));
         sm_config_set_out_shift(&cc, true, true, 32);
+        sm_config_set_in_shift(&cc, false, false, 32);
         pio_sm_init(pio, (uint)sm[s], at, &cc);
+        if (!load_sink && sink == 2) pio_sm_exec(pio, (uint)sm[s], pio_encode_mov_not(pio_x, pio_null));
         pio_sm_set_enabled(pio, (uint)sm[s], true);
     }
     for (int c = 0; c < chains; ++c) {
@@ -109,15 +146,16 @@ void dmaloop(int chains, int row_words, int sink, int load_div, int load_kind, i
                               NULL, (uint)row_words, false);
         dc = dma_channel_get_default_config((uint)ctl[c]);
         channel_config_set_transfer_data_size(&dc, DMA_SIZE_32);
-        channel_config_set_read_increment(&dc, true);
+        channel_config_set_read_increment(&dc, sink != 2);
         channel_config_set_write_increment(&dc, false);
-        channel_config_set_ring(&dc, false, RING_LOG2);
-        channel_config_set_dreq(&dc, DREQ_FORCE);
+        if (sink != 2) channel_config_set_ring(&dc, false, RING_LOG2);
+        channel_config_set_dreq(&dc, sink == 2 ? pio_get_dreq(pio1, (uint)src_sm[c], false) : DREQ_FORCE);
         channel_config_set_chain_to(&dc, (uint)ctl[c]);
         channel_config_set_irq_quiet(&dc, true);
         channel_config_set_high_priority(&dc, true);
         dma_channel_configure((uint)ctl[c], &dc, &dma_hw->ch[smp[c]].al3_read_addr_trig,
-                              in_buf + (uint32_t)c * RING_WORDS, 1, false);
+                              sink == 2 ? (const volatile void *)&pio1->rxf[src_sm[c]] : (const volatile void *)(in_buf + (uint32_t)c * RING_WORDS),
+                              1, false);
         chain_mask |= (1u << ctl[c]) | (1u << smp[c]);
         ctl_mask |= 1u << ctl[c];
     }
@@ -148,12 +186,13 @@ void dmaloop(int chains, int row_words, int sink, int load_div, int load_kind, i
     uint32_t prev[4];
     const uint32_t irq = save_and_disable_interrupts();
     for (int c = 0; c < chains; ++c) { prev[c] = dma_hw->ch[ctl[c]].read_addr; min_d[c] = UINT32_MAX; max_d[c] = 0; }
+    if (sink == 2) for (int c = 0; c < chains; ++c) x0[c] = sink_count(pio2, (uint)sm[c]);
     const uint32_t start = cycles();
     uint32_t t = start;
     for (unsigned w = 0; w < WINDOWS; ++w) {
         while ((uint32_t)(cycles() - t) < WINDOW) tight_loop_contents();
         t += WINDOW;
-        for (int c = 0; c < chains; ++c) {
+        for (int c = 0; c < chains && sink != 2; ++c) {
             const uint32_t a = dma_hw->ch[ctl[c]].read_addr;
             const uint32_t d = ((a - prev[c]) & (RING_BYTES - 1u)) >> 2;
             prev[c] = a; total[c] += d;
@@ -162,6 +201,11 @@ void dmaloop(int chains, int row_words, int sink, int load_div, int load_kind, i
         }
     }
     elapsed = (uint32_t)(cycles() - start);
+    if (sink == 2)
+        for (int c = 0; c < chains; ++c) {
+            total[c] = (x0[c] - sink_count(pio2, (uint)sm[c])) / (uint32_t)row_words;
+            min_d[c] = max_d[c] = 0;
+        }
     restore_interrupts(irq);
 
 cleanup:
@@ -179,7 +223,10 @@ cleanup:
         PIO pio = s == (sink ? chains : 0) ? pio1 : pio2;
         if (sm[s] >= 0) { pio_sm_set_enabled(pio, (uint)sm[s], false); pio_sm_unclaim(pio, (uint)sm[s]); }
     }
-    if (added) pio_remove_program(pio2, &sink_program, offset);
+    for (int c = 0; c < 4; ++c)
+        if (src_sm[c] >= 0) { pio_sm_set_enabled(pio1, (uint)src_sm[c], false); pio_sm_unclaim(pio1, (uint)src_sm[c]); }
+    if (src_added) pio_remove_program(pio1, &source_program, src_offset);
+    if (added) pio_remove_program(pio2, chain_sink, offset);
     if (load_added) pio_remove_program(pio1, &sink_program, load_offset);
     prbs_fill(in_buf, IN_WORDS, &(uint32_t){SEED});
     if (error) {
@@ -189,7 +236,7 @@ cleanup:
     printf("@{\"cmd\":\"dmaloop\",\"git\":\"%s\",\"clk_hz\":%lu,\"chains\":%d,\"row_words\":%d,\"sink\":\"%s\","
            "\"load_div\":%d,\"load_kind\":\"%s\",\"bus_priority\":%d,\"hammer\":%d,\"window_cycles\":%u,"
            "\"elapsed_cycles\":%llu,\"iterations\":[",
-           GIT_REV, (unsigned long)clock_get_hz(clk_sys), chains, row_words, sink ? "pio" : "sram",
+           GIT_REV, (unsigned long)clock_get_hz(clk_sys), chains, row_words, sink == 2 ? "pio_pointers" : sink ? "pio" : "sram",
            load_div, load_div ? (load_kind ? "sram" : "pio") : "none", prio, hammer, WINDOW,
            (unsigned long long)elapsed);
     for (int c = 0; c < chains; ++c) { printf("%s%lu", c ? "," : "", (unsigned long)total[c]); all += total[c]; }
