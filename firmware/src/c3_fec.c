@@ -99,6 +99,7 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
             if (dvbs2_frontend_step(&job->front, 64)) {
                 if (!dvbs2_ldpc_begin_reentrant_mode(job->frame, job->rows, C3_ROWS_WORDS,
                                                      &job->ldpc, !!(job->options & C4_LDPC))) return false;
+                if (job->ldpc_group && job->ldpc.mode) job->ldpc.group = (typeof(job->ldpc.group))job->ldpc_group;
                 job->stage = C3_LDPC;
             }
             break;

@@ -498,12 +498,17 @@ uint32_t dvbs2_ldpc_code_bytes(void) {
     return (uint32_t)((uintptr_t)dvbs2_ldpc_group_pic_end -
         ((uintptr_t)dvbs2_ldpc_group_pic & ~(uintptr_t)1));
 }
-bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) {
+void *dvbs2_ldpc_copy(void *code, uint32_t bytes) {
     const uint32_t needed = dvbs2_ldpc_code_bytes();
-    if (!code || ((uintptr_t)code & 3u) || bytes < needed) return false;
+    if (!code || ((uintptr_t)code & 3u) || bytes < needed) return NULL;
     memcpy(code, (const void *)((uintptr_t)dvbs2_ldpc_group_pic & ~(uintptr_t)1), needed);
     __asm volatile("dsb\n isb" ::: "memory");
-    ldpc_group_prepared = (ldpc_group_fn)((uintptr_t)code | 1u);
+    return (void *)((uintptr_t)code | 1u);
+}
+bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) {
+    void *group = dvbs2_ldpc_copy(code, bytes);
+    if (!group) return false;
+    ldpc_group_prepared = (ldpc_group_fn)group;
     return true;
 }
 #else
@@ -522,6 +527,7 @@ static void ldpc_group_direct(uint32_t *matrix, const uint32_t *in, uint32_t shi
 }
 static ldpc_group_fn ldpc_group_prepared = ldpc_group_direct;
 uint32_t dvbs2_ldpc_code_bytes(void) { return 0; }
+void *dvbs2_ldpc_copy(void *code, uint32_t bytes) { (void)code; (void)bytes; return (void *)ldpc_group_direct; }
 bool dvbs2_ldpc_prepare(void *code, uint32_t bytes) { (void)code; (void)bytes; return true; }
 #endif
 

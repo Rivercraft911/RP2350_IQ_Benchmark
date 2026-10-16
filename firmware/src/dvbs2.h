@@ -153,6 +153,9 @@ bool dvbs2_ldpc_begin_reentrant(uint32_t *frame, uint32_t *workspace,
 // the original begin retain the C3 path. Unsupported modes do not modify state.
 uint32_t dvbs2_ldpc_code_bytes(void);
 bool dvbs2_ldpc_prepare(void *code, uint32_t bytes);
+// Copy the mode1 group leaf into another arena and return its entry without changing the
+// prepared default: lets each core run its own copy from its own SRAM banks (NULL on error).
+void *dvbs2_ldpc_copy(void *code, uint32_t bytes);
 bool dvbs2_ldpc_begin_reentrant_mode(uint32_t *frame, uint32_t *workspace,
                                     uint32_t workspace_words, dvbs2_ldpc_state_t *state,
                                     unsigned mode);
