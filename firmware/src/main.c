@@ -39,6 +39,7 @@
 // FEC and encoder
 //   dvbs2 <code> <pilots> [reps]                  encoder stage cycles + PLFRAME CRC
 //   c3fec code ms [slow_us] [cpw] [gap_us] [options]   [exp] two-core frame-parallel 8PSK FEC, no output
+//   b9 cpw ms invert prio slow_us options           [exp] complete GCS 8PSK2/3, options0/251
 //   c3pair code pairs layout who options          [exp] FEC SRAM-bank contention, per-stage cycles
 //        options=best: c3fec=251; c3pair=1275 requires layout4 (large BCH table)
 //   bchkernel <0|1|2|3> / bchbank <0|1> / ldpcpack <0|1> / mapkernel <0|1>   encoder selectors
@@ -76,6 +77,7 @@
 #include "bench4fec.h"
 #include "bench4quad.h"
 #include "bench4prod.h"
+#include "bench_b9.h"
 #include "dmaloop.h"
 #include "c3_fec.h"
 #include "r2grant.h"
@@ -212,6 +214,7 @@ static void cmd_info(void) {
 // stackcheck reports the deepest use and whether the scratch code still matches flash.
 extern uint32_t __scratch_x_start__[], __scratch_x_end__[], __scratch_x_source__[];
 extern uint32_t __scratch_y_start__[], __scratch_y_end__[], __scratch_y_source__[];
+extern uint32_t __scratch_y_code_end__[];
 extern uint32_t __StackBottom[], __StackTop[], __StackOneBottom[], __StackOneTop[];
 #define STACK_PAINT 0x5aa5c33cu
 
@@ -229,15 +232,15 @@ static void stack_paint(void) {
 }
 
 static void stack_report(const char *name, uint32_t *start, uint32_t *end, const uint32_t *source,
-                         uint32_t *bottom, uint32_t *top) {
+                         const uint32_t *code_end, uint32_t *bottom, uint32_t *top) {
     uint32_t *floor = paint_floor(end, bottom), *w = floor;
     while (w < top && *w == STACK_PAINT) ++w;
     int corrupted = -1;
-    for (const uint32_t *c = start; c < end; ++c)
+    for (const uint32_t *c = start; c < code_end; ++c)
         if (*c != source[c - start]) { corrupted = (int)((uintptr_t)c - (uintptr_t)start); break; }
     printf("\"%s\":{\"code_bytes\":%u,\"code_matches_flash\":%s,\"first_corrupt_code_offset\":%d,"
            "\"stack_bytes\":%u,\"stack_in_code_bank\":%s,\"deepest_use_bytes\":%u,\"paint_exhausted\":%s}",
-           name, (unsigned)((uintptr_t)end - (uintptr_t)start), corrupted < 0 ? "true" : "false", corrupted,
+           name, (unsigned)((uintptr_t)code_end - (uintptr_t)start), corrupted < 0 ? "true" : "false", corrupted,
            (unsigned)((uintptr_t)top - (uintptr_t)bottom), floor == end ? "true" : "false",
            (unsigned)((uintptr_t)top - (uintptr_t)w), w == floor ? "true" : "false");
 }
@@ -261,10 +264,10 @@ static const char *dispatch(char *line) {
         // headroom 0 means the paint was exhausted: the stack reached the code (or beyond).
         printf("@{\"cmd\":\"stackcheck\",\"git\":\"%s\",", GIT_REV);
         stack_report("core0_scratch_y", __scratch_y_start__, __scratch_y_end__, __scratch_y_source__,
-                     __StackBottom, __StackTop);
+                     __scratch_y_code_end__, __StackBottom, __StackTop);
         putchar(',');
         stack_report("core1_scratch_x", __scratch_x_start__, __scratch_x_end__, __scratch_x_source__,
-                     __StackOneBottom, __StackOneTop);
+                     __scratch_x_end__, __StackOneBottom, __StackOneTop);
         printf("}\n");
         return NULL;
     }
@@ -337,6 +340,15 @@ static const char *dispatch(char *line) {
             !num(a[3], "layout", 0, 0, 4, &layout) || !num(a[4], "who", 2, 0, 7, &who) ||
             !c3_options(a[5], C4_ALL, C8_BEST, &options)) return err;
         bench_c3_pair(code, pairs, layout, who, options);
+    } else if (!strcmp(cmd, "b9")) {
+        int invert, options, priority;
+        if (!num(a[1], "cpw", 1, 1, 2, &r.cpw) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "invert", 0, 0, 1, &invert) ||
+            !num(a[4], "prio", 13, 0, 15, &priority) ||
+            !num(a[5], "slow_us", 0, 0, 10000, &reps) ||
+            !c3_options(a[6], C8_BEST_BASE, C8_BEST_BASE, &options)) return err;
+        bench_b9(r.cpw, r.ms, invert, priority, reps, options);
     } else if (!strcmp(cmd, "c3fec")) {
         int gap_us, options;
         if (!num(a[1], "code", REQUIRED, 0, N_DVBS2_CODES - 1, &code) ||
