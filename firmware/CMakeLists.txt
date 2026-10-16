@@ -57,6 +57,8 @@ add_custom_target(git_rev ALL
     BYPRODUCTS ${CMAKE_BINARY_DIR}/git_rev.h)
 set(IQ_KERNEL_OPT "-O3" CACHE STRING "optimisation flag for the C kernels (iqgen.c), for A/B runs")
 set_source_files_properties(src/iqgen.c PROPERTIES COMPILE_OPTIONS "${IQ_KERNEL_OPT}")
+# Declared before its first use below: a fresh configure must see it (R3 review).
+option(CORE0_STACK_SRAM_HI "core 0 stack (4 KiB) at the top of SRAM4-7 instead of above SCRATCH_Y code" ON)
 foreach(target iqbench pvflight)
     add_dependencies(${target} git_rev)
     target_include_directories(${target} PRIVATE ${CMAKE_BINARY_DIR})
@@ -107,7 +109,6 @@ if(IQ4HIST_EXPERIMENT)
            "    .waveform_ring (NOLOAD) : { *(.bss.ring_buf) } > RAM\n\n    .input_ring (NOLOAD) :"
            LD "${LD}")
 endif()
-option(CORE0_STACK_SRAM_HI "core 0 stack (4 KiB) at the top of SRAM4-7 instead of above SCRATCH_Y code" ON)
 if(CORE0_STACK_SRAM_HI)
     # The default 2 KiB core-0 stack sits directly above SCRATCH_Y code; deep print paths
     # overflow it into that code (results/round2/2026-10-15/stack-1). Move it to RAM_HI.
