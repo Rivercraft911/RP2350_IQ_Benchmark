@@ -9,26 +9,26 @@ pico_sdk_init()
 option(IQ4HIST_EXPERIMENT "L7 four-level hardware shaper and aligned borrowed ring" OFF)
 
 set(TX_SOURCES
-    src/main.c src/tx.c src/link.c src/iqout.c
-    src/iqgen.c src/iqasm.S src/iqdesc.c src/iqdesc_asm.S src/iqpair.c
-    src/iqquad.c src/iqquadptr.c src/dual_dma.c
-    src/iq8.c src/iq8quad.c src/iq8quad_asm.S
-    src/iq16chunk.c src/iq16chunk_asm.S src/iq16native8.c src/iq16native8_asm.S
-    src/iq16fast_asm.S src/iq16fast_planar_asm.S src/bench16out.c src/bench16planar.c
-    src/iq32native8.c src/iq32native8_asm.S src/bench32.c
-    src/iq32keys.c src/iq32keys_asm.S src/iq32pairkey.c src/iq32pairkey_asm.S src/bench32out.c
-    src/iq32mapkeys.c src/iq32mapkeys_pair.c src/iq16maplabels.c
-    src/iq32offsets.c src/iq32offsets_asm.S src/iq32offsets_native.c
-    src/bench_apsk_live.c src/bench32map.c src/bench32bus.c
-    src/bench_apsk_fec.c src/dvbs2_apsk.c
-    src/dvbs2.c src/dvbs2_8psk.c src/dvbs2_qpsk8.c src/dvbs2_asm.S src/dvbs2_bch_fast.S src/dvbs2_ldpc_asm.S
-    src/dvbs2_ldpc_c5_rows.S src/dvbs2_ldpc_c5.S src/dvbs2_map_asm.S src/dvbs2_map8_asm.S
-    src/pvproto.c src/pvproto_asm.S src/pvspi.c
-    src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c
-    src/bench8quad.c src/bench8live.c src/bench16.c src/bench_pvstress.c
-    src/bench_quadptr.c src/bench_quadlive.c)
+    src/app/main.c src/app/tx.c src/ingress/link.c src/output/iqout.c src/cpu_shaping/iqgen.c
+    src/cpu_shaping/iqasm.S src/output/iqdesc.c src/output/iqdesc_asm.S src/output/iqpair.c
+    src/output/iqquad.c src/output/iqquadptr.c src/output/dual_dma.c src/cpu_shaping/iq8.c
+    src/cpu_shaping/iq8quad.c src/cpu_shaping/iq8quad_asm.S src/apsk/iq16chunk.c
+    src/apsk/iq16chunk_asm.S src/apsk/iq16native8.c src/apsk/iq16native8_asm.S src/apsk/iq16fast_asm.S
+    src/apsk/iq16fast_planar_asm.S src/bench/bench16out.c src/bench/bench16planar.c
+    src/apsk/iq32native8.c src/apsk/iq32native8_asm.S src/bench/bench32.c src/apsk/iq32keys.c
+    src/apsk/iq32keys_asm.S src/apsk/iq32pairkey.c src/apsk/iq32pairkey_asm.S src/bench/bench32out.c
+    src/apsk/iq32mapkeys.c src/apsk/iq32mapkeys_pair.c src/apsk/iq16maplabels.c src/apsk/iq32offsets.c
+    src/apsk/iq32offsets_asm.S src/apsk/iq32offsets_native.c src/bench/bench_apsk_live.c
+    src/bench/bench32map.c src/bench/bench32bus.c src/bench/bench_apsk_fec.c src/dvbs2/dvbs2_apsk.c
+    src/dvbs2/dvbs2.c src/dvbs2/dvbs2_8psk.c src/dvbs2/dvbs2_qpsk8.c src/dvbs2/dvbs2_asm.S
+    src/dvbs2/dvbs2_bch_fast.S src/dvbs2/dvbs2_ldpc_asm.S src/dvbs2/dvbs2_ldpc_c5_rows.S
+    src/dvbs2/dvbs2_ldpc_c5.S src/dvbs2/dvbs2_map_asm.S src/dvbs2/dvbs2_map8_asm.S
+    src/ingress/pvproto.c src/ingress/pvproto_asm.S src/ingress/pvspi.c src/bench/bench.c
+    src/bench/bench_ddr.c src/bench/bench_dual.c src/bench/bench_ptr.c src/bench/bench8quad.c
+    src/bench/bench8live.c src/bench/bench16.c src/bench/bench_pvstress.c src/bench/bench_quadptr.c
+    src/bench/bench_quadlive.c)
 # Exact placement controls: one original instruction stream, separate code banks.
-set(OFFSET_ASM "${CMAKE_CURRENT_SOURCE_DIR}/src/iq32offsets_asm.S")
+set(OFFSET_ASM "${CMAKE_CURRENT_SOURCE_DIR}/src/apsk/iq32offsets_asm.S")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${OFFSET_ASM}")
 file(READ "${OFFSET_ASM}" OFFSET_SOURCE)
 foreach(bank x y)
@@ -44,16 +44,19 @@ add_executable(iqbench ${TX_SOURCES})
 add_executable(pvflight ${TX_SOURCES})
 if(IQ4HIST_EXPERIMENT)
     # Lab-only commands: the autonomous pvflight image has neither them nor their SRAM.
-    target_sources(iqbench PRIVATE src/iq4hist.c src/iq4ptr.c src/bench4live.c src/bench4fec.c
-        src/iq4quad.c src/bench4quad.c src/iq5hist.c src/bench5quad.c src/iq4prod.c src/iq4prod_dma.c
-        src/iq4prod_source.c src/bench4prod.c src/dmaloop.c src/c3_fec.c src/bench_c3_fec.c src/bench_c3_pair.c
-        src/r2grant.c src/bench_r2grant.c src/bench_b9.c src/pvwide.c)
+    target_sources(iqbench PRIVATE
+        src/output/iq4hist.c src/output/iq4ptr.c src/bench/bench4live.c src/bench/bench4fec.c
+        src/output/iq4quad.c src/bench/bench4quad.c src/output/iq5hist.c src/bench/bench5quad.c
+        src/output/iq4prod.c src/output/iq4prod_dma.c src/output/iq4prod_source.c
+        src/bench/bench4prod.c src/bench/dmaloop.c src/dvbs2/c3_fec.c src/bench/bench_c3_fec.c
+        src/bench/bench_c3_pair.c src/output/r2grant.c src/bench/bench_r2grant.c src/bench/bench_b9.c
+        src/ingress/pvwide.c)
     target_compile_definitions(iqbench PRIVATE IQ4HIST_EXPERIMENT=1)
 endif()
 # A3 multiply-form 32APSK conversion: linked last so its SCRATCH_Y section follows
 # every existing scratch leaf and none of them moves.
 foreach(target iqbench pvflight)
-    target_sources(${target} PRIVATE src/iq32offsets_mla.c)
+    target_sources(${target} PRIVATE src/apsk/iq32offsets_mla.c)
 endforeach()
 # git_rev.h is rewritten on every build (only when the revision changes), so logged firmware
 # revisions are current. Records made before 2026-09-30 could carry a stale configure-time value.
@@ -62,12 +65,15 @@ add_custom_target(git_rev ALL
             -P ${CMAKE_CURRENT_SOURCE_DIR}/git_rev.cmake
     BYPRODUCTS ${CMAKE_BINARY_DIR}/git_rev.h)
 set(IQ_KERNEL_OPT "-O3" CACHE STRING "optimisation flag for the C kernels (iqgen.c), for A/B runs")
-set_source_files_properties(src/iqgen.c PROPERTIES COMPILE_OPTIONS "${IQ_KERNEL_OPT}")
+set_source_files_properties(src/cpu_shaping/iqgen.c PROPERTIES COMPILE_OPTIONS "${IQ_KERNEL_OPT}")
 # Declared before its first use below: a fresh configure must see it (R3 review).
 option(CORE0_STACK_SRAM_HI "core 0 stack (4 KiB) at the top of SRAM4-7 instead of above SCRATCH_Y code" ON)
+# Sources are grouped by area under src/; headers are included by bare name from any area.
+set(SRC_AREAS app output dvbs2 cpu_shaping apsk ingress bench)
+list(TRANSFORM SRC_AREAS PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/src/" OUTPUT_VARIABLE SRC_DIRS)
 foreach(target iqbench pvflight)
     add_dependencies(${target} git_rev)
-    target_include_directories(${target} PRIVATE ${CMAKE_BINARY_DIR})
+    target_include_directories(${target} PRIVATE ${CMAKE_BINARY_DIR} ${SRC_DIRS})
     target_compile_definitions(${target} PRIVATE IQ_ON_DEVICE=1)
     # Lab waveforms share the fixed buffers and never allocate. Keep both2KiB
     # stacks; reserve1KiB minimum heap while retaining the SRAM bank boundary.

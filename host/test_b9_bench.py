@@ -13,6 +13,7 @@ import tempfile
 import unittest
 
 import c3_fec_trial as reference
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "firmware/src"
@@ -282,12 +283,12 @@ class B9Bench(unittest.TestCase):
             'void busy_wait_us_32(uint32_t us);\nvoid tight_loop_contents(void);\n')
         (directory / "git_rev.h").write_text('#define GIT_REV "native-b9-command"\n')
         (directory / "tx.h").write_text(TX_HEADER)
-        shutil.copyfile(SRC / "bench_b9.c", directory / "bench_b9.c")
-        (directory / "harness.c").write_text(HARNESS.replace("C3_SOURCE", str(SRC / "c3_fec.c")))
+        shutil.copyfile(SRC / "bench/bench_b9.c", directory / "bench_b9.c")
+        (directory / "harness.c").write_text(HARNESS.replace("C3_SOURCE", str(SRC / "dvbs2/c3_fec.c")))
         cls.executable = directory / "bench"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-DIQ4HIST_EXPERIMENT=1",
-                        "-I" + str(directory), "-I" + str(SRC), str(directory / "harness.c"),
-                        *(str(SRC / name) for name in ("dvbs2.c", "dvbs2_8psk.c", "pvproto.c", "iq4hist.c", "iq8.c", "iqgen.c")),
+                        "-I" + str(directory), *fwsrc.INCLUDES, str(directory / "harness.c"),
+                        *(str(fwsrc.path(name)) for name in ("dvbs2.c", "dvbs2_8psk.c", "pvproto.c", "iq4hist.c", "iq8.c", "iqgen.c")),
                         "-o", str(cls.executable)], check=True)
 
     @classmethod

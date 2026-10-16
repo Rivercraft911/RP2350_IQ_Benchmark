@@ -179,9 +179,9 @@ operation per event at best, with the payload-stage throughput unchanged.
 
 ## Prototype 1: finite DMA grants
 
-[r2grant.c](../../firmware/src/r2grant.c) builds immutable lists of up to eight
+[r2grant.c](../../firmware/src/output/r2grant.c) builds immutable lists of up to eight
 512-word counts followed by a zero sentinel, only for a complete published
-prefix. [bench_r2grant.c](../../firmware/src/bench_r2grant.c) gives each of four
+prefix. [bench_r2grant.c](../../firmware/src/bench/bench_r2grant.c) gives each of four
 independently paced input channels its own one-word reload DMA. Input completion
 chains to reload; reload reads the next count and writes the input channel's
 `AL1_TRANS_COUNT_TRIG`. Reload retains an incrementing list address and a count
@@ -267,7 +267,7 @@ failure, not an acceptable starvation control.
 
 ## Prototype 2: Hazard3 packed-code mapper
 
-[r2_hazard3_bits.h](../../firmware/src/r2_hazard3_bits.h) replaces the packed
+[r2_hazard3_bits.h](../../firmware/src/dvbs2/r2_hazard3_bits.h) replaces the packed
 mapper's three helpers only when `IQ_R2_HAZARD3` is defined:
 
 | Operation | Explicit Hazard3 instructions | Ideal instruction cycles |
@@ -280,7 +280,7 @@ mapper's three helpers only when `IQ_R2_HAZARD3` is defined:
 three-column DVB interleaver itself. The mapper still reads its three columns,
 combines Gold/sign planes, inserts PLHEADER/pilots and carries partial groups
 across frames. No intermediate interleaved frame is allocated. The change is
-in [dvbs2_8psk.c](../../firmware/src/dvbs2_8psk.c); ordinary Arm builds compile
+in [dvbs2_8psk.c](../../firmware/src/dvbs2/dvbs2_8psk.c); ordinary Arm builds compile
 the original helper bodies. The helpers consume **zero SMs, PIO words, DMA
 channels, FASTPERI accesses and additional data SRAM**. CPU instructions remain
 necessary; this is an ISA acceleration, not an asynchronous coprocessor.
@@ -531,11 +531,11 @@ existing 8-bit shaping table is unchanged.
 
 Intended small logical commits for the coordinator; none was created:
 
-1. `firmware/src/r2grant.{c,h}`, `firmware/src/bench_r2grant.c`,
-   `firmware/src/main.c`, `firmware/CMakeLists.txt`, `host/test_r2grant.py`,
+1. `firmware/src/r2grant.{c,h}`, `firmware/src/bench/bench_r2grant.c`,
+   `firmware/src/app/main.c`, `firmware/CMakeLists.txt`, `host/test_r2grant.py`,
    `host/test_bench_r2grant.py`, `host/r2_grant_trial.py`, `Makefile`:
    **Prototype finite independent DMA grants with exact echo and sentinel tests.**
-2. `firmware/src/dvbs2_8psk.c`, `firmware/src/r2_hazard3_bits.h`,
+2. `firmware/src/dvbs2/dvbs2_8psk.c`, `firmware/src/dvbs2/r2_hazard3_bits.h`,
    `firmware/r2_hazard3/{CMakeLists.txt,main.c}`, `host/test_r2_hazard3.py`,
    `host/r2_hazard3_trial.py`, `Makefile`:
    **Prototype opt-in Hazard3 zip mapper comparison and offline references.**

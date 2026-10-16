@@ -151,7 +151,7 @@ def validator_hashes() -> dict:
 
 
 def firmware_hashes(source: Path) -> dict:
-    files = [f for f in (source / "src").glob("*") if f.suffix in (".c", ".h", ".S")]
+    files = [f for f in (source / "src").rglob("*") if f.suffix in (".c", ".h", ".S")]
     files += [source / "CMakeLists.txt", source / "git_rev.cmake", source / "pico_sdk_import.cmake"]
     return {"firmware/" + str(f.relative_to(source)): hashlib.sha256(f.read_bytes()).hexdigest() for f in files}
 

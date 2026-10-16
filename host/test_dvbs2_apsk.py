@@ -21,6 +21,7 @@ import dvbs2 as ref
 import test_iq16chunk as native16
 import test_iq32native8 as native32
 from test_dvbs2_8psk import frame_words
+import fwsrc
 
 PTR=ctypes.POINTER(ctypes.c_uint32)
 SERVICE=ctypes.CFUNCTYPE(ctypes.c_bool,ctypes.c_void_p,ctypes.c_uint32)
@@ -242,8 +243,8 @@ def main():
                           'unsigned test_stream_size(void){return sizeof(dvbs2_apsk_stream_t);}\n'
                           'unsigned test_fast_size(void){return sizeof(dvbs2_apsk_fast_t);}\n'
                           'unsigned test_fast_words(void){return DVBS2_APSK_FAST_WORDS;}\n')
-        subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',f'-I{src}',
-                        str(src/'dvbs2_apsk.c'),str(bridge),'-o',str(library)],check=True)
+        subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',*fwsrc.INCLUDES,
+                        str(fwsrc.path('dvbs2_apsk.c')),str(bridge),'-o',str(library)],check=True)
         lib=ctypes.CDLL(str(library));lib.test_code.argtypes=[ctypes.c_uint];lib.test_code.restype=ctypes.c_void_p
         lib.dvbs2_apsk_arena_words.argtypes=[ctypes.c_void_p,ctypes.c_uint,ctypes.c_bool]
         lib.dvbs2_apsk_arena_words.restype=ctypes.c_uint32

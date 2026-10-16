@@ -65,8 +65,8 @@ the explicit setting.
 
 ## What did and did not change
 
-`git diff 2081cb7 0b89b34 -- firmware/src/bench4fec.c firmware/src/iq4ptr.c
-firmware/src/pvspi.c firmware/src/iq4hist.c firmware/src/dvbs2_8psk.c` is empty.
+`git diff 2081cb7 0b89b34 -- firmware/src/bench/bench4fec.c firmware/src/output/iq4ptr.c
+firmware/src/ingress/pvspi.c firmware/src/output/iq4hist.c firmware/src/dvbs2/dvbs2_8psk.c` is empty.
 The entire live source/credit/publication protocol is unchanged.
 
 The following comparison extracted every nonempty executable section from the two ARM
@@ -260,8 +260,8 @@ and core-0 conversion/supervision still run from XIP.
 2. **Changed XIP location or C2 BCH dispatch changes the competing CPU traffic phase.**
    The shared arenas are fixed and relocated SRAM instructions preserve bank phase;
    XIP addresses differ, and `dvbs2_bch` changes. Build two temporary counterfactuals from
-   the merge: restore only `firmware/src/dvbs2.c` from B2 for one; restore only
-   `firmware/src/dual_dma.c` from B2 for the other. Both are valid for bench4fec kernel 2;
+   the merge: restore only `firmware/src/dvbs2/dvbs2.c` from B2 for one; restore only
+   `firmware/src/output/dual_dma.c` from B2 for the other. Both are valid for bench4fec kernel 2;
    retain the new stack location and independent runner. Archive maps, run each at
    `bench4fec 2 60000 0 13` after a fresh reboot, and repeat A/B/A/B several times. A
    reproducible recovery by one revert narrows the perturbation to C2 code placement or
@@ -295,7 +295,7 @@ counters, with no wrap-sensitive near-40-second threshold found on this path.
 
 For the coordinator's counterfactual build experiment, use `git archive 0b89b34` into two
 fresh temporary directories, then (from the real worktree) use `git show
-2081cb7:firmware/src/dvbs2.c > /tmp/<variant>/firmware/src/dvbs2.c` or the analogous
+2081cb7:firmware/src/dvbs2/dvbs2.c > /tmp/<variant>/firmware/src/dvbs2/dvbs2.c` or the analogous
 `dual_dma.c` command. Configure with explicit `-DCORE0_STACK_SRAM_HI=ON` and
 `-DIQ4HIST_EXPERIMENT=ON`, build using `make build BUILD=...`, and record a clear custom
 version identity. Do not copy these counterfactuals into the B3 production worktree.

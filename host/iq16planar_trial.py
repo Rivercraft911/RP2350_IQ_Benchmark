@@ -135,7 +135,7 @@ def main():
     if a.self_test: self_test(); return
     if a.out is None: p.error('--out required')
     a.out.mkdir(parents=True, exist_ok=False)
-    files = [f for f in (a.source/'src').glob('*') if f.is_file()]+[a.source/'CMakeLists.txt']
+    files = [f for f in (a.source/'src').rglob('*') if f.is_file()]+[a.source/'CMakeLists.txt']
     hashes = {'firmware/'+str(f.relative_to(a.source)): hashlib.sha256(f.read_bytes()).hexdigest() for f in files}
     models = ('iq16planar_trial.py', 'iq16out_trial.py', 'iqbench.py', 'dual_trial.py', 'test_iq16chunk.py', 'test_iq16native8.py')
     hashes.update({'host/'+name: hashlib.sha256((base.iq.ROOT/'host'/name).read_bytes()).hexdigest() for name in models})

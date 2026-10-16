@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reference"))
 import gen_coeffs as g
 import iqlut as m
+import fwsrc  # noqa: E402  firmware/src/<area>/ layout
 
 
 def fir_rows(lut: m.Lut) -> np.ndarray:
@@ -47,8 +48,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="iqpair-native-") as build:
         exe = Path(build) / "iqpair_test"
         src = ROOT / "firmware/src"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{src}",
-                        str(src / "iqgen.c"), str(src / "iqpair.c"),
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        str(src / "cpu_shaping/iqgen.c"), str(src / "output/iqpair.c"),
                         str(ROOT / "host/native/iqpair_test.c"), "-o", str(exe)], check=True)
         rows = np.frombuffer(subprocess.check_output([str(exe)]), dtype="<u4").reshape(8192, 4)
     np.testing.assert_array_equal(rows, fir_rows(lut))

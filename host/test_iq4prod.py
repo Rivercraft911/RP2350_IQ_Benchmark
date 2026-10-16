@@ -20,6 +20,7 @@ from test_iq4quad import cyclic_scalar
 from test_quad_rows import Writer
 from test_dual_pio import firmware_program
 from test_dual_faults import function_body
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "firmware/src"
@@ -112,8 +113,8 @@ def finite_dma_policy(directory):
     unpublished reads or overwrites of an outstanding read fail immediately.
     The schedule is a functional ownership test, not an M33 timing model.
     """
-    source = (SRC / "iq4prod_dma.c").read_text()
-    header = (SRC / "iq4prod_dma.h").read_text()
+    source = (SRC / "output/iq4prod_dma.c").read_text()
+    header = (SRC / "output/iq4prod_dma.h").read_text()
     enums = header[header.index("enum {"):header.index("};") + 2]
     progress_type = header[header.index("typedef struct {"):header.index("} iq4prod_progress_t;") +
                            len("} iq4prod_progress_t;")]
@@ -282,8 +283,8 @@ int main(void) {
 def main():
     with tempfile.TemporaryDirectory(prefix="iq4prod-native-") as temporary:
         executable = Path(temporary) / "iq4prod_test"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{SRC}",
-                        str(SRC / "iq4prod.c"), str(ROOT / "host/native/iq4prod_test.c"),
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        str(SRC / "output/iq4prod.c"), str(ROOT / "host/native/iq4prod_test.c"),
                         "-o", str(executable)], check=True)
         native = json.loads(subprocess.check_output([str(executable), "selftest"]))
         program = np.frombuffer(subprocess.check_output([str(executable), "program"]), dtype="<u2")

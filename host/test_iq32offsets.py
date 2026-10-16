@@ -17,6 +17,7 @@ import numpy as np
 import test_iq16chunk_asm as vm
 import test_iq32keys as keys
 import test_iq32native8 as native
+import fwsrc
 
 
 class State(ct.Structure):
@@ -142,8 +143,8 @@ def scaled_pair_proof(lib, rng):
 def main():
     source = native.ROOT/'firmware/src'
     vm.BASE['tables'] = 0x20040000
-    actual, code, labels = semantic_program(source/'iq32offsets_asm.S')
-    original_code, original_labels = vm.program(source/'iq32offsets_asm.S')
+    actual, code, labels = semantic_program(source / 'apsk/iq32offsets_asm.S')
+    original_code, original_labels = vm.program(source / 'apsk/iq32offsets_asm.S')
     loop = original_code[original_labels['5']//4:original_labels['2']//4]
     assert len(loop) == 27 and sum(s.startswith('uxtah ') for s in loop) == 3
     rng = np.random.default_rng(2026101502)
@@ -151,7 +152,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='iq32offsets-') as temp:
         library = Path(temp)/'native.so'
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
-                        f'-I{source}', *(str(source/f) for f in ('iq32native8.c', 'iq32keys.c',
+                        *fwsrc.INCLUDES, *(str(fwsrc.path(f)) for f in ('iq32native8.c', 'iq32keys.c',
                         'iq32offsets.c', 'iq32mapkeys.c', 'iq32mapkeys_pair.c')), '-o', str(library)], check=True)
         lib = ct.CDLL(str(library))
         lib.iq32native8_build.argtypes = [ct.POINTER(native.Tables), ct.c_uint]

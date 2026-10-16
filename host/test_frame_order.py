@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "reference"))
 sys.path.insert(0, str(ROOT / "reference/dvbs2"))
 import dvbs2 as ref  # noqa: E402
 import iqlut  # noqa: E402
+import fwsrc  # noqa: E402  firmware/src/<area>/ layout
 
 
 def expected(record: dict) -> np.ndarray:
@@ -43,8 +44,8 @@ def main() -> None:
     src = ROOT / "firmware/src"
     with tempfile.TemporaryDirectory(prefix="frame-order-") as build:
         exe = Path(build) / "frame_order_test"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{src}",
-                        str(src / "dvbs2.c"), str(src / "iqgen.c"),
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        str(src / "dvbs2/dvbs2.c"), str(src / "cpu_shaping/iqgen.c"),
                         str(ROOT / "host/native/frame_order_test.c"), "-o", str(exe)], check=True)
         records = [json.loads(line) for line in subprocess.check_output([str(exe)], text=True).splitlines()]
     assert len(records) == 2

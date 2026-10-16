@@ -18,6 +18,7 @@ import numpy as np
 from pulse_profiles import (FOUR_LEVELS_Q30, L7_COEFFICIENTS, L7_PROFILE,
                             iq4hist8_rows, iq4hist_prbs, iq4hist_rows)
 from test_iq4hist import ensemble_spectrum, unpack_rows
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "firmware/src"
@@ -99,8 +100,8 @@ def main():
     assert hashlib.sha256(L7_COEFFICIENTS.astype("<i4").tobytes()).hexdigest() == frozen["coefficient_bytes_sha256"]
     with tempfile.TemporaryDirectory(prefix="iq4hist8-native-") as temporary:
         executable = Path(temporary) / "iq4hist8_test"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{SRC}",
-                        str(SRC / "iq4hist.c"), str(ROOT / "host/native/iq4hist8_test.c"),
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        str(SRC / "output/iq4hist.c"), str(ROOT / "host/native/iq4hist8_test.c"),
                         "-o", str(executable)], check=True)
         rows = np.frombuffer(subprocess.check_output([str(executable)]), dtype="<u4")
     np.testing.assert_array_equal(rows, scalar_rows())

@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 import test_iqquad as quad
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 MASK = 0xffffffff
@@ -224,7 +225,7 @@ def check_credit_stalls(lib):
 def check_credit_microsteps(directory, source):
     # Invoke a consumer observation after each release fence in the actual C leaf.
     # Instrument only the hook, retaining its source stores, bounds and arithmetic.
-    original = (source / "iqquadptr.c").read_text()
+    original = (source / "output/iqquadptr.c").read_text()
     macro = "#define RELEASE() atomic_thread_fence(memory_order_release)"
     assert original.count(macro) == 1
     instrumented = original.replace(macro,
@@ -237,7 +238,7 @@ def check_credit_microsteps(directory, source):
         "void test_credit_step(void) { if (hook) hook(); }\n")
     library = directory / "credit_steps.so"
     subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                    f"-I{source}", str(source / "iqquad.c"), str(directory / "credit_steps.c"),
+                    *fwsrc.INCLUDES, str(source / "output/iqquad.c"), str(directory / "credit_steps.c"),
                     str(directory / "credit_hook.c"), "-o", str(library)], check=True)
     lib = ctypes.CDLL(str(library))
     hook_type = ctypes.CFUNCTYPE(None)
@@ -284,8 +285,8 @@ def check_stride():
 
 
 def check_stop_lifecycle(directory, source):
-    original = (source / "iqquadptr.c").read_text()
-    header = (source / "iqquadptr.h").read_text()
+    original = (source / "output/iqquadptr.c").read_text()
+    header = (source / "output/iqquadptr.h").read_text()
     def function(signature):
         start = original.index(signature)
         end, depth = original.index('{', start) + 1, 1
@@ -353,7 +354,7 @@ void check_stop(uint64_t before,unsigned advance,uint64_t granted,uint64_t publi
     (directory / 'stop.c').write_text(shim)
     library = directory / 'stop.so'
     subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',
-                    f'-I{source}',str(directory/'stop.c'),'-o',str(library)],check=True)
+                    *fwsrc.INCLUDES,str(directory/'stop.c'),'-o',str(library)],check=True)
     lib = ctypes.CDLL(str(library))
     lib.check_stop.argtypes = [ctypes.c_uint64,ctypes.c_uint,ctypes.c_uint64,ctypes.c_uint64,
                               ctypes.c_uint,ctypes.POINTER(ctypes.c_uint64)]
@@ -389,7 +390,7 @@ def main():
                         'const uint16_t *test_program(void) { return IQQUADPTR_PROGRAM; }\n')
         library = directory / "quadptr.so"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        f"-I{source}", str(source / "iqquad.c"), str(source / "iqquadptr.c"),
+                        *fwsrc.INCLUDES, str(source / "output/iqquad.c"), str(source / "output/iqquadptr.c"),
                         str(shim), "-o", str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.test_program.restype = ctypes.POINTER(ctypes.c_uint16)
@@ -414,7 +415,7 @@ def main():
         np.testing.assert_array_equal(rows, normal[permutation])
         table_crc = zlib.crc32(rows.astype("<u4").tobytes())
         expected_crc = int(re.search(r"IQQUADPTR_TABLE_CRC\s+0x([0-9a-fA-F]+)",
-                                    (source / "iqquadptr.h").read_text())[1], 16)
+                                    (source / "output/iqquadptr.h").read_text())[1], 16)
         assert table_crc == expected_crc
         for key in range(4096):
             assert lib.iqquadptr_key(key) == reverse_nibbles(key)

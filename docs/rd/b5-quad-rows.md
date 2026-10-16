@@ -20,19 +20,19 @@ was clean for 3 s, while cpw1 stalled both writers after roughly 20 us with heal
 pointer SMs. B5 removes those SMs and gives each output chain twice the row
 interval. The supplied measurements are prior evidence, not B5 results.
 
-- [iq4quad.c](../../firmware/src/iq4quad.c) builds four deinterleaved pointer
+- [iq4quad.c](../../firmware/src/output/iq4quad.c) builds four deinterleaved pointer
   rings in **I-even, Q-even, I-odd, Q-odd** order. Each contains 2048 uint32
   addresses and has a natural 8192-byte alignment. A 4096-symbol period uses
   exactly the existing 32 KiB `in_buf` arena. Control DMA increments by four
   bytes and wraps independently; there is no router, pointer FIFO or duplicated
   peripheral DREQ.
-- [bench4quad.c](../../firmware/src/bench4quad.c) generates the first 4096
+- [bench4quad.c](../../firmware/src/bench/bench4quad.c) generates the first 4096
   symbols of B4's geometric 8PSK PRBS using its existing code-stream functions.
   Setup temporarily stores 256 packed words per axis in `cap_buf`. Six preceding
   symbols come from the **tail of that same period**, so history is continuous
   through symbol zero and every wrap. It then replaces the temporary codes with
   the capture buffer. Tables and pointers are immutable during output.
-- [dual_dma.c](../../firmware/src/dual_dma.c) adds the experiment-only
+- [dual_dma.c](../../firmware/src/output/dual_dma.c) adds the experiment-only
   `dual_dma_start_quad_rows()` entry point. Each control channel reads one SRAM
   pointer into its own sample channel's `AL3_READ_ADDR_TRIG`; the sample DMA
   transfers one word (8-bit) or two (14-bit) to its writer FIFO and chains back
@@ -434,7 +434,7 @@ Intended small logical commits for the coordinating engineer (none created):
 2. `firmware/src/dual_dma.{c,h}`, `host/test_dual_fifo.py`,
    `host/test_iq4writer8.py`, `host/test_quad_rows.py`, `host/test_dacclk.py`:
    **Add independent one-symbol SRAM DMA chains and four alternating writers.**
-3. `firmware/src/bench4quad.{c,h}`, `firmware/src/main.c`,
+3. `firmware/src/bench4quad.{c,h}`, `firmware/src/app/main.c`,
    `firmware/CMakeLists.txt`, `host/iq4quad_trial.py`,
    `host/test_bench4quad.py`, `host/test_iq4quad_trial.py`, `Makefile`:
    **Expose opt-in SYS128 quad-row trials with independent capture validation.**

@@ -10,12 +10,13 @@ The native path cannot execute the Thumb-2 leaf; device frame/capture CRCs cover
 from pathlib import Path
 import subprocess
 import tempfile
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
 with tempfile.TemporaryDirectory(prefix="dvbs2-fec-") as build:
     exe = Path(build) / "fec_test"
     subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
-                    f"-I{ROOT / 'firmware/src'}", str(ROOT / "host/native/dvbs2_fec_test.c"),
+                    *fwsrc.INCLUDES, str(ROOT / "host/native/dvbs2_fec_test.c"),
                     "-o", str(exe)], check=True)
     subprocess.run([str(exe)], check=True)

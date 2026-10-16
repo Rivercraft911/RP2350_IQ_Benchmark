@@ -143,7 +143,7 @@ def main():
         path = build / name
         hashes["build/" + name] = hashlib.sha256(path.read_bytes()).hexdigest()
         shutil.copy2(path, args.out / name)
-    for name in ("firmware/src/dvbs2_8psk.c", "firmware/src/r2_hazard3_bits.h",
+    for name in ("firmware/src/dvbs2/dvbs2_8psk.c", "firmware/src/dvbs2/r2_hazard3_bits.h",
                  "firmware/r2_hazard3/CMakeLists.txt", "firmware/r2_hazard3/main.c", "host/r2_hazard3_trial.py"):
         hashes[name] = hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
     manifest = dict(started=dt.datetime.now().isoformat(), code=args.codes, frames=args.frames,

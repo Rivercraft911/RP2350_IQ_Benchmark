@@ -122,8 +122,8 @@ int main(void) {
 
 
 def main():
-    source = (ROOT / "firmware/src/iq4prod_dma.c").read_text()
-    header = (ROOT / "firmware/src/iq4prod_dma.h").read_text()
+    source = (ROOT / "firmware/src/output/iq4prod_dma.c").read_text()
+    header = (ROOT / "firmware/src/output/iq4prod_dma.h").read_text()
     enums = header[header.index("enum {"):header.index("};") + 2]
     progress_type = header[header.index("typedef struct {"):header.index("} iq4prod_progress_t;") +
                            len("} iq4prod_progress_t;")]

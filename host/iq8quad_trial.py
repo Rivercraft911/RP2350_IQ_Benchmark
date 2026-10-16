@@ -52,7 +52,7 @@ def main():
     a = p.parse_args()
     a.out.mkdir(parents=True, exist_ok=False)
     build = iq.ROOT / 'firmware/build-limits'
-    source = [f for f in (iq.ROOT / 'firmware/src').glob('*') if f.suffix in ('.c', '.h', '.S')]
+    source = [f for f in (iq.ROOT / 'firmware/src').rglob('*') if f.suffix in ('.c', '.h', '.S')]
     source.append(iq.ROOT / 'firmware/CMakeLists.txt')
     hashes = {str(f.relative_to(iq.ROOT)): hashlib.sha256(f.read_bytes()).hexdigest() for f in source}
     for name in ('iqbench.uf2', 'iqbench.elf'):

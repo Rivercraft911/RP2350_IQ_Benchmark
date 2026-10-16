@@ -21,7 +21,7 @@ class IntegerSlots(raw.RawPairs):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        source = (raw.ROOT / "firmware/src/iqout.c").read_text()
+        source = (raw.ROOT / "firmware/src/output/iqout.c").read_text()
         capture = re.search(r"prog_cap\[0\] = .*?prog_cap\[2\] = .*?;", source, re.S)
         assert capture, "capture program missing"
         temp = Path(cls.tmp.name)
@@ -65,7 +65,7 @@ class IntegerSlots(raw.RawPairs):
     def test_raw_timing_range_and_pin_assignment(self):
         self.assertEqual([cpw for cpw in range(-2, 35) if self.lib.raw_valid(cpw)],
                          list(range(3, 33)))
-        config = (raw.ROOT / "firmware/src/config.h").read_text()
+        config = (raw.ROOT / "firmware/src/app/config.h").read_text()
         self.assertRegex(config, r"#define\s+PIN_D0\s+0\b")
         self.assertRegex(config, r"#define\s+PIN_CLKIO\s+16\b")
 
@@ -119,7 +119,7 @@ class IntegerSlots(raw.RawPairs):
                     ticks = (phase + np.arange(len(bus) + 1) * divider) // 256
                     physical = np.repeat(bus, np.diff(ticks))
                     np.testing.assert_array_equal(physical, np.repeat(expected, cpw))
-        source = (raw.ROOT / "firmware/src/iqout.c").read_text()
+        source = (raw.ROOT / "firmware/src/output/iqout.c").read_text()
         self.assertIn("const uint32_t divider = raw ? raw_divider(cpw) : 256u;", source)
         self.assertIn("sm_config_set_clkdiv_int_frac8(&c, divider >> 8, divider & 255u);", source)
 

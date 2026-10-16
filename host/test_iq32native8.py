@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import zlib
 import numpy as np
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 PTR = ctypes.POINTER(ctypes.c_uint32)
@@ -117,7 +118,7 @@ def execute(lib, words, previous, tables, partition):
 def main():
     source=ROOT/'firmware/src'
     coefficient_sha=hashlib.sha256(TAPS.astype('<i4').tobytes()).hexdigest()
-    assert coefficient_sha in (source/'iq32native8.h').read_text()
+    assert coefficient_sha in (source / 'apsk/iq32native8.h').read_text()
     rng=np.random.default_rng(987123)
     checks=0
     # Exhaustive radix key identity and paired-halfword carry check. The proof
@@ -134,7 +135,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='iq32native8-') as temp:
         library=Path(temp)/'native.so'
         subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',
-                        f'-I{source}',str(source/'iq32native8.c'),'-o',str(library)],check=True)
+                        *fwsrc.INCLUDES,str(source / 'apsk/iq32native8.c'),'-o',str(library)],check=True)
         lib=ctypes.CDLL(str(library))
         lib.iq32native8_build.argtypes=[ctypes.POINTER(Tables),ctypes.c_uint]
         lib.iq32native8_build.restype=ctypes.c_bool

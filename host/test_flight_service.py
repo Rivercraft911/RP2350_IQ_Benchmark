@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
 class FlightService(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        main = (ROOT / "firmware/src/main.c").read_text()
+        main = (ROOT / "firmware/src/app/main.c").read_text()
         begin = main.index("static void flight_service(void) {")
         end = main.index("\nstatic const char *flight_start", begin)
         source = HARNESS.replace("/* FLIGHT_SERVICE */", main[begin:end])

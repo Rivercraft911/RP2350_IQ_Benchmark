@@ -1,7 +1,7 @@
 # Two-core FEC and SRAM banks: the scratch-bank BCH code is the big conflict; LDPC is mostly instruction-bound
 
 Pico Plus 2, RP2350B A2, SYS128, USB only. Branch `rd/ldpc-banks`, command `c3pair code pairs
-layout who options` (`firmware/src/bench_c3_pair.c`): encodes frame 0 (job A) and frame 1 (job B)
+layout who options` (`firmware/src/bench/bench_c3_pair.c`): encodes frame 0 (job A) and frame 1 (job B)
 40 times with C3/C4's per-frame FEC (GCS -> BB -> BCH -> LDPC -> packed 8PSK codes) and reports
 cycles per stage, per job. `who` 0 = core 0 runs both jobs (no concurrent FEC), 1 = core 1 runs
 both, 2 = core 0 and core 1 start their jobs together (both cores always in the same stage, the

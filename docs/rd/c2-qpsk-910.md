@@ -367,11 +367,11 @@ with another fresh output directory. Kernel 3 does not repair its two-writer han
 
 The coordinating engineer should create these commits; none was created here.
 
-1. `firmware/src/dvbs2.c`, `dvbs2.h`, `dvbs2_asm.S`;
+1. `firmware/src/dvbs2/dvbs2.c`, `dvbs2.h`, `dvbs2_asm.S`;
    `host/native/dvbs2_test.c`, `dvbs2_buffers_test.c`;
    `host/test_dvbs2_buffers.py`, `host/test_bch128_asm.py`, `Makefile` —
    **Add opt-in t=8 BCH stream kernel and bounded high-rate frontend.**
-2. `firmware/src/bench_dual.c`, `bench.h`, `main.c`;
+2. `firmware/src/bench/bench_dual.c`, `bench.h`, `main.c`;
    `host/test_dual_codes.py`, `host/test_dualptr_native.py` —
    **Enable and verify normal 8/9 and 9/10 in live QPSK pipelines.**
 3. `host/dual_spi.py`, `dual_trial.py`, `dualptr_trial.py`;

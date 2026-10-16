@@ -283,7 +283,7 @@ def main():
     profiles = selected_profiles(a.modulations, a.mappers, a.placements)
     if not profiles: p.error('no compatible modulation/mapper/placement combination selected')
     a.out.mkdir(parents=True, exist_ok=False)
-    files = list((a.source/'src').glob('*'))+[a.source/'CMakeLists.txt']
+    files = [f for f in (a.source/'src').rglob('*') if f.is_file()]+[a.source/'CMakeLists.txt']
     hashes = {'firmware/'+str(f.relative_to(a.source)): hashlib.sha256(f.read_bytes()).hexdigest()
               for f in files if f.is_file()}
     for f in (Path(__file__), iq.ROOT/'host/iqbench.py', iq.ROOT/'host/dual_trial.py',

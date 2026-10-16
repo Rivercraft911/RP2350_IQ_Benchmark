@@ -128,7 +128,7 @@ def main():
     for name in ('iqbench.uf2', 'iqbench.elf'):
         shutil.copy2(build / name, args.out / name)
         hashes[name] = hashlib.sha256((args.out / name).read_bytes()).hexdigest()
-    source = [f for f in (firmware/'src').glob('*') if f.suffix in ('.c', '.h', '.S')]
+    source = [f for f in (firmware/'src').rglob('*') if f.suffix in ('.c', '.h', '.S')]
     source += [firmware/'CMakeLists.txt']
     hashes.update({'firmware/'+str(f.relative_to(firmware)):hashlib.sha256(f.read_bytes()).hexdigest() for f in source})
     hashes['host/quadptr_trial.py'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()

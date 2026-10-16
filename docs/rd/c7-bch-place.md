@@ -339,7 +339,7 @@ core1 grant worker. Bit 256 is deliberately unavailable in `c3fec`.
 
 No commits were made. Suggested logical commits, without co-author trailers:
 
-1. `firmware/src/dvbs2.c`, `dvbs2.h`, `dvbs2_asm.S`, `dvbs2_bch_fast.S`,
+1. `firmware/src/dvbs2/dvbs2.c`, `dvbs2.h`, `dvbs2_asm.S`, `dvbs2_bch_fast.S`,
    `firmware/CMakeLists.txt`: **Add reentrant BCH and transpose copies plus three-plane BCH leaves**.
 2. `firmware/src/c3_fec.{c,h}`, `bench_c3_fec.c`, `bench_c3_pair.c`, `main.c`,
    `host/c3_fec_trial.py`: **Expose C7 placement and BCH A/B options with bounded idle arenas**.

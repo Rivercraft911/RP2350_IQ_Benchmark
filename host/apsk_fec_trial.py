@@ -653,7 +653,7 @@ def main():
     dependencies += list((iq.ROOT/'reference').glob('*.py'))+list((iq.ROOT/'reference/dvbs2').glob('*.py'))
     hashes = {str(path.relative_to(iq.ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
               for path in dependencies}
-    firmware = [path for path in (source/'src').glob('*') if path.suffix in ('.c', '.h', '.S')]
+    firmware = [path for path in (source/'src').rglob('*') if path.suffix in ('.c', '.h', '.S')]
     firmware += [source/'CMakeLists.txt', source/'git_rev.cmake', source/'pico_sdk_import.cmake']
     hashes.update({'firmware/'+str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest()
                    for path in firmware})

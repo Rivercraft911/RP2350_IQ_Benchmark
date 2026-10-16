@@ -112,7 +112,7 @@ The high-rate SPI trial rejects unavailable resources before starting and report
 startup prefill explicitly.
 
 The three encoder assembly leaves are in
-[`dvbs2_asm.S`](../../../firmware/src/dvbs2_asm.S), with normal assembler syntax and portable C
+[`dvbs2_asm.S`](../../../firmware/src/dvbs2/dvbs2_asm.S), with normal assembler syntax and portable C
 fallbacks in `dvbs2.c`. Extraction preserved every instruction byte: 260 bytes of BCH code,
 308 of transpose and 160 of mapping. The autonomous startup profile is still 8 Msym/s;
 this campaign does not switch that default to the experimental interface.
@@ -294,7 +294,7 @@ This could remove much of the remaining CPU pointer work. It still needs an alig
 LUT, integration with the output gather engine, resource accounting and a complete ownership
 and timing test under encoder/SPI load. It is not a measured complete transmitter at that rate.
 
-The [8PSK component](../../../firmware/src/iq8.c) remains a shaper experiment; a complete DVB-S2
+The [8PSK component](../../../firmware/src/cpu_shaping/iq8.c) remains a shaper experiment; a complete DVB-S2
 8PSK encoder/interleaver is not implemented. Its present cost is not a throughput improvement
 over this QPSK path.
 

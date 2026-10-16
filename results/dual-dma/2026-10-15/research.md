@@ -19,7 +19,7 @@ ring housekeeping. **Cost:** a new input format, four extra PIO state machines a
 DMA channels, an aligned/permuted table, and a new ownership proof. The benefit is a hypothesis
 until the existing output engine runs with these generated pointers under full traffic.
 
-The [pin-free program](../../../firmware/src/ptrprog.h) is 16 instructions shared by four state
+The [pin-free program](../../../firmware/src/output/ptrprog.h) is 16 instructions shared by four state
 machines. Each consumes one binary I or Q axis, updates a 13-bit history in X and publishes one
 numerical address per four global symbols. Two phase-offset machines per axis cover alternate
 two-symbol rows. Y holds a 128-KiB-aligned table prefix. An address is
@@ -94,7 +94,7 @@ proof became the concrete architectural experiment. **Expected benefit:** fewer 
 and half the sample traffic with 2 samples/symbol. **Cost:** new shaper kernels and reference
 checks, then an actual DVB-S2 8PSK mapper/interleaver and a link/SNR trade study.
 
-The existing [8PSK experiment](../../../firmware/src/iq8.c) is L=12, N=4 and represents each
+The existing [8PSK experiment](../../../firmware/src/cpu_shaping/iq8.c) is L=12, N=4 and represents each
 axis as the sum of two binary-amplitude planes. Its two tables occupy 64 KiB. The previously
 measured assembly shaper costs 37.372 cycles/symbol. It is an isolated random-symbol waveform
 experiment, not a DVB-S2 8PSK encoder.
@@ -219,7 +219,7 @@ and in-place parity writes start only after all information bits have been consu
 correctness blocker was found in that review.
 
 The three global assembly blocks were extracted to
-[dvbs2_asm.S](../../../firmware/src/dvbs2_asm.S) for readability. Isolated compilation with the
+[dvbs2_asm.S](../../../firmware/src/dvbs2/dvbs2_asm.S) for readability. Isolated compilation with the
 SDK's GCC 14.2 Arm toolchain produced byte-identical code sections before and after extraction:
 BCH plus continuation 260 bytes, transpose 308 bytes and mapping 160 bytes. The C prototypes,
 portable fallbacks and inline rotate-XOR constraints were retained. Native focused checks pass

@@ -31,7 +31,7 @@ Values are ZOH + filter attenuation at the image's inner edge, computed with `re
 10 MHz). Intermediate tunes are not tabulated. Low rates therefore favour tune 8 with f_s ≈ 8 MS/s,
 and the kernel must support N = 8–32. For N ≥ 8 the entry per axis is ≥ 16 bytes, so use LDM from
 the computed address and one STM with interleaved register numbers (I in odd, Q in even
-registers). Predicted ≈ 23 cycles/symbol at N = 8; measured 20.9 (`lut_asm`, `firmware/src/iqasm.S`).
+registers). Predicted ≈ 23 cycles/symbol at N = 8; measured 20.9 (`lut_asm`, `firmware/src/cpu_shaping/iqasm.S`).
 
 ## 2. DVB-S2 encoding on the RP2350
 

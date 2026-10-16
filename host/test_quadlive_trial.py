@@ -11,6 +11,7 @@ import numpy as np
 
 import quadlive_trial as trial
 from dual_trial import reference_bus
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -69,7 +70,7 @@ class QuadliveTrial(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix='quadlive-cursor-native-')
         d = Path(cls.temp.name)
-        text = (ROOT/'firmware/src/bench_quadlive.c').read_text()
+        text = (ROOT/'firmware/src/bench/bench_quadlive.c').read_text()
         match = re.search(r'static uint64_t observed_issues\([^)]*\)\s*\{',text)
         start,end,depth = match.start(),match.end(),1
         while depth:
@@ -103,8 +104,8 @@ bool check_runway(uint64_t granted,uint64_t issued,uint32_t budget,uint64_t *min
 '''
         (d/'check.c').write_text(source)
         subprocess.run(['cc','-std=c11','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',
-                        '-I'+str(ROOT/'firmware/src'),str(d/'check.c'),
-                        str(ROOT/'firmware/src/iqquadptr.c'),str(ROOT/'firmware/src/iqquad.c'),
+                        *fwsrc.INCLUDES,str(d/'check.c'),
+                        str(ROOT/'firmware/src/output/iqquadptr.c'),str(ROOT/'firmware/src/output/iqquad.c'),
                         '-o',str(d/'check.so')],check=True)
         cls.lib = ct.CDLL(str(d/'check.so'))
         cls.lib.check_cursor.argtypes=[ct.c_uint,ct.c_uint64,ct.c_uint32,ct.POINTER(ct.c_uint32)]

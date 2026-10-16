@@ -9,7 +9,7 @@ changed to avoid a large temporary stack table. Details appear at the end.
 
 ## Exact 16APSK schedules
 
-`firmware/src/iq16fast.h` / `iq16fast_asm.S` expose
+`firmware/src/apsk/iq16fast.h` / `iq16fast_asm.S` expose
 `iq16fast_sparse_asm` and `iq16fast_pair_asm`, with the existing native8 signature,
 136 KiB table layout, input/history contract and RAW_PAIRS output CRCs.
 

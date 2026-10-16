@@ -15,6 +15,7 @@ import zlib
 import numpy as np
 import test_dvbs2_8psk as mapping
 import test_iq8quad as pulse
+import fwsrc
 
 ROOT=Path(__file__).resolve().parents[1]
 SRC=ROOT/'firmware/src'
@@ -69,8 +70,8 @@ class SharedModulation(unittest.TestCase):
             'void test_init(unsigned i,bool pilots){dvbs2_init(&DVBS2_CODES[i],pilots);}\n'
             'unsigned test_stream_size(void){return sizeof(dvbs2_8psk_stream_t);}\n'
             'void test_fec(const uint32_t *bb,uint32_t *fe){dvbs2_frame_begin_into(bb,fe);dvbs2_frame_ldpc_into(fe);}\n')
-        subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC','-I'+str(SRC),
-                        *(str(SRC/n) for n in ('dvbs2.c','dvbs2_8psk.c','dvbs2_qpsk8.c','iq8quad.c','iqgen.c')),
+        subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',*fwsrc.INCLUDES,
+                        *(str(fwsrc.path(n)) for n in ('dvbs2.c','dvbs2_8psk.c','dvbs2_qpsk8.c','iq8quad.c','iqgen.c')),
                         str(d/'bridge.c'),'-o',str(d/'test.so')],check=True)
         cls.lib=ct.CDLL(str(d/'test.so'));lib=cls.lib
         lib.test_code.argtypes=[ct.c_uint];lib.test_code.restype=ct.c_void_p
@@ -231,8 +232,8 @@ class SharedModulation(unittest.TestCase):
             'for(unsigned f=0;f<16;++f)for(unsigned t=0;t<=16;++t){'
             'dvbs2_8psk_stream_t s={.out=out,.mask=7,.fill=f,.acc_ai=(1u<<f)-1,.acc_bq=(1u<<f)-1};'
             'if(!dvbs2_qpsk8_append(&s,w,2,~0u,t))return 1;}return 0;}\n')
-        subprocess.run(['cc','-std=c11','-O1','-fsanitize=undefined','-fno-sanitize-recover=undefined','-I'+str(SRC),
-                        str(source),str(SRC/'dvbs2_qpsk8.c'),str(SRC/'dvbs2.c'),'-o',str(d/'ubsan')],check=True)
+        subprocess.run(['cc','-std=c11','-O1','-fsanitize=undefined','-fno-sanitize-recover=undefined',*fwsrc.INCLUDES,
+                        str(source),str(SRC / 'dvbs2/dvbs2_qpsk8.c'),str(SRC / 'dvbs2/dvbs2.c'),'-o',str(d/'ubsan')],check=True)
         subprocess.run([str(d/'ubsan')],check=True)
 
 

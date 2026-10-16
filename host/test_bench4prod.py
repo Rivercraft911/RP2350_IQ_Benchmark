@@ -12,6 +12,7 @@ import unittest
 import zlib
 
 import iq4prod_trial as trial
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT/'firmware/src'
@@ -210,13 +211,13 @@ class Bench4Prod(unittest.TestCase):
         directory = Path(cls.temp.name)
         (directory/'hardware').mkdir()
         (directory/'hardware/pio.h').write_text('/* PIO type supplied by the fixture. */\n')
-        source = (SRC/'bench4prod.c').read_text()
+        source = (SRC / 'bench/bench4prod.c').read_text()
         native = directory/'bench.c'
         native.write_text(FIXTURE+source[source.index('enum {'):]+MAIN)
         cls.executable = directory/'bench'
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror',
-                        '-I'+str(directory), '-I'+str(SRC), str(native),
-                        *(str(SRC/name) for name in ('iqgen.c', 'iq8.c', 'iq4hist.c', 'iq4prod_source.c')),
+                        '-I'+str(directory), *fwsrc.INCLUDES, str(native),
+                        *(str(fwsrc.path(name)) for name in ('iqgen.c', 'iq8.c', 'iq4hist.c', 'iq4prod_source.c')),
                         '-o', str(cls.executable)], check=True)
 
     @classmethod

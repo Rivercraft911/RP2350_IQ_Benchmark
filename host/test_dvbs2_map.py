@@ -11,6 +11,7 @@ import tempfile
 import unittest
 
 import numpy as np
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 PTR = ct.POINTER(ct.c_uint32)
@@ -28,7 +29,7 @@ class Mapper(unittest.TestCase):
         cls.temp = tempfile.TemporaryDirectory(prefix="yapogee-map-")
         temp = Path(cls.temp.name)
         src = ROOT / "firmware/src"
-        wrapper = '#include ' + json.dumps(str(src / "dvbs2.c")) + '''
+        wrapper = '#include ' + json.dumps(str(src / "dvbs2/dvbs2.c")) + '''
 #include "dvbs2_codes.h"
 unsigned test_codes(void) { return N_DVBS2_CODES; }
 void test_init(unsigned i, bool pilots) { dvbs2_init(&DVBS2_CODES[i], pilots); }
@@ -38,7 +39,7 @@ void test_map(const uint32_t *f, const uint32_t *sw, const uint32_t *fl, unsigne
 '''
         (temp / "map.c").write_text(wrapper)
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        "-I" + str(src), str(temp / "map.c"), "-o", str(temp / "map.so")], check=True)
+                        *fwsrc.INCLUDES, str(temp / "map.c"), "-o", str(temp / "map.so")], check=True)
         cls.lib = ct.CDLL(str(temp / "map.so"))
         cls.lib.dvbs2_map_set_kernel.argtypes = [ct.c_uint]
         cls.lib.dvbs2_map_set_kernel.restype = ct.c_bool

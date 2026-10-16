@@ -2,7 +2,7 @@
 
 Run: python3 host/test_dacclk.py
 
-Parses the actual opcode arrays and start state from firmware/src/dual_dma.c and steps
+Parses the actual opcode arrays and start state from firmware/src/output/dual_dma.c and steps
 all state machines one enabled slot at a time from a common first slot, which is what one
 PIO1 CTRL write with NEXTPREV_SM_ENABLE + CLKDIV_RESTART provides. Checks that the clock is
 high in exactly the I slots, so DDR rising edges launch with I and falling edges with Q.
@@ -18,7 +18,7 @@ import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "firmware/src/dual_dma.c"
+SOURCE = ROOT / "firmware/src/output/dual_dma.c"
 U32 = 0xffffffff
 
 

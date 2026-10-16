@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import numpy as np
 import test_dvbs2_8psk as old
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 PTR = old.PTR
@@ -186,7 +187,7 @@ def main():
                           'unsigned test_codes_size(void){return sizeof(dvbs2_8psk_codes_stream_t);}\n'
                           'unsigned test_state_size(void){return sizeof(dvbs2_8psk_codes_state_t);}\n')
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        f"-I{src}", str(src/"dvbs2_8psk.c"), str(src/"iq4hist.c"), str(bridge),
+                        *fwsrc.INCLUDES, str(fwsrc.path("dvbs2_8psk.c")), str(fwsrc.path("iq4hist.c")), str(bridge),
                         "-o", str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.test_code.argtypes = [ctypes.c_uint]; lib.test_code.restype = ctypes.c_void_p

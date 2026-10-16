@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 FLAGS = ["-O3", "-std=c11", "-Wall", "-Wextra", "-Werror", "-mcpu=cortex-m33", "-mthumb",
@@ -29,7 +30,7 @@ def tool(name):
 
 
 def code_words():
-    text = (ROOT / "firmware/src/dvbs2_apsk.h").read_text()
+    text = (ROOT / "firmware/src/dvbs2/dvbs2_apsk.h").read_text()
     return int(re.search(r"DVBS2_APSK_FAST_CODE_WORDS = (\d+)", text)[1])
 
 
@@ -73,8 +74,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="a3-apsk-pic-") as temp:
         mapper, prep = Path(temp) / "mapper.o", Path(temp) / "prep.o"
         for source, obj in (("dvbs2_apsk.c", mapper), ("iq32offsets_mla.c", prep)):
-            subprocess.run([cc, *FLAGS, f"-I{ROOT / 'firmware/src'}", "-c",
-                            str(ROOT / "firmware/src" / source), "-o", str(obj)], check=True)
+            subprocess.run([cc, *FLAGS, *fwsrc.INCLUDES, "-c",
+                            str(fwsrc.path(source)), "-o", str(obj)], check=True)
         size, relocations, functions = disassemble(dump, mapper, "apsk_fast")
         assert 0 < size <= 4 * code_words(), f"leaves need {size} bytes; arena reserves {4 * code_words()}"
         assert "R_ARM_" not in relocations, relocations

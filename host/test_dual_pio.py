@@ -14,7 +14,7 @@ import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "firmware/src/dual_dma.c"
+SOURCE = ROOT / "firmware/src/output/dual_dma.c"
 U32 = 0xffffffff
 
 

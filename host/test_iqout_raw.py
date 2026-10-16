@@ -54,15 +54,15 @@ class RawPairs(unittest.TestCase):
                                      "typedef unsigned int uint;\n"
                                      "#define valid_params_if(group, condition) assert(condition)\n"
                                      "#define PARAM_ASSERTIONS_ENABLED(group) 1\n")
-        source = (ROOT / "firmware/src/iqout.c").read_text()
+        source = (ROOT / "firmware/src/output/iqout.c").read_text()
         match = re.search(r"if \(layout == IQ_LAYOUT_RAW_PAIRS\) \{(.*?)#define SIDE\(v\).*?"
                           r"const uint16_t p\[\] = \{(.*?)\};",
                           source, re.S)
         assert match, "RAW_PAIRS program missing"
         valid = re.search(r"hard_assert\(layout != IQ_LAYOUT_RAW_PAIRS \|\| (.*?)\);", source)
         assert valid, "RAW_PAIRS timing validation missing"
-        crc = function((ROOT / "firmware/src/iqgen.c").read_text(), "crc32_update")
-        packed = function((ROOT / "firmware/src/bench8quad.c").read_text(), "packed_crc")
+        crc = function((ROOT / "firmware/src/cpu_shaping/iqgen.c").read_text(), "crc32_update")
+        packed = function((ROOT / "firmware/src/bench/bench8quad.c").read_text(), "packed_crc")
         wrapper = ("#include <stddef.h>\n#include <string.h>\n#include " + json.dumps(str(header)) + "\n"
                    "#define SIDE(v) pio_encode_sideset(3, (v))\n"
                    "unsigned raw_program(uint16_t *out, int cpw) {" + match[1] +
@@ -161,7 +161,7 @@ class RawPairs(unittest.TestCase):
 
     def test_raw_timing_range_and_pin_assignment(self):
         self.assertEqual([cpw for cpw in range(-2, 35) if self.lib.raw_valid(cpw)], list(range(3, 33)))
-        config = (ROOT / "firmware/src/config.h").read_text()
+        config = (ROOT / "firmware/src/app/config.h").read_text()
         self.assertRegex(config, r"#define\s+PIN_D0\s+0\b")
         self.assertRegex(config, r"#define\s+PIN_CLKIO\s+16\b")
 

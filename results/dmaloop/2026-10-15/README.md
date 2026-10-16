@@ -9,7 +9,7 @@ observed in rounds 1–3 matches loop latency against the per-chain row deadline
 
 Pico Plus 2, RP2350B A2, SYS128, USB only. Images `dc6ef389bf` (`sweep.jsonl`) and
 `30011d605b` (`pio-pointers.jsonl`), branch `rd/stall-dmaloop`, command `dmaloop`
-(`firmware/src/dmaloop.c`), runner `host/dmaloop_sweep.py`. Each record runs the chains
+(`firmware/src/bench/dmaloop.c`), runner `host/dmaloop_sweep.py`. Each record runs the chains
 200 us to settle, then counts iterations over 4 M cycles with interrupts off: control-channel
 READ_ADDR deltas sampled every 1000 cycles (SRAM pointers) or a PIO sink's word counter
 (PIO pointers). Three repetitions each; spread is shown where it exceeds 0.05 cycles.

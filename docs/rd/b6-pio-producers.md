@@ -16,7 +16,7 @@ or modified. The coordinator owns all device measurements.
 
 ## Implementation and startup proof
 
-The portable [program](../../firmware/src/iq4prod.h) has exactly eleven words:
+The portable [program](../../firmware/src/output/iq4prod.h) has exactly eleven words:
 
 ```text
 0  MOV ISR,X           7  MOV ISR,X
@@ -59,8 +59,8 @@ checked against local RP2350 build2025-07-29 **§11.5.4/§11.5.4.1 printed p909 
 §11.5.4.2 p910**, including MOV ISR count reset and PULL's autopull fence.
 There is no MOV/IN OSR key extraction and no explicit nonblocking PULL.
 
-[The device module](../../firmware/src/iq4prod_dma.c) claims four TX-paced input
-DMAs and four producers. [The sibling output entry](../../firmware/src/dual_dma.c)
+[The device module](../../firmware/src/output/iq4prod_dma.c) claims four TX-paced input
+DMAs and four producers. [The sibling output entry](../../firmware/src/output/dual_dma.c)
 uses each producer's own RX DREQ to move one numerical address directly to its
 own sample channel's `AL3_READ_ADDR_TRIG`. That sample channel sends one word
 to its own writer TX FIFO and chains back to its control channel. All four
@@ -118,7 +118,7 @@ Worker join and producer DMA abort have1ms timeout paths that retain claims and
 prevent buffer restoration. B5's output abort loop remains an inherited unbounded
 loop. A failed release is a failed run, never permission to reuse source storage.
 
-[The runtime source](../../firmware/src/iq4prod_source.c) works a whole packed
+[The runtime source](../../firmware/src/output/iq4prod_source.c) works a whole packed
 16-symbol group at a time. Let `xorshift32` use shifts13,17,5, starting from
 `0x1234abcd`. Each group takes two successive words `i` and `r`, then computes:
 
@@ -412,7 +412,7 @@ Intended small logical commits for the coordinator; none created:
 2. `firmware/src/iq4prod_dma.{c,h}`, `firmware/src/dual_dma.{c,h}`, `host/test_dual_fifo.py`:
    **Add four independent RX chains and finite live input grants.**
 3. `firmware/src/iq4prod_source.{c,h}`, `firmware/src/bench4prod.{c,h}`,
-   `firmware/src/main.c`, `firmware/CMakeLists.txt`,
+   `firmware/src/app/main.c`, `firmware/CMakeLists.txt`,
    `host/iq4prod_trial.py`, `host/test_iq4prod_source.py`,
    `host/test_iq4prod_trial.py`, `host/test_bench4prod.py`, `Makefile`:
    **Expose opt-in cyclic and runtime8PSK producer trials.**

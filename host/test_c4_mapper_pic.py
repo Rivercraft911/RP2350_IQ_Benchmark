@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,8 +30,8 @@ def main():
                         "-mcpu=cortex-m33", "-mthumb", "-march=armv8-m.main+fp+dsp",
                         "-mfloat-abi=softfp", "-mcmse", "-DNDEBUG",
                         "-ffunction-sections", "-fdata-sections", "-DIQ_ON_DEVICE=1",
-                        f"-I{ROOT / 'firmware/src'}", "-c",
-                        str(ROOT / "firmware/src/dvbs2_8psk.c"), "-o", str(obj)], check=True)
+                        *fwsrc.INCLUDES, "-c",
+                        str(ROOT / "firmware/src/dvbs2/dvbs2_8psk.c"), "-o", str(obj)], check=True)
         headers = subprocess.check_output([dump, "-h", str(obj)], text=True)
         section = re.search(r"\s+c4_mapper\s+([0-9a-f]+)\s", headers)
         assert section

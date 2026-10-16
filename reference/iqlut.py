@@ -1,6 +1,6 @@
 """QPSK root-raised-cosine lookup-table waveform: reference model for the RP2350 firmware.
 
-Conventions shared bit-for-bit with firmware/src/iqgen.c:
+Conventions shared bit-for-bit with firmware/src/cpu_shaping/iqgen.c:
 
 * Input word (uint32): I bits in [15:0], Q bits in [31:16]; symbol j of the word uses bit j
   (I) and bit 16+j (Q). Bit b maps to amplitude s = 1 - 2b (DVB-S2 sign convention).

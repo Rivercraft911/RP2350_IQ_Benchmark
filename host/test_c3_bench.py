@@ -16,6 +16,7 @@ import unittest
 import zlib
 
 import c3_fec_trial as trial
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "firmware/src"
@@ -163,12 +164,12 @@ class C3Bench(unittest.TestCase):
         (directory / "tx.h").write_text(TX_HEADER)
         # Copy byte-for-byte so quote includes resolve to mocks, while scheduling,
         # JSON formatting, bounds and publication remain the production source.
-        shutil.copyfile(SRC / "bench_c3_fec.c", directory / "bench_c3_fec.c")
-        (directory / "harness.c").write_text(HARNESS.replace("C3_SOURCE", str(SRC / "c3_fec.c")))
+        shutil.copyfile(SRC / "bench/bench_c3_fec.c", directory / "bench_c3_fec.c")
+        (directory / "harness.c").write_text(HARNESS.replace("C3_SOURCE", str(SRC / "dvbs2/c3_fec.c")))
         cls.executable = directory / "bench"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
-                        "-I" + str(directory), "-I" + str(SRC), str(directory / "harness.c"),
-                        str(SRC / "dvbs2.c"), str(SRC / "dvbs2_8psk.c"), str(SRC / "pvproto.c"),
+                        "-I" + str(directory), *fwsrc.INCLUDES, str(directory / "harness.c"),
+                        str(SRC / "dvbs2/dvbs2.c"), str(SRC / "dvbs2/dvbs2_8psk.c"), str(SRC / "ingress/pvproto.c"),
                         "-o", str(cls.executable)], check=True)
 
     @classmethod

@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 
 from test_dual_faults import function_body
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -299,7 +300,7 @@ def check_gate(programs):
 
 
 def main():
-    source = (ROOT / "firmware/src/pvspi.c").read_text()
+    source = (ROOT / "firmware/src/ingress/pvspi.c").read_text()
     functions = [("static void", "build", "int emu_half"),
                  ("static uint32_t *", "slot", "uint32_t n"),
                  ("static void", "arm_locked", "void"),
@@ -315,7 +316,7 @@ def main():
         test, executable = directory / "close.c", directory / "close"
         test.write_text(code)
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror",
-                        f"-I{directory}", f"-I{ROOT / 'firmware/src'}", str(test),
+                        f"-I{directory}", *fwsrc.INCLUDES, str(test),
                         "-o", str(executable)], check=True)
         result = subprocess.run([str(executable)], check=True, capture_output=True, text=True)
         lines = result.stdout.splitlines()

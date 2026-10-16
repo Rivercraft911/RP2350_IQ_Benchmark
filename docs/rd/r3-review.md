@@ -71,10 +71,10 @@ reservation. RAM_HI has essentially no slack in the experiment image.
 
 ### D2 (Low–Medium): `bench4prod8*` makes `stackcheck` report corrupted code
 
-`firmware/src/iq4prod_dma.c:33` places the mutable `producer_state_t state` in
+`firmware/src/output/iq4prod_dma.c:33` places the mutable `producer_state_t state` in
 `.scratch_y.iq4prod_state`. The SDK script collects `*(.scratch_y.*)` between
 `__scratch_y_start__` and `__scratch_y_end__` and loads it from flash. `stack_report`
-(`firmware/src/main.c:221-233`) compares exactly that range with its flash image. In the
+(`firmware/src/app/main.c:221-233`) compares exactly that range with its flash image. In the
 `build-exp` map, `state` occupies `0x20081d30–0x20081e68`, offset 3,376 of 3,688 bytes.
 
 Failure scenario: after any `bench4prod8` or `bench4prod8live`, `prepare` writes `state`, and every
@@ -116,7 +116,7 @@ The selectors `bchkernel`, `mapkernel`, `ldpcpack`, `bchbank`, `dualwriters`, `d
 `host/dualptr_trial.py:297-302` restores only `dualclock 0` and `clock 128000`, leaving
 `dualprio`, `dualwriters 4`, `quadprofile 1`, `bchkernel 2|3`, `mapkernel 1`, `ldpcpack 1` and
 `bchbank` set. `host/dual_trial.py:673-685` restores most but not `ldpcpack` or `bchbank`.
-`tx.c`'s result (`firmware/src/tx.c:445-454`) reports `bch_kernel` but not `map_kernel`,
+`tx.c`'s result (`firmware/src/app/tx.c:445-454`) reports `bch_kernel` but not `map_kernel`,
 `ldpc_pack` or `bch_bank`.
 
 Failure scenario: a `pvtx`/`txs2` measurement later in the same boot runs the opt-in mapper and
@@ -128,10 +128,10 @@ in every result line; optionally add a `defaults` command.
 
 ### D5 (Low): `iqout` never releases its claims
 
-`firmware/src/iqout.c:115-121` claims two PIO0 SMs, three DMA channels and the `DMA_IRQ_0`
+`firmware/src/output/iqout.c:115-121` claims two PIO0 SMs, three DMA channels and the `DMA_IRQ_0`
 handler on the first `tx_run` and never releases them. Afterwards `bench4prod8*` (requires PIO0
-empty, `firmware/src/bench4prod.c:49`) and `dualptr4` (requires all 16 DMA channels free,
-`firmware/src/bench_dual.c:716-721`) refuse with a generic resource error until reboot. It fails
+empty, `firmware/src/bench/bench4prod.c:49`) and `dualptr4` (requires all 16 DMA channels free,
+`firmware/src/bench/bench_dual.c:716-721`) refuse with a generic resource error until reboot. It fails
 closed, but it makes command order matter: `dual_trial`'s baseline runs `stream` and `txs2`
 first. Fix: add `iqout_release()` at the end of `tx_run`, or have those prechecks count only
 what they claim.
@@ -152,7 +152,7 @@ runner always compare it with the `--build` ELF and refuse dirty identities unle
 allowed.
 
 **R2 (Low–Medium): dangling LDPC leaf pointer.** `dvbs2_ldpc_prepare` stores the copied mode-1
-leaf in the global `ldpc_group_prepared` (`firmware/src/dvbs2.c:496,511`) and nothing clears
+leaf in the global `ldpc_group_prepared` (`firmware/src/dvbs2/dvbs2.c:496,511`) and nothing clears
 it. `c3fec` copies the leaf into the borrowed `ring_buf` tail (`bench_c3_fec.c:42,169`), and
 `c3pair` copies it into `ring_buf` itself (`bench_c3_pair.c:47,156`). `c3pair`'s default options
 (`C4_ALL`) include `C4_LDPC`. After either command the next `tx_run` overwrites `ring_buf` with

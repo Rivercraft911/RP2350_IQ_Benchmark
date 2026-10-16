@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    source = (ROOT / "firmware/src/main.c").read_text()
+    source = (ROOT / "firmware/src/app/main.c").read_text()
     paint = next(line for line in source.splitlines() if line.startswith("#define STACK_PAINT "))
     fixture = "#include <stdint.h>\n#include <stdio.h>\n" + paint + "\n"
     fixture += "static uint32_t *paint_floor(uint32_t *code_end, uint32_t *bottom) {\n"

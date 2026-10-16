@@ -20,6 +20,7 @@ import numpy as np
 import test_iqquad as quad
 import test_iqquadptr as ptr
 from test_dual_faults import function_body
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 MASK = 0xffffffff
@@ -27,7 +28,7 @@ BASE = 0x20020000
 
 
 def instructions(filename, name):
-    source = (ROOT / 'firmware/src' / filename).read_text()
+    source = fwsrc.path(filename).read_text()
     match = re.search(r'\b' + re.escape(name) + r'\[[^]]*\]\s*=\s*\{([^}]+)\}', source)
     if not match:
         raise AssertionError(f'missing production instruction array {name}')
@@ -36,7 +37,7 @@ def instructions(filename, name):
 
 
 def router_targets():
-    source = (ROOT / 'firmware/src/dual_dma.c').read_text()
+    source = (ROOT / 'firmware/src/output/dual_dma.c').read_text()
     body = function_body(source, 'axis_alternating_fifo_dma')
     targets = re.findall(r'fifo_targets\[axis\]\[([01])\]\s*=\s*\(uintptr_t\)\s*'
                          r'&dma_hw->ch\[(odd|even)\]\.al3_read_addr_trig', body)
@@ -384,7 +385,7 @@ class QuadFIFOOrdering(unittest.TestCase):
         self.assertTrue(silent.step()[2])          # first mandatory OUT is the deadline
 
     def test_production_router_links_and_startup_ownership(self):
-        source = (ROOT / 'firmware/src/dual_dma.c').read_text()
+        source = (ROOT / 'firmware/src/output/dual_dma.c').read_text()
         body = function_body(source, 'axis_alternating_fifo_dma')
         compact = re.sub(r'\s+', '', re.sub(r'//[^\n]*|/\*.*?\*/', '', body, flags=re.S))
         self.assertEqual(router_targets(), (1, 0))

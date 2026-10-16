@@ -179,7 +179,7 @@ def main():
     for name in ('iqbench.uf2','iqbench.elf'):
         shutil.copy2(build/name,args.out/name)
         hashes[name] = hashlib.sha256((args.out/name).read_bytes()).hexdigest()
-    files = [f for f in (source/'src').glob('*') if f.suffix in ('.c','.h','.S')]
+    files = [f for f in (source/'src').rglob('*') if f.suffix in ('.c','.h','.S')]
     files += [source/'CMakeLists.txt']
     hashes.update({'firmware/'+str(f.relative_to(source)): hashlib.sha256(f.read_bytes()).hexdigest() for f in files})
     for relative in ('host/quadlive_trial.py','host/dual_trial.py','host/iqbench.py','host/pulse_profiles.py',

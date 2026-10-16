@@ -16,6 +16,7 @@ import tempfile
 
 from test_bch128_asm import MASK, END, operands, register, registers, serial
 from test_c4_mapper_pic import tool
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -26,7 +27,7 @@ def program(folder, existing=False):
     obj = folder / ("existing.o" if existing else "bch.o")
     subprocess.run([cc, "-Wall", "-Wextra", "-Werror", "-mcpu=cortex-m33", "-mthumb",
                     "-march=armv8-m.main+fp+dsp", "-mfloat-abi=softfp", "-mcmse",
-                    "-DIQ_ON_DEVICE=1", "-c", str(ROOT / "firmware/src" / (
+                    "-DIQ_ON_DEVICE=1", "-c", str(fwsrc.path(
                         "dvbs2_asm.S" if existing else "dvbs2_bch_fast.S")),
                     "-o", str(obj)], check=True)
     headers = subprocess.check_output([dump, "-h", str(obj)], text=True)
@@ -225,7 +226,7 @@ void setup(int ci, uint32_t *table, uint32_t *generator) {
         source, binary = folder / "bridge.c", folder / "bridge.so"
         source.write_text(bridge)
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        f"-I{ROOT / 'firmware/src'}", str(source), "-o", str(binary)], check=True)
+                        *fwsrc.INCLUDES, str(source), "-o", str(binary)], check=True)
         lib = ct.CDLL(str(binary))
         summary = {}
         for ci, nw, degree in ((9, 1796, 128), (10, 1818, 128), (5, 1345, 160),

@@ -19,7 +19,7 @@ def main():
         library = Path(tmp) / 'source.so'
         src = ROOT / 'firmware/src'
         subprocess.run(['cc', '-O3', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
-                        str(src / 'iq4prod_source.c'), '-o', str(library)], check=True)
+                        str(src / 'output/iq4prod_source.c'), '-o', str(library)], check=True)
         native = ctypes.CDLL(str(library))
         word = ctypes.c_uint32
         native.iq4prod_source.argtypes = [ctypes.POINTER(word), ctypes.POINTER(word),

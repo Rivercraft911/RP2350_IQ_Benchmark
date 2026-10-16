@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 import zlib
+import fwsrc
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "firmware/src"
@@ -188,12 +189,12 @@ class BenchR2Grant(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix="bench-r2grant-native-")
         directory = Path(cls.temp.name)
-        body = (SRC / "bench_r2grant.c").read_text().split("enum {", 1)[1]
+        body = (SRC / "bench/bench_r2grant.c").read_text().split("enum {", 1)[1]
         source = directory / "driver.c"
         source.write_text(FIXTURE + "enum {" + body + MAIN)
         cls.executable = directory / "driver"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-I" + str(SRC),
-                        str(source), str(SRC / "r2grant.c"), str(SRC / "iqgen.c"),
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        str(source), str(SRC / "output/r2grant.c"), str(SRC / "cpu_shaping/iqgen.c"),
                         "-o", str(cls.executable)], check=True)
 
     @classmethod

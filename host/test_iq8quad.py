@@ -18,6 +18,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reference"))
 import iqlut as m
+import fwsrc  # noqa: E402  firmware/src/<area>/ layout
 
 L, N, K, ROWS, GROUPS = 9, 2, 4, 4096, 4096
 AQ30, BQ30 = 701455651, 290552444
@@ -103,7 +104,7 @@ def main():
         library = Path(temp) / "iq8quad.so"
         source = ROOT / "firmware/src"
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
-                        f"-I{source}", str(source / "iq8quad.c"), str(source / "iq8.c"), "-o", str(library)], check=True)
+                        *fwsrc.INCLUDES, str(source / "cpu_shaping/iq8quad.c"), str(source / "cpu_shaping/iq8.c"), "-o", str(library)], check=True)
         lib = ctypes.CDLL(str(library))
         lib.iq8quad_coefficients.restype = ctypes.POINTER(ctypes.c_int32)
         np.testing.assert_array_equal(np.ctypeslib.as_array(lib.iq8quad_coefficients(), shape=(L*N,)), coef)

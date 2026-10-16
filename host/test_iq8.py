@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reference"))
 import gen_coeffs as g
 import iqlut as m
+import fwsrc  # noqa: E402  firmware/src/<area>/ layout
 
 GROUPS, L, N = 137, 12, 4
 AQ30, BQ30 = 701455651, 290552444
@@ -64,8 +65,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="iq8-native-") as build:
         exe = Path(build) / "iq8_test"
         src = ROOT / "firmware" / "src"
-        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{src}",
-                        str(src / "iq8.c"), str(ROOT / "host/native/iq8_test.c"), "-o", str(exe)], check=True)
+        subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES,
+                        str(src / "cpu_shaping/iq8.c"), str(ROOT / "host/native/iq8_test.c"), "-o", str(exe)], check=True)
         for seed in [0x1234ABCD, 1, 0xFFFFFFFF]:
             want, err, bound = reference(seed)
             for block in [1, 7, 64, GROUPS]:

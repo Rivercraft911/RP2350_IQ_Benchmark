@@ -1,4 +1,4 @@
-"""Check firmware/src/pvproto.c natively: pattern messages vs host/cm5/pv_spi_tx.py, validation
+"""Check firmware/src/ingress/pvproto.c natively: pattern messages vs host/cm5/pv_spi_tx.py, validation
 counters, and TS-mode BBFRAMEs vs reference/dvbs2 ts_bbframes() (itself matched to gr-dtv)."""
 import json
 import subprocess
@@ -12,10 +12,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "host" / "cm5"), str(ROOT / "reference" / "dvbs2")]
 import dvbs2 as ref  # noqa: E402
 import pv_spi_tx as tx  # noqa: E402
+import fwsrc
 
 src, exe = ROOT / "firmware" / "src", ROOT / "host" / "build" / "pv_test"
 exe.parent.mkdir(exist_ok=True)
-subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{src}", str(src / "pvproto.c"),
+subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES, str(fwsrc.path("pvproto.c")),
                 str(ROOT / "host" / "native" / "pv_test.c"), "-o", str(exe)], check=True)
 r = json.loads(subprocess.run([str(exe)], check=True, capture_output=True, text=True).stdout)
 checks = []

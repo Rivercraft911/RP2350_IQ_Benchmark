@@ -37,7 +37,7 @@ def program():
         elif not line.startswith((".", "#")):
             code.append(line)
 
-    for raw in (ROOT / "firmware/src/dvbs2_ldpc_c5.S").read_text().splitlines():
+    for raw in (ROOT / "firmware/src/dvbs2/dvbs2_ldpc_c5.S").read_text().splitlines():
         line = raw.split("//")[0].strip()
         if not line:
             continue

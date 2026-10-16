@@ -17,7 +17,7 @@ MASK, END = 0xFFFFFFFF, 0xEEEEEEE0
 
 def program(c5=False):
     source = [(line.split("//")[0]).strip() for line in
-              (ROOT / "firmware/src/dvbs2_ldpc_asm.S").read_text().splitlines()]
+              (ROOT / "firmware/src/dvbs2/dvbs2_ldpc_asm.S").read_text().splitlines()]
     # Each copied leaf is deliberately tested independently; C5 adds GAS .if
     # and .rept directives, while C4's original source remains unchanged.
     marker = next(i for i, line in enumerate(source) if line.startswith(".macro C5_EXTRACT"))

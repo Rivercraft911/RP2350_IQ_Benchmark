@@ -5,6 +5,7 @@ Native component proof only; no device timing.
 from pathlib import Path
 import ctypes as c,hashlib,json,subprocess,tempfile
 import numpy as np
+import fwsrc
 
 ROOT=Path(__file__).resolve().parents[1]
 HERE=ROOT/'firmware/src'
@@ -39,8 +40,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix='native-offset-fusion-') as temp:
         library=Path(temp)/'native.so'
         subprocess.run(['cc','-O3','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',
-            '-I'+str(ROOT/'firmware/src'),str(HERE/'iq32offsets_native.c'),str(HERE/'iq32offsets_mla.c'),
-            *[str(ROOT/'firmware/src'/name) for name in('iq32keys.c','iq32offsets.c','iq32native8.c')],
+            *fwsrc.INCLUDES,str(HERE / 'apsk/iq32offsets_native.c'),str(HERE / 'apsk/iq32offsets_mla.c'),
+            *[str(fwsrc.path(name)) for name in('iq32keys.c','iq32offsets.c','iq32native8.c')],
             '-o',str(library)],check=True)
         lib=c.CDLL(str(library))
         lib.iq32offsets_from_native.argtypes=[P,P,c.c_uint32,P]
@@ -140,6 +141,6 @@ def main():
                     amplitude_rates=5,exhaustive_radix17_triples=4913,
                     ignored_reserved_bits=True,null_pilot_history=True,arbitrary_partition_history=True,
                     zero_blocks_no_access=True,immutable_inputs_and_canaries=True,
-                    files_sha256={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in(HERE/'iq32offsets_native.c',HERE/'iq32offsets_native.h')})
+                    files_sha256={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in(HERE / 'apsk/iq32offsets_native.c',HERE / 'apsk/iq32offsets_native.h')})
         print(json.dumps(report,indent=2))
 if __name__=='__main__':main()

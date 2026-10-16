@@ -1,4 +1,4 @@
-"""Compile firmware/src/dvbs2.c natively and compare every QPSK PLFRAME with reference/dvbs2."""
+"""Compile firmware/src/dvbs2/dvbs2.c natively and compare every QPSK PLFRAME with reference/dvbs2."""
 import json
 import subprocess
 import sys
@@ -11,11 +11,12 @@ sys.path.insert(0, str(ROOT / "reference"))
 sys.path.insert(0, str(ROOT / "reference" / "dvbs2"))
 import dvbs2 as ref  # noqa: E402
 import iqlut  # noqa: E402
+import fwsrc
 
 src, exe = ROOT / "firmware" / "src", ROOT / "host" / "build" / "dvbs2_test"
 exe.parent.mkdir(exist_ok=True)
-subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{src}", str(src / "dvbs2.c"),
-                str(src / "iqgen.c"), str(ROOT / "host" / "native" / "dvbs2_test.c"), "-o", str(exe)],
+subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", *fwsrc.INCLUDES, str(fwsrc.path("dvbs2.c")),
+                str(fwsrc.path("iqgen.c")), str(ROOT / "host" / "native" / "dvbs2_test.c"), "-o", str(exe)],
                check=True)
 args = sys.argv[1:2]
 fail = 0

@@ -18,7 +18,7 @@ The B4 command accepts cpw1/2/4 at SYS128/256, rejecting combinations above 65 M
 
 The **plain once-rounded, full-scale 8-bit table passes the existing held-DAC amplitude-mask certificate**. This is native/model evidence; no Pico, serial port, AFE or RF measurement was taken. The 16-Msym/s timing path remains a device experiment. The positive upper-mask reserve is only **0.02588977 dB**.
 
-`iq4hist8_build()` in `firmware/src/iq4hist.c` uses B1's unchanged 28 frozen Q8 taps and direct Q30 levels `[992008094, -410903207, 410903207, -992008094]`. Let `S` be the int64 Q8-times-Q30 FIR sum. The byte value is exactly
+`iq4hist8_build()` in `firmware/src/output/iq4hist.c` uses B1's unchanged 28 frozen Q8 taps and direct Q30 levels `[992008094, -410903207, 410903207, -992008094]`. Let `S` be the int64 Q8-times-Q30 FIR sum. The byte value is exactly
 
 ```
 q8 = floor((S + 3399*2^31)/(3399*2^32)).
@@ -488,7 +488,7 @@ Live 16 Msym/s needs a separate fused common-code mapper/converter, frame-contex
 
 Git metadata remains read-only; these are proposed commits for the coordinating engineer, not commits created here. No co-author trailers are intended.
 
-1. `firmware/src/iq4hist.c`, `firmware/src/iq4hist.h`, `host/pulse_profiles.py`, `host/native/iq4hist8_test.c`, `host/test_iq4hist8.py`, `host/test_iq4hist.py`: **Add exact full-scale 8-bit L7 rows and held-mask audit.**
-2. `firmware/src/iq4ptr.c`, `firmware/src/iq4ptr.h`, `firmware/src/dual_dma.c`, `firmware/src/dual_dma.h`, `host/test_iq4ptr8.py`, `host/test_iq4writer8.py`: **Add seven-cycle cyclic pointers and opt-in one-word OUT8 writers.**
-3. `firmware/src/bench4live.c`, `firmware/src/bench4live.h`, `firmware/src/main.c`, `host/iq4hist_trial.py`, `host/test_iq4hist_trial.py`, `Makefile`: **Expose cyclic 8-bit trials with strict bus and inverted-clock validation.**
+1. `firmware/src/output/iq4hist.c`, `firmware/src/output/iq4hist.h`, `host/pulse_profiles.py`, `host/native/iq4hist8_test.c`, `host/test_iq4hist8.py`, `host/test_iq4hist.py`: **Add exact full-scale 8-bit L7 rows and held-mask audit.**
+2. `firmware/src/output/iq4ptr.c`, `firmware/src/output/iq4ptr.h`, `firmware/src/output/dual_dma.c`, `firmware/src/output/dual_dma.h`, `host/test_iq4ptr8.py`, `host/test_iq4writer8.py`: **Add seven-cycle cyclic pointers and opt-in one-word OUT8 writers.**
+3. `firmware/src/bench/bench4live.c`, `firmware/src/bench/bench4live.h`, `firmware/src/app/main.c`, `host/iq4hist_trial.py`, `host/test_iq4hist_trial.py`, `Makefile`: **Expose cyclic 8-bit trials with strict bus and inverted-clock validation.**
 4. `REPORT.md`, `docs/rd/b4-model.json`: **Record B4 model evidence, resource limits and coordinator trials.**
