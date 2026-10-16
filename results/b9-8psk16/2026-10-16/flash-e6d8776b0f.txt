@@ -1,0 +1,10 @@
+Tracking device serial number D7304C6F543390D2 for reboot
+The device was asked to reboot into BOOTSEL mode so the command can be executed.
+
+Family ID 'rp2350-arm-s' can be downloaded in absolute space:
+  00000000->02000000
+
+
+  OK
+
+The device was rebooted to start the application.

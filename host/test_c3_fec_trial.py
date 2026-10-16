@@ -259,7 +259,7 @@ class C3Protocol(unittest.TestCase):
 
 class C3FirmwareOptions(unittest.TestCase):
     def test_production_main_dispatch_expands_best_for_each_command(self):
-        """Compile the actual parser helpers and both dispatch branches, no Pico APIs."""
+        """Compile the actual parser helpers and C3/B9 dispatch branches, no Pico APIs."""
         root = Path(__file__).resolve().parents[1]
         source = (root / "firmware/src/main.c").read_text()
         numeric = source[source.index("static bool num("):source.index("#ifdef IQ4HIST_EXPERIMENT", source.index("static bool num("))]
@@ -283,10 +283,13 @@ void bench_c3_pair(int code,int pairs,int layout,int who,int mask) {
 void bench_c3_fec_options(int code,int ms,int slow,int cpw,int gap,int mask) {
     (void)code; (void)ms; (void)slow; mask_result=mask; cpw_result=cpw; gap_result=gap;
 }
+void bench_b9(int cpw,int ms,int invert,int priority,int slow,int mask) {
+    (void)ms; (void)invert; (void)priority; (void)slow; mask_result=mask; cpw_result=cpw;
+}
 NUMERIC
 OPTIONS
 const char *parse(unsigned kind,const char *const *a) {
-    const char *cmd=kind ? "c3fec" : "c3pair";
+    const char *cmd=kind==2 ? "b9" : kind ? "c3fec" : "c3pair";
     int code,reps;
     struct { int ms,cpw; } r;
     if (0) {
@@ -305,9 +308,10 @@ BRANCHES
             lib.parse.restype = ct.c_char_p
             mask = ct.c_int.in_dll(lib, "mask_result")
             for kind, fields, best in ((0, ["c3pair", "5", "2", "4", "2"], trial.C8_BEST),
-                                       (1, ["c3fec", "5", "100", "0", "1", "128"], trial.C8_BEST_BASE)):
+                                       (1, ["c3fec", "5", "100", "0", "1", "128"], trial.C8_BEST_BASE),
+                                       (2, ["b9", "1", "100", "0", "13", "0"], trial.C8_BEST_BASE)):
                 for text, expected in (("best", best), (str(trial.C8_ALL), trial.C8_ALL),
-                                       (None, 0 if kind else 31)):
+                                       (None, trial.C8_BEST_BASE if kind == 2 else 0 if kind else 31)):
                     args = [field.encode() for field in fields] + [text.encode() if text else None, None]
                     argv = (ct.c_char_p * len(args))(*args)
                     self.assertIsNone(lib.parse(kind, argv))

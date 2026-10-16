@@ -47,7 +47,7 @@ if(IQ4HIST_EXPERIMENT)
     target_sources(iqbench PRIVATE src/iq4hist.c src/iq4ptr.c src/bench4live.c src/bench4fec.c
         src/iq4quad.c src/bench4quad.c src/iq4prod.c src/iq4prod_dma.c
         src/iq4prod_source.c src/bench4prod.c src/dmaloop.c src/c3_fec.c src/bench_c3_fec.c src/bench_c3_pair.c
-        src/r2grant.c src/bench_r2grant.c)
+        src/r2grant.c src/bench_r2grant.c src/bench_b9.c)
     target_compile_definitions(iqbench PRIVATE IQ4HIST_EXPERIMENT=1)
 endif()
 # A3 multiply-form 32APSK conversion: linked last so its SCRATCH_Y section follows
@@ -114,6 +114,16 @@ if(IQ4HIST_EXPERIMENT)
     string(REPLACE "    .input_ring (NOLOAD) :"
            "    .waveform_ring (NOLOAD) : { *(.bss.ring_buf) } > RAM\n\n    .input_ring (NOLOAD) :"
            LD "${LD}")
+endif()
+# Scratch-Y's producer state is mutable. Keep it after the immutable code so
+# stackcheck can compare every instruction/literal with flash without treating
+# a completed experiment's saved results as code corruption. The total end is
+# still the stack-paint boundary; no data is painted or omitted from allocation.
+string(REPLACE "        *(.scratch_y.*)\n        . = ALIGN(4);\n        __scratch_y_end__ = .;"
+       "        *(.scratch_y.*)\n        . = ALIGN(4);\n        __scratch_y_code_end__ = .;\n        *(.scratch_y_data.*)\n        . = ALIGN(4);\n        __scratch_y_end__ = .;"
+       LD "${LD}")
+if(NOT LD MATCHES "__scratch_y_code_end__")
+    message(FATAL_ERROR "SDK scratch-Y section changed; update the stackcheck boundary patch")
 endif()
 if(CORE0_STACK_SRAM_HI)
     # The default 2 KiB core-0 stack sits directly above SCRATCH_Y code; deep print paths
