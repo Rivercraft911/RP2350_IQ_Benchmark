@@ -18,7 +18,7 @@ import zlib
 import numpy as np
 
 import apsk_fec_trial as oracle
-from test_dvbs2_apsk import Config, Stream, SERVICE
+from test_dvbs2_apsk import Config, Stream, SERVICE, Fast, FAST_WORDS
 from test_dvbs2_8psk import frame_words
 from test_iq16native8 import Tables
 
@@ -58,7 +58,12 @@ def configure(library):
     library.iq32keys_encode.argtypes = [PTR, PTR, ct.c_uint32, PTR]
     library.iq32offsets_encode.argtypes = [PTR, PTR, ct.c_uint32]
     library.iq32offsets_from_native.argtypes = [PTR, PTR, ct.c_uint32, PTR]
+    library.iq32offsets_from_native_mla.argtypes = [PTR, PTR, ct.c_uint32, PTR]
     library.iq32offsets_kernel_c.argtypes = [PTR, PTR, ct.c_uint32, PTR, ct.POINTER(Tables)]
+    library.dvbs2_apsk_fast_init.argtypes = [ct.POINTER(Fast), ct.POINTER(Config), PTR, ct.c_uint32, ct.c_uint]
+    library.dvbs2_apsk_fast_init.restype = ct.c_bool
+    library.dvbs2_apsk_frame_fast.argtypes = [ct.POINTER(Config), ct.POINTER(Fast), PTR, ct.POINTER(Stream)]
+    library.dvbs2_apsk_frame_fast.restype = ct.c_bool
 
 
 def encode_fec(library, index):
@@ -74,14 +79,17 @@ def encode_fec(library, index):
     return fec.copy()
 
 
-def mapped_stream(library, modulation, fecs, *, ring=0, cancel=0):
+def mapped_stream(library, modulation, fecs, *, ring=0, cancel=0, fast=False):
     code = library.test_code()
     words = library.dvbs2_apsk_arena_words(code, modulation, True)
     gold = np.full(words+2, CANARY, np.uint32)
     config = Config()
     assert library.dvbs2_apsk_init(ct.byref(config), code, modulation, True, 0, ptr(gold[1:-1]), words)
     assert config.frame_symbols == oracle.FRAME_SYMBOLS[modulation]
-    original_config, original_gold = bytes(config), gold.copy()
+    state, fast_arena = Fast(), np.full(FAST_WORDS+2, CANARY, np.uint32)
+    if fast:
+        assert library.dvbs2_apsk_fast_init(ct.byref(state), ct.byref(config), ptr(fast_arena[1:-1]), FAST_WORDS, 0)
+    original_config, original_gold, original_fast = bytes(config), gold.copy(), fast_arena.copy()
     symbols = len(fecs)*config.frame_symbols
     count = ring or (symbols//oracle.SYMBOLS_PER_WORD[modulation]+1)
     storage = np.full(count+2, CANARY, np.uint32)
@@ -105,7 +113,10 @@ def mapped_stream(library, modulation, fecs, *, ring=0, cancel=0):
     completed = 0
     for fec in fecs:
         before = fec.copy()
-        ok = library.dvbs2_apsk_frame(ct.byref(config), ptr(fec), ct.byref(stream))
+        if fast:
+            ok = library.dvbs2_apsk_frame_fast(ct.byref(config), ct.byref(state), ptr(fec), ct.byref(stream))
+        else:
+            ok = library.dvbs2_apsk_frame(ct.byref(config), ptr(fec), ct.byref(stream))
         np.testing.assert_array_equal(fec, before)
         assert not callback_errors, callback_errors
         if not ok:
@@ -116,6 +127,7 @@ def mapped_stream(library, modulation, fecs, *, ring=0, cancel=0):
     assert calls[0] == 0 and calls[-1] == stream.n
     assert storage[0] == storage[-1] == CANARY
     np.testing.assert_array_equal(gold, original_gold)
+    np.testing.assert_array_equal(fast_arena, original_fast)
     assert bytes(config) == original_config
     assert len(published) == stream.n
     if not ring:
@@ -124,7 +136,7 @@ def mapped_stream(library, modulation, fecs, *, ring=0, cancel=0):
     return np.asarray(published, np.uint32), stream.fill
 
 
-def shaped_stream(library, modulation, words, tables, partition, *, offsets=False, fused=False):
+def shaped_stream(library, modulation, words, tables, partition, *, offsets=False, fused=False, mla=False):
     history_count = oracle.RETAINED_WORDS[modulation]
     pilot = 0 if modulation == 16 else 6 | 6 << 5 | 6 << 16 | 6 << 21
     combined = np.concatenate([np.full(history_count, pilot, np.uint32), words])
@@ -138,7 +150,8 @@ def shaped_stream(library, modulation, words, tables, partition, *, offsets=Fals
             key_storage = np.full(5+2*count+2, CANARY, np.uint32)
             keys = key_storage[1:-1]
             if fused:
-                library.iq32offsets_from_native(ptr(keys), ptr(words[start:]), count, ptr(history))
+                convert = library.iq32offsets_from_native_mla if mla else library.iq32offsets_from_native
+                convert(ptr(keys), ptr(words[start:]), count, ptr(history))
             else:
                 library.iq32keys_history(ptr(keys), ptr(history))
                 library.iq32keys_encode(ptr(keys[5:]), ptr(words[start:]), count, ptr(history[-1:]))
@@ -165,7 +178,7 @@ def main():
                           'dvbs2_init(test_code(),true);dvbs2_bch_set_kernel(S2_BCH_STREAM_ARM);\n'
                           'dvbs2_frame_begin_into(bb,fe);dvbs2_frame_ldpc_into(fe);}\n')
         files = ('dvbs2.c', 'iqgen.c', 'dvbs2_apsk.c', 'iq16native8.c',
-                 'iq32native8.c', 'iq32keys.c', 'iq32offsets.c', 'iq32offsets_native.c')
+                 'iq32native8.c', 'iq32keys.c', 'iq32offsets.c', 'iq32offsets_native.c', 'iq32offsets_mla.c')
         subprocess.run(['cc', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
                         f'-I{source}', *(str(source/name) for name in files), str(bridge), '-o', str(library)], check=True)
         lib = ct.CDLL(str(library)); configure(lib)
@@ -178,13 +191,14 @@ def main():
             points = np.concatenate([oracle.frame_points(index, modulation) for index in range(3)])
             expected_words = oracle.native_words(points, modulation)
             expected_bus = oracle.shaped_bus(points, modulation)
-            for ring in (0, 256):
-                actual, fill = mapped_stream(lib, modulation, frames, ring=ring)
-                np.testing.assert_array_equal(actual, expected_words)
-                assert fill == len(points) % oracle.SYMBOLS_PER_WORD[modulation]
-            cancelled, _ = mapped_stream(lib, modulation, frames, ring=256, cancel=128)
-            assert len(cancelled) == 128
-            np.testing.assert_array_equal(cancelled, expected_words[:128])
+            for fast in (False, True):  # original PL mapper and the A3 table-driven one
+                for ring in (0, 256):
+                    actual, fill = mapped_stream(lib, modulation, frames, ring=ring, fast=fast)
+                    np.testing.assert_array_equal(actual, expected_words)
+                    assert fill == len(points) % oracle.SYMBOLS_PER_WORD[modulation]
+                cancelled, _ = mapped_stream(lib, modulation, frames, ring=256, cancel=128, fast=fast)
+                assert len(cancelled) == 128
+                np.testing.assert_array_equal(cancelled, expected_words[:128])
             sizes = (2048, 16384, 16384) if modulation == 16 else (9826,)*3
             guarded = [np.full(size+2, CANARY, np.uint32) for size in sizes]
             tables = Tables(*(ptr(array[1:-1]) for array in guarded))
@@ -198,6 +212,9 @@ def main():
                     np.testing.assert_array_equal(offset_bus, expected_bus)
                     fused_bus = shaped_stream(lib, modulation, expected_words, tables, partition, offsets=True, fused=True)
                     np.testing.assert_array_equal(fused_bus, expected_bus)
+                    mla_bus = shaped_stream(lib, modulation, expected_words, tables, partition,
+                                            offsets=True, fused=True, mla=True)
+                    np.testing.assert_array_equal(mla_bus, expected_bus)
             for array, before in zip(guarded, table_images):
                 assert array[0] == array[-1] == CANARY
                 np.testing.assert_array_equal(array, before)
@@ -207,7 +224,8 @@ def main():
                                 gpio_halfwords=len(expected_bus), gpio_crc=zlib.crc32(expected_bus.tobytes()),
                                 partitions=[1,7,256,len(expected_words)], progressive_ring_words=256,
                                 cancellation_words=len(cancelled), offset_path=modulation == 32,
-                                fused_native_offset_path=modulation == 32))
+                                fused_native_offset_path=modulation == 32, fast_pl_mapper=True,
+                                multiply_form_offset_path=modulation == 32))
     print(json.dumps(dict(passed=True, real_gcs_fec_indices=[0,1,2,123],
                           fec_crc=oracle.first_fec_crcs(), cases=records)))
 

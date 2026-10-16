@@ -30,7 +30,8 @@
 // CPU-shaped 8PSK, VCM and APSK
 //   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
 //   bench8psk [reps] / bench8quad ms reps / bench8map code pilots reps   8PSK components
-//   benchapskfec mod cpw ms [split]             APSK with live SPI and FEC; split1 = BCH on core 0
+//   benchapskfec mod cpw ms [split] [options]   APSK with live SPI and FEC; split1 = BCH on core 0;
+//                                                options 1 fast PL mapper, 2 fast 32APSK offsets, 4 mapper in flash
 //   benchapsklive cpw ms schedule mapper mod placement    runtime APSK, 1/2 cores
 //   bench16out / bench32out cpw ms kernel        16APSK / 32APSK output with capture, no FEC
 //   bench16planar cpw ms                         experimental dual-axis planar output
@@ -410,12 +411,13 @@ static const char *dispatch(char *line) {
             !num(a[6], "placement", 0, 0, 1, &placement)) return err;
         bench_apsk_live(r.cpw, r.ms, schedule, mapper, modulation, placement);
     } else if (!strcmp(cmd, "benchapskfec")) {
-        int modulation;
+        int modulation, options;
         if (!num(a[1], "modulation", 16, 16, 32, &modulation) ||
             !num(a[2], "cpw", 12, 3, 32, &r.cpw) ||
             !num(a[3], "ms", 3000, 100, 60000, &r.ms) ||
-            !num(a[4], "split", 0, 0, 1, &code)) return err;
-        bench_apsk_fec(modulation, r.cpw, r.ms, code);
+            !num(a[4], "split", 0, 0, 1, &code) ||
+            !num(a[5], "options", 0, 0, 7, &options)) return err;
+        bench_apsk_fec(modulation, r.cpw, r.ms, code, options);
     } else if (!strcmp(cmd, "bench32bus")) {
         int mode, group;
         if (!num(a[1], "mode", 0, 0, 4, &mode) ||
