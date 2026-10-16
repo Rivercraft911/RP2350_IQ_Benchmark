@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
     assert(dvbs2_frontend_set_bank(1));
     assert(dvbs2_ldpc_set_pack(1));
     assert(dvbs2_map_set_kernel(1));
-    bench_c3_fec(code,100,slow,cpw);
+    bench_c3_fec(code,100,slow,cpw,128);
     assert(test_ring.before==guard && test_ring.after==guard);
     assert(test_input.before==guard && test_input.after==guard);
     for (unsigned j=0;j<16384;++j) assert(ring_buf[j]==0x57EAD219u);

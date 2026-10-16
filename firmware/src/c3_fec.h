@@ -38,4 +38,4 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern);
 uint32_t c3_job_publish(const c3_job_t *job, uint32_t carry[2]);
 
 // Device command, included only in IQ4HIST_EXPERIMENT builds.
-void bench_c3_fec(int code_index, int ms, int slow_us, int cpw);
+void bench_c3_fec(int code_index, int ms, int slow_us, int cpw, int gap_us);

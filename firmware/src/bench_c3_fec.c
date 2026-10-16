@@ -11,6 +11,8 @@
 
 enum { IDLE, RUN, READY, STAGES = 5, DELAY = 4, ERR_DEADLINE = 1, ERR_JOB = 2,
        ERR_SERVICE = 4, SERVICE_US = 32, MAX_SERVICE_US = 128 };
+// CPU-fit measurements may relax the core-0 service-gap fault; output-path runs keep 128 us.
+static uint32_t max_service_us = MAX_SERVICE_US;
 
 typedef struct {
     c3_job_t job;
@@ -129,8 +131,9 @@ static void publish(void) {
     }
 }
 
-void bench_c3_fec(int code_index, int ms, int slow_us, int cpw) {
+void bench_c3_fec(int code_index, int ms, int slow_us, int cpw, int gap_us) {
     const uint32_t hz = clock_get_hz(clk_sys);
+    max_service_us = (uint32_t)gap_us;
     if ((code_index != S2_N2_3 && code_index != S2_N3_4 && code_index != S2_N5_6) ||
         ms < 100 || ms > 60000 || slow_us < 0 || slow_us > 10000 ||
         (cpw != 1 && cpw != 2 && cpw != 4) || (hz != 128000000u && hz != 256000000u)) {
@@ -178,7 +181,7 @@ void bench_c3_fec(int code_index, int ms, int slow_us, int cpw) {
         previous_service = now;
         next_service = now + SERVICE_US;
         live.errors |= live.core[0].job_error | live.core[1].job_error;
-        if (gap > MAX_SERVICE_US) live.errors |= ERR_SERVICE;
+        if (gap > max_service_us) live.errors |= ERR_SERVICE;
         publish();
         // Each parity slot is released only after its preceding frame retires.
         // At most44388 unconsumed symbols own the65536-symbol ring, including
@@ -213,14 +216,14 @@ void bench_c3_fec(int code_index, int ms, int slow_us, int cpw) {
            "\"frame_symbols\":%u,\"frame_cycles\":%u,\"ring_groups\":%u,\"frames_target\":%lu,"
            "\"published_frames\":%lu,\"consumed_frames\":%lu,\"published_groups\":%lu,\"pending_fill\":%lu,"
            "\"code_crc\":[%lu,%lu],\"errors\":%lu,\"late_frames\":%lu,\"max_lateness_us\":%lu,"
-           "\"max_service_gap_us\":%lu,\"elapsed_us\":%llu,\"supervise_cycles\":%llu,"
+           "\"service_gap_limit_us\":%lu,\"max_service_gap_us\":%lu,\"elapsed_us\":%llu,\"supervise_cycles\":%llu,"
            "\"supervise_busy\":%.6f,\"context_bytes\":%u,\"core\":[",
            GIT_REV, code_index, DVBS2_CODES[code_index].name, (unsigned long)hz, cpw, ms, slow_us,
            C3_FRAME_SYMBOLS, C3_FRAME_CYCLES * cpw, C3_RING_GROUPS, (unsigned long)live.target,
            (unsigned long)live.published, (unsigned long)live.consumed, (unsigned long)live.groups,
            (unsigned long)(live.published * C3_FRAME_SYMBOLS & 15u), (unsigned long)crc_i, (unsigned long)crc_q,
            (unsigned long)live.errors, (unsigned long)live.late_frames, (unsigned long)live.max_lateness_us,
-           (unsigned long)live.max_service_gap_us, (unsigned long long)elapsed,
+           (unsigned long)max_service_us, (unsigned long)live.max_service_gap_us, (unsigned long long)elapsed,
            (unsigned long long)live.supervise_cycles, live.supervise_cycles / budget, (unsigned)sizeof live);
     for (unsigned c = 0; c < 2; ++c) {
         const worker_t *w = &live.core[c];
