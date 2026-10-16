@@ -94,10 +94,29 @@ static int compare(uint32_t kbch, unsigned align, uint32_t every, uint32_t run, 
     fill(align, 64, 16);
     assert(pv_words_prepare(&ctx, NULL, 0) && ctx.words == pv_words_c);
     ctx.words = checked_words;
+    static const uint32_t chunks[] = {0, 1, 2, 3, 7, 1, 0, 4};
     for (unsigned f = 0; f < frames; f++) {
         framed_bytes += nb;
         memset(new_words, 0x5a, sizeof new_words);
-        pv_bbframe_words(new_words, kbch, 0xF2, next, &ctx);
+        if (f % 3 == 0) pv_bbframe_words(new_words, kbch, 0xF2, next, &ctx);
+        else {
+            // Bounded steps, as core 0 runs them between supervision polls (pvkernel 3).
+            pv_bbframe_words_begin(&ctx, new_words, kbch, 0xF2);
+            for (unsigned i = f;; i++) {
+                const uint32_t calls_before = calls, chunk = chunks[i % 8];
+                const bool done = pv_bbframe_words_step(&ctx, next, chunk);
+                if (calls - calls_before > chunk || (!chunk && done)) {
+                    printf("{\"error\":\"step bound\",\"kbch\":%u}\n", kbch);
+                    return 1;
+                }
+                if (done) break;
+            }
+            const uint32_t calls_before = calls, frames_before = pv_stats.bbframes;
+            if (!pv_bbframe_words_step(&ctx, next, 5) || calls != calls_before || pv_stats.bbframes != frames_before) {
+                printf("{\"error\":\"completed step not idempotent\",\"kbch\":%u}\n", kbch);
+                return 1;
+            }
+        }
         for (uint32_t i = nw; i < 2048; i++)
             if (new_words[i] != 0x5a5a5a5au) { printf("{\"error\":\"write beyond %u\"}\n", nw); return 1; }
         new_crc = pv_crc32(new_crc, new_words, 4 * nw);
@@ -179,7 +198,7 @@ def main():
         exe = build(directory)
         result = json.loads(subprocess.check_output([str(exe)], text=True))
         print(f"pv_bbframe_words == pv_bbframe + zero tail + swap: {result['configs']} configurations, "
-              f"{result['frames']} frames (21 QPSK Kbch + 3 packet-boundary lengths, 4 source alignments, 4 null patterns), "
+              f"{result['frames']} frames (21 QPSK Kbch + 3 packet-boundary lengths, 4 source alignments, 4 null patterns; 2 of 3 frames built in bounded steps of 0-7 packet chunks), "
               f"same stats and in-place sync bytes; {100*result['leaf_share']:.1f}% of bytes through "
               "the aligned word leaf; ASan/UBSan")
         assert result['leaf_share'] > 0.9, result

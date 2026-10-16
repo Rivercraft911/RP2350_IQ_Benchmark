@@ -235,6 +235,30 @@ static inline bool refill_bb_queue(void) {
     return true;
 }
 
+// dualptr pvkernel 3: core 0 builds the TS BB slots itself, in bounded packet steps with the
+// fused adapter, and is then their only producer and consumer; core 1 runs LDPC/map only
+// (encoder.spi is cleared after prefill, so refill_bb_queue never runs there). The FE-slot
+// handoff between the cores is unchanged. Returns false when there is nothing to build.
+// Input health is checked at each frame end, as build_spi_frame does.
+static bool ingress_step(unsigned max_packets) {
+    pv_words_t *ctx = (pv_words_t *)cap_buf;
+    const uint32_t produced = encoder.bb_produced;
+    if (encoder.input_failed) return false;
+    if (!ctx->active) {
+        if (produced - encoder.bb_consumed >= FRAME_SLOTS) return false;
+        pv_bbframe_words_begin(ctx, encoder.bb_slots[produced & FRAME_SLOT_MASK], encoder.bb_bits, TS_MATYPE1);
+    }
+    if (!pv_bbframe_words_step(ctx, pvspi_next_packet, max_packets)) return true;
+    if (pvspi.errors || pv_stats.lost || pv_stats.bad_hdr || pv_stats.bad_crc || pv_stats.bad_sync) {
+        encoder.input_failed = true;
+        return true;
+    }
+    encoder.bb_frames++;
+    __dmb(); // complete slot before begin_frontend acquires it (same core; kept for clarity)
+    encoder.bb_produced = produced + 1;
+    return true;
+}
+
 static void __not_in_flash_func(split_backend)(uint32_t unused) {
     encoder.start_us = bench_now();
     while (!encoder.stop) {
@@ -730,7 +754,8 @@ _Static_assert(sizeof(pv_words_t) <= IN_WORDS * sizeof(uint32_t), "TS word conte
 // core1 retains ordered LDPC/map. Four writers retain one RX consumer per axis.
 // pv_kernel (TS only): 0 pv_bbframe + swap pass (default), 1 pv_bbframe_words with its
 // Arm leaf copied into the unused part of the pointer-table arena, 2 the same with the
-// portable C leaf from flash (an A/B control for placement and for the Arm leaf itself).
+// portable C leaf from flash (an A/B control for placement and for the Arm leaf itself),
+// 3 as 1 but core 0 builds the BB frames in bounded packet steps (ingress_step).
 static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, int code_index,
                                        unsigned writers, int pv_kernel) {
     const char *command = writers == 4 ? "dualptr4" : "dualptr";
@@ -742,7 +767,8 @@ static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, i
         for (unsigned sm = 0; sm < NUM_PIO_STATE_MACHINES; sm++)
             resources &= !pio_sm_is_claimed(pio0, sm);
     }
-    enum { PTR_POLL_US = 128, PTR_MAX_POLL_US = 256, PTR_BCH_SLICE_WORDS = 96,
+    // A packet chunk costs about 1.1k cycles; four stay well under the 128 us poll interval.
+    enum { PTR_POLL_US = 128, PTR_MAX_POLL_US = 256, PTR_BCH_SLICE_WORDS = 96, PTR_INGRESS_PACKETS = 4,
            ERR_POINTER = 1u << 19, ERR_CAPTURE = 1u << 20, ERR_POLL = 1u << 21,
            ERR_CONFIG = 1u << 22, ERR_CREDIT = 1u << 23, ERR_CLEANUP = 1u << 24 };
     const char *code_name;
@@ -753,8 +779,8 @@ static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, i
         (dvbs2_bch_get_kernel() != S2_BCH_STREAM_ARM && dvbs2_bch_get_kernel() != S2_BCH_T8_ARM) || dvbs2_map_get_kernel() != 1 ||
         dvbs2_ldpc_get_pack() != 1 || !resources ||
         iqquadptr_rx_fifo(0) || iqquadptr_rx_fifo(1) ||
-        pv_kernel < 0 || pv_kernel > 2 || (pv_kernel && source != SOURCE_PV_SPI)) {
-        printf("@{\"cmd\":\"%s\",\"error\":\"needs cpw1/2,100..60000ms,source5/6,fault0/1,code5/8/9/10,bchkernel2/3,mapkernel1,ldpcpack1,pvkernel0..2 (1/2 TS only) and idle resources\"}\n", command);
+        pv_kernel < 0 || pv_kernel > 3 || (pv_kernel && source != SOURCE_PV_SPI)) {
+        printf("@{\"cmd\":\"%s\",\"error\":\"needs cpw1/2,100..60000ms,source5/6,fault0/1,code5/8/9/10,bchkernel2/3,mapkernel1,ldpcpack1,pvkernel0..3 (1-3 TS only) and idle resources\"}\n", command);
         return;
     }
     const unsigned saved_writers = dual_dma_get_writers(), saved_rows = dual_dma_get_row_words();
@@ -772,7 +798,9 @@ static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, i
     uint32_t bch_frames = 0, bch_slices = 0, max_bch_slice = 0, polls = 0;
     uint32_t bb_prefill = 0, spi_head_start = 0, pointer_sm_mask = 0, other_pio_flags = 0;
     uintptr_t pv_leaf = 0;
-    uint64_t control_cyc = 0, bch_cyc = 0, cap_symbol_cursor = 0, frozen_granted = 0;
+    uint64_t control_cyc = 0, bch_cyc = 0, cap_symbol_cursor = 0, frozen_granted = 0, ingress_cyc = 0;
+    uint32_t ingress_steps = 0, max_ingress_step = 0;
+    const bool core0_ingress = pv_kernel == 3;
     uint64_t min_runway = UINT64_MAX;
     bool spi_started = false, pointer_attempted = false, output_attempted = false, worker_started = false;
     bool captured = false, frozen = false, bch_active = false, selectors_ok = false, restored = false;
@@ -796,9 +824,9 @@ static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, i
         // Kernel 1 runs the leaf from striped SRAM0-3, where core 1's other hot code lives,
         // using whichever side of the 64 KiB table the arena leaves free.
         const uintptr_t table_end = base + 4 * IQQUAD_L8_WORDS, need = pv_words_code_bytes();
-        if (pv_kernel == 1)
+        if (pv_kernel != 2)
             pv_leaf = arena_end - table_end >= need ? table_end : base - arena >= need ? arena : 0;
-        if ((pv_kernel == 1 && !pv_leaf) ||
+        if ((pv_kernel != 2 && !pv_leaf) ||
             !pv_words_prepare((pv_words_t *)cap_buf, (void *)pv_leaf, (uint32_t)need)) {
             errors |= ERR_CONFIG; reason = "TS word leaf arena"; goto cleanup;
         }
@@ -808,6 +836,8 @@ static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, i
     if (!prefill_spi() || !prefill_encoder(source, in_buf, 0, code_index, bb_bits)) {
         errors |= ERR_INPUT; reason = "SPI/encoder prefill failed"; goto cleanup;
     }
+    // Prefill filled both BB slots on this core. From here on core 1 must not refill them.
+    if (core0_ingress) encoder.spi = false;
     // in_buf is a naturally32KiB-aligned ring. The old descriptor path used it
     // for descriptors; cap_buf's input portion is no longer read by this path.
     encoder.consumed = 0;
@@ -879,6 +909,13 @@ static void bench_dual_pointer_writers(int cpw, int ms, int source, int fault, i
             bch_cyc += dt; bch_slices++;
             if (dt > max_bch_slice) max_bch_slice = dt;
             if (done) { __dmb(); encoder.fe_produced = produced + 1; bch_frames++; }
+        } else if (core0_ingress) {
+            const uint32_t t = cycles();
+            if (ingress_step(PTR_INGRESS_PACKETS)) {
+                const uint32_t dt = cycles() - t;
+                ingress_cyc += dt; ingress_steps++;
+                if (dt > max_ingress_step) max_ingress_step = dt;
+            } else tight_loop_contents();
         } else tight_loop_contents();
     }
     elapsed = time_us_32() - start;
@@ -931,6 +968,8 @@ cleanup:
            "\"min_credit_runway_words\":%llu,\"required_credit_runway_words\":%lu,\"source_cursor_deadline_us\":%lu,"
            "\"core0_work_busy\":%.6f,\"supervision_busy\":%.6f,\"split_bch_busy\":%.6f,"
            "\"split_bch_frames\":%lu,\"split_bch_slices\":%lu,\"split_bch_max_slice_cyc\":%lu,\"s2_runtime_frames\":%lu,"
+           "\"ingress_core\":%d,\"core0_ingress_busy\":%.6f,\"ingress_steps\":%lu,\"ingress_max_step_cyc\":%lu,"
+           "\"ingress_step_packets\":%u,"
            "\"restored\":%s,\"selectors_restored\":%s,\"capture_started\":%s,\"capture_count\":%lu,"
            "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%d,"
            "\"cap_fifo_only\":false,\"cap_format\":\"%s\",\"dac_clock\":\"%s\",\"dac_clock_pio\":%d,\"dac_clock_sm\":%d",
@@ -948,9 +987,11 @@ cleanup:
            (unsigned long)max_gap, PTR_POLL_US, PTR_MAX_POLL_US, (unsigned long)polls,
            (unsigned long long)(min_runway == UINT64_MAX ? 0 : min_runway), (unsigned long)(2 * issue_budget),
            (unsigned long)((uint64_t)(IN_WORDS - IQQUADPTR_REUSE_GUARD_WORDS) * denominator / clock_hz),
-           budget ? (control_cyc + bch_cyc) / budget : 0, budget ? control_cyc / budget : 0,
+           budget ? (control_cyc + bch_cyc + ingress_cyc) / budget : 0, budget ? control_cyc / budget : 0,
            budget ? bch_cyc / budget : 0, (unsigned long)bch_frames, (unsigned long)bch_slices,
            (unsigned long)max_bch_slice, (unsigned long)(encoder.frames - encoder.prefill),
+           core0_ingress ? 0 : 1, budget ? ingress_cyc / budget : 0, (unsigned long)ingress_steps,
+           (unsigned long)max_ingress_step, core0_ingress ? (unsigned)PTR_INGRESS_PACKETS : 0u,
            restored ? "true" : "false", selectors_ok ? "true" : "false", captured ? "true" : "false", (unsigned long)count,
            (unsigned long long)cap_symbol_cursor, (unsigned long)count,
            (unsigned long)(count ? crc32_update(0, capture, 4 * count) : 0), cpw * 256,

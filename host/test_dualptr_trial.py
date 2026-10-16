@@ -181,17 +181,37 @@ class DualptrTrial(unittest.TestCase):
 
     def test_fused_ts_adapter_needs_its_reported_kernel_and_leaf_placement(self):
         for code_index in (5, 10):
-            for pv_kernel, leaf in ((1, 0x20050000), (2, 0)):
+            for pv_kernel, leaf in ((1, 0x20050000), (2, 0), (3, 0x20050000)):
                 r, _, lines = fixture(5, code_index=code_index)
                 r.update(pv_kernel=pv_kernel, pv_leaf_base=leaf)
+                if pv_kernel == 3:
+                    r.update(ingress_core=0, core0_ingress_busy=0.17, ingress_steps=1000,
+                             ingress_max_step_cyc=5000, ingress_step_packets=4,
+                             core0_work_busy=r['core0_work_busy'] + 0.17)
+                    r['pv_spi']['ts_busy'] = 0.0
+                    for change in (dict(ingress_core=1), dict(core0_ingress_busy=0.0), dict(ingress_steps=0),
+                                   dict(ingress_step_packets=8), dict(core0_work_busy=0.486),
+                                   dict(core0_ingress_busy=float('nan'))):
+                        self.assertTrue(trial.validate_run(dict(r, **change), lines, 1, 3000, 5, 0, 1, 128000000,
+                                                           'frozen-test-image', code_index, 2, 1,
+                                                           pv_kernel=3)['faults'], change)
+                    busy_core1 = copy.deepcopy(r); busy_core1['pv_spi']['ts_busy'] = 0.1
+                    self.assertTrue(trial.validate_run(busy_core1, lines, 1, 3000, 5, 0, 1, 128000000,
+                                                       'frozen-test-image', code_index, 2, 1, pv_kernel=3)['faults'])
+                else:
+                    # Core-0 ingress fields must not appear for the core-1 adapters.
+                    self.assertTrue(trial.validate_run(dict(r, core0_ingress_busy=0.1), lines, 1, 3000, 5, 0, 1,
+                                                       128000000, 'frozen-test-image', code_index, 2, 1,
+                                                       pv_kernel=pv_kernel)['faults'])
                 result = trial.validate_run(r, lines, 1, 3000, 5, 0, 1, 128000000, 'frozen-test-image',
                                             code_index, 2, 1, pv_kernel=pv_kernel)
                 self.assertEqual(result['faults'], [], (code_index, pv_kernel))
                 self.assertEqual(result['classification'], 'digital_live_clean')
-                for change in (dict(pv_kernel=0), dict(pv_kernel=3 - pv_kernel),
-                               dict(pv_leaf_base=0x20040000 if pv_kernel == 1 else 0x20050000),
-                               dict(pv_leaf_base=leaf + 2 if pv_kernel == 1 else 4),
-                               dict(pv_leaf_base=0x20008000 if pv_kernel == 1 else 0x20010000)):
+                sram = pv_kernel != 2
+                for change in (dict(pv_kernel=0), dict(pv_kernel=pv_kernel % 3 + 1),
+                               dict(pv_leaf_base=0x20040000 if sram else 0x20050000),
+                               dict(pv_leaf_base=leaf + 2 if sram else 4),
+                               dict(pv_leaf_base=0x20008000 if sram else 0x20010000)):
                     changed = dict(r, **change)
                     self.assertTrue(trial.validate_run(changed, lines, 1, 3000, 5, 0, 1, 128000000,
                                                        'frozen-test-image', code_index, 2, 1,
@@ -211,7 +231,7 @@ class DualptrTrial(unittest.TestCase):
                                            pv_kernel=1)['faults'])
 
     def test_runner_appends_ts_adapter_only_when_selected(self):
-        for pv_kernel, sources in ((1, ['5']), (2, ['5']), (1, ['5', '6'])):
+        for pv_kernel, sources in ((1, ['5']), (2, ['5']), (3, ['5']), (1, ['5', '6']), (3, ['6'])):
             with tempfile.TemporaryDirectory() as directory:
                 base = Path(directory)
                 build, out = base/'build', base/'results'
@@ -227,7 +247,7 @@ class DualptrTrial(unittest.TestCase):
                         mock.patch.object(trial, 'validate_clock'), \
                         mock.patch.object(trial, 'validate_run', return_value={'faults': []}) as positive, \
                         mock.patch('builtins.print'), mock.patch('sys.stderr'):
-                    if len(sources) > 1:
+                    if sources != ['5']:
                         with self.assertRaises(SystemExit):
                             trial.main()
                         board.cmd.assert_not_called()

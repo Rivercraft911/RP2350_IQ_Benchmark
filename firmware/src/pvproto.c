@@ -219,6 +219,9 @@ bool pv_words_prepare(pv_words_t *ctx, void *code, uint32_t code_bytes) {
         for (uint32_t x = 0; x < 256; x++) ctx->tables[256 * k + x] = ctx->tables[ctx->tables[256 * (k - 1) + x]];
     ctx->state = (pv_words_state_t){.tables = ctx->tables};
     ctx->words = words;
+    ctx->out = NULL;
+    ctx->left = 0;
+    ctx->active = false;
     return true;
 }
 
@@ -235,17 +238,25 @@ static inline void words_put(pv_words_state_t *s, uint32_t **out, uint32_t byte)
 // as pv_bbframe does. Seeding the CRC state with that same value makes the update over byte 0
 // return zero (T0[x ^ x] = 0), so every byte of the packet, aligned or not, takes one uniform
 // update and the state at the packet end is the CRC-8 of bytes 1..187.
-void pv_bbframe_words(uint32_t *out, uint32_t kbch, uint8_t matype1, pv_packet_fn next,
-                      pv_words_t *ctx) {
+void pv_bbframe_words_begin(pv_words_t *ctx, uint32_t *out, uint32_t kbch, uint8_t matype1) {
     pv_words_state_t *s = &ctx->state;
-    const uint8_t *t0 = s->tables;
     const uint32_t dfl = kbch - 80, syncd = cur_off == PV_TS ? 0 : (PV_TS - cur_off) * 8u;
     uint8_t h[10];
     bbheader(h, dfl, matype1, 1504, 0x47, syncd);
     s->acc = 0;
     s->phase = 0;
     for (unsigned i = 0; i < sizeof h; i++) words_put(s, &out, h[i]);
-    for (uint32_t left = dfl / 8; left;) {
+    ctx->out = out;
+    ctx->left = dfl / 8;
+    ctx->active = true;
+}
+
+bool pv_bbframe_words_step(pv_words_t *ctx, pv_packet_fn next, uint32_t max_chunks) {
+    if (!ctx->active) return true;
+    pv_words_state_t *s = &ctx->state;
+    const uint8_t *t0 = s->tables;
+    uint32_t *out = ctx->out, left = ctx->left;
+    for (; left && max_chunks; max_chunks--) {
         if (cur_off == PV_TS) {
             uint8_t *p = next();
             if (p) pv_stats.ts_packets++;
@@ -277,8 +288,19 @@ void pv_bbframe_words(uint32_t *out, uint32_t kbch, uint8_t matype1, pv_packet_f
         }
         if (cur_off == PV_TS) prev_crc8 = (uint8_t)s->crc;
     }
+    ctx->out = out;
+    ctx->left = left;
+    if (left) return false;
     if (s->phase) *out = s->acc;                    // the zeroed tail of the swapped last word
+    ctx->active = false;
     pv_stats.bbframes++;
+    return true;
+}
+
+void pv_bbframe_words(uint32_t *out, uint32_t kbch, uint8_t matype1, pv_packet_fn next,
+                      pv_words_t *ctx) {
+    pv_bbframe_words_begin(ctx, out, kbch, matype1);
+    (void)pv_bbframe_words_step(ctx, next, UINT32_MAX);
 }
 
 bool HOT(pv_gcs_bbframe)(uint8_t *out, uint32_t kbch, uint8_t matype1, uint8_t sync,

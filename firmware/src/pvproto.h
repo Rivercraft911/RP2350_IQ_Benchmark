@@ -71,6 +71,8 @@ typedef void (*pv_words_fn)(const uint32_t *src, uint32_t *dst, uint32_t n,
 typedef struct {
     pv_words_state_t state;
     pv_words_fn words;
+    uint32_t *out, left;       // frame in progress: next output word, data bytes still to emit
+    bool active;
     uint8_t tables[1024];
 } pv_words_t;
 void pv_words_c(const uint32_t *src, uint32_t *dst, uint32_t n, pv_words_state_t *state);
@@ -84,3 +86,10 @@ bool pv_words_prepare(pv_words_t *ctx, void *code, uint32_t code_bytes);
 // out: (Kbch/8 + 3) / 4 words. Same pv_stats updates and missing-packet nulls as pv_bbframe.
 void pv_bbframe_words(uint32_t *out, uint32_t kbch, uint8_t matype1, pv_packet_fn next,
                       pv_words_t *ctx);
+// The same frame in bounded steps, for a caller with a polling deadline: begin writes the
+// header and fixes SYNCD; each step emits at most max_chunks packet chunks (one next() call
+// and at most 188 bytes each) and returns true once the frame, including its tail word, is
+// complete (later calls return true without effect). max_chunks 0 makes no progress.
+// Do not start another frame on the same stream until the current one is complete.
+void pv_bbframe_words_begin(pv_words_t *ctx, uint32_t *out, uint32_t kbch, uint8_t matype1);
+bool pv_bbframe_words_step(pv_words_t *ctx, pv_packet_fn next, uint32_t max_chunks);

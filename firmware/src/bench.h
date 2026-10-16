@@ -19,7 +19,8 @@ void bench_32native8(int reps);
 void bench_hstx_ddr(int ms);
 void bench_descriptors(int reps);
 bool bench_dual_set_quad_profile(unsigned profile);
-// pv_kernel 0: existing TS adapter; 1/2: pv_bbframe_words with the SRAM Arm / flash C leaf.
+// pv_kernel 0: existing TS adapter; 1/2: pv_bbframe_words with the SRAM Arm / flash C leaf;
+// 3: as 1 with BBFRAMEs built on core 0 in bounded packet steps.
 void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index, int pv_kernel);
 void bench_dual_pointer4(int cpw, int ms, int source, int fault, int code_index, int pv_kernel);
 void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, int fault,

@@ -9,7 +9,8 @@
 //
 // QPSK (hardware shaping is the best measured path; CPU paths remain as controls)
 //   dualptr cpw ms source fault [code] [pvkernel]   live SPI/FEC, PIO-generated LUT addresses (source 5/6);
-//        pvkernel 1/2 (TS only): fused CRC-8/word TS adapter, Arm leaf in SRAM / C leaf in flash
+//        pvkernel 1/2 (TS only): fused CRC-8/word TS adapter, Arm leaf in SRAM / C leaf in flash;
+//        3: as 1, with core 0 building the BBFRAMEs in bounded steps (core 1 LDPC/map only)
 //   dualptr4 cpw ms source fault [code] [pvkernel]  same with four router-fed writers (A2)
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
 //        CPU-generated descriptors; source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC,
@@ -467,10 +468,10 @@ static const char *dispatch(char *line) {
             !num(a[3], "source", 6, 5, 6, &source) ||
             !num(a[4], "fault", 0, 0, 1, &fault) ||
             !num(a[5], "code", 8, 5, 10, &code_index) ||
-            !num(a[6], "pvkernel", 0, 0, 2, &pv_kernel)) return err;
+            !num(a[6], "pvkernel", 0, 0, 3, &pv_kernel)) return err;
         if (code_index == 6 || code_index == 7)
             return "pointer trial codes are normal2/3(5),5/6(8),8/9(9),9/10(10)";
-        if (pv_kernel && source != 5) return "pvkernel 1/2 is the TS adapter: source 5 only";
+        if (pv_kernel && source != 5) return "pvkernel 1-3 is the TS adapter: source 5 only";
         if (!strcmp(cmd, "dualptr4")) bench_dual_pointer4(r.cpw, r.ms, source, fault, code_index, pv_kernel);
         else bench_dual_pointer(r.cpw, r.ms, source, fault, code_index, pv_kernel);
     } else if (!strcmp(cmd, "dualstream")) {
