@@ -1,6 +1,9 @@
 #include "dvbs2_8psk.h"
 #include <stddef.h>
 #include <string.h>
+#ifdef IQ_R2_HAZARD3
+#include "r2_hazard3_bits.h"
+#endif
 
 #ifdef IQ_ON_DEVICE
 #define MAP_HOT __attribute__((section(".time_critical.dvbs2_8psk")))
@@ -83,7 +86,9 @@ bool dvbs2_8psk_init(dvbs2_8psk_cfg_t *cfg, const dvbs2_code_t *code, bool pilot
 }
 
 static inline uint32_t reverse32(uint32_t x) {
-#if defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
+#if defined(IQ_R2_HAZARD3)
+    return r2_hazard3_reverse32(x);
+#elif defined(IQ_ON_DEVICE) && defined(__ARM_ARCH_8M_MAIN__)
     __asm("rbit %0, %1" : "=r"(x) : "r"(x));
     return x;
 #else
@@ -259,21 +264,29 @@ void dvbs2_8psk_flush(dvbs2_8psk_stream_t *stream) {
 }
 
 static inline uint32_t codes_spread16(uint32_t bits) {
+#ifdef IQ_R2_HAZARD3
+    return r2_hazard3_spread16(bits);
+#else
     bits &= 0xffffu;
     bits = (bits | bits << 8) & 0x00ff00ffu;
     bits = (bits | bits << 4) & 0x0f0f0f0fu;
     bits = (bits | bits << 2) & 0x33333333u;
     return (bits | bits << 1) & 0x55555555u;
+#endif
 }
 
 // Perfect shuffle of two 16-bit lanes into successive two-bit codes. Four
 // swap stages avoid separately spreading both signs and then combining them.
 static inline uint32_t codes_zip16(uint32_t lo, uint32_t hi) {
+#ifdef IQ_R2_HAZARD3
+    return r2_hazard3_zip16(lo, hi);
+#else
     uint32_t v = (lo & 0xffffu) | (hi << 16), t;
     t = (v ^ (v >> 8)) & 0x0000ff00u; v ^= t ^ (t << 8);
     t = (v ^ (v >> 4)) & 0x00f000f0u; v ^= t ^ (t << 4);
     t = (v ^ (v >> 2)) & 0x0c0c0c0cu; v ^= t ^ (t << 2);
     t = (v ^ (v >> 1)) & 0x22222222u; return v ^ t ^ (t << 1);
+#endif
 }
 
 static inline void codes_emit(dvbs2_8psk_codes_stream_t *s, uint32_t i, uint32_t q) {
