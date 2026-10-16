@@ -24,6 +24,7 @@ enum {
     BB_BITS = 53840, BB_BYTES = BB_BITS / 8, BB_WORDS_USED = (BB_BITS + 31) / 32,
     PREFILL_MESSAGES = 8, PREFILL_TIMEOUT_US = 100000, PUBLICATION_WORDS = 64,
     FE_SLOTS = 2, BCH_SLICE_WORDS = 96,
+    OPT_FAST_MAP = 1, OPT_FAST_PREP = 2, OPT_MAP_FLASH = 4, OPT_ALL = 7,
     GCS_MATYPE1 = 0x72, GCS_SYNC = 0xb9,
     STAGE_BB = 0, STAGE_BCH, STAGE_LDPC, STAGE_MAP, STAGES,
     ERR_INPUT = 1, ERR_UNDERRUN = 2, ERR_OWNERSHIP = 4,
@@ -47,6 +48,10 @@ typedef struct {
     bool split, front_active;
     uint32_t bch_frames, bch_slices, bch_max_slice;
     uint64_t bch_cycles, bch_wait_cycles;
+    // A3 options (0 = original paths): table-driven PL mapper in an arena after the
+    // second FE slot, and the multiply-form 32APSK native-to-offset conversion.
+    uint32_t options;
+    dvbs2_apsk_fast_t fast;
 } live_t;
 
 // All arenas are borrowed while ordinary TX is idle. Context uses the8KiB tail
@@ -106,6 +111,11 @@ static bool build_bbframe(void) {
     return true;
 }
 
+static bool map_frame(const uint32_t *frame) {
+    return live.options & OPT_FAST_MAP ? dvbs2_apsk_frame_fast(&live.profile, &live.fast, frame, &live.stream)
+                                       : dvbs2_apsk_frame(&live.profile, frame, &live.stream);
+}
+
 static void charge(const uint32_t stage[STAGES]) {
     uint32_t work = 0;
     for (unsigned n = 0; n < STAGES; ++n) {
@@ -132,7 +142,7 @@ static bool encode_frame(void) {
     stage[STAGE_LDPC] = end - start;
     start = end;
     const uint64_t wait_before = live.credit_wait_cycles;
-    const bool mapped = dvbs2_apsk_frame(&live.profile, dvbs2_frame_buffer(), &live.stream);
+    const bool mapped = map_frame(dvbs2_frame_buffer());
     end = cycles();
     const uint32_t elapsed = end - start;
     const uint32_t waited = (uint32_t)(live.credit_wait_cycles - wait_before);
@@ -177,7 +187,7 @@ static bool split_encode_step(void) {
     stage[STAGE_LDPC] = end - start;
     start = end;
     const uint64_t wait_before = live.credit_wait_cycles;
-    const bool mapped = dvbs2_apsk_frame(&live.profile, frame, &live.stream);
+    const bool mapped = map_frame(frame);
     end = cycles();
     stage[STAGE_MAP] = (end - start) - (uint32_t)(live.credit_wait_cycles - wait_before);
     charge(stage);
@@ -295,7 +305,8 @@ static uint32_t shape_block(uint32_t sequence, uint32_t *prepare_cycles) {
     }
     uint32_t *const keys = cfg.tq + PV_EMU_WORDS;
     uint32_t start = cycles();
-    iq32offsets_from_native(keys, input, live.words_per_block, previous);
+    if (live.options & OPT_FAST_PREP) iq32offsets_from_native_mla(keys, input, live.words_per_block, previous);
+    else iq32offsets_from_native(keys, input, live.words_per_block, previous);
     *prepare_cycles = cycles() - start;
     start = cycles();
     iq32offsets_kernel_sram_y(output, keys + 5, live.words_per_block, keys, &live.tables.t32);
@@ -311,17 +322,21 @@ static void capture_print(const uint32_t *capture) {
     printf("@capend\n");
 }
 
-void bench_apsk_fec(int modulation, int cpw, int ms, int split) {
+void bench_apsk_fec(int modulation, int cpw, int ms, int split, int options) {
     const uint32_t hz = clock_get_hz(clk_sys);
     if ((modulation != 16 && modulation != 32) || cpw < 3 || cpw > 32 || ms < 100 || ms > 60000 ||
-        (split != 0 && split != 1) || (hz != 128000000u && hz != 150000000u) || !resources_available()) {
-        printf("@{\"cmd\":\"benchapskfec\",\"error\":\"needs16/32APSK,cpw3..32,100..60000ms,split0/1,128/150MHz and idle PIO/SPI resources\"}\n");
+        (split != 0 && split != 1) || (hz != 128000000u && hz != 150000000u) || !resources_available() ||
+        options < 0 || options > OPT_ALL || ((options & OPT_FAST_PREP) && modulation != 32) ||
+        ((options & OPT_MAP_FLASH) && !(options & OPT_FAST_MAP))) {
+        printf("@{\"cmd\":\"benchapskfec\",\"error\":\"needs16/32APSK,cpw3..32,100..60000ms,split0/1,options0..7"
+               "(2 only for32APSK,4 only with1),128/150MHz and idle PIO/SPI resources\"}\n");
         return;
     }
     const dvbs2_bch_kernel_t previous_bch = dvbs2_bch_get_kernel();
     memset(&live, 0, sizeof live);
     live.modulation = modulation;
     live.split = split;
+    live.options = (uint32_t)options;
     live.symbols_per_word = modulation == 16 ? 4 : 2;
     live.words_per_block = BLOCK_SYMBOLS / live.symbols_per_word;
     live.retained_words = 8 / live.symbols_per_word;
@@ -347,6 +362,16 @@ void bench_apsk_fec(int modulation, int cpw, int ms, int split) {
     if (split && gold_used + DVBS2_FE_WORDS > gold_words) {
         restore_buffers(previous_bch);
         printf("@{\"cmd\":\"benchapskfec\",\"error\":\"split FE slot does not fit the Gold arena\"}\n");
+        return;
+    }
+    // The fast mapper's tables and copied code follow the (possibly unused) second FE
+    // slot, so split on/off never moves them. Built before timing, like the Gold arena.
+    if ((options & OPT_FAST_MAP) &&
+        (gold_used + DVBS2_FE_WORDS + DVBS2_APSK_FAST_WORDS > gold_words ||
+         !dvbs2_apsk_fast_init(&live.fast, &live.profile, gold + gold_used + DVBS2_FE_WORDS,
+                               DVBS2_APSK_FAST_WORDS, (options & OPT_MAP_FLASH) ? 1u : 0u))) {
+        restore_buffers(previous_bch);
+        printf("@{\"cmd\":\"benchapskfec\",\"error\":\"fast PL mapper arena/init failed\"}\n");
         return;
     }
     const int spi_half = hz == 128000000u ? 2 : 3;
@@ -398,9 +423,11 @@ void bench_apsk_fec(int modulation, int cpw, int ms, int split) {
     const uint64_t frame_time_scale = 8000ull * (unsigned)cpw * live.profile.frame_symbols;
     const uint64_t capture_boundary = ((uint64_t)hz * (unsigned)ms + frame_time_scale - 1u) /
         frame_time_scale * live.profile.frame_symbols;
-    // Aim one block before the header; DMA completion alone can be observed
-    // late after shaping a block. The host still verifies the actual offset.
-    const uint64_t capture_at_us = (capture_boundary - BLOCK_SYMBOLS) * 4u *
+    // Aim two blocks before the header; the 8192-word capture spans two blocks. With a
+    // one-block lead, split 16APSK at cpw 8 started 15-26 symbols after the header in three
+    // runs (52bc64985c), so the capture lands about one block after the poll. The host still
+    // verifies the actual offset and requires the full header.
+    const uint64_t capture_at_us = (capture_boundary - 2u * BLOCK_SYMBOLS) * 4u *
         (unsigned)cpw * 1000000u / hz;
     const uint64_t start = time_us_64(), deadline = start + (uint64_t)ms*1000;
     iqout_start();
@@ -488,7 +515,12 @@ void bench_apsk_fec(int modulation, int cpw, int ms, int split) {
            "\"L\":8,\"sps\":2,\"cpw\":%d,\"sym_rate\":%.1f,\"bb_payload_bps\":%.1f,",
            GIT_REV,(unsigned long)hz,ms,modulation,live.profile.modcod,
            modulation==16?270:0,modulation==32?264:0,modulation==32?464:0,
-           modulation==16?"flash_cached":"scratch_y",modulation==16?"none":"native_to_offsets_fused",cpw,rate,rate*(BB_BITS-80)/live.profile.frame_symbols);
+           modulation==16?"flash_cached":"scratch_y",
+           modulation==16?"none":(options & OPT_FAST_PREP)?"native_to_offsets_mla_scratch_y":"native_to_offsets_fused",
+           cpw,rate,rate*(BB_BITS-80)/live.profile.frame_symbols);
+    printf("\"options\":%d,\"pl_mapper\":\"%s\",\"pl_mapper_code_bytes\":%lu,",
+           options,!(options & OPT_FAST_MAP)?"c_flash":(options & OPT_MAP_FLASH)?"fast_flash":"fast_sram_arena",
+           (unsigned long)live.fast.code_bytes);
     printf("\"row_profile\":\"%s\",\"pulse_profile\":\"%s\",\"coefficient_sha256\":\"%s\","
            "\"table_bytes\":%u,\"table_crc\":[%lu,%lu,%lu],\"frame_symbols\":%lu,"
            "\"native_words\":%u,\"symbols_per_word\":%lu,\"words_per_block\":%lu,\"retained_words\":%lu,"

@@ -8,8 +8,10 @@
 //   start / status / stop                         pvflight only: autonomous transmitter control
 //
 // QPSK (hardware shaping is the best measured path; CPU paths remain as controls)
-//   dualptr cpw ms source fault [code]           live SPI/FEC, PIO-generated LUT addresses (source 5/6)
-//   dualptr4 cpw ms source fault [code]          same with four router-fed writers (A2)
+//   dualptr cpw ms source fault [code] [pvkernel]   live SPI/FEC, PIO-generated LUT addresses (source 5/6);
+//        pvkernel 1/2 (TS only): fused CRC-8/word TS adapter, Arm leaf in SRAM / C leaf in flash;
+//        3: as 1, with core 0 building the BBFRAMEs in bounded steps (core 1 LDPC/map only)
+//   dualptr4 cpw ms source fault [code] [pvkernel]  same with four router-fed writers (A2)
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
 //        CPU-generated descriptors; source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC,
 //        4=split FEC, 5=SPI TS, 6=SPI GCS
@@ -30,7 +32,8 @@
 // CPU-shaped 8PSK, VCM and APSK
 //   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
 //   bench8psk [reps] / bench8quad ms reps / bench8map code pilots reps   8PSK components
-//   benchapskfec mod cpw ms [split]             APSK with live SPI and FEC; split1 = BCH on core 0
+//   benchapskfec mod cpw ms [split] [options]   APSK with live SPI and FEC; split1 = BCH on core 0;
+//                                                options 1 fast PL mapper, 2 fast 32APSK offsets, 4 mapper in flash
 //   benchapsklive cpw ms schedule mapper mod placement    runtime APSK, 1/2 cores
 //   bench16out / bench32out cpw ms kernel        16APSK / 32APSK output with capture, no FEC
 //   bench16planar cpw ms                         experimental dual-axis planar output
@@ -54,7 +57,7 @@
 //   r2grant batches cpw [gap_us] [fault] [prio]  [exp] self-re-arming DMA input grants, pin-free echo
 //   bench <kernel> <sps> <L> [reps]               shaping kernel throughput + output CRC
 //   bench32bus mode group                        no-output bus contention diagnosis
-//   pvstress ms irq_mask_us / pvbench / ptrbench [reps]   SPI admission / packet prep / PIO pointers
+//   pvstress ms irq_mask_us / pvbench [reps] [kernel] / ptrbench [reps]   SPI admission / packet prep / PIO pointers
 //   snifftest / ddrtest [ms] / dualbench [reps]   DMA sniffer / PIO data + HSTX clock / descriptor generation
 #include <limits.h>
 #include <stdio.h>
@@ -278,8 +281,9 @@ static const char *dispatch(char *line) {
     } else if (!strcmp(cmd, "snifftest")) {
         bench_sniffer();
     } else if (!strcmp(cmd, "pvbench")) {
-        if (!num(a[1], "reps", 8, 1, 1000, &reps)) return err;
-        bench_pv(reps);
+        int kernel;
+        if (!num(a[1], "reps", 8, 1, 1000, &reps) || !num(a[2], "kernel", 0, 0, 2, &kernel)) return err;
+        bench_pv(reps, kernel);
     } else if (!strcmp(cmd, "pvstress")) {
         int irq_mask_us;
         if (!num(a[1], "ms", 1000, 100, 60000, &r.ms) ||
@@ -432,12 +436,13 @@ static const char *dispatch(char *line) {
             !num(a[6], "placement", 0, 0, 1, &placement)) return err;
         bench_apsk_live(r.cpw, r.ms, schedule, mapper, modulation, placement);
     } else if (!strcmp(cmd, "benchapskfec")) {
-        int modulation;
+        int modulation, options;
         if (!num(a[1], "modulation", 16, 16, 32, &modulation) ||
             !num(a[2], "cpw", 12, 3, 32, &r.cpw) ||
             !num(a[3], "ms", 3000, 100, 60000, &r.ms) ||
-            !num(a[4], "split", 0, 0, 1, &code)) return err;
-        bench_apsk_fec(modulation, r.cpw, r.ms, code);
+            !num(a[4], "split", 0, 0, 1, &code) ||
+            !num(a[5], "options", 0, 0, 7, &options)) return err;
+        bench_apsk_fec(modulation, r.cpw, r.ms, code, options);
     } else if (!strcmp(cmd, "bench32bus")) {
         int mode, group;
         if (!num(a[1], "mode", 0, 0, 4, &mode) ||
@@ -481,16 +486,18 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
         bench_descriptors(reps);
     } else if (!strcmp(cmd, "dualptr") || !strcmp(cmd, "dualptr4")) {
-        int source, fault, code_index;
+        int source, fault, code_index, pv_kernel;
         if (!num(a[1], "cpw", REQUIRED, 1, 2, &r.cpw) ||
             !num(a[2], "ms", REQUIRED, 100, 60000, &r.ms) ||
             !num(a[3], "source", 6, 5, 6, &source) ||
             !num(a[4], "fault", 0, 0, 1, &fault) ||
-            !num(a[5], "code", 8, 5, 10, &code_index)) return err;
+            !num(a[5], "code", 8, 5, 10, &code_index) ||
+            !num(a[6], "pvkernel", 0, 0, 3, &pv_kernel)) return err;
         if (code_index == 6 || code_index == 7)
             return "pointer trial codes are normal2/3(5),5/6(8),8/9(9),9/10(10)";
-        if (!strcmp(cmd, "dualptr4")) bench_dual_pointer4(r.cpw, r.ms, source, fault, code_index);
-        else bench_dual_pointer(r.cpw, r.ms, source, fault, code_index);
+        if (pv_kernel && source != 5) return "pvkernel 1-3 is the TS adapter: source 5 only";
+        if (!strcmp(cmd, "dualptr4")) bench_dual_pointer4(r.cpw, r.ms, source, fault, code_index, pv_kernel);
+        else bench_dual_pointer(r.cpw, r.ms, source, fault, code_index, pv_kernel);
     } else if (!strcmp(cmd, "dualstream")) {
         int kernel, source, fault, schedule, divider256, row_symbols, code_index;
         if (!num(a[1], "cpw", REQUIRED, 1, 4, &r.cpw) ||

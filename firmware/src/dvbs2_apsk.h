@@ -39,3 +39,23 @@ bool dvbs2_apsk_init(dvbs2_apsk_cfg_t *cfg, const dvbs2_code_t *code, unsigned m
 // Partial native words survive frames; do not pad/flush between PLFRAMEs.
 bool dvbs2_apsk_frame(const dvbs2_apsk_cfg_t *cfg, const uint32_t *frame,
                       dvbs2_apsk_stream_t *stream);
+
+// Opt-in table-driven data path (A3). Same output words, service calls and stop
+// state as dvbs2_apsk_frame for every input; normal frames with 16APSK fill0/2
+// or 32APSK fill0 use32-symbol leaves, everything else takes the original code.
+// The caller's arena holds the lookup tables, the precomputed32APSK header and
+// pilot words and, with placement0 on the M33, a copy of the leaf code.
+// Placement1 executes the leaves where linked (cached flash; diagnostic).
+// Init is idle-only and needs the initialized cfg; the arena must stay intact.
+enum { DVBS2_APSK_FAST_TABLE_WORDS = 512, DVBS2_APSK_FAST_CODE_WORDS = 512,
+       DVBS2_APSK_FAST_WORDS = DVBS2_APSK_FAST_TABLE_WORDS + DVBS2_APSK_FAST_CODE_WORDS };
+typedef struct {
+    const uint32_t *lut;      // 16: magnitude[256], sign[256]; 32: points[128]
+    const uint32_t *header32; // 32: 45 header words, then 18 per pilot block (fill0)
+    uintptr_t run[3];         // leaf entries: 16 fill0, 16 fill2, 32 fill0
+    uint32_t modulation, placement, code_bytes;
+} dvbs2_apsk_fast_t;
+bool dvbs2_apsk_fast_init(dvbs2_apsk_fast_t *fast, const dvbs2_apsk_cfg_t *cfg,
+                          uint32_t *arena, uint32_t arena_words, unsigned placement);
+bool dvbs2_apsk_frame_fast(const dvbs2_apsk_cfg_t *cfg, const dvbs2_apsk_fast_t *fast,
+                           const uint32_t *frame, dvbs2_apsk_stream_t *stream);

@@ -23,7 +23,7 @@ set(TX_SOURCES
     src/bench_apsk_fec.c src/dvbs2_apsk.c
     src/dvbs2.c src/dvbs2_8psk.c src/dvbs2_qpsk8.c src/dvbs2_asm.S src/dvbs2_bch_fast.S src/dvbs2_ldpc_asm.S
     src/dvbs2_ldpc_c5_rows.S src/dvbs2_ldpc_c5.S src/dvbs2_map_asm.S src/dvbs2_map8_asm.S
-    src/pvproto.c src/pvspi.c
+    src/pvproto.c src/pvproto_asm.S src/pvspi.c
     src/bench.c src/bench_ddr.c src/bench_dual.c src/bench_ptr.c
     src/bench8quad.c src/bench8live.c src/bench16.c src/bench_pvstress.c
     src/bench_quadptr.c src/bench_quadlive.c)
@@ -50,6 +50,11 @@ if(IQ4HIST_EXPERIMENT)
         src/r2grant.c src/bench_r2grant.c src/bench_b9.c)
     target_compile_definitions(iqbench PRIVATE IQ4HIST_EXPERIMENT=1)
 endif()
+# A3 multiply-form 32APSK conversion: linked last so its SCRATCH_Y section follows
+# every existing scratch leaf and none of them moves.
+foreach(target iqbench pvflight)
+    target_sources(${target} PRIVATE src/iq32offsets_mla.c)
+endforeach()
 # git_rev.h is rewritten on every build (only when the revision changes), so logged firmware
 # revisions are current. Records made before 2026-09-30 could carry a stale configure-time value.
 add_custom_target(git_rev ALL

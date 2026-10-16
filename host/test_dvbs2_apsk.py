@@ -50,6 +50,14 @@ class Stream(ctypes.Structure):
               ('service',SERVICE),('context',ctypes.c_void_p)]
 
 
+class Fast(ctypes.Structure):
+    _fields_=[('lut',PTR),('header32',PTR),('run',ctypes.c_void_p*3),('modulation',ctypes.c_uint32),
+              ('placement',ctypes.c_uint32),('code_bytes',ctypes.c_uint32)]
+
+
+FAST_WORDS=1024  # DVBS2_APSK_FAST_WORDS, checked against the header below
+
+
 def polar_constellation(modulation,rate):
     if modulation==16:
         angle=np.array([3,-3,9,-9,1,-1,11,-11,5,-5,7,-7,3,-3,9,-9])
@@ -101,7 +109,7 @@ def pack(points,modulation,rate):
     return words[0]|words[1]<<16,tail,len(points)%group
 
 
-def run_case(lib,index,modulation,rate,short,pilots,fecs,*,gold=0,prefix=0,ring=0,callback=False,cancel=0):
+def run_case(lib,index,modulation,rate,short,pilots,fecs,*,gold=0,prefix=0,ring=0,callback=False,cancel=0,fast=False):
     code=lib.test_code(index)
     need=lib.dvbs2_apsk_arena_words(code,modulation,pilots)
     assert 0<need<=1040
@@ -109,6 +117,11 @@ def run_case(lib,index,modulation,rate,short,pilots,fecs,*,gold=0,prefix=0,ring=
     ap=arena[1:-1].ctypes.data_as(PTR)
     cfg=Config()
     assert lib.dvbs2_apsk_init(ctypes.byref(cfg),code,modulation,pilots,gold,ap,need)
+    state=Fast();fast_arena=np.full(FAST_WORDS+2,CANARY,np.uint32)
+    if fast:
+        assert lib.dvbs2_apsk_fast_init(ctypes.byref(state),ctypes.byref(cfg),
+                                        fast_arena[1:-1].ctypes.data_as(PTR),FAST_WORDS,0)
+    fast_before=fast_arena.copy();state_before=bytes(state)
     assert cfg.modcod==(18+RATES16.index(rate) if modulation==16 else 24+RATES32.index(rate))
     rotations=ref.pl_scrambling_sequence(cfg.body_symbols,gold)
     data=np.arange(len(rotations))%1476<1440 if pilots else np.ones(len(rotations),bool)
@@ -141,7 +154,11 @@ def run_case(lib,index,modulation,rate,short,pilots,fecs,*,gold=0,prefix=0,ring=
     accepted=0
     for fec in fecs:
         source=frame_words(fec);saved=source.copy()
-        ok=lib.dvbs2_apsk_frame(ctypes.byref(cfg),source.ctypes.data_as(PTR),ctypes.byref(stream))
+        if fast:
+            ok=lib.dvbs2_apsk_frame_fast(ctypes.byref(cfg),ctypes.byref(state),source.ctypes.data_as(PTR),
+                                         ctypes.byref(stream))
+        else:
+            ok=lib.dvbs2_apsk_frame(ctypes.byref(cfg),source.ctypes.data_as(PTR),ctypes.byref(stream))
         assert not errors,errors
         np.testing.assert_array_equal(source,saved)
         points=np.concatenate([points,scalar_frame(fec,modulation,rate,short,pilots,gold)])
@@ -158,13 +175,60 @@ def run_case(lib,index,modulation,rate,short,pilots,fecs,*,gold=0,prefix=0,ring=
     assert raw[0]==raw[-1]==CANARY
     np.testing.assert_array_equal(arena,arena_before)
     assert bytes(cfg)==cfg_before
+    np.testing.assert_array_equal(fast_arena,fast_before)
+    assert bytes(state)==state_before and fast_arena[0]==fast_arena[-1]==CANARY
     if callback:
         expected,_,_=pack(points,modulation,rate)
         np.testing.assert_array_equal(np.asarray(published,np.uint32),expected)
         assert calls[0]==0 and calls[-1]==stream.n
-    return dict(modulation=modulation,rate=rate,short=short,pilots=pilots,gold=gold,
+    return dict(modulation=modulation,rate=rate,short=short,pilots=pilots,gold=gold,fast=fast,
                 prefix=prefix,ring=ring,callback=callback,cancel=cancel,frames=accepted,
                 symbols=len(points),words=stream.n,fill=stream.fill,crc=zlib.crc32(expected.astype('<u4').tobytes()))
+
+
+def run_both(lib,*args,**kwargs):
+    """Original and A3 fast mapper must each match the independent reference."""
+    old=run_case(lib,*args,**kwargs);new=run_case(lib,*args,fast=True,**kwargs)
+    strip=lambda case:{key:value for key,value in case.items() if key!='fast'}
+    assert strip(old)==strip(new),(old,new)
+    return [old,new]
+
+
+def mapper(lib,index,modulation,pilots,gold=0):
+    code=lib.test_code(index);need=lib.dvbs2_apsk_arena_words(code,modulation,pilots)
+    arena=np.zeros(need,np.uint32);cfg=Config()
+    assert lib.dvbs2_apsk_init(ctypes.byref(cfg),code,modulation,pilots,gold,arena.ctypes.data_as(PTR),need)
+    state=Fast();fast_arena=np.zeros(FAST_WORDS,np.uint32)
+    assert lib.dvbs2_apsk_fast_init(ctypes.byref(state),ctypes.byref(cfg),fast_arena.ctypes.data_as(PTR),FAST_WORDS,0)
+    return cfg,state,(arena,fast_arena)
+
+
+def stream_run(lib,cfg,state,fecs,ring,fill,acc,cancel,fast):
+    out=np.zeros(ring,np.uint32);calls=[];views=[];oks=[]
+    stream=Stream(out=out.ctypes.data_as(PTR),mask=ring-1,acc_i=acc[0],acc_q=acc[1],fill=fill)
+    def service(context,n):
+        calls.append(n);views.append(out.copy())
+        return len(calls)!=cancel
+    callback=SERVICE(service);stream.service=callback
+    for fec in fecs:
+        words=frame_words(fec)
+        if fast:ok=lib.dvbs2_apsk_frame_fast(ctypes.byref(cfg),ctypes.byref(state),words.ctypes.data_as(PTR),ctypes.byref(stream))
+        else:ok=lib.dvbs2_apsk_frame(ctypes.byref(cfg),words.ctypes.data_as(PTR),ctypes.byref(stream))
+        oks.append(bool(ok))
+        if not ok:break
+    return oks,calls,(stream.n,stream.fill,stream.acc_i,stream.acc_q),out,views
+
+
+def exact_ab(lib,index,modulation,pilots,fecs,ring,fill,acc,cancel):
+    """Fast vs original: return values, every service argument, the ring contents
+    seen at every service call, the final ring and the stop state are identical."""
+    cfg,state,keep=mapper(lib,index,modulation,pilots)
+    a=stream_run(lib,cfg,state,fecs,ring,fill,acc,cancel,False)
+    b=stream_run(lib,cfg,state,fecs,ring,fill,acc,cancel,True)
+    assert a[0]==b[0] and a[1]==b[1] and a[2]==b[2],(modulation,index,pilots,ring,fill,cancel,a[2],b[2])
+    np.testing.assert_array_equal(a[3],b[3])
+    assert len(a[4])==len(b[4]) and all(np.array_equal(x,y) for x,y in zip(a[4],b[4]))
+    return len(a[1])
 
 
 def main():
@@ -175,7 +239,9 @@ def main():
         bridge.write_text('#include "dvbs2_apsk.h"\n#include "dvbs2_codes.h"\n'
                           'const dvbs2_code_t *test_code(unsigned i){return i<N_DVBS2_CODES?&DVBS2_CODES[i]:0;}\n'
                           'unsigned test_cfg_size(void){return sizeof(dvbs2_apsk_cfg_t);}\n'
-                          'unsigned test_stream_size(void){return sizeof(dvbs2_apsk_stream_t);}\n')
+                          'unsigned test_stream_size(void){return sizeof(dvbs2_apsk_stream_t);}\n'
+                          'unsigned test_fast_size(void){return sizeof(dvbs2_apsk_fast_t);}\n'
+                          'unsigned test_fast_words(void){return DVBS2_APSK_FAST_WORDS;}\n')
         subprocess.run(['cc','-O2','-std=c11','-Wall','-Wextra','-Werror','-shared','-fPIC',f'-I{src}',
                         str(src/'dvbs2_apsk.c'),str(bridge),'-o',str(library)],check=True)
         lib=ctypes.CDLL(str(library));lib.test_code.argtypes=[ctypes.c_uint];lib.test_code.restype=ctypes.c_void_p
@@ -186,8 +252,14 @@ def main():
         lib.dvbs2_apsk_init.restype=ctypes.c_bool
         lib.dvbs2_apsk_frame.argtypes=[ctypes.POINTER(Config),PTR,ctypes.POINTER(Stream)]
         lib.dvbs2_apsk_frame.restype=ctypes.c_bool
+        lib.dvbs2_apsk_fast_init.argtypes=[ctypes.POINTER(Fast),ctypes.POINTER(Config),PTR,ctypes.c_uint32,ctypes.c_uint]
+        lib.dvbs2_apsk_fast_init.restype=ctypes.c_bool
+        lib.dvbs2_apsk_frame_fast.argtypes=[ctypes.POINTER(Config),ctypes.POINTER(Fast),PTR,ctypes.POINTER(Stream)]
+        lib.dvbs2_apsk_frame_fast.restype=ctypes.c_bool
         assert lib.test_cfg_size()==ctypes.sizeof(Config) and lib.test_stream_size()==ctypes.sizeof(Stream)
+        assert lib.test_fast_size()==ctypes.sizeof(Fast) and lib.test_fast_words()==FAST_WORDS
         assert not lib.dvbs2_apsk_frame(None,None,None)
+        assert not lib.dvbs2_apsk_frame_fast(None,None,None,None)
         configurations=0
         for modulation,rates in ((16,RATES16),(32,RATES32)):
             for short in (False,True):
@@ -198,18 +270,63 @@ def main():
                     for pilots in (False,True):
                         configurations+=1
                         for prefix in range(4 if modulation==16 else 2):
-                            cases.append(run_case(lib,index,modulation,rate,short,pilots,fecs,prefix=prefix))
-                        cases.append(run_case(lib,index,modulation,rate,short,pilots,fecs,ring=2,prefix=1))
+                            cases+=run_both(lib,index,modulation,rate,short,pilots,fecs,prefix=prefix)
+                        cases+=run_both(lib,index,modulation,rate,short,pilots,fecs,ring=2,prefix=1)
+                        cases+=run_both(lib,index,modulation,rate,short,pilots,fecs,ring=2,prefix=0)
         for modulation in (16,32):
             fecs=[rng.integers(0,2,64800,dtype=np.uint8) for _ in range(3)]
-            cases.append(run_case(lib,8,modulation,'5/6',False,True,fecs,ring=128,callback=True,prefix=1))
-            cases.append(run_case(lib,8,modulation,'5/6',False,True,fecs,ring=128,callback=True,prefix=0))
+            cases+=run_both(lib,8,modulation,'5/6',False,True,fecs,ring=128,callback=True,prefix=1)
+            cases+=run_both(lib,8,modulation,'5/6',False,True,fecs,ring=128,callback=True,prefix=0)
             for aligned_cancel in (1,2,5):
-                cases.append(run_case(lib,8,modulation,'5/6',False,True,fecs,ring=128,callback=True,cancel=aligned_cancel,prefix=0))
+                cases+=run_both(lib,8,modulation,'5/6',False,True,fecs,ring=128,callback=True,cancel=aligned_cancel,prefix=0)
             for cancel in (1,2,5):
-                cases.append(run_case(lib,8,modulation,'5/6',False,True,fecs,ring=128,callback=True,cancel=cancel,prefix=1))
+                cases+=run_both(lib,8,modulation,'5/6',False,True,fecs,ring=128,callback=True,cancel=cancel,prefix=1)
             for gold in (1,99999,262142):
-                cases.append(run_case(lib,8,modulation,'5/6',False,True,fecs[:1],gold=gold))
+                cases+=run_both(lib,8,modulation,'5/6',False,True,fecs[:1],gold=gold)
+        # A3 exactness beyond the reference: identical service calls, ring views and stop
+        # states for rings that force runs across credit points and wraps, every fill
+        # (odd fills and short frames take the original code) and refusals anywhere.
+        exact=calls=0
+        for modulation,indices in ((16,(5,8,10,16)),(32,(6,8,10,17))):
+            for index in indices:
+                fecs=[rng.integers(0,2,16200 if index>10 else 64800,dtype=np.uint8) for _ in range(3)]
+                for pilots in (True,False):
+                    for ring in (2,64,128,8192):
+                        for fill in range(4 if modulation==16 else 2):
+                            if modulation==16:acc=tuple(int(rng.integers(0,1<<(3*fill))) for _ in range(2))
+                            else:acc=tuple(int(rng.integers(0,17)) if fill else 0 for _ in range(2))
+                            for cancel in (0,1,2,5,40,65,150):
+                                calls+=exact_ab(lib,index,modulation,pilots,fecs,ring,fill,acc,cancel);exact+=1
+        # fill0 with a stale accumulator: put16 ORs it into the next word, and so must the leaf.
+        for modulation,acc in ((16,(0x0123,0x0456)),(32,(5,9))):
+            fec=[rng.integers(0,2,64800,dtype=np.uint8)]
+            calls+=exact_ab(lib,8,modulation,True,fec,8192,0,acc,0);exact+=1
+        # Engagement control: corrupting the fast tables must change normal-frame data;
+        # short frames (original code) must not change at all.
+        engaged={}
+        for modulation,index in ((16,8),(32,8),(16,16),(32,17)):
+            fec=[rng.integers(0,2,16200 if index>10 else 64800,dtype=np.uint8)]
+            cfg,state,keep=mapper(lib,index,modulation,True)
+            good=stream_run(lib,cfg,state,fec,1<<15,0,(0,0),0,True)[3]
+            keep[1][:128]^=0x10001
+            bad=stream_run(lib,cfg,state,fec,1<<15,0,(0,0),0,True)[3]
+            changed=int(np.count_nonzero(good!=bad))
+            if index>10:assert changed==0,(modulation,changed)
+            else:assert changed>=(2000 if modulation==16 else 6480),(modulation,changed)
+            engaged[f'{modulation}{"short" if index>10 else "normal"}']=changed
+        # A mismatched fast state falls back to the original mapper; bad init changes nothing.
+        cfg32,_,keep32=mapper(lib,8,32,True);_,state16,keep16=mapper(lib,8,16,True)
+        fec=[rng.integers(0,2,64800,dtype=np.uint8)]
+        np.testing.assert_array_equal(stream_run(lib,cfg32,state16,fec,1<<14,0,(0,0),0,True)[3],
+                                      stream_run(lib,cfg32,state16,fec,1<<14,0,(0,0),0,False)[3])
+        fast_rejected=0;probe=Fast();before=bytes(probe);space=np.zeros(FAST_WORDS,np.uint32)
+        for args in ((None,ctypes.byref(cfg32),space.ctypes.data_as(PTR),FAST_WORDS,0),
+                     (ctypes.byref(probe),None,space.ctypes.data_as(PTR),FAST_WORDS,0),
+                     (ctypes.byref(probe),ctypes.byref(cfg32),None,FAST_WORDS,0),
+                     (ctypes.byref(probe),ctypes.byref(cfg32),space.ctypes.data_as(PTR),FAST_WORDS-1,0),
+                     (ctypes.byref(probe),ctypes.byref(cfg32),space.ctypes.data_as(PTR),FAST_WORDS,2)):
+            assert not lib.dvbs2_apsk_fast_init(*args);fast_rejected+=1
+        assert bytes(probe)==before and not space.any()
         rejected=0
         cfg=Config();arena=np.full(1042,CANARY,np.uint32)
         cfg_before=bytes(cfg);arena_before=arena.copy()
@@ -232,13 +349,16 @@ def main():
         for modulation in (16,32):
             fecs=[finite.dual_spi.ref.fecframe(finite.dual_spi.bbframe(i,gcs=True,rate='5/6'),'5/6',False)
                   for i in range(3)]
-            first=run_case(lib,8,modulation,'5/6',False,True,fecs[:1])
-            assert first['crc']==(1813402982 if modulation==16 else 4248357742)
-            real.append(first)
-            real.append(run_case(lib,8,modulation,'5/6',False,True,fecs,ring=128,callback=True))
+            for first in run_both(lib,8,modulation,'5/6',False,True,fecs[:1]):
+                assert first['crc']==(1813402982 if modulation==16 else 4248357742)
+                real.append(first)
+            real+=run_both(lib,8,modulation,'5/6',False,True,fecs,ring=128,callback=True)
     print(json.dumps(dict(status='PASS',configurations=configurations,native_cases=len(cases),
                           native_frames=sum(c['frames'] for c in cases),
                           symbols_checked=sum(c['symbols'] for c in cases),
+                          fast_mapper_cases=sum(c['fast'] for c in cases),
+                          fast_exact_ab_cases=exact,fast_exact_ab_service_calls=calls,
+                          fast_engagement_changed_words=engaged,fast_invalid_init_controls=fast_rejected,
                           gold_codes=[0,1,99999,262142],all_partial_fills={16:[0,1,2,3],32:[0,1]},
                           progressive_credit_words=64,invalid_init_controls=rejected,
                           real_gcs_fec_cases=real,amplitude_policy='outer_radius_one;unit_header_and_pilots'),indent=2))
