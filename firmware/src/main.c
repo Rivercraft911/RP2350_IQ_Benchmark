@@ -16,7 +16,7 @@
 //        pilots -> shaper (N = 4, L = 12). selftest 1 = on-chip emulated CM5 master.
 //   snifftest                                     DMA sniffer CRC modes
 //   pvbench [reps] / ptrbench [reps]              packet preparation / pin-free PIO pointers
-//   bchkernel <0|1|2>                             baseline, C words, ARM stream
+//   bchkernel <0|1|2|3>                           baseline, C words, ARM stream, t8 ARM stream
 //   bench8psk [reps]                              experimental split-LUT shaping
 //   bench8quad ms reps / bench8map code pilots reps   8PSK shaper / mapper components
 //   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
@@ -40,7 +40,7 @@
 //   ldpcpack <0|1>                               LDPC parity: baseline / streaming in-place pack
 //   bchbank <0|1>                                frontend BCH steps: striped SRAM / scratch-Y copy
 //   dualstream cpw ms kernel source cap fault [schedule] [div256] [row_symbols] [code]
-//   dualptr cpw ms source fault                  live SPI/FEC, PIO pointers (source5/6)
+//   dualptr cpw ms source fault [code]           live SPI/FEC, PIO pointers (source5/6)
 //        source: 0=cyclic, 1=PRBS, 2=core1 FEC, 3=one-core FEC, 4=split FEC, 5=SPI TS, 6=SPI GCS
 //   bootsel                                       reboot to the USB bootloader
 #include <limits.h>
@@ -213,7 +213,7 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "reps", 8, 1, 100, &reps)) return err;
         bench_pointers(reps);
     } else if (!strcmp(cmd, "bchkernel")) {
-        if (!num(a[1], "kernel", REQUIRED, 0, 2, &code)) return err;
+        if (!num(a[1], "kernel", REQUIRED, 0, 3, &code)) return err;
         if (!dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)code)) return "unknown BCH kernel";
         printf("@{\"cmd\":\"bchkernel\",\"kernel\":%d}\n", (int)dvbs2_bch_get_kernel());
     } else if (!strcmp(cmd, "mapkernel")) {
@@ -342,12 +342,15 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "reps", 4, 1, 100, &reps)) return err;
         bench_descriptors(reps);
     } else if (!strcmp(cmd, "dualptr")) {
-        int source, fault;
+        int source, fault, code_index;
         if (!num(a[1], "cpw", REQUIRED, 1, 2, &r.cpw) ||
             !num(a[2], "ms", REQUIRED, 100, 60000, &r.ms) ||
             !num(a[3], "source", 6, 5, 6, &source) ||
-            !num(a[4], "fault", 0, 0, 1, &fault)) return err;
-        bench_dual_pointer(r.cpw, r.ms, source, fault);
+            !num(a[4], "fault", 0, 0, 1, &fault) ||
+            !num(a[5], "code", 8, 5, 10, &code_index)) return err;
+        if (code_index == 6 || code_index == 7)
+            return "pointer trial codes are normal2/3(5),5/6(8),8/9(9),9/10(10)";
+        bench_dual_pointer(r.cpw, r.ms, source, fault, code_index);
     } else if (!strcmp(cmd, "dualstream")) {
         int kernel, source, fault, schedule, divider256, row_symbols, code_index;
         if (!num(a[1], "cpw", REQUIRED, 1, 4, &r.cpw) ||
@@ -359,9 +362,9 @@ static const char *dispatch(char *line) {
             !num(a[7], "schedule", 0, 0, 3, &schedule) ||
             !num(a[8], "divider256", 0, 0, 1024, &divider256) ||
             !num(a[9], "row_symbols", 1, 1, 4, &row_symbols) ||
-            !num(a[10], "code", 5, 5, 8, &code_index)) return err;
-        if (code_index != 5 && code_index != 6 && code_index != 8)
-            return "trial codes are normal2/3(5),3/4(6),5/6(8)";
+            !num(a[10], "code", 5, 5, 10, &code_index)) return err;
+        if (code_index == 7)
+            return "trial codes are normal2/3(5),3/4(6),5/6(8),8/9(9),9/10(10)";
         if (row_symbols != 1 && row_symbols != 2 && row_symbols != 4)
             return "row_symbols must be1,2 or4 (L9 beta0.8 trial)";
         if (divider256 && divider256 != 384) return "optional divider256 must be384 (1.5 clocks)";

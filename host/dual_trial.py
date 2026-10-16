@@ -18,6 +18,7 @@ from pathlib import Path
 import numpy as np
 
 import iqbench as iq
+from dual_spi import QPSK_RATES, qpsk_config
 from pulse_profiles import L8_PROFILE, qpsk_lut
 
 NORMALIZED_BASE_I = 0x20040000
@@ -53,7 +54,7 @@ def reference_bus(source: int, seed: int = SEED, row_symbols: int = 1, bb_stride
         import sys
         sys.path.insert(0, str(iq.ROOT / "reference/dvbs2"))
         import dvbs2 as ref
-        rate = {5: "2/3", 6: "3/4", 8: "5/6"}[code_index]
+        rate = QPSK_RATES[code_index]
         kbch = ref.code(rate, False).kbch
         w = iq.m.xorshift32(0x9E3779B9 ^ code_index, (kbch + 31) // 32)
         bits = ((w[:, None] >> np.arange(31, -1, -1, dtype=np.uint32)) & 1).astype(np.uint8).ravel()[:kbch]
@@ -69,7 +70,7 @@ def reference_bus(source: int, seed: int = SEED, row_symbols: int = 1, bb_stride
         period = len(bi) * 4
         words = samples[period:2 * period]
     elif source in (2, 3):
-        rate = {5: "2/3", 6: "3/4", 8: "5/6"}[code_index]
+        rate = QPSK_RATES[code_index]
         bi, bq = iq.dvbs2_ref_symbols(f"normal {rate}", 1, 0x9E3779B9 ^ code_index)
         packed = iq.pack_symbols(np.tile(bi, 3), np.tile(bq, 3))
         all_samples = iq.m.generate(packed, lut)
@@ -140,7 +141,7 @@ def validate_capture(r: dict, lines: list[str], source: int,
         first_frame, ref = reference_window(int(r["cap_symbol_cursor"]), span=span, beta=beta,
                                             gcs=source == 6,
                                             rate=r.get("s2_code", "normal 2/3").split()[-1],
-                                            profile=r.get("row_profile"))
+                                            profile=r.get("row_profile"), pilots=bool(r.get("pilots", True)))
     else:
         first_frame = None
         ref = reference_bus(source, int(r.get("seed", SEED)), int(r.get("row_symbols", 1)),
@@ -361,7 +362,14 @@ def main():
     p.add_argument("--writers", type=int, choices=(2, 4), default=2)
     p.add_argument("--priority-mask", type=int, choices=range(16), default=0)
     p.add_argument("--row-symbols", type=int, choices=(1, 2, 4), default=1)
-    p.add_argument("--code-index", type=int, choices=(5, 6, 8), default=5)
+    p.add_argument("--code-index", type=int, choices=tuple(QPSK_RATES), default=5)
+    p.add_argument("--bch-kernel", type=int, choices=(2, 3), default=2)
+    p.add_argument("--ldpc-pack", type=int, choices=(0, 1), help="explicit streaming LDPC packer selector")
+    p.add_argument("--bch-bank", type=int, choices=(0, 1), help="explicit frontend BCH code-bank selector")
+    p.add_argument("--cpws", nargs="+", type=int, choices=(1, 2), default=[2, 1],
+                   help="gcs profile only: select 8/16-Msym/s divider runs")
+    p.add_argument("--sources", nargs="+", type=int, choices=(5, 6), default=[5, 6],
+                   help="gcs profile only: 5=TS, 6=generic continuous")
     p.add_argument("--map-kernel", type=int, choices=(0, 1), default=0)
     p.add_argument("--quad-profile", type=int, choices=(0, 1), default=0,
                    help="0=L9 Kaiser, 1=opt-in L8 convex pulse")
@@ -408,7 +416,9 @@ def main():
     for name in ("iqbench.uf2", "iqbench.elf"):
         hashes[str(a.build / name)] = hashlib.sha256((a.build / name).read_bytes()).hexdigest()
     manifest = dict(started=dt.datetime.now().isoformat(), profile=a.profile, duration_ms=duration,
-                    code_index=a.code_index, map_kernel=a.map_kernel, quad_profile=a.quad_profile,
+                    code_index=a.code_index, bch_kernel=a.bch_kernel, ldpc_pack=a.ldpc_pack,
+                    bch_bank=a.bch_bank, map_kernel=a.map_kernel, quad_profile=a.quad_profile,
+                    cpws=a.cpws, sources=a.sources,
                     clocks_khz=a.clocks, row_symbols=a.row_symbols, writers=a.writers, priority_mask=a.priority_mask,
                     dac_clock=DAC_CLOCK_NAMES[a.dac_clock],
                     expected_firmware_git=a.expected_git, head=git("rev-parse", "HEAD"),
@@ -470,7 +480,7 @@ def main():
 
     def dual(clock, cpw, kernel, source, fault=0, schedule=0, divider256=0, trial_ms=None, cap_words=4096,
              clock_inverted=False):
-        exploratory = (cpw == 1 or divider256 != 0) and a.profile not in ("qualify", "spi")
+        exploratory = (cpw == 1 or divider256 != 0) and a.profile not in ("qualify", "spi", "gcs")
         suffix = "-clock-inverted-negative-control" if clock_inverted else \
             "-negative-control" if fault else "-ceiling-probe" if exploratory else ""
         variant = f"-sched{schedule}-div{divider256}" if schedule or divider256 else ""
@@ -500,6 +510,12 @@ def main():
                                    clk_hz=clock * 1000, source=source,
                                    bus_priority_mask=a.priority_mask, writers=a.writers,
                                    dac_clock=DAC_CLOCK_NAMES["inverted" if clock_inverted else a.dac_clock])
+            expected_config.update(qpsk_config(a.code_index), bch_kernel=a.bch_kernel,
+                                   map_kernel=a.map_kernel)
+            if a.ldpc_pack is not None:
+                expected_config["ldpc_pack"] = a.ldpc_pack
+            if a.bch_bank is not None:
+                expected_config["bch_bank"] = a.bch_bank
             if a.dac_clock == "ddr":
                 expected_config["cap_format"] = "pins32"
             if a.expected_git:
@@ -511,12 +527,6 @@ def main():
                 if reported != expected:
                     configuration_ok = False
                     r["faults"].append(f"reported {key}={r.get(key)}; requested {expected}")
-            if r.get("code_index", 5) != a.code_index:
-                configuration_ok = False
-                r["faults"].append("reported code differs from requested code")
-            if r.get("map_kernel", 0) != a.map_kernel:
-                configuration_ok = False
-                r["faults"].append("reported mapping kernel differs from requested kernel")
             r["configuration_ok"] = configuration_ok
             if fault:
                 r["negative_control_fault"] = fault
@@ -565,9 +575,13 @@ def main():
         raw(f"dualclock {DAC_CLOCK_MODES[a.dac_clock]}")
         raw(f"mapkernel {a.map_kernel}")
         raw(f"quadprofile {a.quad_profile}")
+        if a.ldpc_pack is not None:
+            raw(f"ldpcpack {a.ldpc_pack}")
+        if a.bch_bank is not None:
+            raw(f"bchbank {a.bch_bank}")
         for clock in a.clocks:
             raw(f"clock {clock}")
-            raw("bchkernel 2")
+            raw(f"bchkernel {a.bch_kernel}")
             baseline(clock)
             descriptor_bench(clock)
             if a.profile == "quick":
@@ -624,9 +638,9 @@ def main():
             elif a.profile == "gcs":
                 if clock != 128000:
                     p.error("the on-chip SPI source uses --clocks 128000")
-                for source in (5, 6):
-                    dual(clock, 2, 2, source)
-                    dual(clock, 1, 2, source)
+                for source in a.sources:
+                    for cpw in a.cpws:
+                        dual(clock, cpw, 2, source)
             elif a.profile == "onecore":
                 record(f"legacy-onecore-{clock}", lambda: iq.run_txs2(
                     board, 5, 1, "lut_asm_p", 4, 12, 3, 3000, 4096, "dual-onecore", True))

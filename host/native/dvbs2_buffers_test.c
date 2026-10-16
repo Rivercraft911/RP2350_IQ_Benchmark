@@ -45,7 +45,8 @@ static int check_chunks(const dvbs2_code_t *c, uint32_t chunk) {
         memset(&state, 0x5A, sizeof state);
         memcpy(&untouched, &state, sizeof state);
         other.before = other.after = GUARD;
-        const int supported = c->t * (c->is_short ? 14u : 16u) == 160u &&
+        const int supported = (c->t * (c->is_short ? 14u : 16u) == 160u ||
+                               c->t * (c->is_short ? 14u : 16u) == 128u) &&
                               dvbs2_bch_get_kernel() != S2_BCH_BASELINE;
         const uint32_t before = hash_words(frame, DVBS2_FE_WORDS);
         const bool began = dvbs2_frontend_begin(bb[f], frame, &state);
@@ -138,19 +139,23 @@ int main(int argc, char **argv) {
             int ok = 1;
             symstream_t s = {0};
             uint32_t unflushed_n = 0, fill = 0, acc_i = 0, acc_q = 0, first_n = 0;
-            for (int kernel = S2_BCH_BASELINE; kernel <= S2_BCH_STREAM_ARM; kernel++) {
+            for (int kernel = S2_BCH_BASELINE; kernel <= S2_BCH_T8_ARM; kernel++) {
                 ok &= dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)kernel);
                 dvbs2_init(c, pilots);
                 symstream_t old = {.out = sequential, .mask = ~0u};
                 for (unsigned f = 0; f < FRAMES; f++) dvbs2_frame(bb[f], &old);
 
                 const uint32_t chunks[] = {1, 7, 128, 511};
-                for (unsigned k = 0; k < sizeof chunks / sizeof chunks[0]; k++) {
-                    ok &= check_chunks(c, chunks[k]);
-                    if (c->t * (c->is_short ? 14u : 16u) == 160u && kernel != S2_BCH_BASELINE) {
-                        ok &= run_interleaved(c, &s, chunks[k]);
-                        ok &= s.n == old.n && s.fill == old.fill && s.acc_i == old.acc_i &&
-                              s.acc_q == old.acc_q && !memcmp(output.words, sequential, s.n * 4u);
+                for (unsigned bank = 0; bank <= 1; bank++) {
+                    ok &= dvbs2_frontend_set_bank(bank);
+                    for (unsigned k = 0; k < sizeof chunks / sizeof chunks[0]; k++) {
+                        ok &= check_chunks(c, chunks[k]);
+                        if ((c->t * (c->is_short ? 14u : 16u) == 160u ||
+                             c->t * (c->is_short ? 14u : 16u) == 128u) && kernel != S2_BCH_BASELINE) {
+                            ok &= run_interleaved(c, &s, chunks[k]);
+                            ok &= s.n == old.n && s.fill == old.fill && s.acc_i == old.acc_i &&
+                                  s.acc_q == old.acc_q && !memcmp(output.words, sequential, s.n * 4u);
+                        }
                     }
                 }
                 ok &= run_interleaved(c, &s, 0);

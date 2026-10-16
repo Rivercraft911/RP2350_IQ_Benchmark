@@ -17,18 +17,20 @@ import shutil
 import subprocess
 
 import iqbench as iq
-from dual_spi import packet_faults
+from dual_spi import QPSK_RATES, packet_faults, qpsk_config
 from dual_trial import DAC_CLOCK_NAMES, stream_faults, validate_capture
 from pulse_profiles import L8_PROFILE
 from quadlive_trial import poll_limits, validate_clock
 
 INPUT_WORDS, CAP_WORDS = 8192, 4096
 SOURCE_EMPTY, PIO_ERROR, ERR_POINTER, OUTPUT_TXSTALL = 8, 16, 1 << 19, 3
+POINTER_CODES = (5, 8, 9, 10)
 
 
 def validate_run(result: dict, lines: list[str], cpw: int, ms: int, source: int,
                  fault: int = 0, clock_mode: int = 1, clock_hz: int | None = None,
-                 expected_git: str | None = None, priority: int = 0) -> dict:
+                 expected_git: str | None = None, code_index: int = 8,
+                 bch_kernel: int = 2, bch_bank: int = 1, priority: int = 0) -> dict:
     """Fail closed on configuration, ownership, SPI provenance and every snapshot."""
     r, faults, capture = result, [], {}
     try:
@@ -37,8 +39,8 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, source: int,
         expected = dict(cmd='dualptr', source=source, cpw=cpw, divider256=256*cpw,
                         ms=ms, fault=fault, sps=4, L=8, row_symbols=4, writers=2,
                         row_profile=L8_PROFILE, filter_beta=None, schedule=0,
-                        bus_priority_mask=priority, code_index=8, s2_code='normal 5/6',
-                        kbch=53840, bch_kernel=2, map_kernel=1, ldpc_pack=1,
+                        bus_priority_mask=priority, bch_kernel=bch_kernel, bch_bank=bch_bank,
+                        map_kernel=1, ldpc_pack=1,
                         frame_parallel=False, descriptor_gen_busy=0.0,
                         sample_math_busy=0.0, in_words=INPUT_WORDS, table_bytes=65536,
                         table_crc=3433922394, restored=True, selectors_restored=True,
@@ -47,7 +49,9 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, source: int,
                         cap_stride=17, cap_divider256=256*cpw, cap_fifo_only=False,
                         cap_format='pins32', dac_clock_pio=2,
                         dac_clock=DAC_CLOCK_NAMES['ddr' if clock_mode == 1 else 'inverted'])
-        if cpw not in (1, 2) or source not in (5, 6) or fault not in (0, 1) or clock_mode not in (1, 2):
+        expected.update(qpsk_config(code_index))
+        if (cpw not in (1, 2) or source not in (5, 6) or fault not in (0, 1) or clock_mode not in (1, 2) or
+                code_index not in POINTER_CODES or bch_kernel not in (2, 3) or bch_bank not in (0, 1)):
             faults.append('unsupported requested configuration')
         if fault and clock_mode != 1:
             faults.append('grant-freeze and inverted-clock controls must run separately')
@@ -146,7 +150,9 @@ def validate_run(result: dict, lines: list[str], cpw: int, ms: int, source: int,
 
 
 def validate_control(result: dict, lines: list[str], cpw: int, ms: int, source: int,
-                     clock_hz: int, expected_git: str | None = None) -> dict:
+                     clock_hz: int, expected_git: str | None = None, code_index: int = 8,
+                     bch_kernel: int = 2, ldpc_pack: int | None = None,
+                     bch_bank: int | None = None) -> dict:
     """The existing optimized four-writer pipeline at the same clock and source."""
     r = dict(result)
     capture = validate_capture(r, lines, source, CAP_WORDS)
@@ -154,8 +160,13 @@ def validate_control(result: dict, lines: list[str], cpw: int, ms: int, source: 
     faults = stream_faults(r, True, source)
     expected = dict(cmd='dualstream', cpw=cpw, ms=ms, source=source, clk_hz=clock_hz,
                     divider256=256*cpw, row_symbols=4, row_profile=L8_PROFILE,
-                    writers=4, code_index=8, map_kernel=1, bch_kernel=2,
+                    writers=4, map_kernel=1, bch_kernel=bch_kernel,
                     cap_format='pins32', dac_clock=DAC_CLOCK_NAMES['ddr'])
+    expected.update(qpsk_config(code_index))
+    if ldpc_pack is not None:
+        expected['ldpc_pack'] = ldpc_pack
+    if bch_bank is not None:
+        expected['bch_bank'] = bch_bank
     if expected_git is not None:
         expected['git'] = expected_git
     faults += [key for key, value in expected.items() if r.get(key) != value]
@@ -176,6 +187,9 @@ def main():
     p.add_argument('--control', action='store_true', help='Also run the existing four-writer pipeline')
     p.add_argument('--priority', type=int, choices=range(16), default=0,
                    help='dualprio bus-priority mask for every run (register fields PROC0/PROC1/DMA_R/DMA_W)')
+    p.add_argument('--code-index', type=int, choices=POINTER_CODES, default=8)
+    p.add_argument('--bch-kernel', type=int, choices=(2, 3), default=2)
+    p.add_argument('--bch-bank', type=int, choices=(0, 1), default=1)
     p.add_argument('--ms', type=int, default=3000)
     p.add_argument('--reps', type=int, default=1)
     p.add_argument('--port')
@@ -205,9 +219,12 @@ def main():
     manifest = dict(started=dt.datetime.now().isoformat(), clocks_khz=args.clocks,
                     cpws=args.cpws, sources=args.sources, faults=args.faults,
                     clock_modes=args.clock_modes, control=args.control, reps=args.reps,
+                    code_index=args.code_index, bch_kernel=args.bch_kernel, ldpc_pack=1,
+                    bch_bank=args.bch_bank,
                     ms=args.ms, expected_firmware_git=args.expected_git,
                     setup='USB only; external GPIOs unwired; on-chip PV-SPI source; digital output active',
-                    scope='Live QPSK 5/6 L8/N4 pointer/output pipeline; split FEC, no frame-parallel or RF claim',
+                    scope=f'Live QPSK {QPSK_RATES[args.code_index]} L8/N4 pointer/output pipeline; '
+                          'split FEC, no frame-parallel or RF claim',
                     capture='All4096 sparse pins32 observations, one fixed waveform offset; GPIO28/IQ_FLAG parity',
                     head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=iq.ROOT, text=True).strip(),
                     source_firmware_directory=str(source), build_directory=str(build), sha256=hashes)
@@ -240,8 +257,8 @@ def main():
         failed |= bool(result['faults'])
 
     try:
-        for option in (f'dualprio {args.priority}', 'dualwriters 4', 'quadprofile 1', 'bchkernel 2',
-                       'mapkernel 1', 'ldpcpack 1', 'bchbank 1'):
+        for option in (f'dualprio {args.priority}', 'dualwriters 4', 'quadprofile 1', f'bchkernel {args.bch_kernel}',
+                       'mapkernel 1', 'ldpcpack 1', f'bchbank {args.bch_bank}'):
             command(option)
         for clock in args.clocks:
             validate_clock(command(f'clock {clock}'), clock, args.expected_git)
@@ -250,19 +267,21 @@ def main():
                     for rep in range(args.reps):
                         if args.control:
                             command('dualclock 1')
-                            label = f'control-{clock}-{cpw}-{source_id}-{rep}'
-                            run(label, f'dualstream {cpw} {args.ms} 2 {source_id} 4096 0 0 0 4 8',
+                            label = f'control-{clock}-{cpw}-{source_id}-code{args.code_index}-{rep}'
+                            run(label, f'dualstream {cpw} {args.ms} 2 {source_id} 4096 0 0 0 4 {args.code_index}',
                                 lambda r, lines: validate_control(r, lines, cpw, args.ms, source_id,
-                                                                  clock*1000, args.expected_git))
+                                                                  clock*1000, args.expected_git,
+                                                                  args.code_index, args.bch_kernel, 1, args.bch_bank))
                         for clock_mode in args.clock_modes:
                             command(f'dualclock {clock_mode}')
                             for fault in args.faults:
                                 if clock_mode == 2 and fault:
                                     continue
-                                label = f'dualptr-{clock}-{cpw}-{source_id}-clock{clock_mode}-fault{fault}-{rep}'
-                                run(label, f'dualptr {cpw} {args.ms} {source_id} {fault}',
+                                label = f'dualptr-{clock}-{cpw}-{source_id}-code{args.code_index}-clock{clock_mode}-fault{fault}-{rep}'
+                                run(label, f'dualptr {cpw} {args.ms} {source_id} {fault} {args.code_index}',
                                     lambda r, lines: validate_run(r, lines, cpw, args.ms, source_id,
                                                                   fault, clock_mode, clock*1000, args.expected_git,
+                                                                  args.code_index, args.bch_kernel, args.bch_bank,
                                                                   args.priority))
     finally:
         try:

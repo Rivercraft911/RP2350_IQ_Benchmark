@@ -9,6 +9,7 @@ Independent Python DVB-S2 references check every emitted symbol and first BB CRC
 from __future__ import annotations
 
 import ctypes as ct
+import functools
 import json
 from pathlib import Path
 import shutil
@@ -65,6 +66,7 @@ static struct {uint32_t words[TABLE_WORDS], guard[8];} q_store;
 #define bb_buf bb_store.words
 static struct {uint32_t *tq;} cfg = {.tq=q_store.words};
 static const dvbs2_code_t *s2c;
+static bool trial_pilots;
 static uint32_t cycles(void) {return 0;}
 static uint32_t time_us_32(void) {return 0;}
 static uint32_t packet_index;
@@ -79,19 +81,23 @@ static uint8_t *pvspi_next_packet(void) {
 '''
     leaves = "\n\n".join(function(source, name) for name in (
         "spi_source", "build_spi_frame", "split_flip_bb", "split_begin_frame",
-        "prefill_encoder", "begin_frontend", "refill_bb_queue"))
+        "prefill_encoder", "begin_frontend", "refill_bb_queue", "trial_code"))
     tail = r'''
 static uint32_t trace[(14*33282+15)/16];
 uint32_t trial_crc[4], trial_n, trial_fill, trial_acc_i, trial_acc_q;
 uint32_t trial_frames, trial_incremental, trial_bb_words, trial_alias;
 uint32_t trial_frame_symbols;
-int trial(int code_index,int gcs) {
+int trial(int code_index,int gcs,int pilots,int kernel,int pack) {
     memset(input,0xa5,sizeof input);
     memset(&q_store,0x5a,sizeof q_store);
     memset(&bb_store,0x3c,sizeof bb_store);
-    packet_index=0; pvspi.errors=0; pv_init(16); dvbs2_bch_set_kernel(S2_BCH_STREAM_ARM);
+    packet_index=0; pvspi.errors=0; pv_init(16); trial_pilots=pilots;
+    if(!dvbs2_bch_set_kernel(kernel) || !dvbs2_ldpc_set_pack(pack) || !dvbs2_map_set_kernel(1)) return 8;
     const dvbs2_code_t *c=&DVBS2_CODES[code_index];
-    if(!prefill_encoder(gcs?SOURCE_PV_GCS:SOURCE_PV_SPI,input,0,code_index,c->kbch)) return 1;
+    const char *name;
+    unsigned bb_bits;
+    if(!trial_code(code_index,&name,&bb_bits) || strcmp(name,c->name) || bb_bits!=c->kbch) return 9;
+    if(!prefill_encoder(gcs?SOURCE_PV_GCS:SOURCE_PV_SPI,input,0,code_index,bb_bits)) return 1;
     if(encoder.bb_frames!=6) return 2;
     for(unsigned i=0;i<4;i++) trial_crc[i]=encoder.bb_crc[i];
     trial_bb_words=encoder.bb_words;
@@ -130,6 +136,11 @@ int trial(int code_index,int gcs) {
     return 0;
 }
 uint32_t trial_word(unsigned index) {return trace[index];}
+int trial_reject_code(int code) {
+    const char *name;
+    unsigned bits;
+    return !trial_code(code,&name,&bits);
+}
 int trial_reject(int transport) {
     pvspi.errors=0; pv_stats.bad_crc=0; encoder.input_failed=false;
     const uint32_t before=encoder.bb_frames;
@@ -138,10 +149,14 @@ int trial_reject(int transport) {
     return !accepted && encoder.input_failed && encoder.bb_frames==before;
 }
 '''
-    return (head + macros + setup + source_enum + constants + encoder +
-            function(tx, "tx_code") + leaves + tail)
+    # The device command fixes pilots on. Override only that selection in this native
+    # harness to exercise both PLFRAME lengths through the same production queues.
+    select = function(tx, "tx_code").replace("tx_code(", "tx_code_actual(", 1)
+    select += "\nstatic uint32_t tx_code(int code,bool pilots) {(void)pilots;return tx_code_actual(code,trial_pilots);}\n"
+    return head + macros + setup + source_enum + constants + encoder + select + leaves + tail
 
 
+@functools.lru_cache(maxsize=None)
 def bbframe(index: int, rate: str, gcs: bool) -> np.ndarray:
     data_bytes = spi.ref.code(rate, False).kbch // 8 - 10
     first, offset = divmod(index * data_bytes, 188)
@@ -159,8 +174,15 @@ def bbframe(index: int, rate: str, gcs: bool) -> np.ndarray:
     return np.concatenate([header, np.unpackbits(np.frombuffer(data[offset:offset + data_bytes], np.uint8))])
 
 
-def check(lib: ct.CDLL, code_index: int, rate: str, gcs: bool) -> dict:
-    assert lib.trial(code_index, gcs) == 0, (code_index, gcs, "native queue/canary")
+@functools.lru_cache(maxsize=None)
+def reference(rate: str, gcs: bool, pilots: bool) -> tuple[np.ndarray, np.ndarray]:
+    axes = [spi.ref.plframe(spi.ref.fecframe(bbframe(k, rate, gcs), rate), rate, pilots=pilots)
+            for k in range(FRAMES)]
+    return tuple(np.concatenate([frame[axis] for frame in axes]) for axis in (0, 1))
+
+
+def check(lib: ct.CDLL, code_index: int, rate: str, gcs: bool, pilots: bool, kernel: int, pack: int) -> dict:
+    assert lib.trial(code_index, gcs, pilots, kernel, pack) == 0, (code_index, gcs, pilots, kernel, pack, "native queue/canary")
     crc = list((ct.c_uint32 * 4).in_dll(lib, "trial_crc"))
     frames = [bbframe(k, rate, gcs) for k in range(FRAMES)]
     assert crc == [zlib.crc32(np.packbits(frame).tobytes()) for frame in frames[:4]]
@@ -169,8 +191,7 @@ def check(lib: ct.CDLL, code_index: int, rate: str, gcs: bool) -> dict:
     assert get("frames") == FRAMES
     assert get("incremental") == (0 if code_index == 6 else FRAMES - 2)
     assert get("alias") == (code_index != 5)
-    axes = [spi.ref.plframe(spi.ref.fecframe(frame, rate), rate, pilots=True) for frame in frames]
-    bi, bq = (np.concatenate([frame[axis] for frame in axes]) for axis in (0, 1))
+    bi, bq = reference(rate, gcs, pilots)
     assert len(bi) == FRAMES * get("frame_symbols") == n * 16 + fill
     expected = spi.ref.pack_words(bi[:n * 16], bq[:n * 16])
     actual = np.asarray([lib.trial_word(k) for k in range(n)], np.uint32)
@@ -178,7 +199,8 @@ def check(lib: ct.CDLL, code_index: int, rate: str, gcs: bool) -> dict:
     for name, bits in (("acc_i", bi), ("acc_q", bq)):
         tail = sum(int(bit) << i for i, bit in enumerate(bits[n * 16:]))
         assert get(name) == tail, (code_index, gcs, name)
-    return dict(code_index=code_index, rate=rate, gcs=gcs, bb_crc=crc, frames=FRAMES,
+    return dict(code_index=code_index, rate=rate, gcs=gcs, pilots=pilots, kernel=kernel, pack=pack,
+                bb_crc=crc, frames=FRAMES,
                 checked_words=n, partial_symbols=fill, bb_words=get("bb_words"),
                 second_slot_bb_buf=bool(get("alias")), incremental_frames=get("incremental"))
 
@@ -191,13 +213,17 @@ def main() -> None:
                         "-shared", "-fPIC", "-I" + str(SRC), str(source), str(SRC / "dvbs2.c"),
                         str(SRC / "iqgen.c"), str(SRC / "pvproto.c"), "-o", str(library)], check=True)
         lib = ct.CDLL(str(library))
-        lib.trial.argtypes, lib.trial.restype = [ct.c_int, ct.c_int], ct.c_int
+        lib.trial.argtypes, lib.trial.restype = [ct.c_int] * 5, ct.c_int
         lib.trial_word.argtypes, lib.trial_word.restype = [ct.c_uint], ct.c_uint
-        for code_index, rate in ((5, "2/3"), (6, "3/4"), (8, "5/6")):
+        for code_index in (-1, 0, 4, 7, 11, 21):
+            assert lib.trial_reject_code(code_index) == 1, "unsupported code accepted"
+        for code_index, rate in ((5, "2/3"), (6, "3/4"), (8, "5/6"), (9, "8/9"), (10, "9/10")):
             for gcs in (False, True):
-                print(json.dumps(check(lib, code_index, rate, gcs)), flush=True)
-                for transport in (False, True):
-                    assert lib.trial_reject(transport) == 1, "faulted BBFRAME was published"
+                for pilots in (False, True):
+                    for kernel, pack in ((2, 0), (2, 1), (3, 1)) if code_index >= 9 else ((2, 1),):
+                        print(json.dumps(check(lib, code_index, rate, gcs, pilots, kernel, pack)), flush=True)
+                        for transport in (False, True):
+                            assert lib.trial_reject(transport) == 1, "faulted BBFRAME was published"
 
 
 if __name__ == "__main__":

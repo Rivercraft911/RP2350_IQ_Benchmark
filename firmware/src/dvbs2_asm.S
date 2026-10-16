@@ -102,6 +102,82 @@ dvbs2_bch160_continue_y:
     .purgem BCH160_LOOP
     .purgem BCH160_XOR
 
+// Degree128 (normal8/9 and9/10): four live words, the existing padded table.
+// The full-frame copy stays in XIP because core1 can own a full encoder while core0
+// executes other scratch-Y kernels. Only the core0 frontend's bank1 uses the Y copy.
+    .macro BCH128_XOR dst, old, off
+    ldr     lr, [r9, #\off]
+    ldr     r1, [r10, #\off]
+    eor     \dst, \old, lr
+    ldr     lr, [r11, #\off]
+    eor     \dst, \dst, r1
+    ldr     r1, [r12, #\off]
+    eor     \dst, \dst, lr
+    eor     \dst, \dst, r1
+    .endm
+
+    .macro BCH128_CONTINUE check, word, store
+    push    {r4-r11, lr}
+    push    {r1}
+    ldmia   r1, {r4-r7}
+\check:
+    cmp     r3, #0
+    beq     \store
+\word:
+    ldr     lr, [r0], #4
+    eor     r4, r4, lr
+    ubfx    r9, r4, #24, #8
+    add     r9, r2, r9, lsl #5
+    add     r9, r9, #24576
+    ubfx    r10, r4, #16, #8
+    add     r10, r2, r10, lsl #5
+    add     r10, r10, #16384
+    ubfx    r11, r4, #8, #8
+    add     r11, r2, r11, lsl #5
+    add     r11, r11, #8192
+    uxtb    r12, r4
+    add     r12, r2, r12, lsl #5
+    BCH128_XOR r4, r5, 0
+    BCH128_XOR r5, r6, 4
+    BCH128_XOR r6, r7, 8
+    ldr     r7, [r9, #12]
+    ldr     lr, [r10, #12]
+    ldr     r1, [r11, #12]
+    eor     r7, r7, lr
+    ldr     lr, [r12, #12]
+    eor     r7, r7, r1
+    eor     r7, r7, lr
+    subs    r3, r3, #1
+    bne     \word
+\store:
+    pop     {r0}
+    stmia   r0!, {r4-r7}
+    movs    r1, #0
+    str     r1, [r0]
+    str     r1, [r0, #4]
+    pop     {r4-r11, pc}
+    .endm
+
+    .section .text.dvbs2_bch128_continue, "ax", %progbits
+    .align 2
+    .global dvbs2_bch128_continue
+    .type dvbs2_bch128_continue, %function
+    .thumb_func
+dvbs2_bch128_continue:
+    BCH128_CONTINUE .Lbch128_check, .Lbch128_word, .Lbch128_store
+    .size dvbs2_bch128_continue, .-dvbs2_bch128_continue
+
+    .section .scratch_y.dvbs2_bch128_continue_y, "ax", %progbits
+    .align 2
+    .global dvbs2_bch128_continue_y
+    .type dvbs2_bch128_continue_y, %function
+    .thumb_func
+dvbs2_bch128_continue_y:
+    BCH128_CONTINUE .Lbch128y_check, .Lbch128y_word, .Lbch128y_store
+    .size dvbs2_bch128_continue_y, .-dvbs2_bch128_continue_y
+    .purgem BCH128_CONTINUE
+    .purgem BCH128_XOR
+
 // In-place 32x32 MSB-first transpose. Fuse stages 16/8 in four-register tiles
 // and stages 4/2/1 in eight-register tiles, loading/storing each matrix word twice.
     .section .scratch_x.dvbs2_transpose32, "ax", %progbits

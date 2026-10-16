@@ -1,6 +1,10 @@
 """Strict live-pointer host checks against real independent TS/GCS samples; no USB."""
 import copy
 import functools
+import json
+from pathlib import Path
+import sys
+import tempfile
 import unittest
 from unittest import mock
 import zlib
@@ -16,25 +20,27 @@ def capture_lines(values):
             for k in range(0, len(values), 16)]
 
 
-@functools.lru_cache(maxsize=2)
-def spi_stats(source):
+@functools.lru_cache(maxsize=10)
+def spi_stats(source, code_index=8):
+    rate = spi.QPSK_RATES[code_index]
     crc_fields = b''.join(spi.pv.message(k, spi.pv.pattern_payload(k))[-4:] for k in range(16))
     stats = dict.fromkeys(('lost', 'bad_hdr', 'bad_crc', 'bad_sync', 'null_packets',
                           'short_msgs', 'long_msgs', 'overflows', 'gcs_underflows'), 0)
     stats.update(ok=32, runtime_bbframes=2, runtime_messages=8, bbframes=6,
                  crc_chain=zlib.crc32(crc_fields*2),
-                 bb_crc=spi.first_crcs(gcs=source == 6, rate='5/6'))
-    size = 6*((53840-80)//8)
+                 bb_crc=spi.first_crcs(gcs=source == 6, rate=rate))
+    size = 6*((spi.qpsk_config(code_index)['kbch']-80)//8)
     stats.update(bb_mode='gcs' if source == 6 else 'ts', ts_packets=224 if source == 5 else 0,
                  gcs_packets=(size+187)//188 if source == 6 else 0,
                  gcs_bytes=size if source == 6 else 0)
     return stats
 
 
-def fixture(source=6, cpw=1, fault=0, clock_mode=1, clock=128000000):
+def fixture(source=6, cpw=1, fault=0, clock_mode=1, clock=128000000,
+            code_index=8, bch_kernel=2, bch_bank=1):
     cursor = 123*spi.FRAME_SYMBOLS+1000
     first, bus = spi.reference_window(cursor, span=8, beta=None, gcs=source == 6,
-                                      rate='5/6', profile=trial.L8_PROFILE)
+                                      rate=spi.QPSK_RATES[code_index], profile=trial.L8_PROFILE)
     offset = (cursor-first*spi.FRAME_SYMBOLS)*8+13
     bus = bus[offset+17*np.arange(trial.CAP_WORDS)].astype('<u4')
     values = bus | ((((bus >> 14) & 1) ^ (clock_mode == 2)) << 28)
@@ -46,7 +52,7 @@ def fixture(source=6, cpw=1, fault=0, clock_mode=1, clock=128000000):
     r = dict(cmd='dualptr', git='frozen-test-image', source=source, cpw=cpw, divider256=cpw*256,
              ms=3000, fault=fault, sps=4, L=8, row_symbols=4, writers=2,
              row_profile=trial.L8_PROFILE, filter_beta=None, schedule=0, bus_priority_mask=0,
-             code_index=8, s2_code='normal 5/6', kbch=53840, bch_kernel=2, map_kernel=1,
+             **spi.qpsk_config(code_index), bch_kernel=bch_kernel, bch_bank=bch_bank, map_kernel=1,
              ldpc_pack=1, frame_parallel=False, descriptor_gen_busy=0.0, sample_math_busy=0.0,
              in_words=8192, table_bytes=65536, table_crc=3433922394, restored=True,
              selectors_restored=True, poll_interval_us=128, max_poll_interval_us=256,
@@ -71,7 +77,7 @@ def fixture(source=6, cpw=1, fault=0, clock_mode=1, clock=128000000):
              capture_started=not fault, capture_count=0 if fault else trial.CAP_WORDS,
              cap_words=0 if fault else trial.CAP_WORDS,
              cap_symbol_cursor=cursor, cap_crc=0 if fault else zlib.crc32(values.tobytes()),
-             pv_spi=copy.deepcopy(spi_stats(source)))
+             pv_spi=copy.deepcopy(spi_stats(source, code_index)))
     return r, values, [] if fault else capture_lines(values)
 
 
@@ -80,16 +86,42 @@ class DualptrTrial(unittest.TestCase):
     def setUpClass(cls):
         # The real independent references are immutable; reuse them across mutations.
         cls.references = mock.patch('dual_spi.reference_window',
-                                    functools.lru_cache(maxsize=4)(spi.reference_window))
+                                    functools.lru_cache(maxsize=12)(spi.reference_window))
         cls.references.start()
 
     @classmethod
     def tearDownClass(cls):
         cls.references.stop()
 
-    def validate(self, r, lines, source=6, cpw=1, fault=0, clock_mode=1):
+    def validate(self, r, lines, source=6, cpw=1, fault=0, clock_mode=1,
+                 code_index=8, bch_kernel=2, bch_bank=1):
         return trial.validate_run(r, lines, cpw, 3000, source, fault, clock_mode,
-                                  128000000, 'frozen-test-image')
+                                  128000000, 'frozen-test-image', code_index, bch_kernel, bch_bank)
+
+    def test_high_rates_require_exact_fec_configuration(self):
+        for code_index in (9, 10):
+            for source in (5, 6):
+                for bch_kernel in (2, 3):
+                    r, _, lines = fixture(source, code_index=code_index, bch_kernel=bch_kernel)
+                    result = self.validate(r, lines, source, code_index=code_index, bch_kernel=bch_kernel)
+                    self.assertEqual(result['classification'], 'digital_live_clean', result)
+                    self.assertEqual(result['cap_checked_bus_words'], 4096)
+                    for field, value in (('code_index', 8), ('s2_code', 'normal 5/6'),
+                                         ('kbch', 53840), ('bch_kernel', 5-bch_kernel),
+                                         ('bch_bank', 0), ('ldpc_pack', 0)):
+                        changed = dict(r, **{field: value})
+                        self.assertTrue(self.validate(changed, lines, source, code_index=code_index,
+                                                      bch_kernel=bch_kernel)['faults'], field)
+                    control = dict(r, cmd='dualstream', writers=4)
+                    result = trial.validate_control(control, lines, 1, 3000, source, 128000000,
+                                                    'frozen-test-image', code_index, bch_kernel, 1, 1)
+                    self.assertEqual(result['classification'], 'cpu_descriptor_control_clean', result)
+                    for field, value in (('code_index', 8), ('s2_code', 'normal 5/6'), ('kbch', 53840),
+                                         ('bch_kernel', 5-bch_kernel), ('bch_bank', 0), ('ldpc_pack', 0)):
+                        result = trial.validate_control(dict(control, **{field: value}), lines, 1, 3000,
+                                                        source, 128000000, 'frozen-test-image',
+                                                        code_index, bch_kernel, 1, 1)
+                        self.assertTrue(result['faults'], field)
 
     def test_both_live_sources_both_rates_and_all4096_snapshots(self):
         for source in (5, 6):
@@ -214,6 +246,39 @@ class DualptrTrial(unittest.TestCase):
         changed = dict(r, cap_crc=zlib.crc32(values.tobytes()))
         self.assertTrue(trial.validate_control(changed, capture_lines(values), 1, 3000, 6,
                                                128000000, 'frozen-test-image')['faults'])
+
+    def test_runner_sends_and_archives_selected_high_rate_and_kernel(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            build, out = base/'build', base/'results'
+            build.mkdir()
+            for name in ('iqbench.uf2', 'iqbench.elf'):
+                (build/name).write_bytes(b'native runner fixture')
+            board = mock.Mock()
+            board.cmd.return_value = ({}, [])
+            argv = ['dualptr_trial.py', '--out', str(out), '--build', str(build),
+                    '--sources', '5', '6', '--cpws', '1', '--ms', '60000', '--control',
+                    '--code-index', '10', '--bch-kernel', '3', '--bch-bank', '1']
+            with mock.patch.object(sys, 'argv', argv), mock.patch.object(trial.iq, 'Board', return_value=board), \
+                    mock.patch.object(trial, 'validate_clock'), \
+                    mock.patch.object(trial, 'validate_run', return_value={'faults': []}) as positive, \
+                    mock.patch.object(trial, 'validate_control', return_value={'faults': []}) as control, \
+                    mock.patch('builtins.print'):
+                trial.main()
+            commands = [call.args[0] for call in board.cmd.call_args_list]
+            for command in ('bchkernel 3', 'ldpcpack 1', 'bchbank 1', 'dualclock 1',
+                            'dualptr 1 60000 5 0 10', 'dualptr 1 60000 6 0 10',
+                            'dualstream 1 60000 2 5 4096 0 0 0 4 10',
+                            'dualstream 1 60000 2 6 4096 0 0 0 4 10'):
+                self.assertIn(command, commands)
+            self.assertEqual(positive.call_count, 2)
+            self.assertEqual(control.call_count, 2)
+            self.assertTrue(all(call.args[-3:] == (10, 3, 1) for call in positive.call_args_list))
+            self.assertTrue(all(call.args[-4:] == (10, 3, 1, 1) for call in control.call_args_list))
+            manifest = json.loads((out/'manifest.json').read_text())
+            self.assertEqual({key: manifest[key] for key in ('code_index', 'bch_kernel', 'ldpc_pack', 'bch_bank')},
+                             dict(code_index=10, bch_kernel=3, ldpc_pack=1, bch_bank=1))
+            board.s.close.assert_called_once()
 
 
 if __name__ == '__main__':

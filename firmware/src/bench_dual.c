@@ -38,6 +38,7 @@ enum { SYMBOLS_PER_WORD = 16,
        REUSE_GUARD = 8, POLL_US = 32,
        ERR_UNDERRUN = 1u << 16, ERR_OWNERSHIP = 1u << 17, ERR_INPUT = 1u << 18 };
 _Static_assert(IN_WORDS + CAPTURE_WORDS + DVBS2_FE_WORDS <= CAP_WORDS_MAX, "split FE overlay");
+_Static_assert(PV_SLOTS * PV_MSG_WORDS <= TABLE_WORDS, "SPI receive slots fit borrowed I table");
 _Static_assert(PV_EMU_WORDS + SPI_BB_MAX_WORDS <= TABLE_WORDS, "SPI emulator plus one BB slot");
 _Static_assert(SPI_BB_MAX_WORDS <= BB_WORDS, "second SPI BB slot fits bb_buf");
 _Static_assert(IQQUAD_WORDS == N_BLOCKS * BLOCK_WORDS, "quad table must fit existing sample ring");
@@ -367,28 +368,43 @@ static void capture_print(const uint32_t *capture, uint32_t count) {
     if (count) printf("@capend\n");
 }
 
+static bool trial_code(int code_index, const char **code_name, unsigned *bb_bits) {
+    // Constant member reads let the compiler use the generated metadata without
+    // retaining another copy of every LDPC address table in this translation unit.
+    switch (code_index) {
+    case S2_N2_3:
+        *code_name = DVBS2_CODES[S2_N2_3].name;
+        *bb_bits = DVBS2_CODES[S2_N2_3].kbch;
+        break;
+    case S2_N3_4:
+        *code_name = DVBS2_CODES[S2_N3_4].name;
+        *bb_bits = DVBS2_CODES[S2_N3_4].kbch;
+        break;
+    case S2_N5_6:
+        *code_name = DVBS2_CODES[S2_N5_6].name;
+        *bb_bits = DVBS2_CODES[S2_N5_6].kbch;
+        break;
+    case S2_N8_9:
+        *code_name = DVBS2_CODES[S2_N8_9].name;
+        *bb_bits = DVBS2_CODES[S2_N8_9].kbch;
+        break;
+    case S2_N9_10:
+        *code_name = DVBS2_CODES[S2_N9_10].name;
+        *bb_bits = DVBS2_CODES[S2_N9_10].kbch;
+        break;
+    default:
+        return false;
+    }
+    return true;
+}
+
 // fault:1=wrong valid Q row (reference must reject),2=stop publishing (ownership must reject).
 void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, int fault,
                        int schedule, int divider256, int row_symbols, int code_index) {
     const char *code_name;
     unsigned bb_bits;
-    // Constant member reads let the compiler use the generated metadata without
-    // retaining another copy of every LDPC address table in this translation unit.
-    switch (code_index) {
-    case S2_N2_3:
-        code_name = DVBS2_CODES[S2_N2_3].name;
-        bb_bits = DVBS2_CODES[S2_N2_3].kbch;
-        break;
-    case S2_N3_4:
-        code_name = DVBS2_CODES[S2_N3_4].name;
-        bb_bits = DVBS2_CODES[S2_N3_4].kbch;
-        break;
-    case S2_N5_6:
-        code_name = DVBS2_CODES[S2_N5_6].name;
-        bb_bits = DVBS2_CODES[S2_N5_6].kbch;
-        break;
-    default:
-        printf("@{\"error\":\"dual trial code_index must be5,6 or8\"}\n");
+    if (!trial_code(code_index, &code_name, &bb_bits)) {
+        printf("@{\"error\":\"dual trial code_index must be5,6,8,9 or10\"}\n");
         return;
     }
     const bool spi = spi_source(source), split = source >= SOURCE_DVBS2_SPLIT;
@@ -643,7 +659,7 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
            "\"gen_cyc_per_sym\":%.4f,\"gen_busy\":%.4f,\"control_busy\":%.4f,\"core0_work_busy\":%.4f,\"core0_active_busy\":%.4f,"
            "\"max_gen_cyc\":%lu,\"max_poll_gap_us\":%lu,\"poll_interval_us\":%u,\"min_lead_syms\":%lld,"
            "\"block_syms\":%u,\"split_bb_stride_words\":%u,\"split_bch_frames\":%lu,\"split_bch_busy\":%.4f,\"split_bch_max_cyc\":%lu,\"split_bch_max_slice_cyc\":%lu,\"split_bch_slices\":%lu,\"split_bch_slice_words\":%u,\"input_waits\":%lu,\"s2_runtime_frames\":%lu,\"s2_busy\":%.4f,\"bch_kernel\":%d,"
-           "\"map_kernel\":%u,\"one_core\":%s,\"s2_core\":%d,\"s2_max_frame_cyc\":%lu,\"s2_max_slice_cyc\":%lu,"
+           "\"map_kernel\":%u,\"ldpc_pack\":%u,\"bch_bank\":%u,\"one_core\":%s,\"s2_core\":%d,\"s2_max_frame_cyc\":%lu,\"s2_max_slice_cyc\":%lu,"
            "\"s2_stage_max_cyc\":{\"bb_bch\":%lu,\"ldpc\":%lu,\"map\":%lu},\"s2_incomplete_stage\":%u,"
            "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%u,\"cap_fifo_only\":%u,"
            "\"dac_clock\":\"%s\",\"dac_clock_pio\":%d,\"dac_clock_sm\":%d,\"cap_format\":\"%s\"",
@@ -671,7 +687,8 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
            (unsigned long)bch_slices, BCH_SLICE_WORDS, (unsigned long)input_waits,
            (unsigned long)(source >= SOURCE_DVBS2_CORE1 ? encoder.frames - encoder.prefill : 0),
            source >= SOURCE_DVBS2_CORE1 && encoder_budget ? encoder.busy_cyc / encoder_budget : 0,
-           (int)dvbs2_bch_get_kernel(), dvbs2_map_get_kernel(), source == SOURCE_DVBS2_CORE0 ? "true" : "false", source >= SOURCE_DVBS2_CORE1 ? (source == SOURCE_DVBS2_CORE0 ? 0 : 1) : -1,
+           (int)dvbs2_bch_get_kernel(), dvbs2_map_get_kernel(), dvbs2_ldpc_get_pack(), dvbs2_frontend_get_bank(),
+           source == SOURCE_DVBS2_CORE0 ? "true" : "false", source >= SOURCE_DVBS2_CORE1 ? (source == SOURCE_DVBS2_CORE0 ? 0 : 1) : -1,
            (unsigned long)(source >= SOURCE_DVBS2_CORE1 ? encoder.max_frame_cyc : 0),
            (unsigned long)(source == SOURCE_DVBS2_CORE0 ? encoder.max_slice_cyc : source == SOURCE_DVBS2_CORE1 ? encoder.max_frame_cyc : 0),
            (unsigned long)(source == SOURCE_DVBS2_CORE0 ? encoder.max_stage_cyc[0] : 0),
@@ -692,16 +709,19 @@ void bench_dual_stream(int cpw, int ms, int kernel, int source, int cap_words, i
 // Live SPI/FEC with hardware-only shaping. The existing FIFO backend has two
 // writers; keep its paired-axis pacing rather than race four DMA readers on two
 // RX FIFOs. Core0 performs bounded BB+BCH slices, core1 retains ordered LDPC/map.
-void bench_dual_pointer(int cpw, int ms, int source, int fault) {
+void bench_dual_pointer(int cpw, int ms, int source, int fault, int code_index) {
     enum { PTR_POLL_US = 128, PTR_MAX_POLL_US = 256, PTR_BCH_SLICE_WORDS = 96,
            ERR_POINTER = 1u << 19, ERR_CAPTURE = 1u << 20, ERR_POLL = 1u << 21,
            ERR_CONFIG = 1u << 22, ERR_CREDIT = 1u << 23, ERR_CLEANUP = 1u << 24 };
-    if ((cpw != 1 && cpw != 2) || ms < 100 || ms > 60000 ||
+    const char *code_name;
+    unsigned bb_bits;
+    if (!trial_code(code_index, &code_name, &bb_bits) || code_index == S2_N3_4 ||
+        (cpw != 1 && cpw != 2) || ms < 100 || ms > 60000 ||
         !spi_source(source) || (fault != 0 && fault != 1) ||
-        dvbs2_bch_get_kernel() != S2_BCH_STREAM_ARM || dvbs2_map_get_kernel() != 1 ||
+        (dvbs2_bch_get_kernel() != S2_BCH_STREAM_ARM && dvbs2_bch_get_kernel() != S2_BCH_T8_ARM) || dvbs2_map_get_kernel() != 1 ||
         dvbs2_ldpc_get_pack() != 1 || !spi_resources_available() ||
         iqquadptr_rx_fifo(0) || iqquadptr_rx_fifo(1)) {
-        printf("@{\"cmd\":\"dualptr\",\"error\":\"needs cpw1/2,100..60000ms,source5/6,fault0/1,bchkernel2,mapkernel1,ldpcpack1 and idle resources\"}\n");
+        printf("@{\"cmd\":\"dualptr\",\"error\":\"needs cpw1/2,100..60000ms,source5/6,fault0/1,code5/8/9/10,bchkernel2/3,mapkernel1,ldpcpack1 and idle resources\"}\n");
         return;
     }
     const unsigned saved_writers = dual_dma_get_writers(), saved_rows = dual_dma_get_row_words();
@@ -738,7 +758,7 @@ void bench_dual_pointer(int cpw, int ms, int source, int fault) {
         errors |= ERR_CONFIG; reason = "pointer table CRC mismatch"; goto cleanup;
     }
     spi_started = true;
-    if (!prefill_spi() || !prefill_encoder(source, in_buf, 0, S2_N5_6, 53840)) {
+    if (!prefill_spi() || !prefill_encoder(source, in_buf, 0, code_index, bb_bits)) {
         errors |= ERR_INPUT; reason = "SPI/encoder prefill failed"; goto cleanup;
     }
     // in_buf is a naturally32KiB-aligned ring. The old descriptor path used it
@@ -850,8 +870,8 @@ cleanup:
     printf("@{\"cmd\":\"dualptr\",\"git\":\"%s\",\"clk_hz\":%lu,\"source\":%d,\"cpw\":%d,\"divider256\":%d,"
            "\"ms\":%d,\"fault\":%d,\"elapsed_us\":%lu,\"sym_rate\":%.1f,\"sps\":4,\"L\":8,"
            "\"row_profile\":\"qpsk_l8_n4_both_m010_far2\",\"filter_beta\":null,\"row_symbols\":4,\"writers\":2,"
-           "\"schedule\":0,\"bus_priority_mask\":%u,\"code_index\":8,\"s2_code\":\"normal 5/6\",\"kbch\":53840,"
-           "\"bch_kernel\":2,\"map_kernel\":1,\"ldpc_pack\":1,\"bch_bank\":%u,\"frame_parallel\":false,"
+           "\"schedule\":0,\"bus_priority_mask\":%u,\"code_index\":%d,\"s2_code\":\"%s\",\"kbch\":%u,"
+           "\"bch_kernel\":%d,\"map_kernel\":1,\"ldpc_pack\":1,\"bch_bank\":%u,\"frame_parallel\":false,"
            "\"descriptor_gen_busy\":0.0,\"sample_math_busy\":0.0,\"table_base\":%lu,\"table_bytes\":65536,\"table_crc\":%lu,"
            "\"input_base\":%lu,\"in_words\":8192,\"errors\":%lu,\"pointer_errors\":%lu,\"output_errors\":%lu,\"reason\":\"%s\","
            "\"txstalls_i\":%lu,\"txstalls_q\":%lu,\"pointer_sm_mask\":%lu,\"pointer_txstall_mask\":%lu,"
@@ -866,8 +886,8 @@ cleanup:
            "\"cap_symbol_cursor\":%llu,\"cap_words\":%lu,\"cap_crc\":%lu,\"cap_stride\":17,\"cap_divider256\":%d,"
            "\"cap_fifo_only\":false,\"cap_format\":\"%s\",\"dac_clock\":\"%s\",\"dac_clock_pio\":%d,\"dac_clock_sm\":%d",
            GIT_REV, (unsigned long)clock_hz, source, cpw, cpw * 256, ms, fault, (unsigned long)elapsed,
-           (double)clock_hz / (8 * cpw), dual_dma_get_bus_priority(), dvbs2_frontend_get_bank(),
-           (unsigned long)base, (unsigned long)table_crc,
+           (double)clock_hz / (8 * cpw), dual_dma_get_bus_priority(), code_index, code_name, bb_bits,
+           (int)dvbs2_bch_get_kernel(), dvbs2_frontend_get_bank(), (unsigned long)base, (unsigned long)table_crc,
            (unsigned long)(uintptr_t)in_buf, (unsigned long)errors, (unsigned long)p.errors, (unsigned long)output.errors, reason,
            (unsigned long)output.txstalls_i, (unsigned long)output.txstalls_q, (unsigned long)pointer_sm_mask,
            (unsigned long)p.txstall_mask, (unsigned long)p.rxstall_mask, (unsigned long)p.null_trigger_mask,

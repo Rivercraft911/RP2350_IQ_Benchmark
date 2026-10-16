@@ -9,7 +9,7 @@
 #include "iqgen.h"
 
 // Exercise every selectable BCH implementation against the bit-serial definition, including
-// nonzero unused bits in a final partial word. Kernel 2 uses the C recurrence on this host;
+// nonzero unused bits in a final partial word. Kernels 2/3 use C recurrences on this host;
 // the Thumb-2 scheduling and register preservation still require the device checks.
 static int check_bch_kernels(const dvbs2_code_t *c, uint32_t *input, uint32_t *got, uint32_t *ref) {
     const uint32_t nw = (c->kbch + 31u) / 32;
@@ -26,7 +26,7 @@ static int check_bch_kernels(const dvbs2_code_t *c, uint32_t *input, uint32_t *g
             input[nw - 1] ^= 1u << (31u - ((c->kbch - 1u) & 31u));
         }
         dvbs2_bch_serial(input, ref);
-        for (int kernel = S2_BCH_BASELINE; kernel <= S2_BCH_STREAM_ARM; kernel++) {
+        for (int kernel = S2_BCH_BASELINE; kernel <= S2_BCH_T8_ARM; kernel++) {
             ok &= dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)kernel);
             dvbs2_bch(input, got);
             if (memcmp(got, ref, 24)) {
@@ -37,8 +37,8 @@ static int check_bch_kernels(const dvbs2_code_t *c, uint32_t *input, uint32_t *g
     }
     // Reject out-of-range selectors without silently changing the active kernel.
     ok &= !dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)-1);
-    ok &= !dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)3);
-    ok &= dvbs2_bch_get_kernel() == S2_BCH_STREAM_ARM;
+    ok &= !dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)4);
+    ok &= dvbs2_bch_get_kernel() == S2_BCH_T8_ARM;
     return ok;
 }
 
@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
             int frame_ok = 1;
             uint32_t baseline_n = 0;
             for (unsigned pack = 0; pack < 2; pack++)
-            for (int kernel = S2_BCH_BASELINE; kernel <= S2_BCH_STREAM_ARM; kernel++) {
+            for (int kernel = S2_BCH_BASELINE; kernel <= S2_BCH_T8_ARM; kernel++) {
                 dvbs2_ldpc_set_pack(pack);
                 dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)kernel);
                 s = (symstream_t){.out = out, .mask = ~0u};

@@ -25,9 +25,12 @@ typedef enum {
     S2_BCH_BASELINE = 0,        // original six-word slicing-by-four C
     S2_BCH_WORDS_C = 1,         // five-word specialization for degree 160, otherwise baseline
     S2_BCH_STREAM_ARM = 2,      // degree-160 streamed Thumb-2, otherwise WORDS_C
+    S2_BCH_T8_ARM = 3,          // degree-128 four-word Thumb-2, otherwise STREAM_ARM
 } dvbs2_bch_kernel_t;
 // Experimental selection, retained across dvbs2_init. Default is BASELINE. On non-Arm hosts,
-// STREAM_ARM uses WORDS_C; the native tests validate the same recurrence, not Arm scheduling.
+// STREAM_ARM uses WORDS_C; T8_ARM uses a portable four-word recurrence for degree128.
+// Native tests validate the recurrences, not Arm scheduling. The full-frame T8_ARM leaf
+// remains in XIP: core 1 may call it while core 0 owns scratch Y.
 bool dvbs2_bch_set_kernel(dvbs2_bch_kernel_t kernel);
 dvbs2_bch_kernel_t dvbs2_bch_get_kernel(void);
 // Opt-in mapper experiment: 0 = baseline, 1 = packed-carry contiguous chunks.
@@ -88,7 +91,7 @@ uint32_t *dvbs2_frame_buffer(void);
 void dvbs2_frame_begin_into(const uint32_t *bbframe, uint32_t *frame);
 void dvbs2_frame_ldpc_into(uint32_t *frame);
 void dvbs2_frame_finish_from(const uint32_t *frame, symstream_t *s);
-// Optional bounded frontend for degree160 with BCH selectors WORDS_C or STREAM_ARM.
+// Optional bounded frontend for degree128/160 with any nonbaseline BCH selector.
 // Successful begin copies the complete BBFRAME, then steps consume at most max_words
 // complete input words. The final step also handles <=3 tail bytes and appends BCH.
 // Unsupported begin returns false WITHOUT modifying frame or state, allowing full-begin
@@ -104,8 +107,9 @@ bool dvbs2_frontend_begin(const uint32_t *bbframe, uint32_t *frame, dvbs2_fronte
 // Call only after successful begin. max_words0 makes no progress; completed calls are
 // idempotent and return true. On Arm selector2 continues the streamed assembly recurrence.
 bool dvbs2_frontend_step(dvbs2_frontend_t *state, uint32_t max_words);
-// Instruction placement for frontend steps with selector STREAM_ARM: 0 = striped SRAM
+// Instruction placement for frontend steps with selectors STREAM_ARM/T8_ARM: 0 = striped SRAM
 // (default), 1 = an identical copy in scratch Y, for a core-0 caller. Select while idle.
+// T8_ARM degree128 specializes only bank1 to four words; bank0 retains the five-word leaf.
 // Portable builds accept the setting; the C recurrence is unchanged.
 bool dvbs2_frontend_set_bank(unsigned bank);
 unsigned dvbs2_frontend_get_bank(void);
