@@ -72,6 +72,9 @@ typedef struct {
     bool out_added, out_q_added, cap_added, saved, hstx_changed, hstx_was_reset, priority_changed;
     bool owned, running, capture_started, capture_fifo_only, capture_complete, capture_frozen;
     bool fifo_source, control_bswap;
+#ifdef IQ4HIST_EXPERIMENT
+    bool shared_axis_row;
+#endif
     uint32_t count, mask, divider256, schedule, row_words, writers, sys_hz, last[4], last_poll_us, poll_limit_us;
     uint64_t rows[4];
     const uint32_t *desc_i, *desc_q;
@@ -109,9 +112,17 @@ static uint32_t out_mask(void) {
     return state.output_sm_mask;
 }
 
+static bool shared_samples(void) {
+#ifdef IQ4HIST_EXPERIMENT
+    return state.row_words >= 4 || state.shared_axis_row;
+#else
+    return state.row_words >= 4;
+#endif
+}
+
 static const pio_program_t *i_output_program(void) {
     return state.writers == 4 ? (state.row_words == 8 ? &quad_four_i_program : &four_i_program) :
-        state.row_words >= 4 ? &paired_i_program : &out_program;
+        shared_samples() ? &paired_i_program : &out_program;
 }
 
 static const pio_program_t *q_output_program(void) {
@@ -499,6 +510,31 @@ bool dual_dma_start_fifo_div256(const volatile uint32_t *rx_i, const volatile ui
     return start_output(divider256, 0);
 }
 
+#ifdef IQ4HIST_EXPERIMENT
+bool dual_dma_start_axis_fifo(const volatile uint32_t *rx_i, const volatile uint32_t *rx_q,
+                              unsigned dreq_i, unsigned dreq_q, unsigned cpw) {
+    if (state.owned) { last_error = "dual DMA already owns resources"; return false; }
+    claim_init();
+    state.fifo_source = true;
+    state.shared_axis_row = true;
+    if (selected_writers != 2 || selected_row_words != 2 ||
+        !rx_i || !rx_q || rx_i == rx_q || dreq_i == dreq_q ||
+        !valid_rx_source(rx_i, dreq_i) || !valid_rx_source(rx_q, dreq_q) ||
+        (cpw != 2 && cpw != 4))
+        return start_failed("axis FIFO needs two writers, two-word shared rows and cpw2/4",
+                            DUAL_DMA_ERR_CONFIG);
+    state.writers = 2;
+    state.output_pio = pio0;
+    state.row_words = 2;
+    state.rx_i = rx_i; state.rx_q = rx_q;
+    state.rx_dreq_i = dreq_i; state.rx_dreq_q = dreq_q;
+    state.divider256 = cpw * 256;
+    state.schedule = selected_schedule;
+    state.sys_hz = clock_get_hz(clk_sys);
+    return start_output(state.divider256, 0);
+}
+#endif
+
 static bool start_output(unsigned divider256, unsigned count_log2) {
     state.dac_clock = selected_dac_clock;
     // A fractional divider alternates short and long ticks: DDR edges would stay paired
@@ -536,7 +572,7 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
         return start_failed("dual DMA PIO instruction space unavailable", DUAL_DMA_ERR_CONFIG);
     state.out_offset = pio_add_program(state.output_pio, i_program); state.out_added = true;
     state.out_q_offset = state.out_offset;
-    if (state.row_words >= 4) {
+    if (shared_samples()) {
         const pio_program_t *q_program = q_output_program();
         if (!pio_can_add_program(state.output_pio, q_program))
             return start_failed("paired DMA output Q instruction space unavailable", DUAL_DMA_ERR_CONFIG);
@@ -571,8 +607,8 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
         gpio_set_drive_strength(p, BUS_DRIVE);
     }
     pio_sm_config pc = pio_get_default_sm_config();
-    sm_config_set_out_pins(&pc, PIN_D0, state.row_words >= 4 ? 14 : 16);
-    if (state.row_words >= 4) {
+    sm_config_set_out_pins(&pc, PIN_D0, shared_samples() ? 14 : 16);
+    if (shared_samples()) {
         sm_config_set_sideset(&pc, 2, true, false); // one value bit plus optional enable
         sm_config_set_sideset_pins(&pc, PIN_D0 + 14);
     }
@@ -592,7 +628,7 @@ static bool start_output(unsigned divider256, unsigned count_log2) {
             pio_sm_exec_wait_blocking(state.output_pio, state.sm[s], pio_encode_set(pio_x, initial_x[s]));
         }
     }
-    if (state.row_words >= 4)
+    if (shared_samples())
         pio_sm_set_pins_with_mask(state.output_pio, state.sm[0], 0, 1u << (PIN_D0 + 15));
     if (state.dac_clock) {
         const uint32_t pin = 1u << PIN_DACCLK;

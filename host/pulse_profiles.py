@@ -16,6 +16,36 @@ L8_COEFFICIENTS = np.array([
     97555, 101009, 44626, -16902, -43578, -32743, -9152, 18026,
 ], dtype=np.int64)
 
+L7_PROFILE = "qpsk_l7_n4_hold_m010_far2"
+L7_COEFFICIENTS = np.array([
+    -40558, -43572, -14753, 39237, 100386, 94551, 13532, -127225,
+    -219473, -172708, 74855, 466885, 875097, 1132555, 1132555, 875097,
+    466885, 74855, -172708, -219473, -127225, 13532, 94551, 100386,
+    39237, -14753, -43572, -40558,
+], dtype=np.int64)
+FOUR_LEVELS_Q30 = np.array([992008094, -410903207, 410903207, -992008094], dtype=np.int64)
+
+
+def iq4hist_rows():
+    """All L7/N4 rows: newest two-bit level low, chronological sample pairs."""
+    keys = np.arange(4 ** 7, dtype=np.int64)[:, None]
+    codes = (keys >> (2 * np.arange(7))) & 3
+    sums = FOUR_LEVELS_Q30[codes] @ L7_COEFFICIENTS.reshape(7, 4)
+    samples = (((sums + (1 << 37)) >> 38) & 0x3fff).astype("<u4")
+    return samples[:, ::2] | (samples[:, 1::2] << 16)
+
+
+def iq4hist_prbs(seed, symbols):
+    """Independent mathematical 8PSK labels as (I,Q) chronological level codes."""
+    phases = iqlut.xorshift32(seed, symbols) & 7
+    points = np.exp(1j * (np.pi / 8 + phases * np.pi / 4))
+    result = []
+    for coordinate in (points.real, points.imag):
+        a = (coordinate < 0).astype(np.int64)
+        b = a ^ (abs(coordinate) < .7).astype(np.int64)
+        result.append(a | (b << 1))
+    return np.asarray(result)
+
 
 def qpsk_lut(span, beta, profile=None):
     if profile == L8_PROFILE:

@@ -31,7 +31,7 @@ The imported branch contains the requested committed artifacts. The existing wor
 files also contain the changes. Build identity in this restricted worktree is therefore
 `8014ed33b9-dirty`; a clean checkout of the imported branch gets its own commit identity.
 
-The implementation reuses [bench_dual.c](firmware/src/bench_dual.c), including its actual
+The implementation reuses [bench_dual.c](../../firmware/src/bench_dual.c), including its actual
 SPI prefill, BB queues, sliced frontend and ordered backend. The command fixes normal
 5/6, pilots, L8/N4, packed mapper and streaming LDPC packer. It requires `bchkernel 2`,
 `mapkernel 1`, `ldpcpack 1`; the runner additionally selects `bchbank 1`. Existing commands,
@@ -138,7 +138,7 @@ During pins32 capture, `128e6/17 = 7.53 M` additional transfers/s last approxima
 not guarantee a FIFO handoff deadline. L8 pointer execution is 49/128 = 38.3% of each
 pointer SM's available cycles at this symbol rate; its ideal unpaced ceiling is 41.8 Msym/s.
 
-M33 cycle estimates use the instruction timings in [rp2350-notes.md](docs/rp2350-notes.md),
+M33 cycle estimates use the instruction timings in [rp2350-notes.md](../../docs/rp2350-notes.md),
 not native timing. Disassembly gives approximately 236 instructions for the healthy pointer
 cursor/fault/publish and output-fault leaves, plus roughly 80–130 outer/copy instructions
 and amortized grant work. Charging taken branches, result-use penalties and uncertain
@@ -291,9 +291,9 @@ thermal/long-run behavior or AFE/RF performance. The 96-word slices and two-writ
 need the coordinator's measurements. If the short run faults, preserve its evidence and
 compare the same-rate four-writer control; do not disable guards to obtain a positive row.
 
-Input evidence was read from [README](README.md), [DAC clock notes](docs/dac-clock.md),
-[RP2350 notes](docs/rp2350-notes.md), [optimized encoder measurements](results/optimizations/2026-10-15/README.md),
-[waveform campaign](results/waveforms/2026-10-15/README.md),
-[DDR clock campaign](results/dac-clock/2026-10-15/README.md), pointer campaign summaries and
+Input evidence was read from [README](../../README.md), [DAC clock notes](../../docs/dac-clock.md),
+[RP2350 notes](../../docs/rp2350-notes.md), [optimized encoder measurements](../../results/optimizations/2026-10-15/README.md),
+[waveform campaign](../../results/waveforms/2026-10-15/README.md),
+[DDR clock campaign](../../results/dac-clock/2026-10-15/README.md), pointer campaign summaries and
 the memory-placement A/B/A record. Measured priors above retain their original scope;
 all new cycle/load predictions and event models are estimates or simulations.
