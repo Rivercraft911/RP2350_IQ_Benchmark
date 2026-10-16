@@ -73,6 +73,7 @@ check: test            ## encoder, protocol, PIO/DMA models and result validatio
 	python3 host/test_apsk_live.py
 	python3 host/test_apsk_fec_native.py
 	python3 host/test_apsk_split_native.py
+	python3 host/test_apsk_fast_pic.py
 	python3 host/apsk_live_trial.py --self-test
 	python3 host/apsk_fec_trial.py --self-test
 	python3 host/test_iq16out.py
