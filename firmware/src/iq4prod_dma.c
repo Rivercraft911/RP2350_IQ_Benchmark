@@ -409,6 +409,21 @@ iq4prod_progress_t iq4prod_dma_progress(void) {
     return state.result;
 }
 
+iq4prod_irq_poll_t iq4prod_dma_poll_light(void) {
+    // Memory-only service: the IRQ-retired cursors and IRQ-latched errors, no PIO or DMA
+    // register reads. Callers take iq4prod_dma_poll_irq() periodically for FDEBUG faults.
+    if (!state.owned || !state.irq_mode)
+        return (iq4prod_irq_poll_t){0, 0, IQ4PROD_ERR_CONFIG};
+    uint32_t low = UINT32_MAX;
+    for (unsigned stream = 0; stream < 4; ++stream) {
+        const uint32_t completed = state.snapshot.completed[stream];
+        if (completed < low) low = completed;
+    }
+    state.result.reusable_words = low;
+    state.result.errors |= state.snapshot.errors;
+    return (iq4prod_irq_poll_t){low, state.published, state.result.errors};
+}
+
 iq4prod_irq_poll_t iq4prod_dma_poll_irq(void) {
     if (!state.owned || !state.irq_mode)
         return (iq4prod_irq_poll_t){0, 0, IQ4PROD_ERR_CONFIG};

@@ -160,9 +160,16 @@ void bench_b9(int cpw, int ms, int invert, int priority, int slow_us, int option
         errors |= ERR_CONFIG; reason = "table or FEC setup"; goto cleanup;
     }
     enable_cyccnt(); release(0, 0); release(1, 1); tx_worker_start(core1, 0); worker = true;
-    while (live.published < 2 && !live.errors) {
+    // Prefill: publish frames 0 and 1, and start frames 2 and 3 as soon as each core is free.
+    // Output starts once core 0's frame 2 reaches its credit-gated mapper, so frames 2/3 get
+    // their GCS/BCH/LDPC done before the 2-frame output runway begins to drain. On c87c54dfbf
+    // (frames 2/3 released after output start) 16 Msym/s ran dry after the two prefill frames.
+    while ((live.published < 2 || live.core[0].job.index < 2 || live.core[0].job.stage < C3_MAP) &&
+           !live.errors) {
         if (live.core[0].status == RUN) work(0);
         publish();
+        for (unsigned c = 0; c < 2; ++c)
+            if (live.core[c].status == IDLE && live.core[c].job.index < 2) release(c, live.core[c].job.index + 2u);
     }
     if (live.errors) { errors |= live.errors; reason = "prefill FEC"; goto cleanup; }
     producer = true;
@@ -174,7 +181,6 @@ void bench_b9(int cpw, int ms, int invert, int priority, int slow_us, int option
     if (!dual_dma_start_quad_fifo(rx, dreq, (unsigned)cpw)) { errors |= ERR_CONFIG; reason = dual_dma_last_error(); goto cleanup; }
     start = time_us_64(); startup_us = start - startup_us;
     for (unsigned c = 0; c < 2; ++c) live.timed_begin[c] = live.core[c].busy_cycles;
-    release(0, 2); release(1, 3);
     uint64_t next_service = start, previous = start;
     while (time_us_64() - start < (uint32_t)ms * 1000u) {
         const uint32_t begin = cycles(); const uint64_t work_before = live.core[0].busy_cycles;
@@ -185,9 +191,13 @@ void bench_b9(int cpw, int ms, int invert, int priority, int slow_us, int option
             if (gap > max_gap) max_gap = gap;
             previous = now; next_service = now + SERVICE_US; ++polls;
             if (gap > 128) { errors |= ERR_SERVICE; reason = "supervision gap"; }
-            const iq4prod_irq_poll_t q = iq4prod_dma_poll_irq();
+            // Register fault sampling (PIO FDEBUG, DMA INTR) every fourth service, about
+            // 128 us; the other services read only memory. On c87c54dfbf a full service cost
+            // about 840 cycles at 16 Msym/s, about 20% of core 0 at a 32-us cadence.
+            const bool full = (polls & 3u) == 1u;
+            const iq4prod_irq_poll_t q = full ? iq4prod_dma_poll_irq() : iq4prod_dma_poll_light();
             uint32_t pointer_errors = q.errors;
-            out = dual_dma_faults();
+            if (full) out = dual_dma_faults();
             live.reusable = q.reusable_words; __dmb(); __sev();
             publish();
             if (live.groups != q.published_words) {
@@ -209,7 +219,10 @@ void bench_b9(int cpw, int ms, int invert, int priority, int slow_us, int option
         }
         supervise += (uint32_t)(cycles() - begin) - (uint32_t)(live.core[0].busy_cycles - work_before);
         if (errors) break;
-        if (!worked) busy_wait_us_32(1); // idle time excluded; IRQ service remains enabled
+        if (!worked) { // idle until the next service; excluded from supervise, IRQs stay enabled
+            const uint64_t t = time_us_64();
+            busy_wait_us_32(t < next_service ? (uint32_t)(next_service - t) : 1u);
+        }
     }
     elapsed = (uint32_t)(time_us_64() - start);
 cleanup:

@@ -209,6 +209,7 @@ iq4prod_irq_poll_t iq4prod_dma_poll_irq(void) {
     return (iq4prod_irq_poll_t){.reusable_words=(uint32_t)p.reusable_words,
         .published_words=(uint32_t)p.published_words,.errors=p.errors};
 }
+iq4prod_irq_poll_t iq4prod_dma_poll_light(void) { return iq4prod_dma_poll_irq(); } /* model: IRQ cursors advance either way */
 iq4prod_progress_t iq4prod_dma_publish(uint64_t words) {
     iq4prod_dma_progress();
     assert(words>=published && words-reusable<=4096);

@@ -58,6 +58,7 @@ iq4prod_progress_t iq4prod_dma_progress(void);
 // cursor is monotonic, so independently read32-bit cursors give conservative
 // retirement without copying the full diagnostic snapshot/result structures.
 iq4prod_irq_poll_t iq4prod_dma_poll_irq(void);
+iq4prod_irq_poll_t iq4prod_dma_poll_light(void);
 iq4prod_progress_t iq4prod_dma_publish(uint64_t published_words);
 const volatile uint32_t *iq4prod_dma_rx_fifo(unsigned stream);
 unsigned iq4prod_dma_rx_dreq(unsigned stream);
