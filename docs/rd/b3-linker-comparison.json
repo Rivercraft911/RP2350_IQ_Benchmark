@@ -1,0 +1,763 @@
+{
+  "kind": "offline_source_object_and_linker_comparison_no_device_measurement",
+  "sdk": "2.2.0",
+  "compiler": "arm-none-eabi-gcc (Arm GNU Toolchain 14.2.Rel1 (Build arm-14.52)) 14.2.1 20241119",
+  "build": "Release; IQ4HIST_EXPERIMENT=ON; make build BUILD=firmware/build-b3-regression",
+  "version_metadata": "archive git_rev.cmake writes each original ten-digit revision",
+  "images": {
+    "b2": {
+      "revision": "2081cb740bd8588c9a0efa159422b552e4fc5f26",
+      "cmake_flags": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DIQ4HIST_EXPERIMENT=ON"
+      ],
+      "sections": {
+        ".text": {
+          "address": "0x10000000",
+          "bytes": 160720
+        },
+        ".rodata": {
+          "address": "0x100273d0",
+          "bytes": 127224
+        },
+        ".waveform_ring": {
+          "address": "0x20000000",
+          "bytes": 131072
+        },
+        ".input_ring": {
+          "address": "0x20020000",
+          "bytes": 65536
+        },
+        ".data": {
+          "address": "0x20030110",
+          "bytes": 40448
+        },
+        ".bss": {
+          "address": "0x20039f40",
+          "bytes": 23208
+        },
+        ".sram_hi": {
+          "address": "0x20040000",
+          "bytes": 258016
+        },
+        ".heap": {
+          "address": "0x2003f9e8",
+          "bytes": 1024
+        },
+        ".scratch_x": {
+          "address": "0x20080000",
+          "bytes": 2032
+        },
+        ".scratch_y": {
+          "address": "0x20081000",
+          "bytes": 1744
+        },
+        ".stack1_dummy": {
+          "address": "0x200807f0",
+          "bytes": 2048
+        },
+        ".stack_dummy": {
+          "address": "0x200816e0",
+          "bytes": 2048
+        }
+      },
+      "symbols": {
+        "sample_faults": [
+          {
+            "address": "0x10003dcc",
+            "bytes": 288
+          },
+          {
+            "address": "0x1001d7d8",
+            "bytes": 280
+          },
+          {
+            "address": "0x20035a50",
+            "bytes": 320
+          }
+        ],
+        "encode_frame": [
+          {
+            "address": "0x1000e844",
+            "bytes": 344
+          },
+          {
+            "address": "0x10019004",
+            "bytes": 416
+          },
+          {
+            "address": "0x1001ebf4",
+            "bytes": 372
+          }
+        ],
+        "encoder_task": [
+          {
+            "address": "0x1000e99c",
+            "bytes": 484
+          },
+          {
+            "address": "0x1001ed68",
+            "bytes": 92
+          },
+          {
+            "address": "0x20038b00",
+            "bytes": 92
+          }
+        ],
+        "iq4hist_pack_group": [
+          {
+            "address": "0x1001d698",
+            "bytes": 154
+          }
+        ],
+        "bench4fec": [
+          {
+            "address": "0x1001edc8",
+            "bytes": 4444
+          }
+        ],
+        "ring_buf": [
+          {
+            "address": "0x20000000",
+            "bytes": 131072
+          }
+        ],
+        "in_buf": [
+          {
+            "address": "0x20020000",
+            "bytes": 32768
+          }
+        ],
+        "link_ring": [
+          {
+            "address": "0x20028000",
+            "bytes": 32768
+          }
+        ],
+        "halt_outputs": [
+          {
+            "address": "0x2003576c",
+            "bytes": 116
+          }
+        ],
+        "dual_dma_faults": [
+          {
+            "address": "0x20035c04",
+            "bytes": 80
+          }
+        ],
+        "ldpc_matrix": [
+          {
+            "address": "0x20035e88",
+            "bytes": 1916
+          }
+        ],
+        "dvbs2_bch": [
+          {
+            "address": "0x20036604",
+            "bytes": 1032
+          }
+        ],
+        "dvbs2_ldpc": [
+          {
+            "address": "0x20036a0c",
+            "bytes": 716
+          }
+        ],
+        "dvbs2_frame_begin_into": [
+          {
+            "address": "0x2003707c",
+            "bytes": 296
+          }
+        ],
+        "dvbs2_frame_ldpc_into": [
+          {
+            "address": "0x200371a4",
+            "bytes": 140
+          }
+        ],
+        "dvbs2_8psk_frame": [
+          {
+            "address": "0x20037a80",
+            "bytes": 664
+          }
+        ],
+        "dvbs2_bch160_stream": [
+          {
+            "address": "0x20037d18",
+            "bytes": 248
+          }
+        ],
+        "pv_gcs_bbframe": [
+          {
+            "address": "0x20038394",
+            "bytes": 428
+          }
+        ],
+        "cs_isr": [
+          {
+            "address": "0x20038540",
+            "bytes": 684
+          }
+        ],
+        "pvspi_next_packet": [
+          {
+            "address": "0x200387ec",
+            "bytes": 380
+          }
+        ],
+        "cfg": [
+          {
+            "address": "0x20039cd0",
+            "bytes": 20
+          }
+        ],
+        "credits": [
+          {
+            "address": "0x20039f40",
+            "bytes": 64
+          },
+          {
+            "address": "0x2007eec0",
+            "bytes": 64
+          }
+        ],
+        "live": [
+          {
+            "address": "0x2003e288",
+            "bytes": 160
+          },
+          {
+            "address": "0x2003e328",
+            "bytes": 240
+          },
+          {
+            "address": "0x2007ef00",
+            "bytes": 224
+          }
+        ],
+        "state": [
+          {
+            "address": "0x2003e558",
+            "bytes": 160
+          },
+          {
+            "address": "0x2003e5f8",
+            "bytes": 560
+          },
+          {
+            "address": "0x2003e828",
+            "bytes": 144
+          }
+        ],
+        "pvspi": [
+          {
+            "address": "0x2003f928",
+            "bytes": 56
+          }
+        ],
+        "__end__": [
+          {
+            "address": "0x2003f9e8"
+          }
+        ],
+        "tab_q": [
+          {
+            "address": "0x20040000",
+            "bytes": 32768
+          }
+        ],
+        "tab_i": [
+          {
+            "address": "0x20048000",
+            "bytes": 32768
+          }
+        ],
+        "bb_buf": [
+          {
+            "address": "0x20050000",
+            "bytes": 8108
+          }
+        ],
+        "cap_buf": [
+          {
+            "address": "0x20051fac",
+            "bytes": 57344
+          }
+        ],
+        "fe": [
+          {
+            "address": "0x2006a090",
+            "bytes": 8108
+          }
+        ],
+        "bch_tab": [
+          {
+            "address": "0x20071f38",
+            "bytes": 32768
+          }
+        ],
+        "__scratch_x_end__": [
+          {
+            "address": "0x200807f0"
+          }
+        ],
+        "__StackOneBottom": [
+          {
+            "address": "0x20080800"
+          }
+        ],
+        "__StackOneTop": [
+          {
+            "address": "0x20081000"
+          }
+        ],
+        "__scratch_y_end__": [
+          {
+            "address": "0x200816d0"
+          }
+        ],
+        "__StackBottom": [
+          {
+            "address": "0x20081800"
+          }
+        ],
+        "__StackTop": [
+          {
+            "address": "0x20082000"
+          }
+        ]
+      }
+    },
+    "merge": {
+      "revision": "0b89b341ce1bf4cecfec1c16db5632d3b23572bf",
+      "cmake_flags": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DIQ4HIST_EXPERIMENT=ON",
+        "-DCORE0_STACK_SRAM_HI=ON"
+      ],
+      "sections": {
+        ".text": {
+          "address": "0x10000000",
+          "bytes": 162696
+        },
+        ".rodata": {
+          "address": "0x10027b88",
+          "bytes": 127656
+        },
+        ".waveform_ring": {
+          "address": "0x20000000",
+          "bytes": 131072
+        },
+        ".input_ring": {
+          "address": "0x20020000",
+          "bytes": 65536
+        },
+        ".data": {
+          "address": "0x20030110",
+          "bytes": 40488
+        },
+        ".bss": {
+          "address": "0x20039f40",
+          "bytes": 23224
+        },
+        ".sram_hi": {
+          "address": "0x20040000",
+          "bytes": 258016
+        },
+        ".heap": {
+          "address": "0x2003f9f8",
+          "bytes": 1024
+        },
+        ".scratch_x": {
+          "address": "0x20080000",
+          "bytes": 2032
+        },
+        ".scratch_y": {
+          "address": "0x20081000",
+          "bytes": 1952
+        },
+        ".stack1_dummy": {
+          "address": "0x200807f0",
+          "bytes": 2048
+        },
+        ".stack_dummy": {
+          "address": "0x2007efe0",
+          "bytes": 4096
+        }
+      },
+      "symbols": {
+        "sample_faults": [
+          {
+            "address": "0x1000421c",
+            "bytes": 288
+          },
+          {
+            "address": "0x1001df90",
+            "bytes": 280
+          },
+          {
+            "address": "0x20035a50",
+            "bytes": 320
+          }
+        ],
+        "encode_frame": [
+          {
+            "address": "0x1000eb6c",
+            "bytes": 344
+          },
+          {
+            "address": "0x100197bc",
+            "bytes": 416
+          },
+          {
+            "address": "0x1001f3ac",
+            "bytes": 372
+          }
+        ],
+        "encoder_task": [
+          {
+            "address": "0x1000ecc4",
+            "bytes": 484
+          },
+          {
+            "address": "0x1001f520",
+            "bytes": 92
+          },
+          {
+            "address": "0x20038b20",
+            "bytes": 92
+          }
+        ],
+        "iq4hist_pack_group": [
+          {
+            "address": "0x1001de50",
+            "bytes": 154
+          }
+        ],
+        "bench4fec": [
+          {
+            "address": "0x1001f580",
+            "bytes": 4444
+          }
+        ],
+        "ring_buf": [
+          {
+            "address": "0x20000000",
+            "bytes": 131072
+          }
+        ],
+        "in_buf": [
+          {
+            "address": "0x20020000",
+            "bytes": 32768
+          }
+        ],
+        "link_ring": [
+          {
+            "address": "0x20028000",
+            "bytes": 32768
+          }
+        ],
+        "halt_outputs": [
+          {
+            "address": "0x2003576c",
+            "bytes": 116
+          }
+        ],
+        "dual_dma_faults": [
+          {
+            "address": "0x20035c04",
+            "bytes": 80
+          }
+        ],
+        "ldpc_matrix": [
+          {
+            "address": "0x20035e88",
+            "bytes": 1916
+          }
+        ],
+        "dvbs2_bch": [
+          {
+            "address": "0x20036604",
+            "bytes": 1064
+          }
+        ],
+        "dvbs2_ldpc": [
+          {
+            "address": "0x20036a2c",
+            "bytes": 716
+          }
+        ],
+        "dvbs2_frame_begin_into": [
+          {
+            "address": "0x2003709c",
+            "bytes": 296
+          }
+        ],
+        "dvbs2_frame_ldpc_into": [
+          {
+            "address": "0x200371c4",
+            "bytes": 140
+          }
+        ],
+        "dvbs2_8psk_frame": [
+          {
+            "address": "0x20037aa0",
+            "bytes": 664
+          }
+        ],
+        "dvbs2_bch160_stream": [
+          {
+            "address": "0x20037d38",
+            "bytes": 248
+          }
+        ],
+        "pv_gcs_bbframe": [
+          {
+            "address": "0x200383b4",
+            "bytes": 428
+          }
+        ],
+        "cs_isr": [
+          {
+            "address": "0x20038560",
+            "bytes": 684
+          }
+        ],
+        "pvspi_next_packet": [
+          {
+            "address": "0x2003880c",
+            "bytes": 380
+          }
+        ],
+        "cfg": [
+          {
+            "address": "0x20039cf8",
+            "bytes": 20
+          }
+        ],
+        "credits": [
+          {
+            "address": "0x20039f40",
+            "bytes": 64
+          },
+          {
+            "address": "0x2007eec0",
+            "bytes": 64
+          }
+        ],
+        "live": [
+          {
+            "address": "0x2003e288",
+            "bytes": 160
+          },
+          {
+            "address": "0x2003e328",
+            "bytes": 240
+          },
+          {
+            "address": "0x2007ef00",
+            "bytes": 224
+          }
+        ],
+        "state": [
+          {
+            "address": "0x2003e558",
+            "bytes": 160
+          },
+          {
+            "address": "0x2003e5f8",
+            "bytes": 576
+          },
+          {
+            "address": "0x2003e838",
+            "bytes": 144
+          }
+        ],
+        "pvspi": [
+          {
+            "address": "0x2003f938",
+            "bytes": 56
+          }
+        ],
+        "__end__": [
+          {
+            "address": "0x2003f9f8"
+          }
+        ],
+        "tab_q": [
+          {
+            "address": "0x20040000",
+            "bytes": 32768
+          }
+        ],
+        "tab_i": [
+          {
+            "address": "0x20048000",
+            "bytes": 32768
+          }
+        ],
+        "bb_buf": [
+          {
+            "address": "0x20050000",
+            "bytes": 8108
+          }
+        ],
+        "cap_buf": [
+          {
+            "address": "0x20051fac",
+            "bytes": 57344
+          }
+        ],
+        "fe": [
+          {
+            "address": "0x2006a090",
+            "bytes": 8108
+          }
+        ],
+        "bch_tab": [
+          {
+            "address": "0x20071f38",
+            "bytes": 32768
+          }
+        ],
+        "__StackBottom": [
+          {
+            "address": "0x2007f000"
+          }
+        ],
+        "__StackTop": [
+          {
+            "address": "0x20080000"
+          }
+        ],
+        "__scratch_x_end__": [
+          {
+            "address": "0x200807f0"
+          }
+        ],
+        "__StackOneBottom": [
+          {
+            "address": "0x20080800"
+          }
+        ],
+        "__StackOneTop": [
+          {
+            "address": "0x20081000"
+          }
+        ],
+        "__scratch_y_end__": [
+          {
+            "address": "0x200817a0"
+          }
+        ]
+      }
+    }
+  },
+  "executable_object_sections_before_relocation": {
+    "dual_dma": {
+      "identical_sections": 26,
+      "identical_bytes": 5492,
+      "changed": [
+        {
+          "section": ".text.dual_dma_start",
+          "b2_bytes": 468,
+          "merge_bytes": 468
+        },
+        {
+          "section": ".text.dual_dma_start_axis_fifo",
+          "b2_bytes": 640,
+          "merge_bytes": 640
+        },
+        {
+          "section": ".text.dual_dma_start_div256",
+          "b2_bytes": 456,
+          "merge_bytes": 456
+        },
+        {
+          "section": ".text.dual_dma_start_fifo",
+          "b2_bytes": 676,
+          "merge_bytes": 656
+        },
+        {
+          "section": ".text.dual_dma_start_fifo_div256",
+          "b2_bytes": 660,
+          "merge_bytes": 652
+        },
+        {
+          "section": ".text.start_output",
+          "b2_bytes": 5828,
+          "merge_bytes": 5548
+        }
+      ],
+      "added": [],
+      "removed": []
+    },
+    "iq4ptr": {
+      "identical_sections": 15,
+      "identical_bytes": 3048,
+      "changed": [],
+      "added": [],
+      "removed": []
+    },
+    "bench4fec": {
+      "identical_sections": 4,
+      "identical_bytes": 4956,
+      "changed": [],
+      "added": [],
+      "removed": []
+    },
+    "iq4hist": {
+      "identical_sections": 3,
+      "identical_bytes": 604,
+      "changed": [],
+      "added": [],
+      "removed": []
+    },
+    "pvspi": {
+      "identical_sections": 6,
+      "identical_bytes": 3640,
+      "changed": [],
+      "added": [],
+      "removed": []
+    },
+    "dvbs2": {
+      "identical_sections": 25,
+      "identical_bytes": 8744,
+      "changed": [
+        {
+          "section": ".text.dvbs2_bch_set_kernel",
+          "b2_bytes": 20,
+          "merge_bytes": 20
+        },
+        {
+          "section": ".time_critical.dvbs2_bch",
+          "b2_bytes": 1032,
+          "merge_bytes": 1064
+        },
+        {
+          "section": ".time_critical.dvbs2_frontend_begin",
+          "b2_bytes": 316,
+          "merge_bytes": 320
+        },
+        {
+          "section": ".time_critical.dvbs2_frontend_step",
+          "b2_bytes": 616,
+          "merge_bytes": 612
+        }
+      ],
+      "added": [
+        ".text.bch128_words"
+      ],
+      "removed": []
+    },
+    "dvbs2_8psk": {
+      "identical_sections": 5,
+      "identical_bytes": 4636,
+      "changed": [],
+      "added": [],
+      "removed": []
+    }
+  }
+}
