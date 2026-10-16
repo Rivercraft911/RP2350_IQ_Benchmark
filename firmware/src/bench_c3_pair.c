@@ -21,7 +21,7 @@
 #include "pico/stdlib.h"
 #include "tx.h"
 
-enum { RING = 2048, STAGES = 4, MAX_PAIRS = 200 };
+enum { RING = 2048, STAGES = 4, SUB = 6, MAX_PAIRS = 200 };
 
 typedef struct {
     c3_job_t job;
@@ -39,26 +39,35 @@ typedef struct {
     uint32_t ring[2 * RING];
 } high_t;                   // SRAM4-7: cap_buf
 
-_Static_assert(sizeof(low_t) <= sizeof ring_buf, "low layout fits ring_buf");
+_Static_assert(sizeof(low_t) <= 4 * 24576, "low layout ends below the SRAM0-3 hammer");
 _Static_assert(sizeof(high_t) <= CAP_WORDS_MAX * 4, "high layout fits cap_buf");
 _Static_assert(4 * RING <= IN_WORDS, "two job rings fit in_buf");
 
 static low_t *const low = (low_t *)ring_buf;
 static high_t *const high = (high_t *)cap_buf;
 
-static struct {
+// Core-to-core state and counters live in ring_buf above low_t: lower SRAM is full.
+typedef struct {
     volatile uint32_t go, done, stop;
     c3_job_t *job;
-    uint32_t stage[STAGES], total, max;
-} remote;
+    uint32_t stage[STAGES], sub[SUB], total, max;
+} remote_t;
+// LDPC sub-steps: 0 clear, 1 group rotate-XOR leaf, 2 row accumulation, 3 prefix,
+// 4 apply prefix, 5 transpose/pack.
+typedef struct { remote_t remote; uint32_t sub_a[SUB]; } shared_t;
+#define shared ((shared_t *)(ring_buf + 30720))
+#define remote (shared->remote)
+#define sub_a (shared->sub_a)
 
-static uint32_t run_job(c3_job_t *job, const uint8_t *pattern, uint32_t stage[STAGES]) {
+static uint32_t run_job(c3_job_t *job, const uint8_t *pattern, uint32_t stage[STAGES], uint32_t sub[SUB]) {
     const uint32_t start = cycles();
     while (job->stage != C3_DONE) {
-        const unsigned s = job->stage;
+        const unsigned s = job->stage, k = job->ldpc.stage < SUB ? job->ldpc.stage : SUB - 1;
         const uint32_t t = cycles();
         c3_job_step(job, pattern);
-        stage[s] += cycles() - t;
+        const uint32_t spent = cycles() - t;
+        stage[s] += spent;
+        if (s == C3_LDPC) sub[k] += spent;
     }
     return cycles() - start;
 }
@@ -71,7 +80,7 @@ static void core1_task(uint32_t unused) {
         if (remote.go == seen) { __wfe(); continue; }
         seen = remote.go;
         __dmb();
-        const uint32_t total = run_job(remote.job, low->pattern, remote.stage);
+        const uint32_t total = run_job(remote.job, low->pattern, remote.stage, remote.sub);
         remote.total += total;
         if (total > remote.max) remote.max = total;
         __dmb();
@@ -154,7 +163,8 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     const lane_t *tables_b = layout ? &high->b : &low->a;
     uint32_t *ring_a = in_buf, *ring_b = layout ? high->ring : in_buf + 2 * RING;
     uint32_t stage_a[STAGES] = {0}, stage_b[STAGES] = {0}, total_a = 0, total_b = 0, max_a = 0, max_b = 0;
-    remote = (typeof(remote)){0};
+    remote = (remote_t){0};
+    memset(sub_a, 0, sizeof sub_a);
     enable_cyccnt();
     const int hammer = who >= 3 ? who : 0;
     if (hammer) { tx_worker_start(hammer_task, (uint32_t)hammer); who = 0; }
@@ -164,9 +174,9 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
         begin(lane_b, tables_b, 1, ring_b, (uint32_t)options);
         const uint32_t irq = save_and_disable_interrupts();
         if (who == 0) {
-            uint32_t t = run_job(&low->a.job, low->pattern, stage_a);
+            uint32_t t = run_job(&low->a.job, low->pattern, stage_a, sub_a);
             total_a += t; if (t > max_a) max_a = t;
-            t = run_job(&lane_b->job, low->pattern, stage_b);
+            t = run_job(&lane_b->job, low->pattern, stage_b, remote.sub);
             total_b += t; if (t > max_b) max_b = t;
         } else if (who == 1) {
             for (unsigned k = 0; k < 2; ++k) {
@@ -182,7 +192,7 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
             __dmb();
             ++remote.go;
             __sev();
-            const uint32_t t = run_job(&low->a.job, low->pattern, stage_a);
+            const uint32_t t = run_job(&low->a.job, low->pattern, stage_a, sub_a);
             total_a += t; if (t > max_a) max_a = t;
             while (remote.done != remote.go) __wfe();
             __dmb();
@@ -198,6 +208,7 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
     if (who == 1) {
         // Core 1 ran both jobs into one accumulator; report it as job A+B.
         memcpy(stage_a, remote.stage, sizeof stage_a);
+        memcpy(sub_a, remote.sub, sizeof sub_a);
         total_a = remote.total; max_a = remote.max;
     } else if (who == 2) {
         memcpy(stage_b, remote.stage, sizeof stage_b);
@@ -214,15 +225,18 @@ void bench_c3_pair(int code_index, int pairs, int layout, int who, int options) 
            (unsigned long)(uintptr_t)&lane_b->job, (unsigned long)(uintptr_t)tables_b->code,
            (unsigned long)crc_a, (unsigned long)crc_b);
     for (unsigned j = 0; j < (who == 1 ? 1u : 2u); ++j) {
-        const uint32_t *st = j ? stage_b : stage_a;
+        const uint32_t *st = j ? stage_b : stage_a, *sb = j ? remote.sub : sub_a;
         const unsigned runs = j ? runs_b : runs_a;
         printf("%s{\"name\":\"%s\",\"core\":%d,\"runs\":%u,\"avg_cycles\":%lu,\"max_cycles\":%lu,"
-               "\"avg_stage\":{\"gcs\":%lu,\"bch\":%lu,\"ldpc\":%lu,\"map\":%lu}}",
+               "\"avg_stage\":{\"gcs\":%lu,\"bch\":%lu,\"ldpc\":%lu,\"map\":%lu},"
+               "\"ldpc_sub\":[%lu,%lu,%lu,%lu,%lu,%lu]}",
                j ? "," : "", who == 1 ? "A+B" : (j ? "B" : "A"),
                who == 1 ? 1 : (j && who == 2 ? 1 : 0), runs,
                (unsigned long)((j ? total_b : total_a) / runs), (unsigned long)(j ? max_b : max_a),
                (unsigned long)(st[0] / runs), (unsigned long)(st[1] / runs),
-               (unsigned long)(st[2] / runs), (unsigned long)(st[3] / runs));
+               (unsigned long)(st[2] / runs), (unsigned long)(st[3] / runs),
+               (unsigned long)(sb[0] / runs), (unsigned long)(sb[1] / runs), (unsigned long)(sb[2] / runs),
+               (unsigned long)(sb[3] / runs), (unsigned long)(sb[4] / runs), (unsigned long)(sb[5] / runs));
     }
     printf("]}\n");
     dvbs2_bch_set_kernel(saved_bch);
