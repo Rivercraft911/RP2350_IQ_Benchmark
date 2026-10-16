@@ -423,9 +423,11 @@ void bench_apsk_fec(int modulation, int cpw, int ms, int split, int options) {
     const uint64_t frame_time_scale = 8000ull * (unsigned)cpw * live.profile.frame_symbols;
     const uint64_t capture_boundary = ((uint64_t)hz * (unsigned)ms + frame_time_scale - 1u) /
         frame_time_scale * live.profile.frame_symbols;
-    // Aim one block before the header; DMA completion alone can be observed
-    // late after shaping a block. The host still verifies the actual offset.
-    const uint64_t capture_at_us = (capture_boundary - BLOCK_SYMBOLS) * 4u *
+    // Aim two blocks before the header; the 8192-word capture spans two blocks. With a
+    // one-block lead, split 16APSK at cpw 8 started 15-26 symbols after the header in three
+    // runs (52bc64985c), so the capture lands about one block after the poll. The host still
+    // verifies the actual offset and requires the full header.
+    const uint64_t capture_at_us = (capture_boundary - 2u * BLOCK_SYMBOLS) * 4u *
         (unsigned)cpw * 1000000u / hz;
     const uint64_t start = time_us_64(), deadline = start + (uint64_t)ms*1000;
     iqout_start();
