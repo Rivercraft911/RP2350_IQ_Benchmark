@@ -1,7 +1,7 @@
 """Two caller-owned bounded FEC workers vs serial C and independent Python bits.
 
 Minimum-sized dirty parity matrices have canaries. Real host threads run selectors
-1/2/3 with BB+BCH slices1/7/128/511 and LDPC units1/3/17/128; zero/idempotent steps,
+1/2/3, both LDPC modes, BB+BCH slices1/7/128/511 and LDPC units1/3/17/128; zero/idempotent steps,
 unaligned parity tails and unsupported/undersized begin are checked. Not M33 timing.
 """
 from __future__ import annotations
@@ -47,7 +47,7 @@ def main() -> None:
         got = ((got_words[:, None] >> np.arange(31, -1, -1, dtype=np.uint32)) & 1).astype(np.uint8).ravel()
         assert np.array_equal(got, want), (record["code"], pattern, record["worker"])
     print("Passed 48 independent Python FEC vectors; two threaded workers, six normal rates, "
-          "three BCH selectors, four bounded slice combinations, serial parity and canaries.")
+          "three BCH selectors, both LDPC modes, four bounded slice combinations, serial parity and canaries.")
 
 
 if __name__ == "__main__":

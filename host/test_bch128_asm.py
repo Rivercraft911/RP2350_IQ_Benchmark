@@ -1,4 +1,4 @@
-"""Execute the actual t=8 assembly source against a bit-serial BCH recurrence.
+"""Execute actual t=8 and t=12 assembly source against bit-serial BCH recurrences.
 
 This checked instruction-semantics model covers both placements, table indices,
 continuation boundaries and AAPCS state. It is not Arm execution or cycle timing.
@@ -172,31 +172,32 @@ def execute(code, labels, entry, words, table, parity):
     output = regions[2][1]
     assert r[4:12] == saved and r[13] == 0x400100, "AAPCS register/stack damage"
     assert output[0] == output[-1] == 0xCA85319D, "parity overwrite"
-    assert regions[3][1][:-10] == [0] * 54, "stack exceeded 40 bytes"
+    stack_words = 12 if entry == "dvbs2_bch192_continue_y" else 10
+    assert regions[3][1][:-stack_words] == [0] * (64 - stack_words), "stack extent"
     return output[1:-1], steps
 
 
-def serial(words, parity, generator):
-    state = int.from_bytes(b"".join(x.to_bytes(4, "big") for x in parity[:4]), "big")
+def serial(words, parity, generator, degree=128):
+    count = degree // 32
+    state = int.from_bytes(b"".join(x.to_bytes(4, "big") for x in parity[:count]), "big")
     for word in words:
         for bit in range(31, -1, -1):
-            feedback = (state >> 127) ^ ((word >> bit) & 1)
-            state = (state << 1) & ((1 << 128) - 1)
+            feedback = (state >> (degree - 1)) ^ ((word >> bit) & 1)
+            state = (state << 1) & ((1 << degree) - 1)
             if feedback:
                 state ^= generator
-    return [(state >> shift) & MASK for shift in (96, 64, 32, 0)] + [0, 0]
+    return [(state >> shift) & MASK for shift in range(degree - 32, -1, -32)] + [0] * (6 - count)
 
 
 def main():
     code, labels = program()
-    entries = ("dvbs2_bch128_continue", "dvbs2_bch128_continue_y")
     bridge = '''
 #include "dvbs2.c"
 #include "dvbs2_codes.h"
 void setup(int ci, uint32_t *table, uint32_t *generator) {
     dvbs2_init(&DVBS2_CODES[ci], false);
     memcpy(table, bch_tab, sizeof bch_tab);
-    memcpy(generator, bch_g, 16);
+    memcpy(generator, bch_g, sizeof bch_g);
 }
 '''
     rng, cases, instructions = random.Random(910), 0, 0
@@ -206,10 +207,12 @@ void setup(int ci, uint32_t *table, uint32_t *generator) {
         subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
                         f"-I{ROOT / 'firmware/src'}", str(source), "-o", str(binary)], check=True)
         lib = ct.CDLL(str(binary))
-        for ci, nw in ((9, 1796), (10, 1818)):
-            table, generator = (ct.c_uint32 * 8192)(), (ct.c_uint32 * 4)()
+        for ci, nw, degree in ((9, 1796, 128), (10, 1818, 128), (6, 1512, 192)):
+            entries = ("dvbs2_bch192_continue_y",) if degree == 192 else (
+                "dvbs2_bch128_continue", "dvbs2_bch128_continue_y")
+            table, generator = (ct.c_uint32 * 8192)(), (ct.c_uint32 * 6)()
             lib.setup(ci, table, generator)
-            polynomial = int.from_bytes(b"".join(x.to_bytes(4, "big") for x in generator), "big")
+            polynomial = int.from_bytes(b"".join(x.to_bytes(4, "big") for x in generator[:degree // 32]), "big")
             fixtures = [[], [0], [MASK], [0xAAAAAAAA] * 31,
                         [rng.getrandbits(32) for _ in range(nw)]]
             # Each slicing table sees all 256 indices from a zero initial state.
@@ -217,14 +220,14 @@ void setup(int ci, uint32_t *table, uint32_t *generator) {
             for entry in entries:
                 for words in fixtures:
                     parity = [0] * 6
-                    want = serial(words, parity, polynomial)
+                    want = serial(words, parity, polynomial, degree)
                     got, count = execute(code, labels, entry, words, table, parity)
                     assert got == want, (ci, entry, len(words))
                     cases += 1
                     instructions += count
                 words = fixtures[4]
-                parity = [rng.getrandbits(32) for _ in range(4)] + [0, 0]
-                want = serial(words, parity, polynomial)
+                parity = [rng.getrandbits(32) for _ in range(degree // 32)] + [0] * (6 - degree // 32)
+                want = serial(words, parity, polynomial, degree)
                 # Arbitrary prior remainders and uneven live slice boundaries.
                 cursor = 0
                 while cursor < len(words):
@@ -234,8 +237,8 @@ void setup(int ci, uint32_t *table, uint32_t *generator) {
                     instructions += count
                 assert parity == want
                 cases += 1
-    print(f"BCH128 assembly semantics: {cases} cases, {instructions} instructions; "
-          "two placements, all table indices, continuation and AAPCS exact (no silicon timing)")
+    print(f"BCH128/192 assembly semantics: {cases} cases, {instructions} instructions; "
+          "three leaves, all table indices, continuation and AAPCS exact (no silicon timing)")
 
 
 if __name__ == "__main__":

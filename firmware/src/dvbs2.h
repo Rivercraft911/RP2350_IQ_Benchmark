@@ -43,6 +43,9 @@ unsigned dvbs2_map_get_kernel(void);
 bool dvbs2_ldpc_set_pack(unsigned pack);
 unsigned dvbs2_ldpc_get_pack(void);
 void dvbs2_bbscramble(uint32_t *bbframe);                      // kbch bits, in place
+// Read-only word sequence for fused source writes, valid until the next dvbs2_init.
+// The final partial word's unused low bits are zero; callers mask their BB padding.
+const uint32_t *dvbs2_bb_scrambler(void);
 void dvbs2_bch(const uint32_t *bbframe, uint32_t *parity);    // kbch -> 16t or 14t parity bits
 void dvbs2_bch_serial(const uint32_t *bbframe, uint32_t *parity);   // bit-serial reference
 void dvbs2_ldpc(const uint32_t *info, uint32_t *parity);      // kldpc -> nldpc-kldpc bits
@@ -102,6 +105,7 @@ typedef struct {
     uint32_t parity[7];
     dvbs2_bch_kernel_t kernel;
     bool done, profile;
+    uint8_t options;
 } dvbs2_frontend_t;
 bool dvbs2_frontend_begin(const uint32_t *bbframe, uint32_t *frame, dvbs2_frontend_t *state);
 // Concurrent alternative: no shared profiling writes, accepts degree192 as well. The
@@ -109,6 +113,16 @@ bool dvbs2_frontend_begin(const uint32_t *bbframe, uint32_t *frame, dvbs2_fronte
 // between workers. Like the original begin, the copy/scramble is one complete bounded pass.
 bool dvbs2_frontend_begin_reentrant(const uint32_t *bbframe, uint32_t *frame,
                                   dvbs2_frontend_t *state);
+enum {
+    S2_FE_FAST_BCH = 4u,         // scratch-Y streamed degree128/160/192 leaf on Arm
+};
+// Per-worker C4 options, captured at begin. Unknown options fail without writes.
+// The original begin APIs keep their behavior.
+bool dvbs2_frontend_begin_reentrant_options(const uint32_t *bbframe, uint32_t *frame,
+                                          dvbs2_frontend_t *state, unsigned options);
+// State-only admission for a caller that already scrambled/masked its BB input and
+// zeroed every remaining frame word. No input/frame write occurs here.
+bool dvbs2_frontend_begin_prepared(uint32_t *frame, dvbs2_frontend_t *state, unsigned options);
 // Call only after successful begin. max_words0 makes no progress; completed calls are
 // idempotent and return true. On Arm selector2 continues the streamed assembly recurrence.
 bool dvbs2_frontend_step(dvbs2_frontend_t *state, uint32_t max_words);
@@ -124,11 +138,24 @@ typedef struct {
     uint32_t *frame;
     uint32_t (*rows)[12];
     uint32_t cursor, stage, prefix[12], acc, fill, written;
+    void (*group)(uint32_t *, const uint32_t *, uint32_t, const uint16_t *,
+                  const uint16_t *, uint32_t);
+    unsigned mode;
     bool done;
 } dvbs2_ldpc_state_t;
 uint32_t dvbs2_ldpc_workspace_words(void); // zero if q>64
 bool dvbs2_ldpc_begin_reentrant(uint32_t *frame, uint32_t *workspace,
                                uint32_t workspace_words, dvbs2_ldpc_state_t *state);
+// Mode1 extracts directly into one duplicated group and specializes normal2/3 and
+// 5/6 parity packing. Arm uses a position-independent group leaf copied into the
+// caller's word-aligned arena by prepare; keep it alive/fixed until both workers
+// finish. Native uses the equivalent C leaf and needs zero arena bytes. Mode0 and
+// the original begin retain the C3 path. Unsupported modes do not modify state.
+uint32_t dvbs2_ldpc_code_bytes(void);
+bool dvbs2_ldpc_prepare(void *code, uint32_t bytes);
+bool dvbs2_ldpc_begin_reentrant_mode(uint32_t *frame, uint32_t *workspace,
+                                    uint32_t workspace_words, dvbs2_ldpc_state_t *state,
+                                    unsigned mode);
 bool dvbs2_ldpc_step(dvbs2_ldpc_state_t *state, uint32_t max_units);
 // Instruction placement for frontend steps with selectors STREAM_ARM/T8_ARM: 0 = striped SRAM
 // (default), 1 = an identical copy in scratch Y, for a core-0 caller. Select while idle.

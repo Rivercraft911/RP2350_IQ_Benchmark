@@ -10,7 +10,7 @@ enum { GUARD = 0x5A2C91B3, PATTERNS = 4 };
 typedef struct {
     uint32_t before, frame[DVBS2_FE_WORDS], after;
     uint32_t bb[DVBS2_FE_WORDS], expected[DVBS2_FE_WORDS];
-    uint32_t *allocation, *workspace, words, chunk, units;
+    uint32_t *allocation, *workspace, words, chunk, units, mode, options;
     int ok;
 } job_t;
 
@@ -23,10 +23,14 @@ static void *encode(void *arg) {
     job_t *job = arg;
     dvbs2_frontend_t front;
     dvbs2_ldpc_state_t ldpc;
-    job->ok = dvbs2_frontend_begin_reentrant(job->bb, job->frame, &front) && !front.profile;
+    job->ok = dvbs2_frontend_begin_reentrant_options(
+        job->bb, job->frame, &front, job->options) && !front.profile;
     if (!job->ok) return NULL;
+    dvbs2_frontend_t front_saved = front;
+    job->ok &= !dvbs2_frontend_step(&front, 0) && !memcmp(&front, &front_saved, sizeof front);
     while (!dvbs2_frontend_step(&front, job->chunk)) {}
-    job->ok &= dvbs2_ldpc_begin_reentrant(job->frame, job->workspace, job->words, &ldpc);
+    job->ok &= dvbs2_ldpc_begin_reentrant_mode(job->frame, job->workspace, job->words,
+                                              &ldpc, job->mode);
     if (!job->ok) return NULL;
     dvbs2_ldpc_state_t untouched = ldpc;
     job->ok &= !dvbs2_ldpc_step(&ldpc, 0) && !memcmp(&ldpc, &untouched, sizeof ldpc);
@@ -44,6 +48,7 @@ int main(void) {
     const unsigned codes[] = {S2_N2_3, S2_N3_4, S2_N4_5, S2_N5_6, S2_N8_9, S2_N9_10};
     const uint32_t chunks[] = {1, 7, 128, 511}, units[] = {1, 3, 17, 128};
     job_t jobs[2];
+    if (dvbs2_ldpc_code_bytes() || !dvbs2_ldpc_prepare(NULL, 0)) return 10;
     for (unsigned ci = 0; ci < sizeof codes / sizeof codes[0]; ci++) {
         const dvbs2_code_t *code = &DVBS2_CODES[codes[ci]];
         dvbs2_init(code, true);
@@ -88,17 +93,21 @@ int main(void) {
             for (unsigned kernel = S2_BCH_WORDS_C; kernel <= S2_BCH_T8_ARM; kernel++) {
                 dvbs2_bch_set_kernel((dvbs2_bch_kernel_t)kernel);
                 for (unsigned slice = 0; slice < sizeof chunks / sizeof chunks[0]; slice++) {
-                    pthread_t threads[2];
-                    for (unsigned j = 0; j < 2; j++) {
-                        jobs[j].chunk = chunks[(slice + j) % 4];
-                        jobs[j].units = units[(slice + j) % 4];
-                        jobs[j].before = jobs[j].after = GUARD;
-                        memset(jobs[j].frame, 0xA5, sizeof jobs[j].frame);
-                        if (pthread_create(&threads[j], NULL, encode, &jobs[j])) return 6;
-                    }
-                    for (unsigned j = 0; j < 2; j++) {
-                        if (pthread_join(threads[j], NULL)) return 7;
-                        ok &= jobs[j].ok;
+                    for (unsigned mode = 0; mode < 2; ++mode) {
+                        pthread_t threads[2];
+                        for (unsigned j = 0; j < 2; j++) {
+                            jobs[j].chunk = chunks[(slice + j) % 4];
+                            jobs[j].units = units[(slice + j) % 4];
+                            jobs[j].mode = mode ^ j;
+                            jobs[j].options = slice & 1 ? S2_FE_FAST_BCH : 0;
+                            jobs[j].before = jobs[j].after = GUARD;
+                            memset(jobs[j].frame, 0xA5, sizeof jobs[j].frame);
+                            if (pthread_create(&threads[j], NULL, encode, &jobs[j])) return 6;
+                        }
+                        for (unsigned j = 0; j < 2; j++) {
+                            if (pthread_join(threads[j], NULL)) return 7;
+                            ok &= jobs[j].ok;
+                        }
                     }
                 }
             }
@@ -123,5 +132,27 @@ int main(void) {
     dvbs2_init(&DVBS2_CODES[S2_N2_3], false);
     if (dvbs2_ldpc_begin_reentrant(jobs[0].frame, jobs[0].bb, 60 * 12 - 1, &state) ||
         memcmp(&state, &saved, sizeof state)) return 9;
+    if (dvbs2_ldpc_begin_reentrant_mode(jobs[0].frame, jobs[0].bb, 60 * 12, &state, 2) ||
+        memcmp(&state, &saved, sizeof state)) return 11;
+    dvbs2_bch_set_kernel(S2_BCH_T8_ARM);
+    dvbs2_frontend_t front, front_saved;
+    memset(&front, 0xA5, sizeof front); front_saved = front;
+    uint32_t frame_saved[DVBS2_FE_WORDS];
+    memcpy(frame_saved, jobs[0].frame, sizeof frame_saved);
+    if (dvbs2_frontend_begin_reentrant_options(jobs[0].bb, jobs[0].frame, &front, 1u) ||
+        dvbs2_frontend_begin_prepared(jobs[0].frame, &front, 1u) ||
+        memcmp(&front, &front_saved, sizeof front) ||
+        memcmp(frame_saved, jobs[0].frame, sizeof frame_saved)) return 12;
+    // A prepared in-place frontend receives the same PRBS as the legacy adapter.
+    dvbs2_frame_begin_into(jobs[0].bb, jobs[0].expected);
+    const dvbs2_code_t *code = &DVBS2_CODES[S2_N2_3];
+    const uint32_t kw = (code->kbch + 31u) / 32u;
+    for (unsigned k = 0; k < kw; ++k)
+        jobs[0].frame[k] = jobs[0].bb[k] ^ dvbs2_bb_scrambler()[k];
+    if (code->kbch % 32u) jobs[0].frame[kw - 1] &= ~(~0u >> (code->kbch % 32u));
+    memset(jobs[0].frame + kw, 0, (DVBS2_FE_WORDS - kw) * sizeof(uint32_t));
+    if (!dvbs2_frontend_begin_prepared(jobs[0].frame, &front, S2_FE_FAST_BCH)) return 13;
+    while (!dvbs2_frontend_step(&front, 64)) {}
+    if (memcmp(jobs[0].frame, jobs[0].expected, sizeof frame_saved)) return 14;
     return 0;
 }
