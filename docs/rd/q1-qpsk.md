@@ -1,5 +1,9 @@
 # Q1: QPSK on the hardware-shaping engine (`dualptr`)
 
+**Device result (coordinator, 2026-10-16):** 2/3 at 8 Msym/s on `dualptr` 60 s clean at 21.4% / 43.2%
+(TS). TS 9/10 at 16 Msym/s: core 1 95.9% (k0), 89.2% (k1), 70.9% with core 0 63.8% (k3). See
+[results](../../results/q1-qpsk/2026-10-16/README.md).
+
 Branch `worktree-agent-a9e0518b97ffb696d`, from `main` `0296275`. No Pico was touched: nothing
 here is a device measurement of new code. Measured numbers are quoted from existing records,
 named in each table; every other number is an instruction-count or scaling estimate, and
