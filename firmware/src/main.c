@@ -22,6 +22,7 @@
 //   bench8live ms / benchvcm ms                   complete 5/6 8PSK / alternating QPSK+8PSK
 //   bench4fec cpw ms invert [prio]               live 8PSK FEC, four-level L7/N4 hardware shaping (experiment build)
 //   bench4quad8 / bench4quad cpw ms invert [prio] cyclic SRAM pointers, four writers (experiment build)
+//   c3fec code ms [slow_us] [cpw]                CPU-only frame-parallel 8PSK code-ring benchmark
 //   bench16chunk reps / bench16native8 reps       16APSK shaper components
 //   bench16out cpw ms kernel                     16APSK output with capture, no FEC
 //   bench16planar cpw ms                         experimental dual-axis planar output
@@ -65,6 +66,7 @@
 #include "bench4live.h"
 #include "bench4fec.h"
 #include "bench4quad.h"
+#include "c3_fec.h"
 #endif
 #include "bench_ptr.h"
 #include "dual_dma.h"
@@ -300,6 +302,12 @@ static const char *dispatch(char *line) {
         if (!num(a[1], "mode", 1, 0, 1, &code)) return err;
         bench_quadptr(code);
 #ifdef IQ4HIST_EXPERIMENT
+    } else if (!strcmp(cmd, "c3fec")) {
+        if (!num(a[1], "code", REQUIRED, 0, N_DVBS2_CODES - 1, &code) ||
+            !num(a[2], "ms", 3000, 100, 60000, &r.ms) ||
+            !num(a[3], "slow_us", 0, 0, 10000, &reps) ||
+            !num(a[4], "cpw", 1, 1, 4, &r.cpw)) return err;
+        bench_c3_fec(code, r.ms, reps, r.cpw);
     } else if (!strcmp(cmd, "bench4live")) {
         int invert;
         if (!num(a[1], "cpw", 2, 2, 4, &r.cpw) ||

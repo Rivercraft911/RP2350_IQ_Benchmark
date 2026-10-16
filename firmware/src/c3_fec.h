@@ -1,0 +1,41 @@
+// CPU-only frame-parallel experiment. All storage is caller-owned. Initialize
+// pv_init and dvbs2_init, select a nonbaseline BCH kernel, and keep those tables,
+// selectors and the matching normal-frame mapper configuration fixed during jobs.
+#pragma once
+#include "dvbs2_8psk.h"
+
+enum {
+    C3_FRAME_SYMBOLS = 22194, C3_FRAME_CYCLES = 8 * C3_FRAME_SYMBOLS,
+    C3_RING_GROUPS = 4096, C3_ROWS_WORDS = 60 * 12,
+    C3_GCS = 0, C3_BCH, C3_LDPC, C3_MAP, C3_DONE,
+};
+
+// In-memory GCS source: chronological payload byte j is (29*j+7) modulo256.
+// Build <=max_words MSB-first BB words, including the GCS BBHEADER. No PV-SPI
+// transfer, validation or wait is simulated. Returns the next word cursor.
+uint32_t c3_gcs_slice(uint32_t *bb, const uint8_t *pattern, const dvbs2_code_t *code, uint32_t frame,
+                      uint32_t cursor, uint32_t max_words);
+
+typedef struct {
+    uint32_t bb[DVBS2_FE_WORDS], frame[DVBS2_FE_WORDS], rows[C3_ROWS_WORDS];
+    dvbs2_frontend_t front;
+    dvbs2_ldpc_state_t ldpc;
+    dvbs2_8psk_codes_stream_t stream;
+    dvbs2_8psk_codes_state_t map;
+    const dvbs2_8psk_cfg_t *cfg;
+    uint32_t index, stage, cursor;
+} c3_job_t;
+
+// Caller provides credit for this frame's complete output interval before begin.
+// pattern contains two identical256-byte periods, to permit unaligned word reads.
+void c3_job_begin(c3_job_t *job, const dvbs2_8psk_cfg_t *cfg, uint32_t index,
+                  uint32_t *i, uint32_t *q);
+// One bounded slice:64 GCS/BCH words, one LDPC unit, or eight map words.
+// False means a configuration error; stage==C3_DONE means ready for publication.
+bool c3_job_step(c3_job_t *job, const uint8_t *pattern);
+// In-order publication merges the one shared boundary word and returns the
+// complete-group cursor. carry holds the preceding frame's unpublished tail.
+uint32_t c3_job_publish(const c3_job_t *job, uint32_t carry[2]);
+
+// Device command, included only in IQ4HIST_EXPERIMENT builds.
+void bench_c3_fec(int code_index, int ms, int slow_us, int cpw);
