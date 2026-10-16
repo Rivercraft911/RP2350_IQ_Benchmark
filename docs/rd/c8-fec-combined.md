@@ -1,233 +1,368 @@
-# C8: combine the FEC experiments
+# C8: combined C5/C6/C7 FEC
 
-The current C6 merge conflicts are resolved with **C5 LDPC and C6 mapping together**.
-C7 is not merged yet: the coordinator must stage/commit this resolution and start
-`git merge rd/c7-bch-place`. Git metadata and recorded results were left unchanged;
-no device transport, flashing or serial port was used.
+The C7 merge after `0a55e75` is resolved in the working files. C5 LDPC, C6 mapping,
+and C7 BCH/transpose experiments have independent selectors in one image. C7's
+three-table diagnostic is layout **4**; C6 retains layout **3**. Layout 4 now keeps
+Gold outside its high-SRAM context, so the maximum C5/C6 code arenas fit.
+Git metadata and recorded result evidence were left unchanged. The coordinator must
+stage the resolved files to clear Git's unmerged index entries. No device, flash,
+serial port or `picotool` was accessed.
 
-## Option contract
+## Final option and layout contract
 
-| Bit | Feature | Rule / current status |
+| Bit | Symbol | Feature / precedence |
 |---:|---|---|
-| 1 | C4 SRAM LDPC | Unchanged |
-| 2 | C4 table mapper | Unchanged |
-| 4 | C4 scratch-Y BCH | Unchanged |
-| 8 | Fused GCS/BB | Unchanged |
-| 16 | Cached deadlines | Unchanged |
-| 32 | C5 LDPC | Overrides bit 1; works without it |
-| 64 | C6 mapper | Overrides bit 2; works without it |
-| 128 | C7 private BCH copies | Reserved for next merge; supersedes bit 4 |
-| 256 | C7 BCH LDM loads | Reserved for next merge |
-| 512 | C7 private transpose | Reserved for next merge |
-| 1024 | C7 three-table BCH | Reserved for next merge; incompatible with 256 |
+| 1 | `C4_LDPC` | C4 SRAM LDPC leaf |
+| 2 | `C4_MAP` | C4 table mapper |
+| 4 | `C4_BCH` | C4 scratch-Y BCH |
+| 8 | `C4_BB` | Fused GCS/BB scrambling |
+| 16 | `C4_DEADLINES` | Cached absolute deadlines |
+| 32 | `C5_LDPC` | C5 group/rows/fused pack bundle; overrides bit 1, works alone |
+| 64 | `C6_MAP` | Packed 8PSK mapper; overrides bit 2, works alone |
+| 128 | `C7_BCH_PLACE` | Per-worker private BCH copies; overrides bit 4 |
+| 256 | `C7_BCH_LDM` | BCH multiword-load leaf; alone uses its source in XIP, with 128 uses private copies |
+| 512 | `C7_TRANSPOSE` | Private transpose callback for LDPC modes 0/1; redundant with C5 on Arm |
+| 1024 | `C7_TABLE3` | Three-table BCH; implies private BCH, requires `c3pair` layout 4; incompatible with 256 |
 
-One firmware `C8_ALL` controls all option bounds: **127 now**, **2047 after C7**.
-The host runner mirrors it by name and tests the accepted/rejected boundary.
-Unimplemented bits are rejected now. Defaults remain `c3fec=0`, `c3pair=31`;
-output bits remain identical. C6's branch-local bit 32 is now 64; historical
-reports/results retain their original mask meanings.
+`C8_ALL = 2047` is the final mask and numeric parser boundary everywhere. It describes
+all allocated bits, **not a legal all-features combination**: 256+1024 is rejected.
+`c3fec` additionally rejects any numeric mask with bit 1024, because its context has
+no wide table. The internal frontend bit `S2_FE_LDM_BCH = 64` is a separate API flag;
+C3 explicitly translates command bit 256 into it in both fused and ordinary BB paths.
+Defaults remain `c3fec=0` and `c3pair=31`, with bit-identical output.
 
-Layouts 0/1/2 keep their existing meanings; C6 layout **3** selects only the high
-mapper code copy and requires bit 64. C7's three-table layout must become **4**.
-All masks reserve the same maximum arenas: LDPC **2048 words / 8192 B**, mapper
-`DVBS2_8PSK_CODES_C6_WORDS` (**1252 words / 5008 B**). Copies and preparation stay
-outside timed work. C5's four-group LDPC grants and C6's 32-word map slices remain.
+The named 8PSK candidate is `C8_BEST = 1275 = 27+32+64+128+1024`.
+`c3pair 5 40 4 2 best` selects it and **requires layout 4**. It excludes scratch-Y
+BCH, LDM and the redundant transpose copy. `C8_BEST_BASE = 251 = 27+32+64+128`
+is its supported non-wide counterpart: `c3fec 5 3000 0 1 128 best` and the host
+runner's `--options best` select 251. The numeric 1275 remains rejected by `c3fec`;
+there is no silent masking of numeric requests. “Best” names a candidate assembled
+from separate measured improvements; its combined device timing remains unmeasured.
 
-## Verification and budgets
+| Layout | Placement and constraints |
+|---:|---|
+| 0 | Both jobs and shared Gold/LUT/LDPC code in SRAM0–3; C7 private code split between striped groups |
+| 1 | Job B, its rings, Gold/LUT/LDPC code in SRAM4–7; hammers rejected |
+| 2 | Layout 0 data, LDPC code fetched from SRAM4–7 |
+| 3 | Layout 0 data/LDPC, C6 mapper code fetched from SRAM4–7; requires bit 64 |
+| 4 | Both jobs and shared mapper/LDPC code in `cap_buf`; wide BCH table, Gold, counters and core-0 C7 code in `ring_buf`; hammers rejected |
+
+Pair codes 5/6/8/9/10 remain supported; cadence codes remain 5/6/8. C7's historical
+[report](c7-bch-place.md) and [measurements](../../results/c7-bch-place/2026-10-16/README.md)
+use their original bits 32/64/128/256 and layout 3. They are immutable provenance,
+not the command contract of this combined image.
+
+C5's Arm pack bundle contains its own local transpose. Installing bit 512 still
+captures a private callback, but C5 mode 2 executes the bundle and never calls it.
+There is no additional C7 transpose saving to add to C5. Modes 0/1 use the callback;
+the native C5 model also uses it while applying C5's fused prefix. Both routes are
+checked against independent references, alongside the separate assembly semantics
+checks for C5's local transpose and C7's copied transpose.
+
+## Storage fix and placement
+
+Every mask reserves the same maximum 8192-byte C5 LDPC and 5008-byte C6 mapper
+arenas. Preparation, code copying and table construction occur before timed work.
+No new static arena, DMA channel, PIO state machine or PIO instruction is added.
+C7 adds 8 bytes to the existing frontend state in the static dual encoder; changed
+code/alignment also affects linker headroom. The large experiment contexts borrow
+idle-only buffers, and commands restore the input PRBS afterwards.
+
+The old direct union would make the wide context 59028 bytes, 1684 bytes larger
+than `cap_buf` (57344 bytes). Layout 4 externalizes its 5536-byte Gold array.
+The ring's fixed half-open byte intervals are:
+
+| Reservation | Offsets from `ring_buf` | Bytes |
+|---|---|---:|
+| Maximum wide BCH table | `[0,122880)` | 122880 |
+| Gold | `[122880,128416)` | 5536 |
+| Shared worker state and substep counters | `[128416,128544)` | 128 reserved |
+| Core-0 BCH / transpose code | `[128544,129056)` / `[129056,129568)` | 512 each |
+| Unused ring tail | `[129568,131072)` | 1504 |
+
+Compile-time size/alignment/overlap assertions cover the table, Gold, shared-state
+reserve, private code, high/low contexts, rings and hammer tiles. Layout-4 off/on
+runs reserve identical regions. The table's actual degree-dependent size is
+81920 bytes (t8), 102400 (t10), or 122880 (t12). Its maximum ends exactly where
+Gold begins. Both C7 code slots fit their complete copied leaves. The who-7
+transpose hammer stays outside the active high C5/C7 executable arenas.
+
+Final Release experiment ELF/map and ARM DWARF (code entries omit the Thumb bit):
+
+| Object | Address / extent |
+|---|---|
+| `ring_buf` / `in_buf` / `cap_buf` | `0x20000000..0x20020000` / `0x20020000..0x20028000` / `0x20051fac..0x2005ffac` |
+| `c3fec` context / size | `0x20010000..0x2001e7f8`, 59384 B; 6152 B spare in its 64 KiB |
+| `c3fec` Gold / mapper arena | `0x20019864` / `0x2001ae04` |
+| `c3fec` C4 / C6 mapper entries | `0x2001b194` / `0x2001b594` |
+| `c3fec` C5 group / rows / pack | `0x2001c194` / `0x2001dad4` / `0x2001db54` |
+| `c3fec` core-0 BCH / transpose | `0x2001e194` / `0x2001e394` |
+| `c3fec` core-1 BCH / transpose | `0x20051fac` / `0x200521ac` |
+| Pair normal lane / low / high sizes | 39180 / 78872 / 55564 B; high has 1780 B spare |
+| Pair layout-0 A Gold / LUT / C6 | `0x20004bdc` / `0x2000617c` / `0x2000690c` |
+| Pair layout-0 C5 group / rows / pack | `0x2000750c` / `0x20008e4c` / `0x20008ecc` |
+| Pair layout-0 core-0 BCH / transpose | `0x2000950c` / `0x2000970c` |
+| Pair layout-0 B job / low context end | `0x2000990c` / `0x20013418` |
+| Pair layout-1 B Gold / LUT / C6 | `0x20056b88` / `0x20058128` / `0x200588b8` |
+| Pair layout-1/2 high C5 group | `0x200594b8` |
+| Pair layout-0/1/2/3 core-1 BCH / transpose | `0x2005b4b8` / `0x2005b6b8` |
+| Pair layout-1 B rings / high end | `0x2005b8b8` / `0x2005f8b8` |
+| Pair layout-3 C6 entry (both jobs) | `0x200588b8`; low LUT/Gold/jobs retain layout-0 addresses |
+| Pair layout-4 A job / B job / end | `0x20051fac` / `0x2005a318` / `0x2005f0a0` |
+| Pair layout-4 LUT / C6 | `0x20056b88` / `0x20057318` |
+| Pair layout-4 C5 group / rows / pack | `0x20057f18` / `0x20059858` / `0x200598d8` |
+| Pair layout-4 core-1 BCH / transpose | `0x20059f18` / `0x2005a118` |
+| Pair layout-4 Gold / shared reserve | `0x2001e000..0x2001f5a0` / `0x2001f5a0..0x2001f620` |
+| Pair layout-4 core-0 BCH / transpose / reserved end | `0x2001f620` / `0x2001f820` / `0x2001fa20` |
+| Existing byte BCH table | `0x20071f50..0x20079f50` |
+| Lower BSS end / minimum heap end | `0x2003fbfc` / `0x2003fffc`: **4 B free** |
+| High allocation end / core-0 stack bottom | `0x2007efe8` / `0x2007f000`: **24 B free** |
+| Scratch-X end / core-1 stack bottom | `0x200807f0` / `0x20080800`: **16 B free** |
+| Scratch-Y end / bank end | `0x20081e68` / `0x20082000`: **408 B free** |
+
+ARM `c3_job_t` / frontend / LDPC state are 19336 / 48 / 92 B; the wide context is
+53492 B, leaving 3852 B. Shared counters occupy 92 of 128 reserved bytes.
+C5 copies 8166 of 8192 bytes (26 B spare); C6 copies 2516 bytes into its 3072-byte
+code slice. C7 existing t8/t10/t12 copies are 208/240/258 B; LDM 186/210/224 B;
+three-table 132/156/176 B; transpose 308 B. Every private function fits 512 B.
+The experiment `pvflight` has **0 B** after its minimum heap and 344 B below its
+core-0 stack. Default-build lower gaps are 544 B (`iqbench`) / 0 B (`pvflight`).
+No existing static buffer or hot section was deliberately reassigned to a different
+SRAM region; linked addresses can shift with code/state growth.
+
+## Offline verification
 
 `make build` and the required Release experiment configure/build passed for both
-`iqbench` and `pvflight`, without introduced warnings. Reproduce:
+`iqbench` and `pvflight`, without warnings. **Full `make check` passed**, including
+all existing native/model/reference tests and the final Markdown link check.
+`git diff --check` passes; no conflict markers remain in the resolved source/docs.
+Targeted native checks passed:
+
+- **84 masks × 3 rates × 16 continuous frames = 4032 frames** through the actual C3
+  graph. All C4 combinations, every bare C5/C6/C7 bit, override combinations,
+  best 251/1275, private transpose with/without C5, LDM and wide-table combinations
+  are sampled. The harness installs actual native leaf/table/callback selections
+  after begin and checks frontend flags, LDPC/map modes, table CRC, canaries,
+  odd-first completion, every pair's physical rings and carry against Python.
+- **435 valid production `c3pair` runs**, including a real pthread core-1 worker,
+  five rates, all five layouts, same-layout table3 off/on, and private transpose
+  with/without C5; every physical word/CRC matches independent Python. Ten invalid
+  requests check rejection and restoration. Layout 4 validates external Gold,
+  table, state and private-code intervals against diagnostic addresses.
+- Production `c3fec` virtual-time tests sample 35 valid masks per rate and slow
+  controls, and reject negative/out-of-range/table3 requests before input/ring
+  mutation. Compiled production `main.c` parser/dispatch branches verify `best`,
+  numeric boundaries and unchanged defaults for both commands. Synthetic clocks
+  test accounting and are not device measurements.
+- C7 native BCH checks cover all eleven normal rates, all 15360 wide-table row
+  indices across degrees, uneven/arbitrary remainder continuation, frontend pairs,
+  guards and the corrupted-used-table negative. Assembly-semantics checks pass
+  31848 cases, including 1058 copied-transpose cases; C5 pack semantics pass 768
+  cases. Existing component/reference checks remain included in `make check`.
+
+Native execution uses C equivalents rather than executing relocated Thumb code.
+Assembly checks interpret actual instruction semantics; neither establishes silicon
+timing. In particular, the native C5 fallback uses a callback, while the separately
+checked Arm C5 pack bundle owns its local transpose.
+
+To honor the explicit ban on `picotool`, these local build caches set
+`PICO_NO_PICOTOOL=ON`. This disables SDK post-link `coprodis` and UF2 conversion;
+ELF/BIN/HEX and map/disassembly still build. Existing UF2 files in the ignored build
+directories predate this resolution and must not be flashed as this image.
+Reproduce the offline builds without invoking that tool:
 
 ```sh
+export PICO_SDK_PATH="$HOME/.pico-sdk/sdk/2.2.0"
+export PICO_TOOLCHAIN_PATH="$HOME/.pico-sdk/toolchain/14_2_Rel1"
+cmake -S firmware -B firmware/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DPICO_NO_PICOTOOL=ON
 make build
-PICO_SDK_PATH="$HOME/.pico-sdk/sdk/2.2.0" \
-PICO_TOOLCHAIN_PATH="$HOME/.pico-sdk/toolchain/14_2_Rel1" \
 cmake -S firmware -B firmware/build-exp -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DIQ4HIST_EXPERIMENT=ON -DCORE0_STACK_SRAM_HI=ON
+  -DIQ4HIST_EXPERIMENT=ON -DCORE0_STACK_SRAM_HI=ON -DPICO_NO_PICOTOOL=ON
 make build BUILD=firmware/build-exp
 make check
 ```
 
-The native pipeline samples **59 masks × 3 rates × 16 continuous frames** (2832
-frames): every C4 combination plus C5/C6 combinations, bare feature bits, both
-overrides and masks 123/127. Every pair's physical rings/carry match independent
-Python references; odd-first completion, wraps and canaries pass. The native code
-also asserts the selected LDPC and mapper modes. Command tests cover combined
-positive/slow-worker cases; runner tests accept 127 and reject 128. **Full
-`make check` passed**, including component assembly-semantics checks and Markdown
-links. Native execution does not execute relocated Thumb instructions.
-
-At SYS128, 16 Msym/s is 8 SYS cycles/symbol. Each alternate frame gives one core
-`2 × 22194 × 8 = 355104` cycles, or **2774.25 us**, before supervision.
-[C5 measurements](../../results/c5-ldpc/2026-10-16/README.md) give 89.3k LDPC cycles
-with both cores; [C6 measurements](../../results/c6-map8/2026-10-16/README.md) give
-72.7k map cycles. Adding approximately 22k GCS and 88k striped BCH suggests
-**272k stage cycles / frame** for combined 2/3, leaving roughly 83k cycles.
-This is cross-image arithmetic, not a combined measurement or a scheduling bound.
-The eventual three-table combination suggests about **250k**, also unmeasured in
-combination. Host elapsed times provide no M33 cycle evidence. Instruction counts
-and timing assumptions remain in [C5](c5-ldpc.md), [C6](c6-map8.md) and
-[the M33 notes](../rp2350-notes.md).
-
-Current ARM borrowed sizes: `c3fec` context **58296 B** (7240 B spare in 64 KiB),
-pair lane **38132 B**, low context **76776 B** (below the hammer at 98304 B), high
-context **54516 B** (2828 B spare in `cap_buf`). The transpose hammer retains C5's
-safe `cap_buf + 4096` tile, outside active high code in layouts 0/2/3. No permanent
-arena was allocated. Final linker addresses/headroom are recorded below.
-
-Experiment Release ELF/map/DWARF addresses (code entries omit the Thumb bit):
-
-| Object | Address / extent |
-|---|---|
-| `ring_buf`, `in_buf`, `cap_buf` | `0x20000000`, `0x20020000`, `0x20051fac` |
-| `c3fec` context | `0x20010000..0x2001e3b8` |
-| `c3fec` Gold / mapper arena | `0x20019834` / `0x2001add4` |
-| `c3fec` C4 / C6 mapper entries | `0x2001b164` / `0x2001b564` |
-| `c3fec` C5 group / rows / pack | `0x2001c164` / `0x2001daa4` / `0x2001db24` |
-| Pair low-A LUT / C4 / C6 mapper | `0x20006164` / `0x200064f4` / `0x200068f4` |
-| Pair low-A C5 group / rows / pack | `0x200074f4` / `0x20008e34` / `0x20008eb4` |
-| Pair low-B job / low context end | `0x200094f4` / `0x20012be8` |
-| Pair high-B LUT / C4 / C6 mapper | `0x20058110` / `0x200584a0` / `0x200588a0` |
-| Pair high-B C5 group / rows / pack | `0x200594a0` / `0x2005ade0` / `0x2005ae60` |
-| Pair high rings / high context end | `0x2005b4a0` / `0x2005f4a0` |
-| Lower BSS end / minimum heap end | `0x2003fbb4` / `0x2003ffb4`: **76 B free** |
-| High data end / core-0 stack bottom | `0x2007efe8` / `0x2007f000`: **24 B free** |
-| Scratch-X code end / core-1 stack bottom | `0x200807f0` / `0x20080800`: **16 B free** |
-| Scratch-Y code end / bank end | `0x20081e68` / `0x20082000`: **408 B free** |
-
-C5's copied bundle is 8166 B, leaving only **26 B** in its arena. The experiment
-`pvflight` image has only **8 B** after its minimum heap; its high gap is 344 B.
-Default-build lower gaps are 552 B (`iqbench`) / 8 B (`pvflight`). No static
-placement was moved. Small linker gaps, shared SRAM traffic and relocated-code
-execution remain risks requiring same-image device checks.
-
-Experiment image SHA-256 (the source diff identifies this uncommitted resolution):
+Experiment artifacts from this uncommitted resolution (Git identity alone is insufficient):
 
 ```text
-iqbench.elf 80fdde103bb7075f36ffa1f31afd28b694db743fc981a0e9a05f3fc182fecd59
-iqbench.uf2 55f93f0507b1b5e0f49bf0ad51595179c0328a97b198487c58ddb46135718500
+iqbench.elf bcc80a5c6a3a25027951339bb5b79777ceffb66f10e7e4af5bff17bd3dfd89cc
+iqbench.bin d7a35ac95b27f64ef8b021a841f773c6873a345475c8de7b303e85d202fdc679
+pvflight.elf c5a2f6ab103a022ef50c7516111e513f5032c98f95ada50e7ca53afc29ff4390
 ```
 
-## Coordinator: current C5+C6 image
+## Cycle budget and evidence
 
-Send these firmware commands after independently flashing the experiment image;
-retain ELF/UF2 hashes, map, source diff, firmware identity and fresh result files.
-27 is the C4 striped-BCH control; 59 adds C5, 91 adds C6, 123 adds both.
+At SYS128 and 16 Msym/s, there are 8 SYS cycles/symbol. The 22194-symbol PLFRAME
+gives each alternating core `2 × 22194 × 8 = 355104` cycles (2774.25 us), before
+supervision. The 128-us service gate is 16384 SYS cycles per slice. C5 keeps its
+four-group LDPC slices; C6 keeps its 32-word mapper slices.
+
+Separate-image measurements at 2/3 give concurrent C5 LDPC 89.3k cycles
+([C5](../../results/c5-ldpc/2026-10-16/README.md)), C6 mapping 72.7k
+([C6](../../results/c6-map8/2026-10-16/README.md)), and C7 three-table BCH 67.2k
+([C7](../../results/c7-bch-place/2026-10-16/README.md)). Adding approximately 22k
+GCS gives **251k stage cycles**, leaving about 104k before supervision. Using
+C7 private byte-table BCH (91.5k) instead gives roughly **276k**, leaving 79k.
+These are cross-image arithmetic estimates, not combined measurements, timing
+bounds or evidence of successful startup/cadence.
+
+The [C7 instruction model](c7-bch-place.md#instruction-work-and-estimates) counts
+33 t10 three-table loop instructions, 45 after expanding LDM transfers. With a
+taken branch it plans roughly 46 cycles/whole word: `1345 × 46 = 61870` cycles,
+then slices/entry/append produce an optimistic 63–65k solo estimate. The measured
+C7 result was 65.7k solo / 67.2k concurrent, above the original 65k target.
+The unchanged t12 planning range is 86–91k and t10 5/6 is 79–82k, excluding new
+contention. See [M33 timing notes](../rp2350-notes.md); host timings and mocked
+cycle counters provide no M33 performance evidence.
+
+## Coordinator: exact same-image A/B commands
+
+The following console lines were **not executed here**. The coordinator packages
+and flashes the matching experiment image, archives ELF/UF2 hashes, map and source
+diff, and uses fresh result files. Do not compare old branch-local mask numbers.
+Run at SYS128; repeat off/on/off at least three times. `who=0` runs sequentially
+on core 0, `1` sequentially on core 1, and `2` releases one job on each core together.
+
+First isolate C5/C6/private BCH at code 5, then the same combined A/B at all three
+rates. Mask 123 is C4 27+C5+C6; 251 adds private BCH. Mask 1275 adds table3; `best`
+is exactly 1275 here. Compare table3 within layout 4 to keep job placement fixed.
 
 ```text
 info
 stackcheck
 c3pair 5 40 0 0 27
+c3pair 5 40 0 0 59
+c3pair 5 40 0 0 91
 c3pair 5 40 0 0 123
-c3pair 5 40 0 0 27
-c3pair 5 40 0 2 27
-c3pair 5 40 0 2 59
-c3pair 5 40 0 2 91
+c3pair 5 40 0 0 251
 c3pair 5 40 0 2 123
-c3pair 5 40 0 2 27
-c3pair 5 40 1 2 123
-c3pair 5 40 2 2 123
-c3pair 5 40 3 2 123
-c3pair 5 40 0 2 31
-c3pair 5 40 0 2 127
-c3fec 5 3000 0 2 128 27
+c3pair 5 40 0 2 251
+c3pair 5 40 0 2 123
+c3pair 5 40 3 2 251
+c3pair 5 40 4 0 251
+c3pair 5 40 4 0 best
+c3pair 5 40 4 0 251
+c3pair 5 40 4 2 251
+c3pair 5 40 4 2 best
+c3pair 5 40 4 2 251
+c3pair 8 40 0 2 123
+c3pair 8 40 0 2 251
+c3pair 8 40 0 2 123
+c3pair 8 40 4 2 251
+c3pair 8 40 4 2 best
+c3pair 8 40 4 2 251
+c3pair 6 40 0 2 123
+c3pair 6 40 0 2 251
+c3pair 6 40 0 2 123
+c3pair 6 40 4 2 251
+c3pair 6 40 4 2 best
+c3pair 6 40 4 2 251
+```
+
+Repeat the layout-4 251/best/251 commands with `who=1` for codes 5/8/6. Attribute
+changes using both cores' stage averages/maxima and LDPC substeps, retain exact
+reported code/table/job addresses, and require all requested runs. Pair CRCs must
+remain equal across every mask/layout and match these independent values:
+
+| Code | crc_a | crc_b |
+|---:|---:|---:|
+| 5 | 1273684834 | 2540800392 |
+| 8 | 1863126860 | 2777209518 |
+| 6 | 4157714373 | 1725042067 |
+| 9 | 1538593740 | 3547307867 |
+| 10 | 2021468233 | 2222914226 |
+
+Check private transpose with and without C5, and isolate the optional LDM leaf:
+
+```text
+c3pair 5 40 0 2 155
+c3pair 5 40 0 2 667
+c3pair 5 40 0 7 155
+c3pair 5 40 0 7 667
+c3pair 5 40 0 2 251
+c3pair 5 40 0 2 763
+c3pair 5 40 0 2 507
+c3pair 5 40 4 2 1275
+c3pair 5 40 4 2 1787
+```
+
+155 = C4 27+private BCH (no C5/C6); 667 adds private transpose. With C5, 251/763
+and 1275/1787 should preserve output and should show no intrinsic pack reduction
+from bit 512. 251/507 isolates LDM. Repeat useful comparisons for codes 8/6.
+The original instruction target remains ≤65000 concurrent BCH cycles at code 5,
+≤81300 at code 8 and ≤87800 at code 6; record misses honestly. Whole-stage sums
+must also stay below 355104 before attempting cadence qualification.
+
+Full schedule A/B at **cpw 1, gap_us 128**, with explicit lines for every rate:
+
+```text
 c3fec 5 3000 0 2 128 123
-c3fec 5 3000 0 1 128 27
+c3fec 5 3000 0 2 128 best
 c3fec 5 3000 0 1 128 123
-c3fec 5 3000 0 1 128 27
-c3fec 5 60000 0 1 128 123
-c3fec 5 3000 5000 1 128 123
+c3fec 5 3000 0 1 128 best
+c3fec 5 3000 0 1 128 123
+c3fec 8 3000 0 1 128 123
+c3fec 8 3000 0 1 128 best
+c3fec 8 3000 0 1 128 123
+c3fec 6 3000 0 1 128 123
+c3fec 6 3000 0 1 128 best
+c3fec 6 3000 0 1 128 123
+c3fec 5 60000 0 1 128 best
+c3fec 8 60000 0 1 128 best
+c3fec 6 60000 0 1 128 best
+c3fec 5 3000 5000 1 128 best
 stackcheck
 ```
 
-Repeat the positive 27/123 pair and cadence comparisons with code 6 (3/4) and 8
-(5/6), including who 1 for core-1-only attribution. Scratch-Y 31/127 diagnoses
-contention; it is not the recommended two-core configuration. Require equal pair
-CRCs across masks/layouts (code 5 A/B: **1273684834 / 2540800392**; code 8:
-**1863126860 / 2777209518**), all requested jobs, and intact stack/code checks.
-Record each core's stage averages/maxima, total cycles and service slices.
-
-`c3fec ... 1 128 ...` is the actual **16 Msym/s cadence and service gate**. Pass:
-independent ring/carry agreement, `errors=0`, zero late frames/lateness, target =
-published = consumed frames, `max_service_gap_us <= 128`, and slices <= **16384
-SYS cycles**. The last 5000-us slow-worker command is the negative control: it must
-fail the deadline check and drain exact published output. Startup failure counts
-as failure; increasing `gap_us` does not qualify 16 Msym/s.
-
-The runner verifies independent CRCs automatically; repeat at `--cpw 2` and then
-60000 ms after the short positive run, with a fresh `--out` each time:
+Here `best` is 251. The runner independently checks the actual published rings and
+carry. Run short positives first, then 60-second runs, each with a fresh `--out`:
 
 ```sh
 python3 host/c3_fec_trial.py --port "$PORT" --expected-git "$REV" \
-  --build firmware/build-exp --codes 5 6 8 --options 27 59 91 123 \
+  --build firmware/build-exp --codes 5 8 6 --options 123 best \
   --cpw 1 --gap-us 128 --ms 3000 --out results/c8-fec-combined/coordinator-cpw1-ab
+python3 host/c3_fec_trial.py --port "$PORT" --expected-git "$REV" \
+  --build firmware/build-exp --codes 5 8 6 --options best \
+  --cpw 1 --gap-us 128 --ms 60000 --out results/c8-fec-combined/coordinator-cpw1-soak
+python3 host/c3_fec_trial.py --port "$PORT" --expected-git "$REV" \
+  --build firmware/build-exp --codes 5 --options best --slow-us 5000 \
+  --cpw 1 --gap-us 128 --ms 3000 --out results/c8-fec-combined/coordinator-negative
 ```
 
-## C7 next-merge preparation and unresolved work
+Pass requires independent ring/carry agreement, `errors=0`, zero late frames and
+lateness, target = published = consumed, both cores' maximum slices ≤16384 SYS
+cycles, service gap ≤128 us, intact code and stack checks. Startup failure counts
+as failure. Relaxing the gap does not qualify 16 Msym/s. The 5000-us slow-worker
+negative must report deadline error/lateness, stop releases and drain exact published
+output; a healthy-looking negative means the deadline check failed.
 
-Read-only review of `git diff main...rd/c7-bch-place` found these required changes:
+Also try invalid requests `c3pair 5 1 0 2 1275`, `c3pair 5 1 4 2 1531`
+(table3+LDM), and `c3fec 5 100 0 1 128 1275`: each must reject before worker launch
+or buffer setup. The native table-corruption control must detect a parity mismatch.
 
-- Remap C7 bits 32/64/128/256 to 128/256/512/1024; extend `C8_ALL` to 2047
-  everywhere, retaining separate capability rejection. Three-table BCH remains
-  `c3pair` layout 4 only; `c3fec` must explicitly reject bit 1024 because it has no
-  table allocation. Reject table3+LDM, hammers in layouts 1/4, and layout 3 without
-  C6 bit 64. Preserve C7's code 9/10 diagnostic coverage.
-- Translate command bit **256** to frontend-local `S2_FE_LDM_BCH=64` in both
-  `c3_job_step` frontend paths. C7 currently passes masked command options into an
-  8-bit frontend field; blindly remapping that expression would discard the flag.
-  Keep frontend-local test literals and API flags in their own bit domain.
-- A direct union makes C7's compact wide context **59028 B**, exceeding 57344 B
-  by **1684 B**. One concrete unimplemented fix is to externalize its 5536-B Gold:
-  reserve ring byte offsets `[0,122880)` for the maximum table,
-  `[122880,128416)` for Gold, `[128416,128544)` for shared counters (128-B reserve),
-  and `[128544,129568)` for core-0 BCH/transpose copies. This leaves 1504 B in the
-  ring and reduces the wide high context to **53492 B**, with 3852 B spare.
-  Refactor only layout 4's table access/init, add overlap/size assertions, and
-  verify actual ARM offsets. Merely keeping the smaller C5/C6 arena is incorrect.
-- C5's pack leaf already contains a private local transpose. C7 bit 512's callback
-  affects LDPC modes 0/1; in C5 mode 2 it is redundant on ARM. Document this and test
-  both paths instead of promising another 5k saving on top of C5.
-- Extend sampled native options and C7 production-command tests, including bare
-  bits, overrides, invalid combinations and the corrupted-table negative control.
-  Private leaves require caller installation after begin; option bits alone in
-  the portable pipeline do not exercise placement. Keep the assembly checks.
+## Risks, dead ends and intended commits
 
-After resolving those items and rebuilding/retesting, the planned exact combined
-A/B commands are (not accepted by the current image):
+The direct wide union was rejected because it overflowed `cap_buf`; shrinking C5/C6
+arenas would corrupt executable copies. External Gold preserves maximum arenas and
+all existing layout meanings. A second C7 transpose benefit on top of C5 was rejected
+because C5 already has a private transpose. Static SRAM and C5 code reserves remain
+very tight; linker/toolchain changes require fresh maps and copied-leaf checks.
+Default output is unchanged, but extra dispatch and linked addresses can change
+baseline timing, so all measurements must use same-image A/B.
 
-```text
-c3pair 5 40 0 2 123
-c3pair 5 40 0 2 251
-c3pair 5 40 0 2 763
-c3pair 5 40 0 2 1019
-c3pair 5 40 4 0 763
-c3pair 5 40 4 0 1787
-c3pair 5 40 4 0 763
-c3pair 5 40 4 2 763
-c3pair 5 40 4 2 1787
-c3pair 5 40 4 2 763
-c3fec 5 3000 0 1 128 123
-c3fec 5 3000 0 1 128 763
-c3fec 5 3000 0 1 128 1019
-c3fec 5 60000 0 1 128 763
-c3fec 5 3000 5000 1 128 763
-stackcheck
-```
-
-251 = 123+private BCH; 763 adds private transpose; 1019 adds LDM; 1787 adds
-three-table BCH instead of LDM. Repeat the layout-4 off/on/off at codes 6/8 and
-retain all current pass criteria. Compare table3 within layout 4 so the job
-placement is held fixed. The 250k expectation belongs to this large-table pair
-diagnostic; it does not establish `c3fec` timing. Three-table storage consumes
-the live waveform LUT space, and the B6 core-1 grant-worker conflict also remains;
-these CPU-only commands do not qualify integrated shaping or RF performance.
+The wide table consumes waveform LUT space and cannot coexist with the current B6
+OUT8 shaping allocation. Two FEC workers also conflict with B6's dedicated core-1
+grant worker. Pair/cadence success would establish CPU-only FEC behavior, not complete
+16-Msym/s shaping, DMA/FIFO runway or RF performance. Shared SRAM/XIP/USB contention,
+startup timing and relocated Thumb execution remain device checks.
 
 No commits were made. Intended small logical commits:
 
-1. `firmware/CMakeLists.txt`, `firmware/src/{c3_fec.c,c3_fec.h,bench_c3_fec.c,bench_c3_pair.c,main.c}`:
-   **Resolve C5/C6 FEC merge with independent option bits and maximum arenas.**
-2. `host/{c3_fec_trial.py,test_c3_pipeline.py,test_c3_bench.py,test_c3_fec_trial.py}`,
-   `host/native/c3_pipeline_test.c`:
-   **Verify independent and combined C5/C6 selectors against native references.**
-3. `docs/rd/{c8-fec-combined.md,README.md}`:
-   **Record combined FEC validation, device trials and C7 allocation constraints.**
+1. `Makefile`, `firmware/CMakeLists.txt`, `firmware/src/{c3_fec.c,c3_fec.h,bench_c3_fec.c,bench_c3_pair.c,dvbs2.c,dvbs2.h,dvbs2_asm.S,dvbs2_bch_fast.S,main.c}`:
+   **Combine C5/C6/C7 FEC selectors and fit layout 4 with external Gold.**
+2. `host/{c3_fec_trial.py,test_c3_pipeline.py,test_c3_bench.py,test_c3_fec_trial.py,test_c7_pair.py,test_c7_bch.py,test_bch_fast_asm.py}`,
+   `host/native/{c3_pipeline_test.c,c7_bch_test.c}`:
+   **Verify combined selectors, placement layouts and best aliases against independent references.**
+3. `docs/rd/{README.md,c8-fec-combined.md,c7-bch-place.md}`:
+   **Record final FEC masks, layout budgets and coordinator A/B qualification.**

@@ -32,6 +32,7 @@ typedef struct { uint32_t before; _Alignas(16) uint32_t words[N_BLOCKS*BLOCK_WOR
 typedef struct { uint32_t before; _Alignas(16) uint32_t words[IN_WORDS]; uint32_t after; } input_storage_t;
 extern ring_storage_t test_ring;
 extern input_storage_t test_input;
+extern uint32_t cap_buf[14336];
 #define ring_buf (test_ring.words)
 #define in_buf (test_input.words)
 uint32_t cycles(void);
@@ -69,6 +70,7 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
 
 ring_storage_t test_ring;
 input_storage_t test_input;
+uint32_t cap_buf[14336];
 
 uint32_t clock_get_hz(unsigned clock) { assert(clock==clk_sys); return test_hz; }
 uint32_t cycles(void) {
@@ -122,18 +124,21 @@ int main(int argc, char **argv) {
     test_ring.before=test_ring.after=test_input.before=test_input.after=guard;
     for (unsigned j=0;j<N_BLOCKS*BLOCK_WORDS;++j) ring_buf[j]=0x57EAD219u;
     memset(in_buf,0xA5,sizeof in_buf);
+    pv_init(16); // initialize the CRC table even when command admission fails
     assert(dvbs2_bch_set_kernel(S2_BCH_T8_ARM));
     assert(dvbs2_frontend_set_bank(1));
     assert(dvbs2_ldpc_set_pack(1));
     assert(dvbs2_map_set_kernel(1));
-    bench_c3_fec_options(code,100,slow,cpw,128,atoi(argv[6]));
+    const int options=atoi(argv[6]);
+    const unsigned rejected=options<0 || options>C8_ALL || (options&C7_TABLE3);
+    bench_c3_fec_options(code,100,slow,cpw,128,options);
     assert(test_ring.before==guard && test_ring.after==guard);
     assert(test_input.before==guard && test_input.after==guard);
     for (unsigned j=0;j<16384;++j) assert(ring_buf[j]==0x57EAD219u);
     assert(dvbs2_bch_get_kernel()==S2_BCH_T8_ARM);
     assert(dvbs2_frontend_get_bank()==1);
     assert(dvbs2_ldpc_get_pack()==1 && dvbs2_map_get_kernel()==1);
-    assert(!worker_active && worker_joins==1);
+    assert(!worker_active && worker_joins==!rejected);
     printf("@meta {\"input_crc\":%lu,\"selectors_restored\":true,\"guards_ok\":true,\"worker_joins\":%u}\n",
            (unsigned long)pv_crc32(0,in_buf,sizeof in_buf),worker_joins);
     return 0;
@@ -178,9 +183,11 @@ class C3Bench(unittest.TestCase):
         self.assertTrue(lines[0].startswith("@{"), process.stdout)
         self.assertTrue(lines[1].startswith("@meta "), process.stdout)
         result, meta = json.loads(lines[0][1:]), json.loads(lines[1][6:])
-        expected = trial.iq.m.xorshift32(0x1234ABCD, 8192).astype("<u4")
-        self.assertEqual(meta, dict(input_crc=zlib.crc32(expected.tobytes()), selectors_restored=True,
-                                    guards_ok=True, worker_joins=1))
+        rejected = options < 0 or options > trial.C8_ALL or bool(options & 1024)
+        expected = (trial.iq.m.xorshift32(0x1234ABCD, 8192).astype("<u4").tobytes()
+                    if not rejected else b"\xA5" * 32768)
+        self.assertEqual(meta, dict(input_crc=zlib.crc32(expected), selectors_restored=True,
+                                    guards_ok=True, worker_joins=int(not rejected)))
         return result
 
     def test_real_encoder_command_positive_all_requested_rates(self):
@@ -194,12 +201,15 @@ class C3Bench(unittest.TestCase):
 
     def test_each_fec_option_and_combinations(self):
         for code in trial.RATES:
-            for options in (1, 2, 4, 8, 15, 16, 31, 32, 33, 59, 63, 64, 66, 91, 95, 96, 123, 127):
+            for options in (1, 2, 4, 8, 15, 16, 27, 31, 32, 33, 59, 63, 64, 66,
+                            91, 95, 96, 123, 127, 128, 155, trial.C8_BEST_BASE,
+                            256, 283, 379, 384, 512, 539, 544, 635, 640, 763, 767,
+                            895, trial.C8_FEC_ALL):
                 with self.subTest(code=code, options=options):
                     result = self.run_command(code, options=options)
                     self.assertEqual(result["options"], options)
                     self.assertEqual(trial.run_faults(result, code, 100, 0, options=options), [])
-        for options in (31, 32, 64, 123, 127):
+        for options in (31, 32, 64, 123, trial.C8_BEST_BASE, 512, 544, trial.C8_FEC_ALL):
             result = self.run_command(slow=5000, options=options)
             self.assertEqual(trial.run_faults(result, 5, 100, 5000, options=options), [])
 
@@ -209,10 +219,16 @@ class C3Bench(unittest.TestCase):
                 result = self.run_command(cpw=cpw, hz=hz)
                 self.assertEqual(trial.run_faults(result, 5, 100, 0, cpw=cpw), [], result)
                 self.assertEqual(result["frame_cycles"], 177552 * cpw)
-                cached = self.run_command(cpw=cpw, hz=hz, options=trial.C8_ALL)
-                self.assertEqual(trial.run_faults(cached, 5, 100, 0, cpw=cpw, options=trial.C8_ALL), [])
+                cached = self.run_command(cpw=cpw, hz=hz, options=trial.C8_FEC_ALL)
+                self.assertEqual(trial.run_faults(cached, 5, 100, 0, cpw=cpw, options=trial.C8_FEC_ALL), [])
                 for field in ("frames_target", "published_frames", "consumed_frames", "code_crc"):
                     self.assertEqual(cached[field], result[field])
+
+    def test_table3_and_unknown_bits_rejected_before_mutation(self):
+        for options in (-1, 1024, trial.C8_BEST, trial.C8_ALL, trial.C8_ALL + 1):
+            with self.subTest(options=options):
+                result = self.run_command(options=options)
+                self.assertIn("error", result)
 
     def test_slow_negative_stops_releases_drains_and_publishes(self):
         result = self.run_command(slow=5000)

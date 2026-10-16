@@ -208,7 +208,9 @@ class C3Protocol(unittest.TestCase):
         self.assertTrue(any("slice" in fault for fault in trial.run_faults(bad, 5, 100, 0)))
 
     def test_c8_option_masks_parse_and_are_verified_without_serial(self):
-        for options in (32, 33, 59, 63, 64, 66, 91, 95, 96, 123, trial.C8_ALL):
+        for options in (1, 2, 4, 8, 16, 32, 33, 59, 63, 64, 66, 91, 95, 96, 123,
+                        128, trial.C8_BEST_BASE, 256, 512, 544, 1024, trial.C8_BEST,
+                        1787, trial.C8_ALL):
             with self.subTest(options=options):
                 good = fixture()
                 good["options"] = options
@@ -227,6 +229,25 @@ class C3Protocol(unittest.TestCase):
             self.assertEqual(result.exception.code, 2)
             check.assert_not_called()
 
+    def test_named_best_and_table3_capability_validation(self):
+        self.assertEqual(trial.C8_ALL, (1 << 11) - 1)
+        self.assertEqual(trial.C8_BEST_BASE, 251)
+        self.assertEqual(trial.C8_BEST, 1275)
+        self.assertEqual(trial.option_mask("best"), trial.C8_BEST_BASE)
+        with mock.patch.object(trial.iq, "Board", side_effect=AssertionError("serial accessed")):
+            with mock.patch.object(trial, "self_test") as check:
+                with mock.patch.object(sys, "argv", ["c3_fec_trial.py", "--self-test", "--options", "best"]):
+                    trial.main()
+                check.assert_called_once_with()
+            for mask in (1024, trial.C8_BEST, trial.C8_ALL):
+                with mock.patch.object(sys, "argv", ["c3_fec_trial.py", "--options", str(mask),
+                                                     "--out", "unused", "--port", "unused"]):
+                    with contextlib.redirect_stderr(io.StringIO()) as errors:
+                        with self.assertRaises(SystemExit) as result:
+                            trial.main()
+                    self.assertEqual(result.exception.code, 2)
+                    self.assertIn("c3pair layout4", errors.getvalue())
+
     def test_no_arguments_never_open_serial(self):
         with mock.patch.object(trial.iq, "Board", side_effect=AssertionError("serial accessed")):
             with mock.patch.object(sys, "argv", ["c3_fec_trial.py"]):
@@ -234,6 +255,65 @@ class C3Protocol(unittest.TestCase):
                     with self.assertRaises(SystemExit) as result:
                         trial.main()
                 self.assertEqual(result.exception.code, 2)
+
+
+class C3FirmwareOptions(unittest.TestCase):
+    def test_production_main_dispatch_expands_best_for_each_command(self):
+        """Compile the actual parser helpers and both dispatch branches, no Pico APIs."""
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "firmware/src/main.c").read_text()
+        numeric = source[source.index("static bool num("):source.index("#ifdef IQ4HIST_EXPERIMENT", source.index("static bool num("))]
+        begin = source.index("static bool c3_options(")
+        options = source[begin:source.index("#endif", begin)]
+        begin = source.index('    } else if (!strcmp(cmd, "c3pair")) {')
+        branches = source[begin:source.index('    } else if (!strcmp(cmd, "bench4live")) {', begin)]
+        harness = r'''
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "c3_fec.h"
+#include "dvbs2_codes.h"
+enum { REQUIRED = -1 };
+static char err[128];
+int mask_result, layout_result, cpw_result, gap_result;
+void bench_c3_pair(int code,int pairs,int layout,int who,int mask) {
+    (void)code; (void)pairs; (void)who; mask_result=mask; layout_result=layout;
+}
+void bench_c3_fec_options(int code,int ms,int slow,int cpw,int gap,int mask) {
+    (void)code; (void)ms; (void)slow; mask_result=mask; cpw_result=cpw; gap_result=gap;
+}
+NUMERIC
+OPTIONS
+const char *parse(unsigned kind,const char *const *a) {
+    const char *cmd=kind ? "c3fec" : "c3pair";
+    int code,reps;
+    struct { int ms,cpw; } r;
+    if (0) {
+BRANCHES
+    }
+    return NULL;
+}
+'''.replace("NUMERIC", numeric).replace("OPTIONS", options).replace("BRANCHES", branches)
+        with tempfile.TemporaryDirectory(prefix="c3-options-native-") as directory:
+            cfile, library = Path(directory) / "options.c", Path(directory) / "options.so"
+            cfile.write_text(harness)
+            subprocess.run(["cc", "-O2", "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
+                            "-I" + str(root / "firmware/src"), str(cfile), "-o", str(library)], check=True)
+            lib = ct.CDLL(str(library))
+            lib.parse.argtypes = [ct.c_uint, ct.POINTER(ct.c_char_p)]
+            lib.parse.restype = ct.c_char_p
+            mask = ct.c_int.in_dll(lib, "mask_result")
+            for kind, fields, best in ((0, ["c3pair", "5", "2", "4", "2"], trial.C8_BEST),
+                                       (1, ["c3fec", "5", "100", "0", "1", "128"], trial.C8_BEST_BASE)):
+                for text, expected in (("best", best), (str(trial.C8_ALL), trial.C8_ALL),
+                                       (None, 0 if kind else 31)):
+                    args = [field.encode() for field in fields] + [text.encode() if text else None, None]
+                    argv = (ct.c_char_p * len(args))(*args)
+                    self.assertIsNone(lib.parse(kind, argv))
+                    self.assertEqual(mask.value, expected)
+                args = [field.encode() for field in fields] + [str(trial.C8_ALL + 1).encode(), None]
+                self.assertIn(b"options: expected", lib.parse(kind, (ct.c_char_p * len(args))(*args)))
 
 
 if __name__ == "__main__":

@@ -61,6 +61,10 @@ void c3_job_begin_options(c3_job_t *job, const dvbs2_8psk_cfg_t *cfg, uint32_t i
     job->index = index;
     job->stage = C3_GCS;
     job->cursor = 0;
+    job->ldpc_group = NULL;
+    job->bch_leaf = NULL;
+    job->bch_table = NULL;
+    job->transpose = NULL;
     const uint32_t symbols = index * C3_FRAME_SYMBOLS;
     job->stream = (dvbs2_8psk_codes_stream_t){.i = i, .q = q,
         .mask = C3_RING_GROUPS - 1u, .n = symbols / 16u,
@@ -69,6 +73,9 @@ void c3_job_begin_options(c3_job_t *job, const dvbs2_8psk_cfg_t *cfg, uint32_t i
 
 bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
     const dvbs2_code_t *code = job->cfg->code;
+    // Command bits and the frontend's compact option byte are separate domains.
+    const unsigned frontend_options = (job->options & C4_BCH ? S2_FE_FAST_BCH : 0u) |
+        (job->options & C7_BCH_LDM ? S2_FE_LDM_BCH : 0u);
     switch (job->stage) {
         case C3_GCS:
             if (job->options & C4_BB) {
@@ -83,7 +90,10 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
                     job->cursor = end;
                 }
                 if (job->cursor == DVBS2_FE_WORDS) {
-                    if (!dvbs2_frontend_begin_prepared(job->frame, &job->front, job->options & C4_BCH)) return false;
+                    if (!dvbs2_frontend_begin_prepared(job->frame, &job->front,
+                            frontend_options)) return false;
+                    job->front.leaf = job->bch_leaf ? job->bch_leaf : job->front.leaf;
+                    job->front.table = job->bch_table;
                     job->stage = C3_BCH;
                 }
                 break;
@@ -91,7 +101,9 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
             job->cursor = c3_gcs_slice(job->bb, pattern, code, job->index, job->cursor, 64);
             if (job->cursor == (code->kbch + 31u) / 32u) {
                 if (!dvbs2_frontend_begin_reentrant_options(job->bb, job->frame, &job->front,
-                                                            job->options & C4_BCH)) return false;
+                                                            frontend_options)) return false;
+                job->front.leaf = job->bch_leaf ? job->bch_leaf : job->front.leaf;
+                job->front.table = job->bch_table;
                 job->stage = C3_BCH;
             }
             break;
@@ -104,6 +116,7 @@ bool c3_job_step(c3_job_t *job, const uint8_t *pattern) {
                                              const uint16_t *, uint32_t);
                     job->ldpc.group = (group_fn)job->ldpc_group;
                 }
+                if (job->transpose) job->ldpc.transpose = job->transpose;
                 job->stage = C3_LDPC;
             }
             break;

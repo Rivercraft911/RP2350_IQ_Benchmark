@@ -35,7 +35,25 @@ SYMBOL_CYCLES = 8
 SOURCE_BYTES = 256
 SOURCE = bytes((29 * j + 7) & 255 for j in range(SOURCE_BYTES))
 STAGES = ("gcs", "bch", "ldpc", "map", "delay")
-C8_ALL = 127  # Keep in sync with the firmware c3_fec.h mask.
+# Keep these masks in sync with firmware/src/c3_fec.h. The three-table BCH
+# diagnostic needs c3pair layout4; the cadence benchmark has no table arena.
+C8_ALL = 2047
+C8_FEC_ALL = C8_ALL & ~1024
+C8_BEST_BASE = 27 | 32 | 64 | 128
+C8_BEST = C8_BEST_BASE | 1024
+
+
+def option_mask(value: str) -> int:
+    """The named cadence profile excludes c3pair's large BCH-table diagnostic."""
+    if value.lower() == "best":
+        return C8_BEST_BASE
+    try:
+        mask = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected an integer FEC mask or 'best'") from exc
+    if not 0 <= mask <= C8_ALL:
+        raise argparse.ArgumentTypeError(f"FEC mask must be 0..{C8_ALL} or 'best'")
+    return mask
 
 
 def gcs_bbframe(index: int, code_index: int) -> np.ndarray:
@@ -254,9 +272,11 @@ def main():
     parser.add_argument("--cpw", type=int, choices=(1, 2, 4), default=1,
                         help="symbol interval in units of eight SYS cycles (1 is 16 Msym/s at SYS128)")
     parser.add_argument("--slow-us", nargs="+", type=int, default=[0])
-    parser.add_argument("--options", nargs="+", type=int, choices=range(C8_ALL + 1), default=[0],
+    parser.add_argument("--options", nargs="+", type=option_mask, default=[0],
                         help="FEC mask: C4 LDPC=1, mapper=2, BCH=4, fused GCS/BB=8, cached deadlines=16, "
-                             "C5 LDPC=32 (overrides bit 1), C6 mapper=64 (overrides bit 2); 0 retains C3")
+                             "C5 LDPC=32, C6 mapper=64, C7 BCH copies=128, BCH multiword loads=256, "
+                             "transpose copies=512; best=251. BCH three-table=1024 requires c3pair layout4; "
+                             "0 retains C3")
     parser.add_argument("--gap-us", type=int, default=128,
                         help="128 for qualification; larger values are CPU-fit diagnostics only")
     parser.add_argument("--out", type=Path)
@@ -279,6 +299,8 @@ def main():
         parser.error("--ms must be 100..60000 and --slow-us must be 0..10000")
     if not 128 <= args.gap_us <= 4096:
         parser.error("--gap-us must be 128..4096")
+    if any(mask & 1024 for mask in args.options):
+        parser.error("BCH three-table bit 1024 needs c3pair layout4; c3fec 'best' uses mask 251")
     build = args.build.resolve()
     cache = (build / "CMakeCache.txt").read_text()
     if "IQ4HIST_EXPERIMENT:BOOL=ON" not in cache:

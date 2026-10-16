@@ -28,6 +28,9 @@ typedef struct {
     dvbs2_8psk_cfg_t cfg;
     uint32_t gold[1384];
     uint32_t map_lut[DVBS2_8PSK_CODES_C6_WORDS], ldpc_code[2048];
+    uint32_t place_code[256]; // core0: BCH512 + transpose512; core1 borrows cap_buf
+    dvbs2_bch_leaf_t bch_leaf[2];
+    dvbs2_transpose_fn transpose[2];
     uint8_t pattern[512];
     volatile uint32_t stop, errors;
     uint32_t target;
@@ -43,6 +46,8 @@ static context_t *context(void) { return (context_t *)(ring_buf + 16384); }
 #define live (*context())
 _Static_assert(sizeof(context_t) <= 65536, "C3 must fit the unused OUT8 table tail");
 _Static_assert(IN_WORDS == 2 * C3_RING_GROUPS, "paired axis rings");
+_Static_assert(sizeof live.place_code == 2 * 512, "BCH and transpose have separate 512-byte slots");
+_Static_assert(sizeof cap_buf >= 2 * 512, "core1 private code fits borrowed capture buffer");
 
 static uint64_t deadline(uint32_t frame) {
     // Round each absolute deadline upward once: no fractional-us drift.
@@ -52,6 +57,8 @@ static uint64_t deadline(uint32_t frame) {
 static void release(unsigned core, uint32_t index) {
     worker_t *w = &live.core[core];
     c3_job_begin_options(&w->job, &live.cfg, index, in_buf, in_buf + C3_RING_GROUPS, live.options);
+    w->job.bch_leaf = live.bch_leaf[core];
+    w->job.transpose = live.transpose[core];
     w->frame_work = 0;
     w->delay_left = live.slow_us;
     w->frame_start_us = time_us_64();
@@ -145,9 +152,9 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
     max_service_us = (uint32_t)gap_us;
     if ((code_index != S2_N2_3 && code_index != S2_N3_4 && code_index != S2_N5_6) ||
         ms < 100 || ms > 60000 || slow_us < 0 || slow_us > 10000 ||
-        options < 0 || options > C8_ALL || gap_us < 128 || gap_us > 4096 ||
+        options < 0 || options > C8_ALL || (options & C7_TABLE3) || gap_us < 128 || gap_us > 4096 ||
         (cpw != 1 && cpw != 2 && cpw != 4) || (hz != 128000000u && hz != 256000000u)) {
-        printf("@{\"cmd\":\"c3fec\",\"error\":\"needs normal2/3(5),3/4(6),5/6(8),100..60000ms,slow0..10000us,cpw1/2/4,SYS128/256,options0..%d\"}\n", C8_ALL);
+        printf("@{\"cmd\":\"c3fec\",\"error\":\"needs normal2/3(5),3/4(6),5/6(8),100..60000ms,slow0..10000us,cpw1/2/4,SYS128/256,options0..%d excluding table3 bit1024\"}\n", C8_ALL);
         return;
     }
     const dvbs2_bch_kernel_t saved_bch = dvbs2_bch_get_kernel();
@@ -164,11 +171,23 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
     dvbs2_frontend_set_bank(0); // C3 control stays in bank0; option4 selects read-only scratchY per job
     dvbs2_init(&DVBS2_CODES[code_index], true);
     pv_init(65536);
+    bool placement_ok = true;
+    for (unsigned core = 0; core < 2; ++core) {
+        uint32_t *arena = core ? cap_buf : live.place_code;
+        if (options & C7_BCH_PLACE) {
+            live.bch_leaf[core] = dvbs2_bch_copy(arena, 512, !!(options & C7_BCH_LDM));
+            placement_ok = placement_ok && live.bch_leaf[core];
+        }
+        if (options & C7_TRANSPOSE) {
+            live.transpose[core] = dvbs2_transpose_copy(arena + 128, 512);
+            placement_ok = placement_ok && live.transpose[core];
+        }
+    }
     if (!dvbs2_8psk_init(&live.cfg, &DVBS2_CODES[code_index], true, 0, live.gold, 1384) ||
         ((options & (C4_MAP | C6_MAP)) &&
          !dvbs2_8psk_codes_c6_init(&live.cfg, live.map_lut, DVBS2_8PSK_CODES_C6_WORDS)) ||
         ((options & (C4_LDPC | C5_LDPC)) && !dvbs2_ldpc_prepare_mode(live.ldpc_code,
-            sizeof live.ldpc_code, options & C5_LDPC ? 2 : 1))) {
+            sizeof live.ldpc_code, options & C5_LDPC ? 2 : 1)) || !placement_ok) {
         dvbs2_bch_set_kernel(saved_bch);
         dvbs2_frontend_set_bank(saved_bank);
         printf("@{\"cmd\":\"c3fec\",\"error\":\"C3/C4 setup failed\"}\n");
@@ -260,7 +279,9 @@ void bench_c3_fec_options(int code_index, int ms, int slow_us, int cpw, int gap_
                (unsigned long)w->stage_max_cycles[2], (unsigned long)w->stage_max_cycles[3],
                (unsigned long)w->stage_max_cycles[4]);
     }
-    printf("]}\n");
+    printf("],\"bch_leaf\":[%lu,%lu],\"transpose_leaf\":[%lu,%lu]}\n",
+           (unsigned long)(uintptr_t)live.bch_leaf[0], (unsigned long)(uintptr_t)live.bch_leaf[1],
+           (unsigned long)(uintptr_t)live.transpose[0], (unsigned long)(uintptr_t)live.transpose[1]);
     dvbs2_bch_set_kernel(saved_bch);
     dvbs2_frontend_set_bank(saved_bank);
     uint32_t seed = SEED;

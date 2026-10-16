@@ -106,6 +106,8 @@ typedef struct {
     dvbs2_bch_kernel_t kernel;
     bool done, profile;
     uint8_t options;
+    void (*leaf)(const uint32_t *, uint32_t *, const void *, uint32_t);
+    const void *table; // NULL uses the original byte tables; private overrides are idle-only
 } dvbs2_frontend_t;
 bool dvbs2_frontend_begin(const uint32_t *bbframe, uint32_t *frame, dvbs2_frontend_t *state);
 // Concurrent alternative: no shared profiling writes, accepts degree192 as well. The
@@ -115,7 +117,19 @@ bool dvbs2_frontend_begin_reentrant(const uint32_t *bbframe, uint32_t *frame,
                                   dvbs2_frontend_t *state);
 enum {
     S2_FE_FAST_BCH = 4u,         // scratch-Y streamed degree128/160/192 leaf on Arm
+    S2_FE_LDM_BCH = 64u,         // C7 multiword-load leaf (XIP unless overridden by a copy)
 };
+typedef void (*dvbs2_bch_leaf_t)(const uint32_t *, uint32_t *, const void *, uint32_t);
+typedef void (*dvbs2_transpose_fn)(uint32_t *);
+// Idle-only C7 copies: variant0 = existing scratch-Y leaf, 1 = LDM, 2 = 11/11/10
+// table. Current code must be normal t8/t10/t12. No prepared global pointer changes.
+// Arm requires word-aligned code and enough bytes; native returns C and uses no code arena.
+uint32_t dvbs2_bch_code_bytes(unsigned variant);
+dvbs2_bch_leaf_t dvbs2_bch_copy(void *code, uint32_t bytes, unsigned variant);
+uint32_t dvbs2_bch_table3_bytes(void);
+bool dvbs2_bch_table3_init(void *table, uint32_t bytes);
+uint32_t dvbs2_transpose_code_bytes(void);
+dvbs2_transpose_fn dvbs2_transpose_copy(void *code, uint32_t bytes);
 // Per-worker C4 options, captured at begin. Unknown options fail without writes.
 // The original begin APIs keep their behavior.
 bool dvbs2_frontend_begin_reentrant_options(const uint32_t *bbframe, uint32_t *frame,
@@ -142,6 +156,7 @@ typedef struct {
                   const uint16_t *, uint32_t);
     unsigned mode;
     bool done;
+    dvbs2_transpose_fn transpose; // captured default; worker may override with its private copy
 } dvbs2_ldpc_state_t;
 uint32_t dvbs2_ldpc_workspace_words(void); // zero if q>64
 bool dvbs2_ldpc_begin_reentrant(uint32_t *frame, uint32_t *workspace,
